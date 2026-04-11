@@ -1588,8 +1588,23 @@ function criarProcesso(){
   };
   processos.push(p);
   updCounts();
-  {const donoEmail=getDonoEmail(p);if(donoEmail)enviarNotif(donoEmail,p.dono,'Nova demanda de mapeamento aberta — aguarda questionário de maturidade',p.nome,'','EP·CAGE');}
-  toast('Processo criado! Notificação enviada para '+ap.gerente);
+  toast('Processo criado com sucesso!');
+  // Pede confirmação antes de notificar o dono
+  setTimeout(()=>{
+    const donoEmail=getDonoEmail(p);
+    if(!donoEmail||!p.dono) return;
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+    ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+      <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem">Notificar Dono do Processo?</div>
+      <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">Deseja enviar notificação e e-mail para <strong>${p.dono}</strong> informando que o mapeamento de <em>${p.nome}</em> foi iniciado?</div>
+      <div class="btn-row">
+        <button class="btn" onclick="this.closest('[style*=fixed]').remove()">Não agora</button>
+        <button class="btn btn-p" onclick="enviarNotif('${donoEmail}','${p.dono}','Mapeamento iniciado — aguarda questionário de maturidade','${p.nome}','','EP·CAGE');toast('Notificação enviada para ${p.dono}','var(--teal)');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+  }, 400);
   fbAutoSave('criarProcesso');
   abrirProc(p.id);
 }
@@ -1606,44 +1621,52 @@ function av(etAtu, role, acao, prazoEl, notifDest){
   if(nx){
     curProc.etapa = nx;
     push(curProc, nx, 'Sistema', 'Etapa iniciada');
-    // Notifica apenas o dono do processo, se a próxima etapa é dele
-    const etObj = ETAPAS.find(e=>e.id===nx);
-    if(etObj?.resp==='dono' && curProc.dono){
-      const email = getDonoEmail(curProc);
-      if(email) enviarNotif(email, curProc.dono, 'Nova tarefa: '+etLb(nx)+' aguarda sua ação', curProc.nome, prazoVal, role);
-    }
   }
   rDetalhe();updCounts();
   fbAutoSave('av');
-  // Perguntar ao EP se deseja dar ciência ao dono
+  // Sempre pede confirmação antes de qualquer notificação ao dono
   if(isEP() && curProc?.dono){
-    setTimeout(()=>perguntarCienciaDono(etAtu),200);
+    const etObj = ETAPAS.find(e=>e.id===nx);
+    if(etObj?.resp==='dono'){
+      // Próxima etapa é do dono — pergunta se quer notificá-lo sobre a nova tarefa
+      setTimeout(()=>perguntarNotifDono('tarefa', nx, etAtu),200);
+    } else {
+      // Etapa EP concluída — pergunta se quer dar ciência ao dono
+      setTimeout(()=>perguntarNotifDono('ciencia', nx, etAtu),200);
+    }
   }
 }
-function perguntarCienciaDono(etapaConcluidaId){
+// tipo='tarefa': próxima etapa é do dono. tipo='ciencia': EP concluiu etapa EP e quer informar dono.
+function perguntarNotifDono(tipo, etapaProxId, etapaConcluidaId){
   const p=curProc;
   if(!p||!p.dono) return;
+  const isTarefa = tipo==='tarefa';
+  const titulo = isTarefa ? 'Notificar Dono sobre nova tarefa?' : 'Dar ciência ao Dono do Processo?';
+  const msg = isTarefa
+    ? `A etapa <em>${etLb(etapaProxId)}</em> aguarda ação de <strong>${p.dono}</strong>. Deseja enviar notificação e e-mail agora?`
+    : `Deseja notificar <strong>${p.dono}</strong> sobre a conclusão da etapa <em>${etLb(etapaConcluidaId)}</em>?`;
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
   ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem">Dar ciência ao Dono do Processo?</div>
-    <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">Deseja notificar <strong>${p.dono}</strong> sobre a conclusão da etapa <em>${etLb(etapaConcluidaId)}</em>? Um e-mail será enviado e ficará registrado nas notificações.</div>
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem">${titulo}</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">${msg} Um e-mail será enviado e registrado nas notificações.</div>
     <div class="btn-row">
       <button class="btn" onclick="this.closest('[style*=fixed]').remove()">Não, obrigado</button>
-      <button class="btn btn-p" onclick="enviarCienciaDono('${etapaConcluidaId}');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
+      <button class="btn btn-p" onclick="confirmarNotifDono('${tipo}','${etapaProxId||''}','${etapaConcluidaId||''}');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
 }
-function enviarCienciaDono(etapaConcluidaId){
+function confirmarNotifDono(tipo, etapaProxId, etapaConcluidaId){
   const p=curProc;
   if(!p||!p.dono) return;
   const email=getDonoEmail(p);
   if(!email){toast('E-mail do dono não encontrado no cadastro.','var(--amber)');return;}
-  enviarNotif(email, p.dono,
-    'Etapa concluída pelo EP: '+etLb(etapaConcluidaId)+' — processo "'+p.nome+'"',
-    p.nome,'',usuarioLogado?.nome||'EP');
-  toast('Ciência enviada para '+p.dono,'var(--teal)');
+  const acao = tipo==='tarefa'
+    ? 'Nova tarefa: '+etLb(etapaProxId)+' aguarda sua ação'
+    : 'Etapa concluída pelo EP: '+etLb(etapaConcluidaId)+' — processo "'+p.nome+'"';
+  enviarNotif(email, p.dono, acao, p.nome, '', usuarioLogado?.nome||'EP');
+  toast('Notificação enviada para '+p.dono,'var(--teal)');
 }
 function reprovar(voltaEt, role, acao){
   const obs = document.getElementById('aobs')?.value||'';
