@@ -637,15 +637,24 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
     </div>
 
-    <!-- API Key Claude (importação inteligente de POP) -->
+    <!-- Configuração Azure OpenAI (importação inteligente de POP) -->
     <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--bdr)">
-      <div class="sec-lbl" style="margin-bottom:.4rem">API Key Claude (para importação inteligente de POP)</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input class="fi" id="claude-api-key" type="password" placeholder="sk-ant-api03-..." style="flex:1;max-width:360px">
-        <button class="btn btn-p" onclick="salvarClaudeKey()">Salvar</button>
-        <span id="claude-key-status" style="font-size:12px;color:var(--ink3)"></span>
+      <div class="sec-lbl" style="margin-bottom:.6rem">Configuração IA — Azure OpenAI (para importação inteligente de POP)</div>
+      <div class="g2" style="margin-bottom:.5rem">
+        <div class="fg">
+          <label class="fl">Endpoint (URL completa com deployment e api-version)</label>
+          <input class="fi" id="azure-endpoint" placeholder="https://RECURSO.openai.azure.com/openai/deployments/DEPLOYMENT/chat/completions?api-version=2024-02-01">
+        </div>
+        <div class="fg">
+          <label class="fl">API Key</label>
+          <input class="fi" id="azure-api-key" type="password" placeholder="Chave do Azure OpenAI">
+        </div>
       </div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:.3rem">Necessária para extração automática de dados ao importar POPs em Word.</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-p" onclick="salvarAzureConfig()">Salvar configuração</button>
+        <span id="azure-config-status" style="font-size:12px;color:var(--ink3)"></span>
+      </div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:.3rem">Necessária para extração automática de dados ao importar POPs em Word. A chave é armazenada apenas no seu navegador.</div>
     </div>
 
     <!-- ABA: Como configurar -->
@@ -1255,9 +1264,12 @@ function aplicarPermissoes(){
   if(nbAud) nbAud.style.display = isEP() ? '' : 'none';
   // Botões marcados ep-only
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
-  // Carrega chave Claude no campo de configuração
-  const ckEl=document.getElementById('claude-api-key');
-  if(ckEl&&!ckEl.value){const k=getClaudeKey();if(k)ckEl.value=k;}
+  // Carrega config Azure OpenAI nos campos
+  const azCfg=getAzureConfig();
+  const epEl=document.getElementById('azure-endpoint');
+  const akEl=document.getElementById('azure-api-key');
+  if(epEl&&!epEl.value&&azCfg.endpoint) epEl.value=azCfg.endpoint;
+  if(akEl&&!akEl.value&&azCfg.key) akEl.value=azCfg.key;
 }
 
 function rDash(){
@@ -4277,16 +4289,21 @@ rNotif = function(){
 })();
 
 // ═══════════════════════════════════════════
-// CLAUDE API KEY
+// AZURE OPENAI CONFIG
 // ═══════════════════════════════════════════
-function salvarClaudeKey(){
-  const k=document.getElementById('claude-api-key')?.value.trim();
-  if(!k){document.getElementById('claude-key-status').textContent='Informe a chave.';return;}
-  localStorage.setItem('claudeApiKey',k);
-  document.getElementById('claude-key-status').textContent='Salva!';
-  setTimeout(()=>{document.getElementById('claude-key-status').textContent='';},3000);
+function salvarAzureConfig(){
+  const ep=document.getElementById('azure-endpoint')?.value.trim();
+  const key=document.getElementById('azure-api-key')?.value.trim();
+  const st=document.getElementById('azure-config-status');
+  if(!ep||!key){st.textContent='Preencha endpoint e chave.';return;}
+  localStorage.setItem('azureOpenAIEndpoint',ep);
+  localStorage.setItem('azureOpenAIKey',key);
+  st.textContent='Configuração salva!';
+  setTimeout(()=>{st.textContent='';},3000);
 }
-function getClaudeKey(){return localStorage.getItem('claudeApiKey')||'';}
+function getAzureConfig(){
+  return{endpoint:localStorage.getItem('azureOpenAIEndpoint')||'',key:localStorage.getItem('azureOpenAIKey')||''};
+}
 
 // ═══════════════════════════════════════════
 // IMPORTAÇÃO DE POP (Word + IA)
@@ -4306,10 +4323,6 @@ function abrirImportPOP(){
   document.getElementById('pop-loading').style.display='none';
   document.getElementById('pop-file-input').value='';
   document.getElementById('pop-import-modal').style.display='block';
-  // Preenche chave salva no campo de config
-  const k=getClaudeKey();
-  const el=document.getElementById('claude-api-key');
-  if(el&&k) el.value=k;
 }
 function fecharImportPOP(){
   document.getElementById('pop-import-modal').style.display='none';
@@ -4320,9 +4333,9 @@ function voltarImportPOP(){
 }
 async function processarArquivoPOP(input){
   if(!input.files||!input.files[0])return;
-  const apiKey=getClaudeKey();
-  if(!apiKey){
-    alert('Configure a API Key Claude em Notificações → Configuração de e-mail → API Key IA antes de importar.');
+  const cfg=getAzureConfig();
+  if(!cfg.endpoint||!cfg.key){
+    alert('Configure o Azure OpenAI em Notificações → Configuração de e-mail → Configuração IA antes de importar.');
     return;
   }
   document.getElementById('pop-loading').style.display='block';
@@ -4331,24 +4344,22 @@ async function processarArquivoPOP(input){
     // Extrai texto do .docx com mammoth.js
     const arrayBuffer=await input.files[0].arrayBuffer();
     const result=await mammoth.extractRawText({arrayBuffer});
-    const texto=result.value.trim().slice(0,12000); // limita tokens
-    // Chama Claude API
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    const texto=result.value.trim().slice(0,12000);
+    // Chama Azure OpenAI (formato chat completions)
+    const prompt=`Analise o POP (Procedimento Operacional Padrão) abaixo e extraia as informações no formato JSON exato, sem texto adicional:\n{"nome":"nome do processo","area":"área ou unidade responsável","objetivo":"objetivo do processo em uma frase","atores":["ator1","ator2"],"etapas":["etapa 1","etapa 2","etapa 3"]}\n\nPOP:\n${texto}`;
+    const resp=await fetch(cfg.endpoint,{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json','api-key':cfg.key},
       body:JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
+        messages:[{role:'user',content:prompt}],
         max_tokens:1024,
-        messages:[{role:'user',content:`Analise o POP (Procedimento Operacional Padrão) abaixo e extraia as informações no formato JSON exato, sem texto adicional:
-{"nome":"nome do processo","area":"área ou unidade responsável","objetivo":"objetivo do processo em uma frase","atores":["ator1","ator2"],"etapas":["etapa 1","etapa 2","etapa 3"]}
-
-POP:
-${texto}`}]
+        temperature:0.2
       })
     });
-    if(!resp.ok){const e=await resp.text();throw new Error('API: '+e);}
+    if(!resp.ok){const e=await resp.text();throw new Error('Azure API: '+resp.status+' — '+e);}
     const data=await resp.json();
-    const jsonStr=data.content[0].text.trim().replace(/```json?/g,'').replace(/```/g,'');
+    const rawText=data.choices?.[0]?.message?.content||'';
+    const jsonStr=rawText.trim().replace(/```json?/g,'').replace(/```/g,'').trim();
     const extracted=JSON.parse(jsonStr);
     // Preenche formulário
     document.getElementById('pop-nome').value=extracted.nome||'';
@@ -4362,7 +4373,7 @@ ${texto}`}]
   }catch(err){
     document.getElementById('pop-loading').style.display='none';
     document.getElementById('pop-file-input').disabled=false;
-    alert('Erro ao processar o arquivo: '+err.message+'\n\nVerifique sua API Key Claude e tente novamente.');
+    alert('Erro ao processar o arquivo: '+err.message+'\n\nVerifique o endpoint e a chave do Azure OpenAI em Notificações.');
   }
 }
 function confirmarImportPOP(){
