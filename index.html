@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-modeler.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <!-- Firebase -->
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -317,7 +318,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </button>
   <button class="nav-btn" onclick="go('processos',this)" id="nb-proc">
     <svg viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-    Processos <span class="nav-cnt" id="nb-total">0</span>
+    Processos em andamento <span class="nav-cnt" id="nb-total">0</span>
   </button>
   <div class="nav-sec">Módulos</div>
   <button class="nav-btn" onclick="go('arq',this)" id="nb-arq">
@@ -331,6 +332,10 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <button class="nav-btn" onclick="go('indicadores',this)" id="nb-ind">
     <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="3" height="7" rx="1" fill="currentColor" opacity=".5"/><rect x="6" y="5" width="3" height="10" rx="1" fill="currentColor"/><rect x="11" y="2" width="3" height="13" rx="1" fill="currentColor" opacity=".7"/></svg>
     Indicadores
+  </button>
+  <button class="nav-btn ep-only" onclick="go('auditoria',this)" id="nb-aud">
+    <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4M5 12h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--surf)" stroke="currentColor" stroke-width="1.4"/><path d="M11 12l.8.8L13 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Auditoria <span class="nav-cnt" id="nb-aud-cnt">0</span>
   </button>
   <button class="nav-btn" onclick="go('notificacoes',this)" id="nb-notif">
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a5 5 0 00-5 5v3l-1 2h12l-1-2V7a5 5 0 00-5-5z" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -373,8 +378,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 </div></div>
 
 <div id="page-processos" class="page"><div style="padding:2rem">
-  <div class="ph"><div><div class="ph-t">Processos</div><div class="ph-s">Apenas processos vinculados à arquitetura podem ser mapeados</div></div>
-  <div id="btn-novo-proc"></div></div>
+  <div class="ph"><div><div class="ph-t">Processos em andamento</div><div class="ph-s">Apenas processos vinculados à arquitetura podem ser mapeados</div></div>
+  <div style="display:flex;gap:8px"><div id="btn-novo-proc"></div><button class="btn ep-only" onclick="abrirImportPOP()" style="font-size:12px">⬆ Importar POP</button></div></div>
   <div class="fbar">
     <span class="fbar-l">Fase</span>
     <div class="chips" id="fase-chips">
@@ -589,6 +594,18 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
   </div>
 </div></div>
+<div id="page-auditoria" class="page"><div style="padding:2rem">
+  <div class="ph">
+    <div><div class="ph-t">Auditoria de processos</div><div class="ph-s" id="aud-sub">Processos com auditoria em andamento ou concluída</div></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:1rem">
+    <span class="chip on" id="aud-chip-and" onclick="filtAuditoria('andamento',this)">Em andamento</span>
+    <span class="chip" id="aud-chip-conc" onclick="filtAuditoria('concluida',this)">Concluídas</span>
+    <span class="chip" id="aud-chip-all" onclick="filtAuditoria('todos',this)">Todos</span>
+  </div>
+  <div id="aud-list"></div>
+</div></div>
+
 <div id="page-notificacoes" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Notificações</div><div class="ph-s">Configuração de e-mail e registro de avisos enviados</div></div>
   <button class="btn" onclick="limparNotifs()">Limpar lidas</button></div>
@@ -618,6 +635,26 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <button class="btn" onclick="testarEmailJS()">Enviar e-mail de teste</button>
         <span id="ejs-test-result" style="font-size:12px;color:var(--ink3)"></span>
       </div>
+    </div>
+
+    <!-- Configuração Azure OpenAI (importação inteligente de POP) -->
+    <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--bdr)">
+      <div class="sec-lbl" style="margin-bottom:.6rem">Configuração IA — Azure OpenAI (para importação inteligente de POP)</div>
+      <div class="g2" style="margin-bottom:.5rem">
+        <div class="fg">
+          <label class="fl">Endpoint (URL completa com deployment e api-version)</label>
+          <input class="fi" id="azure-endpoint" placeholder="https://RECURSO.openai.azure.com/openai/deployments/DEPLOYMENT/chat/completions?api-version=2024-02-01">
+        </div>
+        <div class="fg">
+          <label class="fl">API Key</label>
+          <input class="fi" id="azure-api-key" type="password" placeholder="Chave do Azure OpenAI">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-p" onclick="salvarAzureConfig()">Salvar configuração</button>
+        <span id="azure-config-status" style="font-size:12px;color:var(--ink3)"></span>
+      </div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:.3rem">Necessária para extração automática de dados ao importar POPs em Word. A chave é armazenada apenas no seu navegador.</div>
     </div>
 
     <!-- ABA: Como configurar -->
@@ -809,8 +846,8 @@ let arqIdC = 200;
 const ETAPAS = [
   // Entendimento
   {id:'abertura',lb:'Abertura',fase:'Entendimento',cor:'pip-e',resp:'ep'},
-  {id:'questionario',lb:'Quest. maturidade',fase:'Entendimento',cor:'pip-e',resp:'dono'},
   {id:'reuniao',lb:'Reunião entend.',fase:'Entendimento',cor:'pip-e',resp:'ep'},
+  {id:'questionario',lb:'Quest. maturidade',fase:'Entendimento',cor:'pip-e',resp:'dono'},
   {id:'mapeamento',lb:'Mapeamento',fase:'Entendimento',cor:'pip-e',resp:'ep'},
   {id:'analise_asis',lb:'Análise AS IS',fase:'Entendimento',cor:'pip-e',resp:'ep'},
   // Modelagem
@@ -876,6 +913,8 @@ let ejsConfig = {service:'',template:'',pubkey:''};
 let usuarioLogado = null;
 let curProc = null;
 let filtFaseAtual = '';
+let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
+let mapeadosManual = new Set(JSON.parse(localStorage.getItem('mapeadosManual')||'[]'));
 let bpmnModelers = {};
 let bpmnDirty = {};
 
@@ -930,7 +969,7 @@ function go(page,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+page).classList.add('on');
   if(btn)btn.classList.add('on');
-  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,melhorias:()=>{populateMelhSel();rMelh();},indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},admin:renderAdmin}[page]||function(){})();
+  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,melhorias:()=>{populateMelhSel();rMelh();},indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,admin:renderAdmin}[page]||function(){})();
 }
 function stab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -962,6 +1001,9 @@ function updCounts(){
   document.getElementById('nb-mc').textContent=melhorias.filter(m=>m.status!=='Concluida').length;
   document.getElementById('nb-fila-cnt').textContent=getTarefasUsr().length;
   document.getElementById('nb-notif-cnt').textContent=notifs.filter(n=>!n.lida).length;
+  const audCnt=processos.filter(p=>p.etapa==='auditoria'||(p.auditoria?.concluida===true)).length;
+  const audEl=document.getElementById('nb-aud-cnt');
+  if(audEl) audEl.textContent=audCnt;
 }
 
 // ═══════════════════════════════════════════
@@ -1085,6 +1127,40 @@ function getTarefasUsr(){
     return false;
   });
 }
+let filtAudMode='andamento';
+function filtAuditoria(modo,el){
+  filtAudMode=modo;
+  document.querySelectorAll('#aud-chip-and,#aud-chip-conc,#aud-chip-all').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  rAuditoria();
+}
+function rAuditoria(){
+  const el=document.getElementById('aud-list');
+  if(!el)return;
+  const lista=processos.filter(p=>{
+    if(filtAudMode==='andamento') return p.etapa==='auditoria';
+    if(filtAudMode==='concluida') return p.auditoria?.concluida===true;
+    return p.etapa==='auditoria'||p.auditoria?.concluida===true;
+  });
+  document.getElementById('aud-sub').textContent=lista.length+' processo'+(lista.length!==1?'s':'');
+  if(!lista.length){el.innerHTML='<div class="ib ibg">Nenhum processo encontrado para este filtro.</div>';return;}
+  el.innerHTML=lista.map(p=>{
+    const aud=p.auditoria||{};
+    const concluida=aud.concluida===true;
+    return `<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})" style="margin-bottom:8px">
+      <div style="flex:1">
+        <div class="prc-t">${p.nome}</div>
+        <div class="prc-m"><strong>${p.macro}</strong> · ${p.area} · Dono: ${p.dono}</div>
+        ${aud.data?`<div style="font-size:11px;color:var(--ink3);margin-top:3px">Auditoria: ${aud.data}${aud.conformidade?' · '+aud.conformidade:''}</div>`:''}
+        ${aud.conclusao?`<div style="font-size:11px;color:var(--ink3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px">${aud.conclusao}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <span class="badge ${concluida?'bg':'ba'}">${concluida?'Concluída':'Em andamento'}</span>
+        ${pBadge(p.prio)}
+      </div>
+    </div>`;
+  }).join('');
+}
 function rFila(){
   if(!usuarioLogado)return;
   const tarefas=getTarefasUsr();
@@ -1183,16 +1259,40 @@ function aplicarPermissoes(){
   // Admin nav — only EP
   const nbAdmin = document.getElementById('nb-admin');
   if(nbAdmin) nbAdmin.style.display = isEP() ? '' : 'none';
+  // Auditoria nav — only EP
+  const nbAud = document.getElementById('nb-aud');
+  if(nbAud) nbAud.style.display = isEP() ? '' : 'none';
+  // Botões marcados ep-only
+  document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
+  // Carrega config Azure OpenAI nos campos
+  const azCfg=getAzureConfig();
+  const epEl=document.getElementById('azure-endpoint');
+  const akEl=document.getElementById('azure-api-key');
+  if(epEl&&!epEl.value&&azCfg.endpoint) epEl.value=azCfg.endpoint;
+  if(akEl&&!akEl.value&&azCfg.key) akEl.value=azCfg.key;
 }
 
 function rDash(){
   aplicarPermissoes();
   document.getElementById('dash-dt').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   updCounts();
+  const mx=getMetricasArq();
+  const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
   document.getElementById('dash-stats').innerHTML=
-    '<div class="stat cb"><div class="stat-n">'+processos.length+'</div><div class="stat-l">Processos</div></div>'+
-    '<div class="stat ca"><div class="stat-n">'+processos.filter(p=>!['monitora','auditoria'].includes(p.etapa)).length+'</div><div class="stat-l">Em mapeamento</div></div>'+
-    '<div class="stat cg"><div class="stat-n">'+processos.filter(p=>p.etapa==='monitora').length+'</div><div class="stat-l">Em monitoramento</div></div>'+
+    `<div class="stat cb" style="grid-column:span 2;cursor:pointer" onclick="go('arq',document.getElementById('nb-arq'))" title="Ver arquitetura">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><div class="stat-n">${pct}%</div><div class="stat-l">Processos mapeados</div></div>
+        <div style="flex:1;min-width:120px">
+          <div style="background:var(--bg3);border-radius:99px;height:8px;overflow:hidden">
+            <div style="background:var(--teal);height:100%;width:${pct}%;border-radius:99px;transition:width .4s"></div>
+          </div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">${mx.nMap} de ${mx.nUnid} unidades mapeáveis</div>
+        </div>
+      </div>
+    </div>`+
+    '<div class="stat ca"><div class="stat-n">'+mx.nMacros+'</div><div class="stat-l">Macroprocessos</div></div>'+
+    '<div class="stat cb"><div class="stat-n">'+mx.nProc+'</div><div class="stat-l">Processos</div></div>'+
+    '<div class="stat cg"><div class="stat-n">'+mx.nSub+'</div><div class="stat-l">Subprocessos</div></div>'+
     '<div class="stat cr"><div class="stat-n">'+processos.filter(p=>p.prio==='Critica').length+'</div><div class="stat-l">Prioridade crítica</div></div>';
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
@@ -1219,7 +1319,11 @@ function filtFase(fase,el){filtFaseAtual=fase;document.querySelectorAll('#fase-c
 function renderProcs(){
   aplicarPermissoes();
   const srch=(document.getElementById('srch-p')?.value||'').toLowerCase();
-  const lista=processos.filter(p=>(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch)));
+  const isDono=usuarioLogado?.perfil==='dono';
+  const lista=processos.filter(p=>{
+    if(isDono&&p.dono!==usuarioLogado.nome)return false;
+    return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch));
+  });
   const el=document.getElementById('proc-list'),em=document.getElementById('proc-empty');
   if(!lista.length){el.innerHTML='';em.style.display='block';return;}
   em.style.display='none';
@@ -1242,12 +1346,32 @@ function rDetalhe(){
   document.getElementById('det-titulo').textContent=p.nome;
   document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+eBadge(p.etapa);
   document.getElementById('det-prio').innerHTML=pBadge(p.prio);
+  epRetroEtapa = null;
   const idx=etIdx(p.etapa);
-  document.getElementById('det-prog').innerHTML=ETAPAS.map((e,i)=>`
-    <div class="prog-s ${i<idx?'dn':i===idx?'da':''}">
-      <div class="prog-d ${i<idx?'dn':i===idx?'da':''}">${i<idx?'✓':(i+1)}</div>
-      <div class="prog-l ${i===idx?'da':''}">${e.lb}</div>
-    </div>`).join('');
+  const epUser=isEP();
+  document.getElementById('det-prog').innerHTML=ETAPAS.map((e,i)=>{
+    const past=i<idx,cur=i===idx;
+    const clickable=past&&epUser;
+    return `<div class="prog-s ${past?'dn':cur?'da':''}" ${clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="Revisar: ${e.lb}"`:''}">
+      <div class="prog-d ${past?'dn':cur?'da':''}">${past?'✓':(i+1)}</div>
+      <div class="prog-l ${cur?'da':''}">${e.lb}</div>
+    </div>`;
+  }).join('');
+  if(usuarioLogado?.perfil==='dono'){
+    const etObj=ETAPAS.find(e=>e.id===p.etapa);
+    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
+    document.getElementById('det-tabs').innerHTML=
+      `<div class="tab on" onclick="stab('acao',this)">${minhaTarefa?'Minha tarefa':'Sobre o processo'}</div>`+
+      `<div class="tab" onclick="stab('hist',this)">Histórico</div>`;
+    ['ent','mod','form','mon'].forEach(id=>{
+      const el=document.getElementById('tab-'+id);
+      if(el){el.innerHTML='';el.classList.remove('on');}
+    });
+    document.getElementById('tab-acao').classList.add('on');
+    document.getElementById('tab-hist').classList.remove('on');
+    rAcao(p);
+    return;
+  }
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===0));
   document.querySelectorAll('.tab-p').forEach((p,i)=>p.classList.toggle('on',i===0));
   rAcao(p);
@@ -1394,11 +1518,32 @@ function reprovar(voltaEt, role, acao){
   push(curProc, voltaEt, 'Sistema', 'Retornado para ajustes');
   rDetalhe();
 }
+function popupConclusaoDono(msg){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2.5rem 2rem;max-width:380px;width:90%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:52px;margin-bottom:.8rem">✅</div>
+    <div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:.5rem">Tarefa concluída!</div>
+    <div style="font-size:13px;color:var(--ink3);line-height:1.6;margin-bottom:1.5rem">${msg}</div>
+    <button class="btn btn-p" onclick="this.closest('[style*=fixed]').remove()">Ok, entendido</button>
+  </div>`;
+  document.body.appendChild(ov);
+  setTimeout(()=>{if(ov.parentNode)ov.remove();},10000);
+}
+function avDono(etAtu,role,acao,prazoEl){
+  av(etAtu,role,acao,prazoEl);
+  setTimeout(()=>popupConclusaoDono('Obrigado! Sua validação foi registrada e o EP foi notificado para continuar o processo.'),200);
+}
+function reprovarDono(voltaEt,role,acao){
+  reprovar(voltaEt,role,acao);
+  setTimeout(()=>popupConclusaoDono('Ajuste solicitado com sucesso! O EP foi notificado e revisará o material antes de encaminhar novamente.'),200);
+}
 
 // ═══════════════════════════════════════════
 // ABA: AÇÃO ATUAL (formulários por etapa)
 // ═══════════════════════════════════════════
 function prazoField(etId){
+  if(usuarioLogado?.perfil==='dono') return '';
   return `<div class="prazo-inline">
     <label>Prazo para a próxima etapa:</label>
     <input type="date" id="prazo-${etId}" value="">
@@ -1417,7 +1562,7 @@ const ACOES = {
     <div class="fg"><label class="fl">Equipe do trabalho</label><input class="fi" id="a-equipe" value="${p.ent.equipe||''}" placeholder="Nomes dos membros envolvidos"></div>
     <div class="fg"><label class="fl">Objetivo do trabalho</label><textarea class="fi" id="a-obj" style="min-height:60px">${p.objetivo||''}</textarea></div>
     ${prazoField('abertura')}
-    <div class="btn-row"><button class="btn btn-t" onclick="salvarAbertura()">Confirmar e enviar questionário ao dono →</button></div>`},
+    <div class="btn-row"><button class="btn btn-t" onclick="salvarAbertura()">Confirmar e agendar reunião de entendimento →</button></div>`},
 
   questionario:{titulo:'Questionário de maturidade',sub:'Responder as 15 perguntas sobre o estado atual do processo.',role:'Dono do processo',rk:'dono',
     form:p=>{
@@ -1554,8 +1699,8 @@ const ACOES = {
     </div>
     ${prazoField('valid_dono')}
     <div class="btn-row">
-      <button class="btn btn-a" onclick="reprovar('esboco','Dono','Dono solicitou ajustes')">Solicitar ajustes</button>
-      <button class="btn btn-g" onclick="av('valid_dono','Dono do processo','Modelagem validada pelo dono',null)">Aprovar ✓</button>
+      <button class="btn btn-a" onclick="reprovarDono('esboco','Dono','Dono solicitou ajustes')">Solicitar ajustes</button>
+      <button class="btn btn-g" onclick="avDono('valid_dono','Dono do processo','Modelagem validada pelo dono',null)">Aprovar ✓</button>
     </div>`},
 
   desenho_final:{titulo:'Desenho final do processo',sub:'Consolidar e finalizar o fluxo validado.',role:'EP',rk:'ep',
@@ -1691,10 +1836,127 @@ const ACOES = {
     </div>`},
 };
 
+function navegarRetro(etId){
+  epRetroEtapa=etId;
+  document.querySelectorAll('#det-tabs .tab').forEach((t,i)=>t.classList.toggle('on',i===0));
+  document.querySelectorAll('.tab-p').forEach(el=>el.classList.remove('on'));
+  document.getElementById('tab-acao').classList.add('on');
+  rAcaoRetro();
+}
+function fecharRetro(){
+  epRetroEtapa=null;
+  rDetalhe();
+}
+function rAcaoRetro(){
+  const p=curProc,etId=epRetroEtapa;
+  const ac=ACOES[etId];
+  if(!ac)return;
+  document.getElementById('tab-acao').innerHTML=`
+    <div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:13px"><strong>Revisão retroativa:</strong> ${ac.titulo}</span>
+      <button class="btn" style="font-size:11px;padding:3px 8px;margin-left:auto" onclick="fecharRetro()">← Voltar à etapa atual</button>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.7rem;flex-wrap:wrap;gap:8px">
+        <div><div class="card-t" style="margin-bottom:2px">${ac.titulo}</div>
+        <div style="font-size:12px;color:var(--ink3)">${ac.sub}</div></div>
+        <span class="badge bsl">${ac.role}</span>
+      </div>
+      ${ac.form(p)}
+    </div>
+    <div class="btn-row" style="margin-top:1rem;padding:.8rem;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px">
+      <span style="font-size:12px;color:var(--ink3)">Modo revisão — processo permanece na etapa atual</span>
+      <button class="btn btn-p" onclick="salvarRetroativo('${etId}')">Salvar revisão</button>
+    </div>`;
+  document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
+  if(etId==='esboco') setTimeout(()=>{initBpmnMod('asis',p);},120);
+}
+function salvarRetroativo(etId){
+  const p=curProc;
+  const saves={
+    abertura:()=>{
+      p.ent.dt_inicio=document.getElementById('a-ini')?.value||p.ent.dt_inicio;
+      p.ent.dt_prev=document.getElementById('a-prev')?.value||p.ent.dt_prev;
+      p.ent.equipe=document.getElementById('a-equipe')?.value||p.ent.equipe;
+      p.objetivo=document.getElementById('a-obj')?.value||p.objetivo;
+    },
+    reuniao:()=>{
+      const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+      if(prob.length) p.ent.prob=prob;
+      const prevOps=(document.getElementById('a-prev-ops')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+      if(prevOps.length) p.ent.prev_ops=prevOps;
+    },
+    questionario:()=>{
+      const resp=p.ent.quest_resp||{};
+      const vals=Object.values(resp);
+      const total=vals.reduce((a,b)=>a+b,0);
+      const media=vals.length>0?(total/vals.length).toFixed(1):0;
+      p.ent.mat=media<=1.5?1:media<=2.5?2:media<=3.5?3:media<=4.5?4:5;
+    },
+    mapeamento:()=>{
+      p.ent.vol=document.getElementById('a-vol')?.value||p.ent.vol;
+      p.ent.equipe_det=document.getElementById('a-eqdet')?.value||p.ent.equipe_det;
+      p.ent.bench=document.getElementById('a-bench')?.value||p.ent.bench;
+    },
+    analise_asis:()=>{
+      p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
+    },
+    desenho_final:()=>{
+      p.form=p.form||{};
+      p.form.link_final=document.getElementById('a-link')?.value||p.form.link_final;
+      p.form.ferramenta=document.getElementById('a-ferr')?.value||p.form.ferramenta;
+      p.form.obs_final=document.getElementById('a-obs')?.value||p.form.obs_final;
+    },
+    complement:()=>{
+      p.form=p.form||{};
+      p.form.faq=document.getElementById('cf-faq')?.value||p.form.faq;
+      p.form.links=document.getElementById('cf-links')?.value||p.form.links;
+      p.form.forms=document.getElementById('cf-forms')?.value||p.form.forms;
+    },
+    publicacao:()=>{
+      p.form=p.form||{};
+      p.form.pub_link=document.getElementById('pub-link')?.value||p.form.pub_link;
+      p.form.pub_local=document.getElementById('pub-local')?.value||p.form.pub_local;
+    },
+  };
+  if(saves[etId]) saves[etId]();
+  push(p,etId,'EP','Dados revisados retroativamente pelo EP');
+  epRetroEtapa=null;
+  toast('Revisão salva.','var(--blue)');
+  rDetalhe();
+  fbAutoSave('retroativo');
+  updCounts();
+}
 function rAcao(p){
-  const role = usuarioLogado?.perfil||'ep';
-  const ac = ACOES[p.etapa];
+  const role=usuarioLogado?.perfil||'ep';
+  const ac=ACOES[p.etapa];
   if(!ac){document.getElementById('tab-acao').innerHTML='<div class="ib ibsl">Etapa não configurada.</div>';return;}
+  if(role==='dono'){
+    const etObj=ETAPAS.find(e=>e.id===p.etapa);
+    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
+    if(minhaTarefa){
+      document.getElementById('tab-acao').innerHTML=`
+        <div class="ib ibt" style="margin-bottom:1rem">O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.7rem;flex-wrap:wrap;gap:8px">
+            <div><div class="card-t" style="margin-bottom:2px">${ac.titulo}</div>
+            <div style="font-size:12px;color:var(--ink3)">${ac.sub}</div></div>
+            <span class="badge bsl">${ac.role}</span>
+          </div>
+          ${ac.form(p)}
+        </div>`;
+    } else {
+      document.getElementById('tab-acao').innerHTML=`
+        <div class="card">
+          <div class="ib iba" style="margin-bottom:1rem">
+            Esta etapa — <strong>${ac.titulo}</strong> — está sendo conduzida pelo EP.
+            Não há nenhuma ação necessária da sua parte neste momento.
+          </div>
+          <div style="font-size:13px;color:var(--ink2)">${ac.sub}</div>
+        </div>`;
+    }
+    return;
+  }
   document.getElementById('tab-acao').innerHTML=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.7rem;flex-wrap:wrap;gap:8px">
       <div><div class="card-t" style="margin-bottom:2px">${ac.titulo}</div>
@@ -1704,7 +1966,6 @@ function rAcao(p){
     ${ac.form(p)}
     ${role!==ac.rk?'<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>'+ac.role+'</strong>. Troque o perfil para interagir.</div>':''}
   </div>`;
-  // Mount BPMN if needed
   if(p.etapa==='esboco'){
     setTimeout(()=>{initBpmnMod('asis',p);},120);
   }
@@ -1719,7 +1980,7 @@ function salvarAbertura(){
   p.ent.dt_prev=document.getElementById('a-prev')?.value||'';
   p.ent.equipe=document.getElementById('a-equipe')?.value||'';
   p.objetivo=document.getElementById('a-obj')?.value||p.objetivo;
-  av('abertura','EP','Dados iniciais confirmados. Questionário enviado ao dono.','prazo-abertura',p.dono);
+  av('abertura','EP','Dados iniciais confirmados. Reunião de entendimento agendada.','prazo-abertura');
 }
 function setLikert(qid,val,btn){
   if(!curProc.ent.quest_resp)curProc.ent.quest_resp={};
@@ -1741,6 +2002,7 @@ function salvarQuestionario(){
   enviarNotif(p.resp_ep+'@sefaz.rs.gov.br',p.resp_ep,'Questionário de maturidade respondido. Nível: '+nivel+'/5. Próxima etapa: '+etLb(nx||''),p.nome,'',p.dono);
   toast('Questionário enviado! Maturidade nível '+nivel);
   rDetalhe();updCounts();
+  if(usuarioLogado?.perfil==='dono') setTimeout(()=>popupConclusaoDono('Seu questionário foi enviado com sucesso! O EP foi notificado e dará continuidade ao mapeamento do processo.'),200);
 }
 function salvarReuniao(){
   const p=curProc;
@@ -2192,9 +2454,10 @@ function bpmnImport(which){
 // SUBTABS HELPERS
 // ═══════════════════════════════════════════
 function sstab(id,el){
-  el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  const tabsEl=el.closest('.tabs');
+  tabsEl.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
-  ['pp1','pp2','pp3','pp4','aud1','aud2','aud3'].forEach(s=>{const e=document.getElementById(s);if(e)e.classList.toggle('on',s===id);e&&(e.style.display=s===id?'block':'none');});
+  tabsEl.parentElement.querySelectorAll('.tab-p').forEach(p=>{const active=p.id===id;p.classList.toggle('on',active);p.style.display=active?'block':'none';});
 }
 
 // ═══════════════════════════════════════════
@@ -2297,6 +2560,13 @@ function rArq(){
     el.innerHTML='<div class="ib ibb">Nenhum macroprocesso cadastrado. Importe uma planilha ou clique em "+ Macroprocesso".</div>';
     return;
   }
+
+  // Métricas no topo da arquitetura
+  const mx=getMetricasArq();
+  const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
+  document.getElementById('arq-sub').innerHTML=
+    `${mx.nMacros} macroprocesso${mx.nMacros!==1?'s':''} · ${mx.nProc} processo${mx.nProc!==1?'s':''} · ${mx.nSub} subprocesso${mx.nSub!==1?'s':''} &nbsp;—&nbsp; `+
+    `<strong style="color:${pct>=80?'var(--teal)':pct>=50?'var(--amber)':'var(--red)'}">${pct}% mapeados</strong> (${mx.nMap}/${mx.nUnid})`;
 
   const f = getArqFilters();
   const hasFilter = f.srch || f.macro || f.area || f.nat || f.obje;
@@ -2430,7 +2700,10 @@ function procArqHTML(mid,p){
         ? `<span class="badge bgr" style="font-size:10px">Agrupador · ${p.subprocessos.length} subprocesso${p.subprocessos.length!==1?'s':''}</span>`
         : linked
           ? `<span class="badge ${EBADGE[linked.etapa]||'bgr'}" style="font-size:10px">${etLb(linked.etapa)}</span><button class="btn btn-p" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();abrirProc(${linked.id})">Abrir</button>`
-          : `<span class="badge bgr" style="font-size:10px">Não mapeado</span>`}
+          : isMapeado(p.id)
+            ? `<span class="badge bg" style="font-size:10px">Mapeado</span>`
+            : `<span class="badge bgr" style="font-size:10px">Não mapeado</span>`}
+      ${isEP()&&!hasSubs?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isMapeado(p.id)?'var(--red)':'var(--teal)'}" onclick="toggleMapeadoManual('${p.id}',event)">${isMapeado(p.id)?'Desmarcar mapeado':'✓ Mapeado'}</button>`:''}
       ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();novoSubArq('${mid}','${p.id}')">+ Sub</button>
       <button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editProcArq('${mid}','${p.id}')">✎ Editar</button>
       <button class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="event.stopPropagation();removerProcArq('${mid}','${p.id}')">× Apagar</button>`:''}
@@ -2450,7 +2723,8 @@ function procArqHTML(mid,p){
               <span style="font-size:12.5px;font-weight:600;color:var(--ink);flex:1">${s.nome}</span>
               <span style="font-size:11px;color:var(--ink3)">${s.gerente||s.area||''}</span>
               ${isMeuProcesso(s.id)?'<span class="badge bb" style="font-size:9px">Meu processo</span>':''}
-              ${sl?`<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`:`<span class="badge bgr" style="font-size:10px">Não mapeado</span>`}
+              ${sl?`<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`:isMapeado(s.id)?`<span class="badge bg" style="font-size:10px">Mapeado</span>`:`<span class="badge bgr" style="font-size:10px">Não mapeado</span>`}
+              ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isMapeado(s.id)?'var(--red)':'var(--teal)'}" onclick="toggleMapeadoManual('${s.id}',event)">${isMapeado(s.id)?'Desmarcar':'✓ Mapeado'}</button>`:''}
               <button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${p.id}','${s.id}')">✎ Editar</button>
               <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${p.id}','${s.id}')">×</button>
             </div>
@@ -2830,6 +3104,31 @@ function getUnidadesMapeaveis(){
   return lista;
 }
 
+function isMapeado(arqId){
+  if(mapeadosManual.has(arqId)) return true;
+  const proc=processos.find(p=>p.arq_id===arqId);
+  return proc ? ['publicacao','acompanha','monitora','auditoria'].includes(proc.etapa) : false;
+}
+function toggleMapeadoManual(arqId,ev){
+  ev&&ev.stopPropagation();
+  if(mapeadosManual.has(arqId)) mapeadosManual.delete(arqId);
+  else mapeadosManual.add(arqId);
+  localStorage.setItem('mapeadosManual',JSON.stringify([...mapeadosManual]));
+  fbAutoSave('mapeados');
+  rArq();
+}
+function getMetricasArq(){
+  let nMacros=ARQUITETURA.length,nProc=0,nSub=0,nUnid=0,nMap=0;
+  ARQUITETURA.forEach(m=>{
+    m.processos.forEach(p=>{
+      nProc++;
+      if(p.subprocessos&&p.subprocessos.length>0){
+        p.subprocessos.forEach(s=>{nSub++;nUnid++;if(isMapeado(s.id))nMap++;});
+      } else {nUnid++;if(isMapeado(p.id))nMap++;}
+    });
+  });
+  return{nMacros,nProc,nSub,nUnid,nMap};
+}
 // Retorna apenas as unidades onde o usuário logado tem acesso
 function getMinhasUnidades(){
   if(!usuarioLogado) return [];
@@ -3502,6 +3801,8 @@ async function fbSaveAll(){
     batch.set(doc(db,'config','arquitetura'), {data: JSON.stringify(ARQUITETURA)});
     // usuarios (single doc)
     batch.set(doc(db,'config','usuarios'), {data: JSON.stringify(USUARIOS)});
+    // mapeados manualmente (single doc)
+    batch.set(doc(db,'config','mapeados'), {data: JSON.stringify([...mapeadosManual])});
 
     await batch.commit();
     toast('✓ Dados salvos na nuvem', 'var(--teal)');
@@ -3552,6 +3853,13 @@ async function fbLoad(){
     const usrDoc = await getDoc(doc(db,'config','usuarios'));
     if(usrDoc.exists() && usrDoc.data().data){
       USUARIOS = JSON.parse(usrDoc.data().data);
+    }
+
+    // mapeados manualmente
+    const mapDoc = await getDoc(doc(db,'config','mapeados'));
+    if(mapDoc.exists() && mapDoc.data().data){
+      mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
+      localStorage.setItem('mapeadosManual', JSON.stringify([...mapeadosManual]));
     }
 
     // emailjs config
@@ -3989,8 +4297,178 @@ rNotif = function(){
     if(saved) window._aiUrl = saved;
   } catch(e){}
 })();
+
+// ═══════════════════════════════════════════
+// AZURE OPENAI CONFIG
+// ═══════════════════════════════════════════
+function salvarAzureConfig(){
+  const ep=document.getElementById('azure-endpoint')?.value.trim();
+  const key=document.getElementById('azure-api-key')?.value.trim();
+  const st=document.getElementById('azure-config-status');
+  if(!ep||!key){st.textContent='Preencha endpoint e chave.';return;}
+  localStorage.setItem('azureOpenAIEndpoint',ep);
+  localStorage.setItem('azureOpenAIKey',key);
+  st.textContent='Configuração salva!';
+  setTimeout(()=>{st.textContent='';},3000);
+}
+function getAzureConfig(){
+  return{endpoint:localStorage.getItem('azureOpenAIEndpoint')||'',key:localStorage.getItem('azureOpenAIKey')||''};
+}
+
+// ═══════════════════════════════════════════
+// IMPORTAÇÃO DE POP (Word + IA)
+// ═══════════════════════════════════════════
+function abrirImportPOP(){
+  // Popula select de arquitetura
+  const sel=document.getElementById('pop-arq-sel');
+  sel.innerHTML='<option value="">— Selecione (opcional) —</option>';
+  getUnidadesMapeaveis().forEach(u=>{
+    const opt=document.createElement('option');
+    opt.value=u.arq_id;
+    opt.textContent=u.label;
+    sel.appendChild(opt);
+  });
+  document.getElementById('pop-step1').style.display='block';
+  document.getElementById('pop-step2').style.display='none';
+  document.getElementById('pop-loading').style.display='none';
+  document.getElementById('pop-file-input').value='';
+  document.getElementById('pop-import-modal').style.display='block';
+}
+function fecharImportPOP(){
+  document.getElementById('pop-import-modal').style.display='none';
+}
+function voltarImportPOP(){
+  document.getElementById('pop-step2').style.display='none';
+  document.getElementById('pop-step1').style.display='block';
+}
+async function processarArquivoPOP(input){
+  if(!input.files||!input.files[0])return;
+  const cfg=getAzureConfig();
+  if(!cfg.endpoint||!cfg.key){
+    alert('Configure o Azure OpenAI em Notificações → Configuração de e-mail → Configuração IA antes de importar.');
+    return;
+  }
+  document.getElementById('pop-loading').style.display='block';
+  document.getElementById('pop-file-input').disabled=true;
+  try{
+    // Extrai texto do .docx com mammoth.js
+    const arrayBuffer=await input.files[0].arrayBuffer();
+    const result=await mammoth.extractRawText({arrayBuffer});
+    const texto=result.value.trim().slice(0,12000);
+    // Chama Azure OpenAI (formato chat completions)
+    const prompt=`Analise o POP (Procedimento Operacional Padrão) abaixo e extraia as informações no formato JSON exato, sem texto adicional:\n{"nome":"nome do processo","area":"área ou unidade responsável","objetivo":"objetivo do processo em uma frase","atores":["ator1","ator2"],"etapas":["etapa 1","etapa 2","etapa 3"]}\n\nPOP:\n${texto}`;
+    const resp=await fetch(cfg.endpoint,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','api-key':cfg.key},
+      body:JSON.stringify({
+        messages:[{role:'user',content:prompt}],
+        max_tokens:1024,
+        temperature:0.2
+      })
+    });
+    if(!resp.ok){const e=await resp.text();throw new Error('Azure API: '+resp.status+' — '+e);}
+    const data=await resp.json();
+    const rawText=data.choices?.[0]?.message?.content||'';
+    const jsonStr=rawText.trim().replace(/```json?/g,'').replace(/```/g,'').trim();
+    const extracted=JSON.parse(jsonStr);
+    // Preenche formulário
+    document.getElementById('pop-nome').value=extracted.nome||'';
+    document.getElementById('pop-area').value=extracted.area||'';
+    document.getElementById('pop-objetivo').value=extracted.objetivo||'';
+    document.getElementById('pop-atores').value=(extracted.atores||[]).join('\n');
+    document.getElementById('pop-etapas').value=(extracted.etapas||[]).join('\n');
+    document.getElementById('pop-loading').style.display='none';
+    document.getElementById('pop-step1').style.display='none';
+    document.getElementById('pop-step2').style.display='block';
+  }catch(err){
+    document.getElementById('pop-loading').style.display='none';
+    document.getElementById('pop-file-input').disabled=false;
+    alert('Erro ao processar o arquivo: '+err.message+'\n\nVerifique o endpoint e a chave do Azure OpenAI em Notificações.');
+  }
+}
+function confirmarImportPOP(){
+  const nome=document.getElementById('pop-nome').value.trim();
+  if(!nome){alert('Informe o nome do processo.');return;}
+  const arqId=document.getElementById('pop-arq-sel').value||null;
+  // Tenta encontrar metadados na arquitetura
+  let arqItem=null;
+  if(arqId) arqItem=getUnidadesMapeaveis().find(u=>u.arq_id===arqId);
+  const area=document.getElementById('pop-area').value.trim()||arqItem?.area||'';
+  const objetivo=document.getElementById('pop-objetivo').value.trim()||arqItem?.objetivo||'';
+  const atores=(document.getElementById('pop-atores').value.trim().split('\n').map(s=>s.trim()).filter(Boolean)).join(', ');
+  const etapasTexto=document.getElementById('pop-etapas').value.trim();
+  const agora=new Date().toLocaleDateString('pt-BR');
+  const novoId=Date.now();
+  const novoProc={
+    id:novoId,
+    arq_id:arqId||null,
+    nome,area,objetivo,
+    macro:arqItem?.macro||'Importado via POP',
+    produto:'POP',
+    dono:arqItem?.gerente||'',
+    resp_ep:usuarioLogado?.nome||'',
+    pat:'',
+    prio:'Normal',
+    etapa:'publicacao', // inicia já na etapa de publicação
+    mapeado:true,
+    prazos:{},
+    ent:{dt_inicio:agora,dt_prev:'',equipe:'',prob:[],prev_ops:[],analise:'',mat:0,quest_resp:{}},
+    mod:{asIs:'',toBe:'',etapas_proc:etapasTexto.split('\n').filter(Boolean).map((d,i)=>({id:i+1,desc:d,resp:atores,ent:'',sai:'',dur:'',sist:'',doc:''}))},
+    form:{faq:'',links:'',forms:'',pop_data:{area,objetivo,atores,atividades:etapasTexto}},
+    hist:[{acao:'Processo criado via importação de POP Word (IA)',role:'EP',data:agora}],
+    auditoria:null
+  };
+  processos.push(novoProc);
+  // Marca como mapeado manualmente se não tem arq_id
+  if(arqId){mapeadosManual.add(arqId);localStorage.setItem('mapeadosManual',JSON.stringify([...mapeadosManual]));fbAutoSave('mapeados');}
+  updCounts();
+  fbAutoSave('importPOP');
+  fecharImportPOP();
+  toast('POP importado! Processo criado em "Publicação".');
+  renderProcs();
+}
 </script>
 </main>
+</div>
+<!-- MODAL: Importação inteligente de POP -->
+<div id="pop-import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;overflow-y:auto">
+  <div style="background:var(--surf);border-radius:14px;max-width:680px;width:95%;margin:2rem auto;padding:2rem;box-shadow:0 16px 48px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
+      <div><div style="font-size:16px;font-weight:700;color:var(--ink)">Importar POP (Word)</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:2px">Extração inteligente via IA — selecione o arquivo .docx</div></div>
+      <button class="btn" onclick="fecharImportPOP()">✕ Fechar</button>
+    </div>
+
+    <div id="pop-step1">
+      <div class="fg" style="margin-bottom:1rem">
+        <label class="fl">Arquivo Word (.docx)</label>
+        <input type="file" id="pop-file-input" accept=".docx" class="fi" onchange="processarArquivoPOP(this)">
+      </div>
+      <div id="pop-loading" style="display:none;text-align:center;padding:2rem;color:var(--ink3)">
+        <div style="font-size:24px;margin-bottom:.5rem">⏳</div>
+        <div>Extraindo texto e analisando com IA...</div>
+      </div>
+    </div>
+
+    <div id="pop-step2" style="display:none">
+      <div class="ib ibt" style="margin-bottom:1rem">Dados extraídos pelo modelo. Revise e ajuste antes de confirmar.</div>
+      <div class="g2" style="margin-bottom:.8rem">
+        <div class="fg"><label class="fl">Nome do processo</label><input class="fi" id="pop-nome"></div>
+        <div class="fg"><label class="fl">Área / Unidade</label><input class="fi" id="pop-area"></div>
+      </div>
+      <div class="fg" style="margin-bottom:.8rem"><label class="fl">Objetivo</label><textarea class="fi" id="pop-objetivo" style="min-height:60px"></textarea></div>
+      <div class="fg" style="margin-bottom:.8rem"><label class="fl">Atores / Responsáveis</label><textarea class="fi" id="pop-atores" style="min-height:60px" placeholder="Um por linha"></textarea></div>
+      <div class="fg" style="margin-bottom:.8rem"><label class="fl">Etapas do processo</label><textarea class="fi" id="pop-etapas" style="min-height:100px" placeholder="Uma por linha"></textarea></div>
+      <div class="fg" style="margin-bottom:1rem">
+        <label class="fl">Vincular à arquitetura (processo já cadastrado)</label>
+        <select class="fi" id="pop-arq-sel"><option value="">— Selecione —</option></select>
+      </div>
+      <div class="btn-row">
+        <button class="btn" onclick="voltarImportPOP()">← Voltar</button>
+        <button class="btn btn-p" onclick="confirmarImportPOP()">Criar processo mapeado ✓</button>
+      </div>
+    </div>
+  </div>
 </div>
 </body>
 </html>
