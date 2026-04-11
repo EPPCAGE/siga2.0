@@ -1102,6 +1102,11 @@ function testarEmailJS(){
   });
 }
 function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
+  if(!para_email){
+    console.warn('enviarNotif: e-mail do destinatário vazio — notificação não enviada.');
+    toast('⚠ E-mail do destinatário não encontrado — notificação não enviada.','var(--amber)');
+    return;
+  }
   const item={id:Date.now(),para:para_nome,para_email,acao,proc_nome,prazo,de:de_nome,data:now(),lida:false};
   notifs.unshift(item);
   updCounts();
