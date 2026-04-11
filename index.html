@@ -1160,6 +1160,17 @@ function rNotif(){
       st.textContent = '✓ EmailJS configurado — envio real de e-mails ativado.';
       st.className = 'ib ibg';
     }
+    // Pre-fill Azure OpenAI config
+    const azCfg = getAzureConfig();
+    const epEl = document.getElementById('azure-endpoint');
+    const akEl = document.getElementById('azure-api-key');
+    const azSt = document.getElementById('azure-config-status');
+    if(epEl) epEl.value = azCfg.endpoint || '';
+    if(akEl) akEl.value = azCfg.key      || '';
+    if(azSt && azCfg.endpoint && azCfg.key){
+      azSt.textContent = '✓ Configurado';
+      azSt.style.color = 'var(--teal)';
+    }
   }
   const el=document.getElementById('notif-log');
   if(!el)return;
@@ -4316,6 +4327,14 @@ async function fbLoad(){
       }
     }
 
+    // azure openai config
+    const azureDoc = await getDoc(doc(db,'config','azure'));
+    if(azureDoc.exists()){
+      const d = azureDoc.data();
+      if(d.endpoint) localStorage.setItem('azureOpenAIEndpoint', d.endpoint);
+      if(d.key)      localStorage.setItem('azureOpenAIKey',      d.key);
+    }
+
     console.log('Firebase: dados carregados');
     return true;
   } catch(e){
@@ -4804,7 +4823,13 @@ function salvarAzureConfig(){
   if(!ep||!key){st.textContent='Preencha endpoint e chave.';return;}
   localStorage.setItem('azureOpenAIEndpoint',ep);
   localStorage.setItem('azureOpenAIKey',key);
-  st.textContent='Configuração salva!';
+  // Persiste no Firebase também
+  if(fbReady()){
+    const {db,doc,setDoc}=fb();
+    setDoc(doc(db,'config','azure'),{endpoint:ep,key}).catch(e=>console.warn('azure save:',e.message));
+  }
+  st.textContent='✓ Configuração salva!';
+  st.style.color='var(--teal)';
   setTimeout(()=>{st.textContent='';},3000);
 }
 function getAzureConfig(){
