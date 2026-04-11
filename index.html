@@ -2228,12 +2228,17 @@ function rArqPopulateFilters(){
   // Área — collect from all processos and subprocessos
   const areas = new Set();
   const objEs = new Set();
+  // Split by ";" since many processes have multiple strategic objectives
+  function addObje(val){
+    if(!val) return;
+    val.split(';').map(s=>s.trim()).filter(Boolean).forEach(o=>objEs.add(o));
+  }
   ARQUITETURA.forEach(m=>m.processos.forEach(p=>{
     if(p.area) areas.add(p.area);
-    if(p.objetivo_estrategico) objEs.add(p.objetivo_estrategico);
+    addObje(p.objetivo_estrategico);
     (p.subprocessos||[]).forEach(s=>{
       if(s.area) areas.add(s.area);
-      if(s.objetivo_estrategico) objEs.add(s.objetivo_estrategico);
+      addObje(s.objetivo_estrategico);
     });
   }));
   const aSel = document.getElementById('arq-f-area');
@@ -2263,8 +2268,8 @@ function getArqFilters(){
 // Returns true if a process/subprocesso matches current filters
 function itemMatchesFilters(item, macroNome, f){
   if(f.area  && item.area  !== f.area)  return false;
-  if(f.nat   && item.natureza !== f.nat) return false;
-  if(f.obje  && item.objetivo_estrategico !== f.obje) return false;
+  if(f.nat   && (item.natureza||'').toLowerCase() !== f.nat.toLowerCase()) return false;
+  if(f.obje  && !(item.objetivo_estrategico||'').includes(f.obje)) return false;
   if(f.srch){
     const hay = [item.nome, item.area, item.gerente, item.objetivo,
                  item.objetivo_estrategico, item.clientes, macroNome]
@@ -2693,28 +2698,52 @@ function importarArqExcel(input){
       function normCol(s){ return s.toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
       const allKeys = Object.keys(rows[0]);
 
-      // Find column by any keyword match (normalized)
+      // Find column — exact match first, then includes
       function findCol(...variants){
         for(const v of variants){
           const nv = normCol(v);
-          const found = allKeys.find(k => normCol(k) === nv || normCol(k).includes(nv));
-          if(found) return found;
+          // Exact match first
+          const exact = allKeys.find(k => normCol(k) === nv);
+          if(exact) return exact;
+        }
+        for(const v of variants){
+          const nv = normCol(v);
+          // Partial match second
+          const partial = allKeys.find(k => normCol(k).includes(nv));
+          if(partial) return partial;
         }
         return null;
       }
 
-      const cMacro  = findCol('macroprocesso','macro');
-      const cProc   = findCol('processo');
-      const cSub    = findCol('subprocessos','subprocesso','sub');
+      // Map columns — order matters: more specific first
+      const cMacro  = findCol('macroprocesso');
+      const cSub    = findCol('subprocessos','subprocesso');
+      const cProc   = findCol('processo');  // after sub/macro so they don't steal it
       const cNat    = findCol('natureza');
       const cGer    = findCol('gerente do processo','gerente processo','gerente');
       const cArea   = findCol('area','área');
-      const cObj    = findCol('objetivo do processo','objetivo processo','objetivo do proc');
-      const cObje   = findCol('objetivos estrategicos','objetivo estrategico','objetivos estratégicos','objetivo estratégico');
+      const cObj    = findCol('objetivo do processo','objetivo processo');
+      const cObje   = findCol('objetivos estrategicos','objetivo estrategico');
       const cEnt    = findCol('entradas do processo','entradas processo','entrada');
       const cEntr   = findCol('entregas do processo','entregas processo','entrega');
       const cCli    = findCol('clientes do processo','clientes processo','cliente');
-      const cDocs   = findCol('documentacao e regulamentacoes','documentacao','documentacoes','regulamentacao','docs');
+      const cDocs   = findCol('documentacao e regulamentacoes','documentacao e regulamentacao','regulamentacao','documentacao');
+
+      // Debug log — remove after confirming import works
+      console.table({
+        macro:  cMacro  || 'NAO ENCONTRADA',
+        proc:   cProc   || 'NAO ENCONTRADA',
+        sub:    cSub    || 'NAO ENCONTRADA',
+        nat:    cNat    || 'NAO ENCONTRADA',
+        ger:    cGer    || 'NAO ENCONTRADA',
+        area:   cArea   || 'NAO ENCONTRADA',
+        obj:    cObj    || 'NAO ENCONTRADA',
+        obje:   cObje   || 'NAO ENCONTRADA',
+        ent:    cEnt    || 'NAO ENCONTRADA',
+        entr:   cEntr   || 'NAO ENCONTRADA',
+        cli:    cCli    || 'NAO ENCONTRADA',
+        docs:   cDocs   || 'NAO ENCONTRADA',
+      });
 
       // Helper to get value safely
       function gv(row, col){ return col ? (row[col]||'').toString().trim() : ''; }
@@ -2731,7 +2760,7 @@ function importarArqExcel(input){
         let p=m.processos.find(x=>x.nome===proc);
         if(!p){
           p={id:'ap'+arqIdC++,nome:proc,
-            natureza:           gv(row,cNat),
+            natureza:           gv(row,cNat) ? gv(row,cNat).charAt(0).toUpperCase()+gv(row,cNat).slice(1).toLowerCase() : '',
             gerente:            gv(row,cGer),
             area:               gv(row,cArea),
             objetivo:           gv(row,cObj),
@@ -2749,7 +2778,7 @@ function importarArqExcel(input){
         if(subValido && !p.subprocessos.find(s=>s.nome===sub)){
           p.subprocessos.push({
             id:'s'+arqIdC++, nome:sub,
-            natureza:             gv(row,cNat),
+            natureza:             gv(row,cNat) ? gv(row,cNat).charAt(0).toUpperCase()+gv(row,cNat).slice(1).toLowerCase() : '',
             gerente:              gv(row,cGer),
             area:                 gv(row,cArea),
             objetivo:             gv(row,cObj),
