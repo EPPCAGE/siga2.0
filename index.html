@@ -1219,7 +1219,11 @@ function filtFase(fase,el){filtFaseAtual=fase;document.querySelectorAll('#fase-c
 function renderProcs(){
   aplicarPermissoes();
   const srch=(document.getElementById('srch-p')?.value||'').toLowerCase();
-  const lista=processos.filter(p=>(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch)));
+  const isDono=usuarioLogado?.perfil==='dono';
+  const lista=processos.filter(p=>{
+    if(isDono&&p.dono!==usuarioLogado.nome)return false;
+    return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch));
+  });
   const el=document.getElementById('proc-list'),em=document.getElementById('proc-empty');
   if(!lista.length){el.innerHTML='';em.style.display='block';return;}
   em.style.display='none';
@@ -1248,6 +1252,21 @@ function rDetalhe(){
       <div class="prog-d ${i<idx?'dn':i===idx?'da':''}">${i<idx?'✓':(i+1)}</div>
       <div class="prog-l ${i===idx?'da':''}">${e.lb}</div>
     </div>`).join('');
+  if(usuarioLogado?.perfil==='dono'){
+    const etObj=ETAPAS.find(e=>e.id===p.etapa);
+    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
+    document.getElementById('det-tabs').innerHTML=
+      `<div class="tab on" onclick="stab('acao',this)">${minhaTarefa?'Minha tarefa':'Sobre o processo'}</div>`+
+      `<div class="tab" onclick="stab('hist',this)">Histórico</div>`;
+    ['ent','mod','form','mon'].forEach(id=>{
+      const el=document.getElementById('tab-'+id);
+      if(el){el.innerHTML='';el.classList.remove('on');}
+    });
+    document.getElementById('tab-acao').classList.add('on');
+    document.getElementById('tab-hist').classList.remove('on');
+    rAcao(p);
+    return;
+  }
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===0));
   document.querySelectorAll('.tab-p').forEach((p,i)=>p.classList.toggle('on',i===0));
   rAcao(p);
@@ -1393,6 +1412,26 @@ function reprovar(voltaEt, role, acao){
   curProc.etapa = voltaEt;
   push(curProc, voltaEt, 'Sistema', 'Retornado para ajustes');
   rDetalhe();
+}
+function popupConclusaoDono(msg){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2.5rem 2rem;max-width:380px;width:90%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:52px;margin-bottom:.8rem">✅</div>
+    <div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:.5rem">Tarefa concluída!</div>
+    <div style="font-size:13px;color:var(--ink3);line-height:1.6;margin-bottom:1.5rem">${msg}</div>
+    <button class="btn btn-p" onclick="this.closest('[style*=fixed]').remove()">Ok, entendido</button>
+  </div>`;
+  document.body.appendChild(ov);
+  setTimeout(()=>{if(ov.parentNode)ov.remove();},10000);
+}
+function avDono(etAtu,role,acao,prazoEl){
+  av(etAtu,role,acao,prazoEl);
+  setTimeout(()=>popupConclusaoDono('Obrigado! Sua validação foi registrada e o EP foi notificado para continuar o processo.'),200);
+}
+function reprovarDono(voltaEt,role,acao){
+  reprovar(voltaEt,role,acao);
+  setTimeout(()=>popupConclusaoDono('Ajuste solicitado com sucesso! O EP foi notificado e revisará o material antes de encaminhar novamente.'),200);
 }
 
 // ═══════════════════════════════════════════
@@ -1554,8 +1593,8 @@ const ACOES = {
     </div>
     ${prazoField('valid_dono')}
     <div class="btn-row">
-      <button class="btn btn-a" onclick="reprovar('esboco','Dono','Dono solicitou ajustes')">Solicitar ajustes</button>
-      <button class="btn btn-g" onclick="av('valid_dono','Dono do processo','Modelagem validada pelo dono',null)">Aprovar ✓</button>
+      <button class="btn btn-a" onclick="reprovarDono('esboco','Dono','Dono solicitou ajustes')">Solicitar ajustes</button>
+      <button class="btn btn-g" onclick="avDono('valid_dono','Dono do processo','Modelagem validada pelo dono',null)">Aprovar ✓</button>
     </div>`},
 
   desenho_final:{titulo:'Desenho final do processo',sub:'Consolidar e finalizar o fluxo validado.',role:'EP',rk:'ep',
@@ -1692,9 +1731,35 @@ const ACOES = {
 };
 
 function rAcao(p){
-  const role = usuarioLogado?.perfil||'ep';
-  const ac = ACOES[p.etapa];
+  const role=usuarioLogado?.perfil||'ep';
+  const ac=ACOES[p.etapa];
   if(!ac){document.getElementById('tab-acao').innerHTML='<div class="ib ibsl">Etapa não configurada.</div>';return;}
+  if(role==='dono'){
+    const etObj=ETAPAS.find(e=>e.id===p.etapa);
+    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
+    if(minhaTarefa){
+      document.getElementById('tab-acao').innerHTML=`
+        <div class="ib ibt" style="margin-bottom:1rem">O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.7rem;flex-wrap:wrap;gap:8px">
+            <div><div class="card-t" style="margin-bottom:2px">${ac.titulo}</div>
+            <div style="font-size:12px;color:var(--ink3)">${ac.sub}</div></div>
+            <span class="badge bsl">${ac.role}</span>
+          </div>
+          ${ac.form(p)}
+        </div>`;
+    } else {
+      document.getElementById('tab-acao').innerHTML=`
+        <div class="card">
+          <div class="ib iba" style="margin-bottom:1rem">
+            Esta etapa — <strong>${ac.titulo}</strong> — está sendo conduzida pelo EP.
+            Não há nenhuma ação necessária da sua parte neste momento.
+          </div>
+          <div style="font-size:13px;color:var(--ink2)">${ac.sub}</div>
+        </div>`;
+    }
+    return;
+  }
   document.getElementById('tab-acao').innerHTML=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.7rem;flex-wrap:wrap;gap:8px">
       <div><div class="card-t" style="margin-bottom:2px">${ac.titulo}</div>
@@ -1704,7 +1769,6 @@ function rAcao(p){
     ${ac.form(p)}
     ${role!==ac.rk?'<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>'+ac.role+'</strong>. Troque o perfil para interagir.</div>':''}
   </div>`;
-  // Mount BPMN if needed
   if(p.etapa==='esboco'){
     setTimeout(()=>{initBpmnMod('asis',p);},120);
   }
@@ -1741,6 +1805,7 @@ function salvarQuestionario(){
   enviarNotif(p.resp_ep+'@sefaz.rs.gov.br',p.resp_ep,'Questionário de maturidade respondido. Nível: '+nivel+'/5. Próxima etapa: '+etLb(nx||''),p.nome,'',p.dono);
   toast('Questionário enviado! Maturidade nível '+nivel);
   rDetalhe();updCounts();
+  if(usuarioLogado?.perfil==='dono') setTimeout(()=>popupConclusaoDono('Seu questionário foi enviado com sucesso! O EP foi notificado e dará continuidade ao mapeamento do processo.'),200);
 }
 function salvarReuniao(){
   const p=curProc;
