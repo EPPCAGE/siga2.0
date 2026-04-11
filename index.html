@@ -3114,6 +3114,7 @@ function toggleMapeadoManual(arqId,ev){
   if(mapeadosManual.has(arqId)) mapeadosManual.delete(arqId);
   else mapeadosManual.add(arqId);
   localStorage.setItem('mapeadosManual',JSON.stringify([...mapeadosManual]));
+  fbAutoSave('mapeados');
   rArq();
 }
 function getMetricasArq(){
@@ -3800,6 +3801,8 @@ async function fbSaveAll(){
     batch.set(doc(db,'config','arquitetura'), {data: JSON.stringify(ARQUITETURA)});
     // usuarios (single doc)
     batch.set(doc(db,'config','usuarios'), {data: JSON.stringify(USUARIOS)});
+    // mapeados manualmente (single doc)
+    batch.set(doc(db,'config','mapeados'), {data: JSON.stringify([...mapeadosManual])});
 
     await batch.commit();
     toast('✓ Dados salvos na nuvem', 'var(--teal)');
@@ -3850,6 +3853,13 @@ async function fbLoad(){
     const usrDoc = await getDoc(doc(db,'config','usuarios'));
     if(usrDoc.exists() && usrDoc.data().data){
       USUARIOS = JSON.parse(usrDoc.data().data);
+    }
+
+    // mapeados manualmente
+    const mapDoc = await getDoc(doc(db,'config','mapeados'));
+    if(mapDoc.exists() && mapDoc.data().data){
+      mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
+      localStorage.setItem('mapeadosManual', JSON.stringify([...mapeadosManual]));
     }
 
     // emailjs config
@@ -4410,7 +4420,7 @@ function confirmarImportPOP(){
   };
   processos.push(novoProc);
   // Marca como mapeado manualmente se não tem arq_id
-  if(arqId){mapeadosManual.add(arqId);localStorage.setItem('mapeadosManual',JSON.stringify([...mapeadosManual]));}
+  if(arqId){mapeadosManual.add(arqId);localStorage.setItem('mapeadosManual',JSON.stringify([...mapeadosManual]));fbAutoSave('mapeados');}
   updCounts();
   fbAutoSave('importPOP');
   fecharImportPOP();
