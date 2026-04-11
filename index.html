@@ -427,7 +427,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div style="border-top:1px solid var(--brd);margin:1rem 0;padding-top:1rem">
       <div style="font-size:12px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.8rem">Dono do processo (será notificado durante o mapeamento)</div>
       <div class="fg"><label class="fl">Nome do dono do processo<span>*</span></label>
-        <input class="fi" id="novo-dono-nome" type="text" placeholder="Nome completo do dono do processo" list="novo-dono-sugest" oninput="sugerirDono()">
+        <input class="fi" id="novo-dono-nome" type="text" placeholder="Nome completo do dono do processo" list="novo-dono-sugest" oninput="sugerirDono()" onchange="autoFillDonoEmail()">
         <datalist id="novo-dono-sugest"></datalist>
       </div>
       <div class="fg"><label class="fl">E-mail do dono do processo<span>*</span></label>
@@ -1073,7 +1073,7 @@ function salvarEmailJS(){
   const status = document.getElementById('emailjs-status');
   if(ejsConfig.service && ejsConfig.template && ejsConfig.pubkey){
     if(typeof emailjs !== 'undefined'){
-      emailjs.init(ejsConfig.pubkey);
+      emailjs.init({publicKey: ejsConfig.pubkey});
       status.textContent = '✓ EmailJS configurado — envio real de e-mails ativado.';
       status.className = 'ib ibg';
     } else {
@@ -1132,7 +1132,16 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
       from_name:de_nome||'EP·CAGE',
       processo:proc_nome,acao,prazo:prazo||'Não definido',
       link:'https://eppcage.github.io/gesproc2.0/',
-    }).catch(()=>{});
+    }).then(()=>{
+      console.log('EmailJS: e-mail enviado para',para_email);
+    }).catch(err=>{
+      const msg = err?.text || err?.message || JSON.stringify(err);
+      console.warn('EmailJS erro ao enviar:',msg);
+      toast('⚠ Falha ao enviar e-mail: '+msg,'var(--red)');
+    });
+  } else {
+    const motivo = !ejsConfig.pubkey ? 'EmailJS não configurado' : 'Biblioteca não carregada';
+    console.warn('enviarNotif: e-mail não enviado —',motivo,'— para_email:',para_email);
   }
 }
 function rNotif(){
@@ -1576,22 +1585,28 @@ function findArqItem(mid, itemId){
   }
   return null;
 }
+function autoFillDonoEmail(){
+  const nome=document.getElementById('novo-dono-nome').value;
+  const emailEl=document.getElementById('novo-dono-email');
+  if(emailEl.value) return; // não sobrescreve se já preenchido
+  const u=USUARIOS.find(x=>x.nome===nome);
+  if(u) emailEl.value=u.email;
+}
 function sugerirDono(){
-  const q=document.getElementById('novo-dono-nome').value.toLowerCase();
+  const nomeEl=document.getElementById('novo-dono-nome');
+  const emailEl=document.getElementById('novo-dono-email');
+  const q=nomeEl.value.toLowerCase();
   const dl=document.getElementById('novo-dono-sugest');
   dl.innerHTML='';
   if(q.length<2) return;
   USUARIOS.filter(u=>u.nome.toLowerCase().includes(q)||u.email.toLowerCase().includes(q)).slice(0,8).forEach(u=>{
     const opt=document.createElement('option');
     opt.value=u.nome;
-    opt.dataset.email=u.email;
     dl.appendChild(opt);
   });
-  // Auto-fill email when a known user is selected
-  document.getElementById('novo-dono-nome').addEventListener('change',function(){
-    const u=USUARIOS.find(x=>x.nome===this.value);
-    if(u) document.getElementById('novo-dono-email').value=u.email;
-  },{once:true});
+  // Auto-fill email when value exactly matches a known user
+  const match=USUARIOS.find(u=>u.nome.toLowerCase()===q);
+  if(match && !emailEl.value) emailEl.value=match.email;
 }
 function criarProcesso(){
   if(!isEP()){alert('Apenas o Escritório de Processos pode abrir novos mapeamentos.');return;}
@@ -4293,7 +4308,7 @@ async function fbLoad(){
       ejsConfig.template = d.template || '';
       ejsConfig.pubkey   = d.pubkey   || '';
       if(ejsConfig.pubkey && typeof emailjs !== 'undefined'){
-        emailjs.init(ejsConfig.pubkey);
+        emailjs.init({publicKey: ejsConfig.pubkey});
       }
     }
 
@@ -4440,7 +4455,7 @@ document.getElementById('login-screen').style.display='flex';
         ejsConfig.service  = cfg.service  || '';
         ejsConfig.template = cfg.template || '';
         ejsConfig.pubkey   = cfg.pubkey   || '';
-        if(ejsConfig.pubkey && typeof emailjs !== 'undefined') emailjs.init(ejsConfig.pubkey);
+        if(ejsConfig.pubkey && typeof emailjs !== 'undefined') emailjs.init({publicKey: ejsConfig.pubkey});
       }
     } catch(e){}
   }
