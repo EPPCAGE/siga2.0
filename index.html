@@ -676,25 +676,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
     </div>
 
-    <!-- Configuração Azure OpenAI (importação inteligente de POP) -->
-    <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--bdr)">
-      <div class="sec-lbl" style="margin-bottom:.6rem">Configuração IA — Azure OpenAI (para importação inteligente de POP)</div>
-      <div class="g2" style="margin-bottom:.5rem">
-        <div class="fg">
-          <label class="fl">Endpoint (URL completa com deployment e api-version)</label>
-          <input class="fi" id="azure-endpoint" placeholder="https://RECURSO.openai.azure.com/openai/deployments/DEPLOYMENT/chat/completions?api-version=2024-02-01">
-        </div>
-        <div class="fg">
-          <label class="fl">API Key</label>
-          <input class="fi" id="azure-api-key" type="password" placeholder="Chave do Azure OpenAI">
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-p" onclick="salvarAzureConfig()">Salvar configuração</button>
-        <span id="azure-config-status" style="font-size:12px;color:var(--ink3)"></span>
-      </div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:.3rem">Necessária para extração automática de dados ao importar POPs em Word. A chave é armazenada apenas no seu navegador.</div>
-    </div>
 
     <!-- ABA: Como configurar -->
     <div id="ejs-guide" class="tab-p" style="display:none">
@@ -1121,6 +1102,11 @@ function testarEmailJS(){
   });
 }
 function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
+  if(!para_email){
+    console.warn('enviarNotif: e-mail do destinatário vazio — notificação não enviada.');
+    toast('⚠ E-mail do destinatário não encontrado — notificação não enviada.','var(--amber)');
+    return;
+  }
   const item={id:Date.now(),para:para_nome,para_email,acao,proc_nome,prazo,de:de_nome,data:now(),lida:false};
   notifs.unshift(item);
   updCounts();
@@ -1386,12 +1372,6 @@ function aplicarPermissoes(){
   if(nbAud) nbAud.style.display = isEP() ? '' : 'none';
   // Botões marcados ep-only
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
-  // Carrega config Azure OpenAI nos campos
-  const azCfg=getAzureConfig();
-  const epEl=document.getElementById('azure-endpoint');
-  const akEl=document.getElementById('azure-api-key');
-  if(epEl&&!epEl.value&&azCfg.endpoint) epEl.value=azCfg.endpoint;
-  if(akEl&&!akEl.value&&azCfg.key) akEl.value=azCfg.key;
 }
 
 function rDash(){
@@ -2310,62 +2290,34 @@ function salvarApresentacao(){
 async function gerarApresentacaoPPT(){
   const p=curProc;
   if(!p){alert('Nenhum processo selecionado.');return;}
-  const cfg=getAzureConfig();
-  if(!cfg.endpoint||!cfg.key){alert('Configure o Azure OpenAI nas configurações antes de gerar a apresentação.');return;}
   const btn=document.getElementById('btn-gerar-ppt');
   const st=document.getElementById('ppt-status');
   if(btn){btn.disabled=true;btn.textContent='⏳ Gerando...';}
-  if(st) st.textContent='Chamando IA para montar o conteúdo...';
+  if(st) st.innerHTML='<div class="ai-loading"><div class="spin"></div>IA montando conteúdo...</div>';
   try{
-    // Montar contexto do processo
     const a=p.ent?.analise||{};
     const ctx=`Processo: ${p.nome}
 Área: ${p.area||'—'}
 Macroprocesso: ${p.macro||'—'}
 Objetivo: ${p.objetivo||'—'}
-Gerente/Dono: ${p.dono||'—'}
+Dono: ${p.dono||'—'}
 Equipe: ${p.ent?.equipe||'—'}
 Data início: ${p.ent?.dt_inicio||'—'}
 Maturidade (nível 1-5): ${p.ent?.mat||'—'}
 Execuções/período: ${p.ent?.vol?.exec||'—'}
-Tempo ciclo médio: ${p.ent?.vol?.tempo||'—'}
 Complexidade: ${a.complexidade||'—'}
-Gargalos identificados: ${(a.gargalos||[]).join('; ')||'—'}
+Gargalos: ${(a.gargalos||[]).join('; ')||'—'}
 Retrabalhos: ${(a.retrabalhos||[]).join('; ')||'—'}
-Oportunidades de melhoria: ${(a.oportunidades||[]).join('; ')||'—'}
-Etapas do processo: ${(p.mod?.etapas_proc||[]).slice(0,8).map(e=>e.desc).join('; ')||'—'}
-Objetivo estratégico: ${p.ent?.obj_est||'—'}`;
+Oportunidades: ${(a.oportunidades||[]).join('; ')||'—'}
+Etapas: ${(p.mod?.etapas_proc||[]).slice(0,8).map(e=>e.desc).join('; ')||'—'}`;
 
-    const prompt=`Você é especialista em gestão de processos e criação de apresentações executivas.
-Com base nas informações abaixo, gere um JSON com o conteúdo para uma apresentação PowerPoint executiva sobre o mapeamento deste processo. Seja direto, profissional e conciso.
+    const prompt=`Gere um JSON para uma apresentação PowerPoint executiva sobre o mapeamento deste processo. Retorne APENAS o JSON, sem markdown.
+DADOS: ${ctx}
+ESTRUTURA OBRIGATÓRIA:
+{"titulo_geral":"...","subtitulo":"...","slides":[{"titulo":"Agenda","bullets":["...","...","...","...","..."]},{"titulo":"Visão Geral do Processo","bullets":["...","...","..."]},{"titulo":"Situação Atual (AS IS)","bullets":["...","...","...","..."]},{"titulo":"Gargalos e Oportunidades","bullets":["...","...","...","..."]},{"titulo":"Situação Proposta (TO BE)","bullets":["...","...","...","..."]},{"titulo":"Indicadores de Desempenho","bullets":["...","...","..."]},{"titulo":"Próximos Passos","bullets":["...","...","...","..."]},{"titulo":"Conclusão","bullets":["...","...","..."]}]}`;
 
-INFORMAÇÕES DO PROCESSO:
-${ctx}
-
-Retorne APENAS um JSON válido com esta estrutura (sem texto fora do JSON):
-{
-  "titulo_geral": "título executivo da apresentação",
-  "subtitulo": "subtítulo",
-  "slides": [
-    {"titulo": "Agenda", "bullets": ["item1","item2","item3","item4","item5"]},
-    {"titulo": "Visão Geral do Processo", "bullets": ["...","...","..."]},
-    {"titulo": "Situação Atual (AS IS)", "bullets": ["...","...","...","..."]},
-    {"titulo": "Gargalos e Oportunidades", "bullets": ["...","...","...","..."]},
-    {"titulo": "Situação Proposta (TO BE)", "bullets": ["...","...","...","..."]},
-    {"titulo": "Indicadores de Desempenho", "bullets": ["...","...","..."]},
-    {"titulo": "Próximos Passos", "bullets": ["...","...","...","..."]},
-    {"titulo": "Conclusão", "bullets": ["...","...","..."]}
-  ]
-}`;
-
-    const resp=await fetch(cfg.endpoint,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','api-key':cfg.key},
-      body:JSON.stringify({messages:[{role:'user',content:prompt}],max_tokens:1500,temperature:0.3})
-    });
-    if(!resp.ok) throw new Error('API: '+resp.status+' '+resp.statusText);
-    const data=await resp.json();
-    const raw=data.choices?.[0]?.message?.content||'';
+    const raw = await chamarIA('gerar_ppt', prompt, st);
+    if(!raw) return;
     const jsonMatch=raw.match(/\{[\s\S]*\}/);
     if(!jsonMatch) throw new Error('Resposta da IA não contém JSON válido.');
     const slides=JSON.parse(jsonMatch[0]);
@@ -2375,7 +2327,6 @@ Retorne APENAS um JSON válido com esta estrutura (sem texto fora do JSON):
   } catch(e){
     console.error('gerarApresentacaoPPT:',e);
     if(st) st.textContent='⚠ Erro: '+e.message;
-    alert('Erro ao gerar apresentação: '+e.message);
   } finally {
     if(btn){btn.disabled=false;btn.textContent='✨ Gerar apresentação com IA';}
   }
@@ -4797,19 +4748,6 @@ rNotif = function(){
 // ═══════════════════════════════════════════
 // AZURE OPENAI CONFIG
 // ═══════════════════════════════════════════
-function salvarAzureConfig(){
-  const ep=document.getElementById('azure-endpoint')?.value.trim();
-  const key=document.getElementById('azure-api-key')?.value.trim();
-  const st=document.getElementById('azure-config-status');
-  if(!ep||!key){st.textContent='Preencha endpoint e chave.';return;}
-  localStorage.setItem('azureOpenAIEndpoint',ep);
-  localStorage.setItem('azureOpenAIKey',key);
-  st.textContent='Configuração salva!';
-  setTimeout(()=>{st.textContent='';},3000);
-}
-function getAzureConfig(){
-  return{endpoint:localStorage.getItem('azureOpenAIEndpoint')||'',key:localStorage.getItem('azureOpenAIKey')||''};
-}
 
 // ═══════════════════════════════════════════
 // IMPORTAÇÃO DE POP (Word + IA)
@@ -4843,47 +4781,30 @@ function voltarImportPOP(){
 }
 async function processarArquivoPOP(input){
   if(!input.files||!input.files[0])return;
-  const cfg=getAzureConfig();
-  if(!cfg.endpoint||!cfg.key){
-    alert('Configure o Azure OpenAI em Notificações → Configuração de e-mail → Configuração IA antes de importar.');
-    return;
-  }
-  document.getElementById('pop-loading').style.display='block';
+  const loadEl=document.getElementById('pop-loading');
+  loadEl.style.display='block';
   document.getElementById('pop-file-input').disabled=true;
   try{
-    // Extrai texto do .docx com mammoth.js
     const arrayBuffer=await input.files[0].arrayBuffer();
     const result=await mammoth.extractRawText({arrayBuffer});
     const texto=result.value.trim().slice(0,12000);
-    // Chama Azure OpenAI (formato chat completions)
-    const prompt=`Analise o POP (Procedimento Operacional Padrão) abaixo e extraia as informações no formato JSON exato, sem texto adicional:\n{"nome":"nome do processo","area":"área ou unidade responsável","objetivo":"objetivo do processo em uma frase","atores":["ator1","ator2"],"etapas":["etapa 1","etapa 2","etapa 3"]}\n\nPOP:\n${texto}`;
-    const resp=await fetch(cfg.endpoint,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','api-key':cfg.key},
-      body:JSON.stringify({
-        messages:[{role:'user',content:prompt}],
-        max_tokens:1024,
-        temperature:0.2
-      })
-    });
-    if(!resp.ok){const e=await resp.text();throw new Error('Azure API: '+resp.status+' — '+e);}
-    const data=await resp.json();
-    const rawText=data.choices?.[0]?.message?.content||'';
+    const prompt=`Analise o POP abaixo e retorne APENAS um JSON com: {"nome":"...","area":"...","objetivo":"...","atores":["..."],"etapas":["..."]}\nPOP:\n${texto}`;
+    const rawText = await chamarIA('extrair_pop', prompt, loadEl);
+    if(!rawText) throw new Error('Sem resposta da IA.');
     const jsonStr=rawText.trim().replace(/```json?/g,'').replace(/```/g,'').trim();
     const extracted=JSON.parse(jsonStr);
-    // Preenche formulário
     document.getElementById('pop-nome').value=extracted.nome||'';
     document.getElementById('pop-area').value=extracted.area||'';
     document.getElementById('pop-objetivo').value=extracted.objetivo||'';
     document.getElementById('pop-atores').value=(extracted.atores||[]).join('\n');
     document.getElementById('pop-etapas').value=(extracted.etapas||[]).join('\n');
-    document.getElementById('pop-loading').style.display='none';
+    loadEl.style.display='none';
     document.getElementById('pop-step1').style.display='none';
     document.getElementById('pop-step2').style.display='block';
   }catch(err){
-    document.getElementById('pop-loading').style.display='none';
+    loadEl.style.display='none';
     document.getElementById('pop-file-input').disabled=false;
-    alert('Erro ao processar o arquivo: '+err.message+'\n\nVerifique o endpoint e a chave do Azure OpenAI em Notificações.');
+    alert('Erro ao processar o arquivo: '+err.message);
   }
 }
 function confirmarImportPOP(){
