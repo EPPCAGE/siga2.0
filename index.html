@@ -401,7 +401,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-novo" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Abrir novo processo</div><div class="ph-s">Selecione o processo na arquitetura para iniciar o mapeamento</div></div></div>
   <div class="card">
-    <div class="ib ibb">Apenas processos cadastrados na arquitetura institucional podem ser mapeados. Selecione o processo abaixo. Os dados cadastrais (área, gerente, objetivo) serão importados automaticamente.</div>
+    <div class="ib ibb">Apenas processos cadastrados na arquitetura institucional podem ser mapeados. Selecione o processo abaixo e informe o dono do processo que será notificado durante o mapeamento.</div>
     <div class="fg"><label class="fl">Macroprocesso<span>*</span></label>
       <select class="fi" id="novo-macro" onchange="filtrarProcArq()"><option value="">Selecione...</option></select>
     </div>
@@ -423,6 +423,16 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <div class="fg"><label class="fl">Objetivo do trabalho</label>
       <textarea class="fi" id="novo-objetivo" placeholder="Qual o objetivo específico deste trabalho de mapeamento?"></textarea>
+    </div>
+    <div style="border-top:1px solid var(--brd);margin:1rem 0;padding-top:1rem">
+      <div style="font-size:12px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.8rem">Dono do processo (será notificado durante o mapeamento)</div>
+      <div class="fg"><label class="fl">Nome do dono do processo<span>*</span></label>
+        <input class="fi" id="novo-dono-nome" type="text" placeholder="Nome completo do dono do processo" list="novo-dono-sugest" oninput="sugerirDono()">
+        <datalist id="novo-dono-sugest"></datalist>
+      </div>
+      <div class="fg"><label class="fl">E-mail do dono do processo<span>*</span></label>
+        <input class="fi" id="novo-dono-email" type="email" placeholder="email@exemplo.com">
+      </div>
     </div>
     <div class="btn-row">
       <button class="btn" onclick="go('processos',document.getElementById('nb-proc'))">Cancelar</button>
@@ -1354,6 +1364,7 @@ function aplicarPermissoes(){
         <label class="btn" style="cursor:pointer">↑ Importar Excel
           <input type="file" id="xlsx-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarArqExcel(this)">
         </label>
+        <button class="btn" style="font-size:11px" onclick="deduplicarArquitetura()" title="Remove processos e subprocessos com nome duplicado">🧹 Limpar duplicatas</button>
         <button class="btn btn-p" onclick="novoMacro()">+ Macroprocesso</button>
        </div>`
     : '';
@@ -1543,7 +1554,7 @@ function previewProcArq(){
   const item=findArqItem(mid,sid);
   if(!item){prev.style.display='none';return;}
   prev.style.display='block';
-  prev.innerHTML=`<strong>Área:</strong> ${item.area||'—'} &nbsp;·&nbsp; <strong>Gerente:</strong> ${item.gerente||'—'}<br>
+  prev.innerHTML=`<strong>Área:</strong> ${item.area||'—'}<br>
     <strong>Objetivo:</strong> ${item.objetivo||'—'}<br>
     <strong>Entradas:</strong> ${item.entradas||'—'} &nbsp;·&nbsp; <strong>Entregas:</strong> ${item.entregas||'—'}<br>
     <strong>Clientes:</strong> ${item.clientes||'—'}`;
@@ -1560,6 +1571,23 @@ function findArqItem(mid, itemId){
   }
   return null;
 }
+function sugerirDono(){
+  const q=document.getElementById('novo-dono-nome').value.toLowerCase();
+  const dl=document.getElementById('novo-dono-sugest');
+  dl.innerHTML='';
+  if(q.length<2) return;
+  USUARIOS.filter(u=>u.nome.toLowerCase().includes(q)||u.email.toLowerCase().includes(q)).slice(0,8).forEach(u=>{
+    const opt=document.createElement('option');
+    opt.value=u.nome;
+    opt.dataset.email=u.email;
+    dl.appendChild(opt);
+  });
+  // Auto-fill email when a known user is selected
+  document.getElementById('novo-dono-nome').addEventListener('change',function(){
+    const u=USUARIOS.find(x=>x.nome===this.value);
+    if(u) document.getElementById('novo-dono-email').value=u.email;
+  },{once:true});
+}
 function criarProcesso(){
   if(!isEP()){alert('Apenas o Escritório de Processos pode abrir novos mapeamentos.');return;}
   const mid=document.getElementById('novo-macro').value;
@@ -1568,17 +1596,20 @@ function criarProcesso(){
   const prio=document.getElementById('novo-prio').value;
   const produto=document.getElementById('novo-produto').value;
   const objetivo=document.getElementById('novo-objetivo').value.trim();
+  const donoNome=document.getElementById('novo-dono-nome').value.trim();
+  const donoEmail=document.getElementById('novo-dono-email').value.trim();
   if(!mid||!sid||!produto){alert('Selecione macroprocesso, processo/subprocesso e produto da demanda.');return;}
+  if(!donoNome||!donoEmail){alert('Informe o nome e o e-mail do dono do processo.');return;}
   const m=ARQUITETURA.find(x=>x.id===mid);
   const ap=findArqItem(mid,sid);
   if(!ap){alert('Processo não encontrado na arquitetura.');return;}
   // Mark the item as linked
   ap.proc_id=nextProcId;
   const p={
-    id:nextProcId++,arq_id:sid,nome:ap.nome,macro:m.nome,area:ap.area,dono:ap.gerente,
+    id:nextProcId++,arq_id:sid,nome:ap.nome,macro:m.nome,area:ap.area,dono:donoNome,dono_email:donoEmail,
     pat:USUARIOS.find(u=>u.perfil==='patrocinador')?.nome||'',
     resp_ep,prio,produto,objetivo:objetivo||ap.objetivo,
-    ent:{dt_inicio:new Date().toISOString().slice(0,10),dt_prev:'',dt_efetiva:'',equipe:resp_ep+', '+ap.gerente,t_total:'',t_sem_fila:'',
+    ent:{dt_inicio:new Date().toISOString().slice(0,10),dt_prev:'',dt_efetiva:'',equipe:resp_ep+', '+donoNome,t_total:'',t_sem_fila:'',
       prob:[],mat:0,quest_resp:{},vol:{exec:'',tempo:'',custo:'',sazon:''},riscos:[],
       analise:{gargalos:[],retrabalhos:[],gaps:[],oportunidades:[],complexidade:'',t_ciclo_medio:'',t_espera_medio:'',qtd_decisoes:0,qtd_atividades:0}},
     mod:{asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,obs:'',etapas_proc:[]},
@@ -1591,8 +1622,7 @@ function criarProcesso(){
   toast('Processo criado com sucesso!');
   // Pede confirmação antes de notificar o dono
   setTimeout(()=>{
-    const donoEmail=getDonoEmail(p);
-    if(!donoEmail||!p.dono) return;
+    if(!donoEmail||!donoNome) return;
     const ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
     ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
@@ -3457,14 +3487,56 @@ function toggleCriticoManual(arqId,ev){
 function getMetricasArq(){
   let nMacros=ARQUITETURA.length,nProc=0,nSub=0,nUnid=0,nMap=0;
   ARQUITETURA.forEach(m=>{
+    const vistosProc=new Set();
     m.processos.forEach(p=>{
-      nProc++;
+      if(vistosProc.has(p.nome)) return; // ignora duplicatas de nome dentro do mesmo macro
+      vistosProc.add(p.nome);
       if(p.subprocessos&&p.subprocessos.length>0){
-        p.subprocessos.forEach(s=>{nSub++;nUnid++;if(isMapeado(s.id))nMap++;});
-      } else {nUnid++;if(isMapeado(p.id))nMap++;}
+        const vistosSub=new Set();
+        p.subprocessos.forEach(s=>{
+          if(vistosSub.has(s.nome)) return; // ignora duplicatas de sub
+          vistosSub.add(s.nome);
+          nSub++;nUnid++;if(isMapeado(s.id))nMap++;
+        });
+      } else {nProc++;nUnid++;if(isMapeado(p.id))nMap++;}
     });
   });
   return{nMacros,nProc,nSub,nUnid,nMap};
+}
+
+// Remove entradas duplicadas de processo/subprocesso dentro de cada macro (mesmo nome)
+function deduplicarArquitetura(){
+  if(!isEP()){alert('Ação restrita ao EP.');return;}
+  let rmProc=0,rmSub=0;
+  ARQUITETURA.forEach(m=>{
+    const antes=m.processos.length;
+    const vistos=new Map(); // nome → primeiro objeto
+    m.processos.forEach(p=>{
+      const k=p.nome.trim().toLowerCase();
+      if(!vistos.has(k)){
+        // Deduplica subprocessos dentro deste processo
+        if(p.subprocessos&&p.subprocessos.length>0){
+          const vistosSub=new Set();
+          const orig=p.subprocessos.length;
+          p.subprocessos=p.subprocessos.filter(s=>{
+            const sk=s.nome.trim().toLowerCase();
+            if(vistosSub.has(sk)) return false;
+            vistosSub.add(sk); return true;
+          });
+          rmSub+=orig-p.subprocessos.length;
+        }
+        vistos.set(k,p);
+      }
+    });
+    m.processos=Array.from(vistos.values());
+    rmProc+=antes-m.processos.length;
+  });
+  rArq();
+  fbAutoSave('deduplicarArq');
+  const msg=rmProc||rmSub
+    ? `Limpeza concluída: ${rmProc} processo(s) e ${rmSub} subprocesso(s) duplicado(s) removido(s).`
+    : 'Nenhuma duplicata encontrada.';
+  alert(msg);
 }
 // Retorna apenas as unidades onde o usuário logado tem acesso
 function getMinhasUnidades(){
