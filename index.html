@@ -975,7 +975,7 @@ function testarEmailJS(){
     processo: 'Processo de teste',
     acao: 'Este é um e-mail de teste do sistema EP·CAGE.',
     prazo: 'N/A',
-    link: window.location.href,
+    link: 'https://eppcage.github.io/GESPROC2/',
   }).then(()=>{
     res.textContent = '✓ E-mail de teste enviado para ' + destEmail;
     res.style.color = 'var(--green)';
@@ -995,7 +995,7 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
       to_name:para_nome,to_email:para_email,
       from_name:de_nome||'EP·CAGE',
       processo:proc_nome,acao,prazo:prazo||'Não definido',
-      link:window.location.href,
+      link:'https://eppcage.github.io/GESPROC2/',
     }).catch(()=>{});
   }
 }
