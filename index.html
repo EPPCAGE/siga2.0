@@ -481,6 +481,18 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </select>
       <span class="fbar-l">Obj. estratégico</span>
       <select class="fi" id="arq-f-obje" onchange="rArq()" style="max-width:220px"><option value="">Todos</option></select>
+      <span class="fbar-l">Mapeado</span>
+      <select class="fi" id="arq-f-map" onchange="rArq()" style="max-width:110px">
+        <option value="">Todos</option>
+        <option value="sim">Sim</option>
+        <option value="nao">Não</option>
+      </select>
+      <span class="fbar-l">Crítico</span>
+      <select class="fi" id="arq-f-crit" onchange="rArq()" style="max-width:110px">
+        <option value="">Todos</option>
+        <option value="sim">Sim</option>
+        <option value="nao">Não</option>
+      </select>
     </div>
   </div>
 
@@ -915,6 +927,8 @@ let curProc = null;
 let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
 let mapeadosManual = new Set(JSON.parse(localStorage.getItem('mapeadosManual')||'[]'));
+let criticosManual = new Set(JSON.parse(localStorage.getItem('criticosManual')||'[]'));
+let fluxosCache = {};
 let bpmnModelers = {};
 let bpmnDirty = {};
 
@@ -935,6 +949,16 @@ const BPMN_DEFAULT = `<?xml version="1.0" encoding="UTF-8"?>
 // ═══════════════════════════════════════════
 // LOGIN / SESSÃO
 // ═══════════════════════════════════════════
+// Helpers para buscar e-mail real de dono/EP a partir de USUARIOS
+function getDonoEmail(proc){
+  const u=USUARIOS.find(u=>u.nome===proc.dono||u.email===proc.dono);
+  return u?.email||proc.dono_email||'';
+}
+function getEPEmail(proc){
+  const u=USUARIOS.find(u=>u.nome===proc.resp_ep||u.email===proc.resp_ep);
+  return u?.email||'';
+}
+
 function doLogin(){
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   if(!email){mostrarErrLogin('Informe seu e-mail.');return;}
@@ -946,7 +970,12 @@ function doLogin(){
       const pts=email.split('@')[0].split('.');
       const nome=pts.map(p=>p[0].toUpperCase()+p.slice(1)).join(' ');
       user={email,nome,perfil:dc.perfil,iniciais:pts.map(p=>p[0].toUpperCase()).join('').slice(0,2)};
-    } else {mostrarErrLogin('E-mail não autorizado. Contate o administrador.');return;}
+    } else {
+      // Domínio não cadastrado — acesso liberado temporariamente como dono
+      const pts=email.split('@')[0].split('.');
+      const nome=pts.map(p=>p[0].toUpperCase()+p.slice(1)).join(' ');
+      user={email,nome,perfil:'dono',iniciais:pts.map(p=>p[0].toUpperCase()).join('').slice(0,2)};
+    }
   }
   usuarioLogado=user;
   document.getElementById('login-err').style.display='none';
@@ -1475,7 +1504,7 @@ function criarProcesso(){
   };
   processos.push(p);
   updCounts();
-  enviarNotif(ap.gerente+'@sefaz.rs.gov.br',ap.gerente,'Nova demanda de mapeamento aberta — aguarda questionário de maturidade',ap.nome,'','EP·CAGE');
+  {const donoU=USUARIOS.find(u=>u.nome===ap.gerente||u.email===ap.gerente);const donoEmail=donoU?.email||ap.gerente+(ap.gerente.includes('@')?'':'@sefaz.rs.gov.br');enviarNotif(donoEmail,ap.gerente,'Nova demanda de mapeamento aberta — aguarda questionário de maturidade',ap.nome,'','EP·CAGE');}
   toast('Processo criado! Notificação enviada para '+ap.gerente);
   fbAutoSave('criarProcesso');
   abrirProc(p.id);
@@ -1502,7 +1531,7 @@ function av(etAtu, role, acao, prazoEl, notifDest){
       // Auto-notify based on etapa responsible
       const etObj = ETAPAS.find(e=>e.id===nx);
       let destNome='', destEmail='';
-      if(etObj?.resp==='dono'){destNome=curProc.dono;destEmail=curProc.dono.toLowerCase().replace(/ /g,'.')+'@sefaz.rs.gov.br';}
+      if(etObj?.resp==='dono'){destNome=curProc.dono;destEmail=getDonoEmail(curProc);}
       else if(etObj?.resp==='gestor'){const g=USUARIOS.find(u=>u.perfil==='gestor');destNome=g?.nome||'Adjunto';destEmail=g?.email||'';}
       else if(etObj?.resp==='patrocinador'){const g=USUARIOS.find(u=>u.perfil==='patrocinador');destNome=g?.nome||'Patrocinador';destEmail=g?.email||'';}
       if(destEmail) enviarNotif(destEmail, destNome, 'Nova tarefa: '+etLb(nx)+' aguarda sua ação', curProc.nome, prazoVal, role);
@@ -1510,6 +1539,35 @@ function av(etAtu, role, acao, prazoEl, notifDest){
   }
   rDetalhe();updCounts();
   fbAutoSave('av');
+  // Perguntar ao EP se deseja dar ciência ao dono
+  if(isEP() && curProc?.dono){
+    setTimeout(()=>perguntarCienciaDono(etAtu),200);
+  }
+}
+function perguntarCienciaDono(etapaConcluidaId){
+  const p=curProc;
+  if(!p||!p.dono) return;
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem">Dar ciência ao Dono do Processo?</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">Deseja notificar <strong>${p.dono}</strong> sobre a conclusão da etapa <em>${etLb(etapaConcluidaId)}</em>? Um e-mail será enviado e ficará registrado nas notificações.</div>
+    <div class="btn-row">
+      <button class="btn" onclick="this.closest('[style*=fixed]').remove()">Não, obrigado</button>
+      <button class="btn btn-p" onclick="enviarCienciaDono('${etapaConcluidaId}');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function enviarCienciaDono(etapaConcluidaId){
+  const p=curProc;
+  if(!p||!p.dono) return;
+  const email=getDonoEmail(p);
+  if(!email){toast('E-mail do dono não encontrado no cadastro.','var(--amber)');return;}
+  enviarNotif(email, p.dono,
+    'Etapa concluída pelo EP: '+etLb(etapaConcluidaId)+' — processo "'+p.nome+'"',
+    p.nome,'',usuarioLogado?.nome||'EP');
+  toast('Ciência enviada para '+p.dono,'var(--teal)');
 }
 function reprovar(voltaEt, role, acao){
   const obs = document.getElementById('aobs')?.value||'';
@@ -1596,10 +1654,9 @@ const ACOES = {
   mapeamento:{titulo:'Mapeamento — Entendimento completo',sub:'Registrar volumetria, prazos, tempo e equipe.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibt">Preencha todos os campos de entendimento quantitativo e operacional do processo.</div>
     <div class="card-t">Identificação temporal</div>
-    <div class="g4" style="margin-bottom:1rem">
+    <div class="g3" style="margin-bottom:1rem">
       <div class="fg"><label class="fl">Data início</label><input class="fi" id="m-ini" type="date" value="${p.ent.dt_inicio||''}"></div>
       <div class="fg"><label class="fl">Previsão de entrega</label><input class="fi" id="m-prev" type="date" value="${p.ent.dt_prev||''}"></div>
-      <div class="fg"><label class="fl">Entrega efetiva</label><input class="fi" id="m-efet" type="date" value="${p.ent.dt_efetiva||''}"></div>
       <div class="fg"><label class="fl">Produto</label><input class="fi" value="${p.produto}" readonly></div>
     </div>
     <div class="g2">
@@ -1778,11 +1835,12 @@ const ACOES = {
 
   publicacao:{titulo:'Publicar o processo',sub:'Publicar POP no repositório oficial.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibg">Após publicação o processo entra em fase de operação e monitoramento.</div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Link no repositório</label><input class="fi" id="a-link" placeholder="https://..."></div>
-      <div class="fg"><label class="fl">Data de vigência</label><input class="fi" type="date" id="a-vig"></div>
+    <div class="g3">
+      <div class="fg"><label class="fl">Link no repositório</label><input class="fi" id="a-link" placeholder="https://..." value="${p.form?.link_pub||''}"></div>
+      <div class="fg"><label class="fl">Data de vigência</label><input class="fi" type="date" id="a-vig" value="${p.form?.vig||''}"></div>
+      <div class="fg"><label class="fl">Entrega efetiva</label><input class="fi" type="date" id="pub-efet" value="${p.ent?.dt_efetiva||''}"></div>
     </div>
-    <div class="btn-row"><button class="btn btn-g" onclick="av('publicacao','EP','Processo publicado. Início da operação.','prazo-publicacao')">Publicar →</button></div>`},
+    <div class="btn-row"><button class="btn btn-g" onclick="publicarProcesso()">Publicar →</button></div>`},
 
   acompanha:{titulo:'Acompanhamento da implementação',sub:'Verificar conformidade com o POP e registrar desvios.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibb">Registre verificações periódicas. Identifique e corrija desvios de execução.</div>
@@ -1999,7 +2057,7 @@ function salvarQuestionario(){
   push(p,'questionario','Dono do processo','Questionário respondido — '+respondidas+'/15 perguntas — média '+media+' — nível '+nivel);
   const nx=nextEt('questionario');
   if(nx){p.etapa=nx;push(p,nx,'Sistema','Etapa iniciada');}
-  enviarNotif(p.resp_ep+'@sefaz.rs.gov.br',p.resp_ep,'Questionário de maturidade respondido. Nível: '+nivel+'/5. Próxima etapa: '+etLb(nx||''),p.nome,'',p.dono);
+  {const epEmail=getEPEmail(p)||p.resp_ep+(p.resp_ep?.includes('@')?'':'@sefaz.rs.gov.br');enviarNotif(epEmail,p.resp_ep,'Questionário de maturidade respondido. Nível: '+nivel+'/5. Próxima etapa: '+etLb(nx||''),p.nome,'',p.dono);}
   toast('Questionário enviado! Maturidade nível '+nivel);
   rDetalhe();updCounts();
   if(usuarioLogado?.perfil==='dono') setTimeout(()=>popupConclusaoDono('Seu questionário foi enviado com sucesso! O EP foi notificado e dará continuidade ao mapeamento do processo.'),200);
@@ -2010,11 +2068,18 @@ function salvarReuniao(){
   p.ent.prob=prob;
   av('reuniao','EP','Reunião realizada. '+prob.length+' problemas identificados.','prazo-reuniao');
 }
+function publicarProcesso(){
+  const p=curProc;
+  p.ent.dt_efetiva=document.getElementById('pub-efet')?.value||p.ent.dt_efetiva;
+  p.form=p.form||{};
+  p.form.link_pub=document.getElementById('a-link')?.value||p.form.link_pub||'';
+  p.form.vig=document.getElementById('a-vig')?.value||p.form.vig||'';
+  av('publicacao','EP','Processo publicado. Início da operação.','prazo-publicacao');
+}
 function salvarMapeamento(){
   const p=curProc;
   p.ent.dt_inicio=document.getElementById('m-ini')?.value||p.ent.dt_inicio;
   p.ent.dt_prev=document.getElementById('m-prev')?.value||p.ent.dt_prev;
-  p.ent.dt_efetiva=document.getElementById('m-efet')?.value||p.ent.dt_efetiva;
   p.ent.t_total=document.getElementById('m-ttotal')?.value||'';
   p.ent.t_sem_fila=document.getElementById('m-tsemfila')?.value||'';
   p.ent.equipe=document.getElementById('m-equipe')?.value||p.ent.equipe;
@@ -2520,11 +2585,13 @@ function rArqPopulateFilters(){
 
 function getArqFilters(){
   return {
-    srch: (document.getElementById('arq-srch')?.value||'').toLowerCase().trim(),
+    srch:  (document.getElementById('arq-srch')?.value||'').toLowerCase().trim(),
     macro: document.getElementById('arq-f-macro')?.value||'',
     area:  document.getElementById('arq-f-area')?.value||'',
     nat:   document.getElementById('arq-f-nat')?.value||'',
     obje:  document.getElementById('arq-f-obje')?.value||'',
+    mapeado: document.getElementById('arq-f-map')?.value||'',
+    critico: document.getElementById('arq-f-crit')?.value||'',
   };
 }
 
@@ -2533,6 +2600,10 @@ function itemMatchesFilters(item, macroNome, f){
   if(f.area  && item.area  !== f.area)  return false;
   if(f.nat   && (item.natureza||'').toLowerCase() !== f.nat.toLowerCase()) return false;
   if(f.obje  && !(item.objetivo_estrategico||'').includes(f.obje)) return false;
+  if(f.mapeado === 'sim' && !isMapeado(item.id)) return false;
+  if(f.mapeado === 'nao' && isMapeado(item.id))  return false;
+  if(f.critico === 'sim' && !isCritico(item.id)) return false;
+  if(f.critico === 'nao' && isCritico(item.id))  return false;
   if(f.srch){
     const hay = [item.nome, item.area, item.gerente, item.objetivo,
                  item.objetivo_estrategico, item.clientes, macroNome]
@@ -2543,7 +2614,7 @@ function itemMatchesFilters(item, macroNome, f){
 }
 
 function limparFiltrosArq(){
-  ['arq-srch','arq-f-macro','arq-f-area','arq-f-nat','arq-f-obje'].forEach(id=>{
+  ['arq-srch','arq-f-macro','arq-f-area','arq-f-nat','arq-f-obje','arq-f-map','arq-f-crit'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.value = '';
   });
@@ -2569,7 +2640,7 @@ function rArq(){
     `<strong style="color:${pct>=80?'var(--teal)':pct>=50?'var(--amber)':'var(--red)'}">${pct}% mapeados</strong> (${mx.nMap}/${mx.nUnid})`;
 
   const f = getArqFilters();
-  const hasFilter = f.srch || f.macro || f.area || f.nat || f.obje;
+  const hasFilter = f.srch || f.macro || f.area || f.nat || f.obje || f.mapeado || f.critico;
 
   // Hide import hint when filtering
   const hint = document.getElementById('arq-import-hint');
@@ -2704,6 +2775,8 @@ function procArqHTML(mid,p){
             ? `<span class="badge bg" style="font-size:10px">Mapeado</span>`
             : `<span class="badge bgr" style="font-size:10px">Não mapeado</span>`}
       ${isEP()&&!hasSubs?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isMapeado(p.id)?'var(--red)':'var(--teal)'}" onclick="toggleMapeadoManual('${p.id}',event)">${isMapeado(p.id)?'Desmarcar mapeado':'✓ Mapeado'}</button>`:''}
+      ${!hasSubs&&isCritico(p.id)?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
+      ${isEP()&&!hasSubs?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isCritico(p.id)?'#dc2626':'var(--ink3)'}" onclick="toggleCriticoManual('${p.id}',event)">${isCritico(p.id)?'Desmarcar crítico':'⚠ Crítico'}</button>`:''}
       ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();novoSubArq('${mid}','${p.id}')">+ Sub</button>
       <button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editProcArq('${mid}','${p.id}')">✎ Editar</button>
       <button class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="event.stopPropagation();removerProcArq('${mid}','${p.id}')">× Apagar</button>`:''}
@@ -2725,6 +2798,8 @@ function procArqHTML(mid,p){
               ${isMeuProcesso(s.id)?'<span class="badge bb" style="font-size:9px">Meu processo</span>':''}
               ${sl?`<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`:isMapeado(s.id)?`<span class="badge bg" style="font-size:10px">Mapeado</span>`:`<span class="badge bgr" style="font-size:10px">Não mapeado</span>`}
               ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isMapeado(s.id)?'var(--red)':'var(--teal)'}" onclick="toggleMapeadoManual('${s.id}',event)">${isMapeado(s.id)?'Desmarcar':'✓ Mapeado'}</button>`:''}
+              ${isCritico(s.id)?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
+              ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isCritico(s.id)?'#dc2626':'var(--ink3)'}" onclick="toggleCriticoManual('${s.id}',event)">${isCritico(s.id)?'Desmarcar crítico':'⚠ Crítico'}</button>`:''}
               <button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${p.id}','${s.id}')">✎ Editar</button>
               <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${p.id}','${s.id}')">×</button>
             </div>
@@ -2779,6 +2854,8 @@ function metaFieldsReadonly(item){
       <span class="badge ${EBADGE[proc.etapa]||'bgr'}" style="font-size:10px">${etLb(proc.etapa)}</span>
       <span class="badge ${FASE_COR[etFase(proc.etapa)]||'bgr'}" style="font-size:10px">${etFase(proc.etapa)}</span>
       <button class="btn btn-p" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="abrirProc(${proc.id})">Abrir mapeamento →</button>
+      <button class="btn" style="font-size:10px;padding:2px 8px" onclick="verFluxoBizagi('${item.id}',event)">🗺 Ver fluxo Bizagi</button>
+      ${isEP()?`<label class="btn" style="font-size:10px;padding:2px 8px;cursor:pointer" title="Carregar imagem de fluxo Bizagi">📎 Alterar imagem<input type="file" accept="image/*" style="display:none" onchange="uploadFluxoArq('${item.id}',this)"></label>`:''}
     </div>
     <div style="display:flex;gap:2px;margin-bottom:.6rem">${progBar}</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px">
@@ -3115,6 +3192,17 @@ function toggleMapeadoManual(arqId,ev){
   else mapeadosManual.add(arqId);
   localStorage.setItem('mapeadosManual',JSON.stringify([...mapeadosManual]));
   fbAutoSave('mapeados');
+  rArq();
+}
+function isCritico(arqId){
+  return criticosManual.has(arqId);
+}
+function toggleCriticoManual(arqId,ev){
+  ev&&ev.stopPropagation();
+  if(criticosManual.has(arqId)) criticosManual.delete(arqId);
+  else criticosManual.add(arqId);
+  localStorage.setItem('criticosManual',JSON.stringify([...criticosManual]));
+  fbAutoSave('criticos');
   rArq();
 }
 function getMetricasArq(){
@@ -3803,6 +3891,8 @@ async function fbSaveAll(){
     batch.set(doc(db,'config','usuarios'), {data: JSON.stringify(USUARIOS)});
     // mapeados manualmente (single doc)
     batch.set(doc(db,'config','mapeados'), {data: JSON.stringify([...mapeadosManual])});
+    // críticos manualmente (single doc)
+    batch.set(doc(db,'config','criticos'), {data: JSON.stringify([...criticosManual])});
 
     await batch.commit();
     toast('✓ Dados salvos na nuvem', 'var(--teal)');
@@ -3862,6 +3952,13 @@ async function fbLoad(){
       localStorage.setItem('mapeadosManual', JSON.stringify([...mapeadosManual]));
     }
 
+    // críticos manualmente
+    const critDoc = await getDoc(doc(db,'config','criticos'));
+    if(critDoc.exists() && critDoc.data().data){
+      criticosManual = new Set(JSON.parse(critDoc.data().data));
+      localStorage.setItem('criticosManual', JSON.stringify([...criticosManual]));
+    }
+
     // emailjs config
     const ejsDoc = await getDoc(doc(db,'config','ejs'));
     if(ejsDoc.exists()){
@@ -3901,6 +3998,60 @@ async function fbSaveEjs(){
     const {db, doc, setDoc} = fb();
     await setDoc(doc(db,'config','ejs'), ejsConfig);
   } catch(e){ console.warn('fbSaveEjs error:', e.message); }
+}
+
+// ── FLUXO BIZAGI (imagens) ────────────────
+async function saveFluxoImg(arqId, base64){
+  if(!fbReady()){ fluxosCache[arqId]=base64; return; }
+  try {
+    const {db, doc, setDoc} = fb();
+    await setDoc(doc(db,'fluxos',arqId), {data: base64, updatedAt: Date.now()});
+    fluxosCache[arqId] = base64;
+  } catch(e){ console.warn('saveFluxoImg:', e.message); toast('⚠ Erro ao salvar imagem: '+e.message,'var(--red)'); }
+}
+async function loadFluxoImg(arqId){
+  if(fluxosCache[arqId] !== undefined) return fluxosCache[arqId];
+  if(!fbReady()) return null;
+  try {
+    const {db, doc, getDoc} = fb();
+    const snap = await getDoc(doc(db,'fluxos',arqId));
+    const data = snap.exists() ? (snap.data().data||null) : null;
+    fluxosCache[arqId] = data;
+    return data;
+  } catch(e){ console.warn('loadFluxoImg:', e.message); return null; }
+}
+async function verFluxoBizagi(arqId, ev){
+  ev&&ev.stopPropagation();
+  const base64 = await loadFluxoImg(arqId);
+  if(!base64){ alert('Nenhuma imagem de fluxo cadastrada para este processo.'); return; }
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:zoom-out';
+  ov.innerHTML = `<img src="${base64}" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6);cursor:default" onclick="event.stopPropagation()">
+    <button style="margin-top:1rem;background:#fff;border:none;border-radius:6px;padding:6px 18px;cursor:pointer;font-size:13px" onclick="event.stopPropagation();this.parentNode.remove()">✕ Fechar</button>`;
+  ov.onclick = () => ov.remove();
+  document.body.appendChild(ov);
+}
+function uploadFluxoArq(arqId, input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 3*1024*1024){ alert('Imagem muito grande (máx. 3 MB). Comprima antes de enviar.'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = async e => {
+    await saveFluxoImg(arqId, e.target.result);
+    toast('✓ Imagem do fluxo Bizagi salva!', 'var(--teal)');
+  };
+  reader.readAsDataURL(file);
+}
+function previewFluxoImg(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const prev = document.getElementById('pop-fluxo-preview');
+    const img  = document.getElementById('pop-fluxo-img-prev');
+    if(prev && img){ img.src = e.target.result; prev.style.display = 'block'; }
+  };
+  reader.readAsDataURL(file);
 }
 
 // ── SAVE BUTTON ───────────────────────────
@@ -4336,6 +4487,10 @@ function abrirImportPOP(){
 }
 function fecharImportPOP(){
   document.getElementById('pop-import-modal').style.display='none';
+  const prev = document.getElementById('pop-fluxo-preview');
+  if(prev) prev.style.display = 'none';
+  const fi = document.getElementById('pop-fluxo-img');
+  if(fi) fi.value = '';
 }
 function voltarImportPOP(){
   document.getElementById('pop-step2').style.display='none';
@@ -4423,6 +4578,17 @@ function confirmarImportPOP(){
   if(arqId){mapeadosManual.add(arqId);localStorage.setItem('mapeadosManual',JSON.stringify([...mapeadosManual]));fbAutoSave('mapeados');}
   updCounts();
   fbAutoSave('importPOP');
+  // Salva imagem do fluxo Bizagi se selecionada
+  const fluxoInput = document.getElementById('pop-fluxo-img');
+  const fluxoFile = fluxoInput?.files?.[0];
+  if(fluxoFile && arqId){
+    if(fluxoFile.size > 3*1024*1024){ alert('Imagem de fluxo muito grande (máx. 3 MB). Processo salvo sem a imagem.'); }
+    else {
+      const reader = new FileReader();
+      reader.onload = async e => { await saveFluxoImg(arqId, e.target.result); };
+      reader.readAsDataURL(fluxoFile);
+    }
+  }
   fecharImportPOP();
   toast('POP importado! Processo criado em "Publicação".');
   renderProcs();
@@ -4459,9 +4625,16 @@ function confirmarImportPOP(){
       <div class="fg" style="margin-bottom:.8rem"><label class="fl">Objetivo</label><textarea class="fi" id="pop-objetivo" style="min-height:60px"></textarea></div>
       <div class="fg" style="margin-bottom:.8rem"><label class="fl">Atores / Responsáveis</label><textarea class="fi" id="pop-atores" style="min-height:60px" placeholder="Um por linha"></textarea></div>
       <div class="fg" style="margin-bottom:.8rem"><label class="fl">Etapas do processo</label><textarea class="fi" id="pop-etapas" style="min-height:100px" placeholder="Uma por linha"></textarea></div>
-      <div class="fg" style="margin-bottom:1rem">
+      <div class="fg" style="margin-bottom:.8rem">
         <label class="fl">Vincular à arquitetura (processo já cadastrado)</label>
         <select class="fi" id="pop-arq-sel"><option value="">— Selecione —</option></select>
+      </div>
+      <div class="fg" style="margin-bottom:1rem">
+        <label class="fl">Imagem do fluxo Bizagi (opcional — PNG, JPG, máx. 3 MB)</label>
+        <input type="file" id="pop-fluxo-img" accept="image/*" class="fi" onchange="previewFluxoImg(this)">
+        <div id="pop-fluxo-preview" style="display:none;margin-top:.5rem;text-align:center">
+          <img id="pop-fluxo-img-prev" style="max-width:100%;max-height:200px;border-radius:6px;border:1px solid var(--bdr)">
+        </div>
       </div>
       <div class="btn-row">
         <button class="btn" onclick="voltarImportPOP()">← Voltar</button>
