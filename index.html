@@ -2192,9 +2192,10 @@ function bpmnImport(which){
 // SUBTABS HELPERS
 // ═══════════════════════════════════════════
 function sstab(id,el){
-  el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  const tabsEl=el.closest('.tabs');
+  tabsEl.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
-  ['pp1','pp2','pp3','pp4','aud1','aud2','aud3'].forEach(s=>{const e=document.getElementById(s);if(e)e.classList.toggle('on',s===id);e&&(e.style.display=s===id?'block':'none');});
+  tabsEl.parentElement.querySelectorAll('.tab-p').forEach(p=>{const active=p.id===id;p.classList.toggle('on',active);p.style.display=active?'block':'none';});
 }
 
 // ═══════════════════════════════════════════
