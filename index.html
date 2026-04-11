@@ -1354,6 +1354,7 @@ function aplicarPermissoes(){
         <label class="btn" style="cursor:pointer">↑ Importar Excel
           <input type="file" id="xlsx-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarArqExcel(this)">
         </label>
+        <button class="btn" style="font-size:11px" onclick="deduplicarArquitetura()" title="Remove processos e subprocessos com nome duplicado">🧹 Limpar duplicatas</button>
         <button class="btn btn-p" onclick="novoMacro()">+ Macroprocesso</button>
        </div>`
     : '';
@@ -3457,14 +3458,56 @@ function toggleCriticoManual(arqId,ev){
 function getMetricasArq(){
   let nMacros=ARQUITETURA.length,nProc=0,nSub=0,nUnid=0,nMap=0;
   ARQUITETURA.forEach(m=>{
+    const vistosProc=new Set();
     m.processos.forEach(p=>{
-      nProc++;
+      if(vistosProc.has(p.nome)) return; // ignora duplicatas de nome dentro do mesmo macro
+      vistosProc.add(p.nome);
       if(p.subprocessos&&p.subprocessos.length>0){
-        p.subprocessos.forEach(s=>{nSub++;nUnid++;if(isMapeado(s.id))nMap++;});
-      } else {nUnid++;if(isMapeado(p.id))nMap++;}
+        const vistosSub=new Set();
+        p.subprocessos.forEach(s=>{
+          if(vistosSub.has(s.nome)) return; // ignora duplicatas de sub
+          vistosSub.add(s.nome);
+          nSub++;nUnid++;if(isMapeado(s.id))nMap++;
+        });
+      } else {nProc++;nUnid++;if(isMapeado(p.id))nMap++;}
     });
   });
   return{nMacros,nProc,nSub,nUnid,nMap};
+}
+
+// Remove entradas duplicadas de processo/subprocesso dentro de cada macro (mesmo nome)
+function deduplicarArquitetura(){
+  if(!isEP()){alert('Ação restrita ao EP.');return;}
+  let rmProc=0,rmSub=0;
+  ARQUITETURA.forEach(m=>{
+    const antes=m.processos.length;
+    const vistos=new Map(); // nome → primeiro objeto
+    m.processos.forEach(p=>{
+      const k=p.nome.trim().toLowerCase();
+      if(!vistos.has(k)){
+        // Deduplica subprocessos dentro deste processo
+        if(p.subprocessos&&p.subprocessos.length>0){
+          const vistosSub=new Set();
+          const orig=p.subprocessos.length;
+          p.subprocessos=p.subprocessos.filter(s=>{
+            const sk=s.nome.trim().toLowerCase();
+            if(vistosSub.has(sk)) return false;
+            vistosSub.add(sk); return true;
+          });
+          rmSub+=orig-p.subprocessos.length;
+        }
+        vistos.set(k,p);
+      }
+    });
+    m.processos=Array.from(vistos.values());
+    rmProc+=antes-m.processos.length;
+  });
+  rArq();
+  fbAutoSave('deduplicarArq');
+  const msg=rmProc||rmSub
+    ? `Limpeza concluída: ${rmProc} processo(s) e ${rmSub} subprocesso(s) duplicado(s) removido(s).`
+    : 'Nenhuma duplicata encontrada.';
+  alert(msg);
 }
 // Retorna apenas as unidades onde o usuário logado tem acesso
 function getMinhasUnidades(){
