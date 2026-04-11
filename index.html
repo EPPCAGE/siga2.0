@@ -610,6 +610,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-auditoria" class="page"><div style="padding:2rem">
   <div class="ph">
     <div><div class="ph-t">Auditoria de processos</div><div class="ph-s" id="aud-sub">Processos com auditoria em andamento ou concluída</div></div>
+    <button class="btn btn-p" onclick="abrirModalNovaAuditoria()">+ Nova auditoria</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:1rem">
     <span class="chip on" id="aud-chip-and" onclick="filtAuditoria('andamento',this)">Em andamento</span>
@@ -618,6 +619,21 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </div>
   <div id="aud-list"></div>
 </div></div>
+
+<!-- MODAL: Nova Auditoria -->
+<div id="modal-nova-auditoria" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;overflow-y:auto">
+  <div style="background:var(--surf);border-radius:14px;max-width:640px;width:95%;margin:2rem auto;padding:2rem;box-shadow:0 16px 48px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--ink)">Nova auditoria</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:2px">Selecione o processo mapeado que será auditado</div>
+      </div>
+      <button class="btn" onclick="fecharModalNovaAuditoria()">✕ Fechar</button>
+    </div>
+    <input class="srch" id="aud-srch" placeholder="Filtrar por nome, área ou macroprocesso..." oninput="rListaAptosAuditoria()" style="width:100%;margin-bottom:1rem">
+    <div id="aud-aptos-list"></div>
+  </div>
+</div>
 
 <div id="page-notificacoes" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Notificações</div><div class="ph-s">Configuração de e-mail e registro de avisos enviados</div></div>
@@ -1164,6 +1180,62 @@ function filtAuditoria(modo,el){
   el.classList.add('on');
   rAuditoria();
 }
+function abrirModalNovaAuditoria(){
+  document.getElementById('modal-nova-auditoria').style.display='block';
+  document.getElementById('aud-srch').value='';
+  rListaAptosAuditoria();
+}
+function fecharModalNovaAuditoria(){
+  document.getElementById('modal-nova-auditoria').style.display='none';
+}
+function rListaAptosAuditoria(){
+  const el=document.getElementById('aud-aptos-list');
+  if(!el)return;
+  const srch=(document.getElementById('aud-srch')?.value||'').toLowerCase().trim();
+  // Processos aptos = mapeados na arquitetura E não em auditoria ativa
+  const aptos=processos.filter(p=>{
+    if(p.etapa==='auditoria') return false; // já em auditoria ativa
+    const mapped=p.arq_id?isMapeado(p.arq_id):['publicacao','acompanha','monitora'].includes(p.etapa);
+    if(!mapped) return false;
+    if(srch){
+      const hay=[p.nome,p.area,p.macro,p.dono].join(' ').toLowerCase();
+      if(!hay.includes(srch)) return false;
+    }
+    return true;
+  });
+  if(!aptos.length){
+    el.innerHTML='<div class="ib ibg">Nenhum processo mapeado encontrado'+(srch?' para "'+srch+'"':'')+'. Marque processos como mapeados na arquitetura para habilitá-los.</div>';
+    return;
+  }
+  el.innerHTML=aptos.map(p=>`
+    <div class="prc" style="margin-bottom:8px;cursor:pointer" onclick="iniciarNovaAuditoria(${p.id})">
+      <div style="flex:1">
+        <div class="prc-t">${p.nome}</div>
+        <div class="prc-m"><strong>${p.macro||'—'}</strong> · ${p.area||'—'} · Dono: ${p.dono||'—'}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">
+          <span class="badge bg" style="font-size:9px">Mapeado</span>
+          &nbsp;Etapa atual: <strong>${etLb(p.etapa)}</strong>
+          ${p.auditoria?.data?`&nbsp;· Última auditoria: ${p.auditoria.data}`:''}
+        </div>
+      </div>
+      <button class="btn btn-p" style="font-size:11px;padding:4px 12px" onclick="event.stopPropagation();iniciarNovaAuditoria(${p.id})">Iniciar auditoria →</button>
+    </div>`).join('');
+}
+function iniciarNovaAuditoria(procId){
+  const p=processos.find(x=>x.id===procId);
+  if(!p) return;
+  if(!confirm('Iniciar auditoria de "'+p.nome+'"?\nO processo será movido para a etapa Auditoria.')) return;
+  p.auditoria=null; // limpa auditoria anterior
+  p.etapa='auditoria';
+  push(p,'auditoria','EP','Nova auditoria iniciada');
+  fbAutoSave('novaAuditoria');
+  fecharModalNovaAuditoria();
+  rAuditoria();
+  updCounts();
+  toast('Auditoria iniciada para "'+p.nome+'"','var(--teal)');
+  // Abre o processo direto na aba auditoria
+  setTimeout(()=>abrirProc(procId),300);
+}
 function rAuditoria(){
   const el=document.getElementById('aud-list');
   if(!el)return;
@@ -1360,8 +1432,19 @@ function renderProcs(){
   el.innerHTML=lista.map(p=>`<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})">
     <div><div class="prc-t">${p.nome}</div>
     <div class="prc-m"><strong>${p.macro}</strong> · ${p.area} · Dono: <strong>${p.dono}</strong> · EP: <strong>${p.resp_ep}</strong></div></div>
-    <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${pBadge(p.prio)}</div>
+    <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${pBadge(p.prio)}${isEP()?`<button class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
   </div>`).join('');
+}
+function excluirMapeamento(id){
+  if(!isEP()){alert('Ação restrita ao EP.');return;}
+  const p=processos.find(x=>x.id===id);
+  if(!p)return;
+  if(!confirm('Excluir o mapeamento "'+p.nome+'" permanentemente?\nEsta ação não pode ser desfeita.'))return;
+  processos=processos.filter(x=>x.id!==id);
+  renderProcs();
+  updCounts();
+  fbAutoSave('excluirMapeamento');
+  toast('Mapeamento "'+p.nome+'" excluído.','var(--red)');
 }
 function abrirProc(id){
   curProc=processos.find(p=>p.id===id);
