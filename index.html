@@ -1588,7 +1588,7 @@ function criarProcesso(){
   };
   processos.push(p);
   updCounts();
-  {const donoU=USUARIOS.find(u=>u.nome===ap.gerente||u.email===ap.gerente);const donoEmail=donoU?.email||ap.gerente+(ap.gerente.includes('@')?'':'@sefaz.rs.gov.br');enviarNotif(donoEmail,ap.gerente,'Nova demanda de mapeamento aberta — aguarda questionário de maturidade',ap.nome,'','EP·CAGE');}
+  {const donoEmail=getDonoEmail(p);if(donoEmail)enviarNotif(donoEmail,p.dono,'Nova demanda de mapeamento aberta — aguarda questionário de maturidade',p.nome,'','EP·CAGE');}
   toast('Processo criado! Notificação enviada para '+ap.gerente);
   fbAutoSave('criarProcesso');
   abrirProc(p.id);
@@ -1606,19 +1606,11 @@ function av(etAtu, role, acao, prazoEl, notifDest){
   if(nx){
     curProc.etapa = nx;
     push(curProc, nx, 'Sistema', 'Etapa iniciada');
-    // Notify next responsible
-    if(notifDest){
-      const u = USUARIOS.find(x=>x.nome===notifDest||x.email===notifDest);
-      const email = u?.email || (notifDest.includes('@')?notifDest:notifDest.toLowerCase().replace(/ /g,'.')+'.rs.gov.br');
-      enviarNotif(email, notifDest, 'Nova tarefa: '+etLb(nx)+' aguarda sua ação', curProc.nome, prazoVal, role);
-    } else {
-      // Auto-notify based on etapa responsible
-      const etObj = ETAPAS.find(e=>e.id===nx);
-      let destNome='', destEmail='';
-      if(etObj?.resp==='dono'){destNome=curProc.dono;destEmail=getDonoEmail(curProc);}
-      else if(etObj?.resp==='gestor'){const g=USUARIOS.find(u=>u.perfil==='gestor');destNome=g?.nome||'Adjunto';destEmail=g?.email||'';}
-      else if(etObj?.resp==='patrocinador'){const g=USUARIOS.find(u=>u.perfil==='patrocinador');destNome=g?.nome||'Patrocinador';destEmail=g?.email||'';}
-      if(destEmail) enviarNotif(destEmail, destNome, 'Nova tarefa: '+etLb(nx)+' aguarda sua ação', curProc.nome, prazoVal, role);
+    // Notifica apenas o dono do processo, se a próxima etapa é dele
+    const etObj = ETAPAS.find(e=>e.id===nx);
+    if(etObj?.resp==='dono' && curProc.dono){
+      const email = getDonoEmail(curProc);
+      if(email) enviarNotif(email, curProc.dono, 'Nova tarefa: '+etLb(nx)+' aguarda sua ação', curProc.nome, prazoVal, role);
     }
   }
   rDetalhe();updCounts();
