@@ -452,62 +452,71 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
 <div id="page-indicadores" class="page"><div style="padding:2rem">
   <div class="ph">
-    <div><div class="ph-t">Indicadores</div><div class="ph-s" id="ind-sub">Monitoramento de KPIs por processo</div></div>
+    <div><div class="ph-t">Indicadores</div><div class="ph-s" id="ind-sub">Monitoramento de KPIs</div></div>
     <div style="display:flex;gap:8px">
-      <button class="btn" onclick="document.getElementById('imp-ind-modal').style.display='block'">↑ Importar</button>
+      <label class="btn" style="cursor:pointer">↑ Importar planilha
+        <input type="file" id="ind-xlsx-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarIndicadores(this)">
+      </label>
       <button class="btn btn-p" onclick="abrirNovoKpi()">+ Novo indicador</button>
     </div>
   </div>
-  <div class="fbar" style="align-items:center;gap:12px;flex-wrap:wrap">
-    <span class="fbar-l">Processo</span>
-    <select class="fi" id="ind-proc-sel" onchange="rInd()" style="max-width:380px">
-      <option value="">Todos os processos</option>
-    </select>
-    <span class="fbar-l" style="margin-left:8px">Direção</span>
-    <div class="chips" id="ind-dir-chips">
-      <span class="chip on" onclick="filtIndDir('',this)">Todos</span>
-      <span class="chip" onclick="filtIndDir('max',this)">↑ Maximizar</span>
-      <span class="chip" onclick="filtIndDir('min',this)">↓ Minimizar</span>
-    </div>
+  <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap">
+    <span class="fbar-l">Área</span>
+    <select class="fi" id="ind-area-sel" onchange="rInd()" style="max-width:200px"><option value="">Todas</option></select>
+    <span class="fbar-l">Ciclo</span>
+    <select class="fi" id="ind-ciclo-sel" onchange="rInd()" style="max-width:200px"><option value="">Todos</option></select>
+    <span class="fbar-l">Período</span>
+    <select class="fi" id="ind-periodo-sel" onchange="rInd()" style="max-width:160px"><option value="">Todos</option></select>
   </div>
   <div id="ind-summary" style="margin-bottom:.8rem"></div>
   <div id="ind-c"></div>
 
-  <!-- Modal novo KPI -->
-  <div id="novo-kpi-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem">
-    <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:520px;box-shadow:var(--sh2)">
-      <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem">Novo indicador</div>
-      <div class="fg"><label class="fl">Processo<span>*</span></label>
-        <select class="fi" id="nkpi-proc"></select>
+  <!-- Modal novo/editar KPI -->
+  <div id="novo-kpi-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
+    <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
+      <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="kpi-modal-titulo">Novo indicador</div>
+      <input type="hidden" id="nkpi-edit-idx">
+      <div class="g2">
+        <div class="fg"><label class="fl">Área<span>*</span></label><input class="fi" id="nkpi-area" placeholder="Ex: Gabinete"></div>
+        <div class="fg"><label class="fl">Código / ID</label><input class="fi" id="nkpi-codigo" placeholder="Ex: 171.012"></div>
       </div>
-      <div class="fg"><label class="fl">Nome do indicador<span>*</span></label>
-        <input class="fi" id="nkpi-nome" placeholder="Ex: Tempo médio de ciclo">
+      <div class="fg"><label class="fl">Enunciado do indicador<span>*</span></label>
+        <input class="fi" id="nkpi-nome" placeholder="Ex: Reuniões de monitoramento realizadas">
+      </div>
+      <div class="fg"><label class="fl">Descrição</label>
+        <textarea class="fi" id="nkpi-desc" style="min-height:55px"></textarea>
       </div>
       <div class="g3">
-        <div class="fg"><label class="fl">Meta</label><input class="fi" id="nkpi-meta" type="number" placeholder="0"></div>
-        <div class="fg"><label class="fl">Unidade</label><input class="fi" id="nkpi-unid" placeholder="dias / % / un."></div>
-        <div class="fg"><label class="fl">Direção</label>
-          <select class="fi" id="nkpi-dir">
-            <option value="min">↓ Minimizar</option>
-            <option value="max">↑ Maximizar</option>
+        <div class="fg"><label class="fl">Periodicidade</label>
+          <select class="fi" id="nkpi-period">
+            <option>Mensal</option><option>Bimestral</option><option>Trimestral</option><option>Semestral</option><option>Anual</option>
           </select>
         </div>
+        <div class="fg"><label class="fl">Período</label><input class="fi" id="nkpi-periodo" placeholder="Ex: janeiro/2026"></div>
+        <div class="fg"><label class="fl">Ciclo</label><input class="fi" id="nkpi-ciclo" placeholder="Ex: JAN/2026 - DEZ/2026"></div>
+      </div>
+      <div class="g3">
+        <div class="fg"><label class="fl">Meta (%)</label><input class="fi" id="nkpi-meta" type="number" placeholder="80"></div>
+        <div class="fg"><label class="fl">Realizado (%)</label><input class="fi" id="nkpi-real" type="number" placeholder="100"></div>
+        <div class="fg"><label class="fl">% Índice</label><input class="fi" id="nkpi-indice" type="number" placeholder="80"></div>
+      </div>
+      <div class="g2">
+        <div class="fg"><label class="fl">PPE?</label>
+          <select class="fi" id="nkpi-ppe"><option>Não</option><option>Sim</option></select>
+        </div>
+        <div class="fg"><label class="fl">% Realizado (calculado)</label><input class="fi" id="nkpi-pct-real" readonly placeholder="Calculado automaticamente"></div>
+      </div>
+      <div class="fg"><label class="fl">Análise</label>
+        <textarea class="fi" id="nkpi-analise" style="min-height:70px" placeholder="Comentário sobre o resultado..."></textarea>
       </div>
       <div class="btn-row">
+        <button class="btn btn-r" id="kpi-del-btn" style="margin-right:auto;display:none" onclick="deletarKpi()">Remover</button>
         <button class="btn" onclick="document.getElementById('novo-kpi-modal').style.display='none'">Cancelar</button>
-        <button class="btn btn-p" onclick="salvarNovoKpi()">Criar indicador</button>
+        <button class="btn btn-p" onclick="salvarNovoKpi()">Salvar</button>
       </div>
     </div>
   </div>
-
-  <div id="imp-ind-modal" style="display:none" class="card" style="border:2px solid var(--blue-b);margin-top:1rem">
-    <div class="card-t">Importar indicadores</div>
-    <div class="ib ibb">Colunas esperadas: <strong>Processo, Indicador, Meta, Período, Valor, Unidade, Direção (max/min)</strong></div>
-    <div class="upl" onclick="simImport()"><div style="font-size:24px;color:var(--ink4);margin-bottom:6px">⬆</div><div style="font-size:12px;color:var(--ink3)">Clique para carregar dados de demonstração</div></div>
-    <div class="btn-row"><button class="btn" onclick="document.getElementById('imp-ind-modal').style.display='none'">Cancelar</button></div>
-  </div>
 </div></div>
-
 <div id="page-notificacoes" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Notificações</div><div class="ph-s">Configuração de e-mail e registro de avisos enviados</div></div>
   <button class="btn" onclick="limparNotifs()">Limpar lidas</button></div>
@@ -781,57 +790,13 @@ const QUESTOES = [
 ];
 const LIKERT = ['Nunca','Raramente','Às vezes','Frequentemente','Sempre'];
 
-let processos = [
-  {id:1, arq_id:'ap1', nome:'Elaborar materiais e peças de comunicação', macro:'Comunicação institucional', area:'Assessoria de Comunicação', dono:'Amilcar da Rosa', pat:'Andrea Buhl', resp_ep:'Felipe Tourinho', prio:'Normal', produto:'AS IS + TO BE', objetivo:'Mapear e melhorar o processo de produção de materiais institucionais',
-    ent:{dt_inicio:'2025-05-23',dt_prev:'2025-09-30',dt_efetiva:'2025-09-25',equipe:'Felipe Tourinho, Amilcar da Rosa, designer contratado',t_total:'90 dias',t_sem_fila:'35 dias',
-      prob:['Falta de padronização no recebimento de demandas','Tempo de ciclo elevado para materiais gráficos'],
-      mat:3, quest_resp:{},
-      vol:{exec:'~40/mês',tempo:'2,5 dias',custo:'R$ 800/material',sazon:'Picos em eventos'},
-      riscos:[{desc:'Designer sobrecarregado em picos',prob:'Alta',imp:'Alto'},{desc:'Informação desatualizada publicada',prob:'Baixa',imp:'Alto'}],
-      analise:{gargalos:['Aprovação pelo adjunto sem prazo definido','Designer único para todos os materiais'],retrabalhos:['Textos devolvidos pela área demandante (28% das demandas)'],gaps:['Ausência de SLA formal','Sem critério explícito para valor informativo'],oportunidades:['Automatizar triagem via Zeev','Criar banco de templates por tipo de produto'],complexidade:'Média',t_ciclo_medio:'2,5 dias',t_espera_medio:'1,2 dias',qtd_decisoes:3,qtd_atividades:11}},
-    mod:{asIs:'Processo iniciado informalmente por e-mail. Aprovações por WhatsApp.',toBe:'Demanda formalizada no Zeev com campos estruturados. SLAs definidos.',bpmnAsIs:null,bpmnToBe:null,obs:'3 rodadas de validação',
-      etapas_proc:[
-        {id:'ep1',seq:1,nome:'Receber demanda',tipo:'Atividade',natureza:'Distribuicao',modo:'Manual',executor:'Chefe de comunicação',desc:'Recebe a demanda pelo sistema Zeev'},
-        {id:'ep2',seq:2,nome:'Avaliar valor informativo',tipo:'Decisao',natureza:null,modo:null,executor:'Chefe de comunicação',desc:'Verifica se o conteúdo tem relevância para publicação'},
-        {id:'ep3',seq:3,nome:'Redigir conteúdo',tipo:'Atividade',natureza:'Execucao',modo:'Manual',executor:'Jornalista',desc:'Redige o texto conforme pauta'},
-        {id:'ep4',seq:4,nome:'Aprovar texto',tipo:'Atividade',natureza:'Aprovacao',modo:'Manual',executor:'Área demandante',desc:'Área revisa e aprova o texto'},
-        {id:'ep5',seq:5,nome:'Diagramar material',tipo:'Atividade',natureza:'Execucao',modo:'Manual',executor:'Designer',desc:'Organiza os elementos visuais'},
-        {id:'ep6',seq:6,nome:'Aprovação final',tipo:'Atividade',natureza:'Aprovacao',modo:'Manual',executor:'Adjunto',desc:'Adjunto aprova antes da publicação'},
-        {id:'ep7',seq:7,nome:'Publicar',tipo:'Atividade',natureza:'Comunicacao',modo:'Manual',executor:'Chefe de comunicação',desc:'Publica nos canais da CAGE'},
-      ]},
-    form:{pop_ok:true,pop:{area:'Assessoria de Comunicação',gerente:'Amilcar da Rosa',obj:'Divulgar informações relevantes da CAGE de forma tempestiva',def:'Valor informativo: relevância para publicação\nDemandante: servidor que solicita material',ent:'Solicitações de produção de material',sai:'Material publicado',ativ:'Chefe de Comunicação\n- Avaliar valor informativo\n\nJornalista\n- Redigir / revisar\n\nDesigner\n- Diagramar\n\nAdjunto\n- Aprovar',ind:'Satisfação do demandante: 85% / mensal\nTempo médio: 2 dias / mensal',docs:'Manual de Identidade Visual Sefaz\nManual de Redação Secom'},apresent:'Aprovado em 10/04/2026.',bpmnXml:null},
-    etapa:'monitora',prazos:{},
-    hist:[
-      {step:'abertura',role:'EP',acao:'Processo aberto e vinculado à arquitetura',data:'23/05/2025'},
-      {step:'questionario',role:'Dono',acao:'Questionário de maturidade respondido — nível 3',data:'30/05/2025'},
-      {step:'reuniao',role:'EP',acao:'Reunião de entendimento realizada',data:'06/06/2025'},
-      {step:'mapeamento',role:'EP',acao:'Mapeamento: volumetria, equipe, prazos registrados',data:'13/06/2025'},
-      {step:'analise_asis',role:'EP',acao:'Análise AS IS concluída: 2 gargalos, 1 retrabalho',data:'20/06/2025'},
-      {step:'esboco',role:'EP',acao:'Esboço AS IS e TO BE elaborados com BPMN',data:'27/06/2025'},
-      {step:'det_etapas',role:'EP',acao:'7 etapas detalhadas no processo',data:'04/07/2025'},
-      {step:'valid_dono',role:'Dono',acao:'Validado pelo dono',data:'11/07/2025'},
-      {step:'desenho_final',role:'EP',acao:'Desenho final concluído',data:'18/07/2025'},
-      {step:'aprovacao',role:'Gestor',acao:'Aprovado pelo adjunto',data:'25/07/2025'},
-      {step:'pop',role:'EP',acao:'POP construído no padrão CAGE',data:'01/08/2025'},
-      {step:'complement',role:'EP',acao:'FAQ e formulários complementados',data:'08/08/2025'},
-      {step:'apresentacao',role:'Patrocinador',acao:'Aprovado pela alta gestão',data:'15/08/2025'},
-      {step:'publicacao',role:'EP',acao:'Publicado no repositório oficial',data:'22/08/2025'},
-      {step:'acompanha',role:'EP',acao:'Acompanhamento: processo conforme',data:'15/09/2025'},
-      {step:'monitora',role:'EP',acao:'Em monitoramento contínuo',data:'01/10/2025'},
-    ]},
-];
-let nextProcId = 2;
+let processos = [];
+let nextProcId = 1;
 
-let melhorias = [
-  {id:1,pid:1,pnome:'Elaborar materiais',titulo:'Implantar SLA formal por tipo de produto',tipo:'Padronização',status:'Concluida',resp:'Amilcar da Rosa',prazo:'2025-08-01',desc:''},
-  {id:2,pid:1,pnome:'Elaborar materiais',titulo:'Banco de templates por tipo de material',tipo:'Automação',status:'Em execucao',resp:'Felipe Tourinho',prazo:'2026-06-30',desc:''},
-];
-let nextMid = 3;
+let melhorias = [];
+let nextMid = 1;
 
-let kpis = [
-  {pid:1,pn:'Elaborar materiais',nome:'Tempo médio de produção',meta:2,unid:'dias',dir:'min',serie:[{p:'Out/25',v:2.5},{p:'Nov/25',v:2.2},{p:'Dez/25',v:2.0},{p:'Jan/26',v:1.9},{p:'Fev/26',v:1.8},{p:'Mar/26',v:1.7}]},
-  {pid:1,pn:'Elaborar materiais',nome:'Satisfação do demandante',meta:85,unid:'%',dir:'max',serie:[{p:'Out/25',v:78},{p:'Nov/25',v:82},{p:'Dez/25',v:86},{p:'Jan/26',v:89},{p:'Fev/26',v:91},{p:'Mar/26',v:93}]},
-];
+let kpis = [];
 
 let notifs = [];
 let ejsConfig = {service:'',template:'',pubkey:''};
@@ -975,7 +940,7 @@ function testarEmailJS(){
     processo: 'Processo de teste',
     acao: 'Este é um e-mail de teste do sistema EP·CAGE.',
     prazo: 'N/A',
-    link: 'https://eppcage.github.io/GESPROC2/',
+    link: 'https://eppcage.github.io/gesproc2.0/',
   }).then(()=>{
     res.textContent = '✓ E-mail de teste enviado para ' + destEmail;
     res.style.color = 'var(--green)';
@@ -995,7 +960,7 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
       to_name:para_nome,to_email:para_email,
       from_name:de_nome||'EP·CAGE',
       processo:proc_nome,acao,prazo:prazo||'Não definido',
-      link:'https://eppcage.github.io/GESPROC2/',
+      link:'https://eppcage.github.io/gesproc2.0/',
     }).catch(()=>{});
   }
 }
@@ -2667,176 +2632,305 @@ function novaMelh(){
 }
 
 // ═══════════════════════════════════════════
-// INDICADORES
+// INDICADORES — estrutura real da planilha
+// Colunas: Área, Indicador, Enunciado, Descrição, Periodicidade,
+//          Período, Ciclo, PPE?, % Índice, Meta, Realizado, Análise, % Realizado
 // ═══════════════════════════════════════════
-let filtIndDirAtual = '';
 
-function filtIndDir(dir, el){
-  filtIndDirAtual = dir;
-  document.querySelectorAll('#ind-dir-chips .chip').forEach(c=>c.classList.remove('on'));
-  el.classList.add('on');
-  rInd();
+// kpis[] agora armazena objetos com todos os campos da planilha
+// {id, area, codigo, nome, enunciado, desc, periodicidade, periodo, ciclo,
+//  ppe, indice, meta, realizado, analise, pct_realizado}
+
+let _kpiIdC = 1;
+
+function importarIndicadores(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      if(!rows.length){ alert('Planilha vazia.'); return; }
+
+      // Fuzzy column matcher — strips emojis/icons and normalizes
+      function norm(s){ return s.toString().replace(/[^\w\s]/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+      const keys = Object.keys(rows[0]);
+      function col(variants){
+        for(const v of variants){
+          const found = keys.find(k => norm(k).includes(norm(v)));
+          if(found) return found;
+        }
+        return null;
+      }
+
+      const cArea     = col(['área','area']);
+      const cCodigo   = col(['indicador','código','codigo','id']);
+      const cEnunc    = col(['enunciado ind','enunciado']);
+      const cDesc     = col(['descrição ind','descri','description']);
+      const cPeriod   = col(['periodicidade']);
+      const cPeriodo  = col(['período','periodo']) ;
+      const cCiclo    = col(['ciclo']);
+      const cPPE      = col(['ppe']);
+      const cIndice   = col(['índice','indice','% índice','% indice']);
+      const cMeta     = col(['meta']);
+      const cReal     = col(['realizado','realiz']);
+      const cAnalise  = col(['análise','analise','análisis']);
+      const cPctReal  = col(['% realizado','pct realizado']);
+
+      let added = 0;
+      rows.forEach(row => {
+        const area    = (cArea    ? row[cArea]    : '').toString().trim();
+        const nome    = (cCodigo  ? row[cCodigo]  : '').toString().trim();
+        const enunc   = (cEnunc   ? row[cEnunc]   : '').toString().trim();
+        const desc    = (cDesc    ? row[cDesc]    : '').toString().trim();
+        const period  = (cPeriod  ? row[cPeriod]  : 'Mensal').toString().trim();
+        const periodo = (cPeriodo ? row[cPeriodo] : '').toString().trim();
+        const ciclo   = (cCiclo   ? row[cCiclo]   : '').toString().trim();
+        const ppe     = (cPPE     ? row[cPPE]     : 'Não').toString().trim();
+        const indice  = parseFloat((cIndice  ? row[cIndice]  : 0).toString().replace(',','.')) || 0;
+        const meta    = parseFloat((cMeta    ? row[cMeta]    : 0).toString().replace(',','.')) || 0;
+        const real    = parseFloat((cReal    ? row[cReal]    : 0).toString().replace(',','.')) || 0;
+        const analise = (cAnalise  ? row[cAnalise]  : '').toString().trim();
+        const pctReal = parseFloat((cPctReal ? row[cPctReal] : 0).toString().replace(',','.')) || (meta > 0 ? Math.round((real/meta)*100) : 0);
+
+        if(!area && !nome && !enunc) return; // skip empty rows
+
+        kpis.push({
+          id: _kpiIdC++,
+          area, codigo:nome, nome: enunc||nome, desc,
+          periodicidade: period, periodo, ciclo,
+          ppe, indice, meta, realizado: real,
+          analise, pct_realizado: pctReal,
+        });
+        added++;
+      });
+
+      rInd();
+      toast(added + ' indicador(es) importado(s)');
+    } catch(err){ alert('Erro ao ler planilha: ' + err.message); }
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
 }
 
-function populateIndSel(){
-  const sel = document.getElementById('ind-proc-sel');
-  if(!sel) return;
-  const cur = sel.value;
-  const units = getMinhasUnidades(); // dono vê só os seus; EP vê todos
-  sel.innerHTML = '<option value="">Todos os meus processos</option>' +
-    units.map(u=>`<option value="${u.arq_id}" ${cur===u.arq_id?'selected':''}>${u.label}</option>`).join('');
-}
+function populateIndFilters(){
+  const areaSel   = document.getElementById('ind-area-sel');
+  const cicloSel  = document.getElementById('ind-ciclo-sel');
+  const periSel   = document.getElementById('ind-periodo-sel');
+  if(!areaSel) return;
 
-function kpiCard(d){
-  const ult=d.serie[d.serie.length-1]?.v||0, prev=d.serie[d.serie.length-2]?.v||ult;
-  const ok = d.dir==='min' ? ult<=d.meta : ult>=d.meta;
-  const warn = d.dir==='min' ? ult<=d.meta*1.3 : ult>=d.meta*.7;
-  const pct = d.dir==='min'
-    ? Math.min(100, Math.max(0, Math.round(((2*d.meta-ult)/d.meta)*100)))
-    : Math.min(100, Math.max(0, Math.round((ult/d.meta)*100)));
-  const tr = ult>prev ? (d.dir==='min'?'pior':'melhor') : ult<prev ? (d.dir==='min'?'melhor':'pior') : 'igual';
-  const trColor = tr==='melhor' ? 'var(--green)' : tr==='pior' ? 'var(--red)' : 'var(--ink3)';
-  const trSym = tr==='melhor'?'▲':tr==='pior'?'▼':'—';
-  const mx = Math.max(...d.serie.map(s=>s.v), 1);
-  const borderColor = ok ? 'var(--green-b)' : warn ? 'var(--amber-b)' : 'var(--red-b)';
-  const statusColor = ok ? 'var(--green)' : warn ? 'var(--amber)' : 'var(--red)';
-  const statusTxt = ok ? '✓ Meta atingida' : warn ? '~ Próximo da meta' : '✗ Abaixo da meta';
-  return `<div style="background:var(--surf);border:1px solid ${borderColor};border-radius:var(--rl);padding:1rem;box-shadow:var(--sh)">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
-      <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.3;flex:1">${d.nome}</div>
-      <span style="font-size:10px;font-weight:600;color:${statusColor};white-space:nowrap;margin-left:6px">${statusTxt}</span>
-    </div>
-    <div style="font-size:11px;color:var(--ink3);margin-bottom:8px">${d.pn} · Meta: <strong>${d.meta}${d.unid}</strong> · ${d.dir==='min'?'↓ Minimizar':'↑ Maximizar'}</div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <span style="font-family:var(--fm);font-size:22px;font-weight:600;color:${statusColor}">${ult}${d.unid}</span>
-      <div style="flex:1">
-        <div style="height:6px;background:var(--bg3);border-radius:99px;overflow:hidden">
-          <div style="height:100%;border-radius:99px;background:${statusColor};width:${pct}%;transition:width .3s"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink4);margin-top:2px"><span>0</span><span>Meta: ${d.meta}${d.unid}</span></div>
-      </div>
-      <span style="font-size:12px;font-weight:600;color:${trColor}">${trSym} ${Math.abs(ult-prev).toFixed(1)}${d.unid}</span>
-    </div>
-    <div style="display:flex;align-items:flex-end;gap:3px;height:44px">
-      ${d.serie.map((s,i)=>`<div style="flex:1;border-radius:3px 3px 0 0;background:${i===d.serie.length-1?statusColor:'var(--bg3)'};height:${Math.round((s.v/mx)*100)}%;min-height:4px;cursor:default;transition:opacity .1s" title="${s.p}: ${s.v}${d.unid}" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'"></div>`).join('')}
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink4);margin-top:3px">
-      <span>${d.serie[0]?.p||''}</span><span>${d.serie[d.serie.length-1]?.p||''}</span>
-    </div>
-    <div style="margin-top:6px;display:flex;gap:4px">
-      <button class="btn" style="font-size:10px;padding:2px 7px" onclick="addMedicao('${d.nome}','${d.pid}')">+ Medição</button>
-      <button class="btn" style="font-size:10px;padding:2px 7px" onclick="editKpi('${d.nome}','${d.pid}')">✎</button>
-    </div>
-  </div>`;
+  const curArea  = areaSel.value;
+  const curCiclo = cicloSel.value;
+  const curPeri  = periSel.value;
+
+  const areas   = [...new Set(kpis.map(k=>k.area).filter(Boolean))].sort();
+  const ciclos  = [...new Set(kpis.map(k=>k.ciclo).filter(Boolean))].sort();
+  const periods = [...new Set(kpis.map(k=>k.periodo).filter(Boolean))].sort();
+
+  areaSel.innerHTML  = '<option value="">Todas as áreas</option>'  + areas.map(a=>`<option ${curArea===a?'selected':''}>${a}</option>`).join('');
+  cicloSel.innerHTML = '<option value="">Todos os ciclos</option>' + ciclos.map(a=>`<option ${curCiclo===a?'selected':''}>${a}</option>`).join('');
+  periSel.innerHTML  = '<option value="">Todos os períodos</option>' + periods.map(a=>`<option ${curPeri===a?'selected':''}>${a}</option>`).join('');
 }
 
 function rInd(){
-  populateIndSel();
-  const arqSelInd = document.getElementById('ind-proc-sel')?.value||'';
-  const dir = filtIndDirAtual;
-  // Match kpi by arq_id or by linked proc
-  const matchKpi = (d) => {
-    if(!arqSelInd) return true;
-    if(d.arq_id === arqSelInd) return true;
-    const proc = processos.find(p=>p.id===d.pid);
-    if(proc && proc.arq_id === arqSelInd) return true;
-    return false;
-  };
-  let lista = kpis.filter(d=>matchKpi(d)&&(!dir||d.dir===dir));
+  populateIndFilters();
+  const area   = document.getElementById('ind-area-sel')?.value   || '';
+  const ciclo  = document.getElementById('ind-ciclo-sel')?.value  || '';
+  const period = document.getElementById('ind-periodo-sel')?.value || '';
 
-  // Update subtitle
-  const selUnitInd = arqSelInd ? getUnidadesMapeaveis().find(u=>u.arq_id===arqSelInd) : null;
-  const subEl = document.getElementById('ind-sub');
-  if(subEl) subEl.textContent = selUnitInd ? selUnitInd.nome : 'Todos os processos';
+  const lista = kpis.filter(k=>
+    (!area   || k.area   === area)   &&
+    (!ciclo  || k.ciclo  === ciclo)  &&
+    (!period || k.periodo === period)
+  );
 
   // Summary
   const sumEl = document.getElementById('ind-summary');
   if(sumEl && lista.length){
-    const atingidos = lista.filter(d=>{const v=d.serie[d.serie.length-1]?.v||0;return d.dir==='min'?v<=d.meta:v>=d.meta;}).length;
-    sumEl.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    const ating = lista.filter(k => k.meta > 0 && k.pct_realizado >= 100).length;
+    const abaixo = lista.filter(k => k.meta > 0 && k.pct_realizado < k.meta).length;
+    sumEl.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <span style="font-size:12px;color:var(--ink3)">${lista.length} indicador${lista.length!==1?'es':''}</span>
-      <span class="badge bg">${atingidos} atingindo meta</span>
-      ${lista.length-atingidos>0?`<span class="badge br">${lista.length-atingidos} abaixo da meta</span>`:''}
+      <span class="badge bg">${ating} atingindo meta</span>
+      ${abaixo > 0 ? `<span class="badge br">${abaixo} abaixo da meta</span>` : ''}
     </div>`;
-  } else if(sumEl){ sumEl.innerHTML=''; }
+  } else if(sumEl){ sumEl.innerHTML = ''; }
 
   const el = document.getElementById('ind-c');
   if(!lista.length){
-    el.innerHTML = arqSelInd
-      ? `<div class="ib ibb">Nenhum indicador cadastrado para este processo. <button class="btn btn-p" style="font-size:12px;padding:4px 10px;margin-left:8px" onclick="abrirNovoKpi('${arqSelInd}')">+ Novo indicador</button></div>`
-      : '<div class="ib ibb">Nenhum indicador cadastrado. Importe uma planilha ou crie individualmente.</div>';
+    el.innerHTML = '<div class="ib ibb">Nenhum indicador. Importe a planilha ou clique em "+ Novo indicador".</div>';
     return;
   }
 
-  // Group by process
+  // Group by area
   const g = {};
-  lista.forEach(d=>{ if(!g[d.pn])g[d.pn]=[]; g[d.pn].push(d); });
-  el.innerHTML = Object.entries(g).map(([pn,inds])=>`
+  lista.forEach(k=>{ if(!g[k.area]) g[k.area]=[]; g[k.area].push(k); });
+
+  el.innerHTML = Object.entries(g).map(([area, inds])=>`
     <div style="margin-bottom:1.4rem">
-      <div style="font-family:var(--fh);font-size:14px;font-weight:600;margin-bottom:.7rem;padding-bottom:.4rem;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center">
-        <span>${pn}</span>
-        <span style="font-size:11px;font-weight:400;color:var(--ink3)">${inds.length} indicador${inds.length!==1?'es':''}</span>
+      <div style="font-family:var(--fh);font-size:14px;font-weight:600;margin-bottom:.7rem;padding:.5rem .8rem;background:var(--ink);color:#fff;border-radius:var(--r);display:flex;justify-content:space-between;align-items:center">
+        <span>${area}</span>
+        <span style="font-size:11px;font-weight:400;opacity:.5">${inds.length} indicador${inds.length!==1?'es':''}</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">${inds.map(d=>kpiCard(d)).join('')}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${inds.map(k=>kpiCard(k)).join('')}</div>
     </div>`).join('');
 }
 
-function abrirNovoKpi(pidPresel){
+function kpiCard(k){
+  const pct = k.pct_realizado || (k.meta > 0 ? Math.round((k.realizado/k.meta)*100) : 0);
+  const ok   = pct >= 100;
+  const warn = pct >= k.meta * 0.8 && pct < 100;
+  const color = ok ? 'var(--green)' : warn ? 'var(--amber)' : 'var(--red)';
+  const status = ok ? '✓ Meta atingida' : warn ? '~ Próximo da meta' : '✗ Abaixo da meta';
+  const barW  = Math.min(100, Math.max(0, pct));
+
+  return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${color};border-radius:var(--r);padding:.85rem 1rem;box-shadow:var(--sh)">
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;margin-bottom:.5rem">
+      <div>
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${k.codigo ? '<strong>'+k.codigo+'</strong> · ' : ''}${k.periodicidade} · ${k.periodo}${k.ciclo?' · '+k.ciclo:''}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.4">${k.nome}</div>
+        ${k.desc ? `<div style="font-size:11px;color:var(--ink3);margin-top:2px">${k.desc}</div>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        <span style="font-size:11px;font-weight:600;color:${color}">${status}</span>
+        ${k.ppe==='Sim' ? '<span class="badge bb" style="font-size:10px">PPE</span>' : ''}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:.6rem;font-size:12px">
+      <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">% Índice</div>
+        <div style="font-weight:700;color:var(--ink)">${k.indice}%</div>
+      </div>
+      <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Meta</div>
+        <div style="font-weight:700;color:var(--ink)">${k.meta}%</div>
+      </div>
+      <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Realizado</div>
+        <div style="font-weight:700;color:var(--ink)">${k.realizado}%</div>
+      </div>
+      <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px;border:1px solid ${color}">
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">% Realiz.</div>
+        <div style="font-weight:700;color:${color}">${pct}%</div>
+      </div>
+    </div>
+    <div style="height:6px;background:var(--bg3);border-radius:99px;overflow:hidden;margin-bottom:.5rem">
+      <div style="height:100%;border-radius:99px;background:${color};width:${barW}%;transition:width .4s"></div>
+    </div>
+    ${k.analise ? `<div style="font-size:11px;color:var(--ink3);line-height:1.5;padding:.4rem .6rem;background:var(--surf2);border-radius:5px;border-left:2px solid ${color}">📝 ${k.analise}</div>` : ''}
+    <div style="display:flex;gap:5px;margin-top:.5rem">
+      <button class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${k.id})">✎ Editar</button>
+      <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${k.id})">×</button>
+    </div>
+  </div>`;
+}
+
+function abrirNovoKpi(preselArea){
   const modal = document.getElementById('novo-kpi-modal');
   if(!modal) return;
-  const sel = document.getElementById('nkpi-proc');
-  const units = getUnidadesMapeaveis();
-  sel.innerHTML = units.map(u=>`<option value="${u.arq_id}" ${pidPresel==u.arq_id?'selected':''}>${u.label}</option>`).join('');
-  document.getElementById('nkpi-nome').value='';
-  document.getElementById('nkpi-meta').value='';
-  document.getElementById('nkpi-unid').value='';
-  document.getElementById('nkpi-dir').value='min';
-  modal.style.display='flex';
+  document.getElementById('kpi-modal-titulo').textContent = 'Novo indicador';
+  document.getElementById('nkpi-edit-idx').value = '';
+  document.getElementById('kpi-del-btn').style.display = 'none';
+  document.getElementById('nkpi-area').value     = preselArea || '';
+  document.getElementById('nkpi-codigo').value   = '';
+  document.getElementById('nkpi-nome').value     = '';
+  document.getElementById('nkpi-desc').value     = '';
+  document.getElementById('nkpi-period').value   = 'Mensal';
+  document.getElementById('nkpi-periodo').value  = '';
+  document.getElementById('nkpi-ciclo').value    = '';
+  document.getElementById('nkpi-ppe').value      = 'Não';
+  document.getElementById('nkpi-indice').value   = '';
+  document.getElementById('nkpi-meta').value     = '';
+  document.getElementById('nkpi-real').value     = '';
+  document.getElementById('nkpi-pct-real').value = '';
+  document.getElementById('nkpi-analise').value  = '';
+  modal.style.display = 'flex';
+
+  // Auto-calc % realizado
+  ['nkpi-meta','nkpi-real'].forEach(id=>{
+    document.getElementById(id).oninput = calcPctReal;
+  });
+}
+
+function calcPctReal(){
+  const meta = parseFloat(document.getElementById('nkpi-meta').value) || 0;
+  const real = parseFloat(document.getElementById('nkpi-real').value) || 0;
+  document.getElementById('nkpi-pct-real').value = meta > 0 ? Math.round((real/meta)*100)+'%' : '';
+}
+
+function editKpi(id){
+  const k = kpis.find(x=>x.id===id);
+  if(!k) return;
+  const modal = document.getElementById('novo-kpi-modal');
+  document.getElementById('kpi-modal-titulo').textContent = 'Editar indicador';
+  document.getElementById('nkpi-edit-idx').value    = id;
+  document.getElementById('kpi-del-btn').style.display = 'inline-flex';
+  document.getElementById('nkpi-area').value        = k.area || '';
+  document.getElementById('nkpi-codigo').value      = k.codigo || '';
+  document.getElementById('nkpi-nome').value        = k.nome || '';
+  document.getElementById('nkpi-desc').value        = k.desc || '';
+  document.getElementById('nkpi-period').value      = k.periodicidade || 'Mensal';
+  document.getElementById('nkpi-periodo').value     = k.periodo || '';
+  document.getElementById('nkpi-ciclo').value       = k.ciclo || '';
+  document.getElementById('nkpi-ppe').value         = k.ppe || 'Não';
+  document.getElementById('nkpi-indice').value      = k.indice || '';
+  document.getElementById('nkpi-meta').value        = k.meta || '';
+  document.getElementById('nkpi-real').value        = k.realizado || '';
+  document.getElementById('nkpi-pct-real').value    = k.pct_realizado ? k.pct_realizado+'%' : '';
+  document.getElementById('nkpi-analise').value     = k.analise || '';
+  ['nkpi-meta','nkpi-real'].forEach(fid=>{ document.getElementById(fid).oninput = calcPctReal; });
+  modal.style.display = 'flex';
 }
 
 function salvarNovoKpi(){
-  const arqId = document.getElementById('nkpi-proc').value;
-  const nome = document.getElementById('nkpi-nome').value.trim();
-  const meta = parseFloat(document.getElementById('nkpi-meta').value)||0;
-  const unid = document.getElementById('nkpi-unid').value.trim()||'un';
-  const dir = document.getElementById('nkpi-dir').value;
-  if(!arqId||!nome){alert('Selecione o processo e informe o nome.');return;}
-  const unit = getUnidadesMapeaveis().find(u=>u.arq_id===arqId);
-  const proc = unit?.proc;
-  kpis.push({arq_id:arqId, pid:proc?.id||0, pn:unit?.nome||arqId, nome, meta, unid, dir, serie:[]});
-  document.getElementById('novo-kpi-modal').style.display='none';
-  rInd(); toast('Indicador criado');
+  const area    = document.getElementById('nkpi-area').value.trim();
+  const nome    = document.getElementById('nkpi-nome').value.trim();
+  if(!area || !nome){ alert('Informe Área e Enunciado do indicador.'); return; }
+
+  const meta  = parseFloat(document.getElementById('nkpi-meta').value)   || 0;
+  const real  = parseFloat(document.getElementById('nkpi-real').value)   || 0;
+  const pct   = meta > 0 ? Math.round((real/meta)*100) : 0;
+
+  const obj = {
+    id: null,
+    area,
+    codigo:   document.getElementById('nkpi-codigo').value.trim(),
+    nome,
+    desc:     document.getElementById('nkpi-desc').value.trim(),
+    periodicidade: document.getElementById('nkpi-period').value,
+    periodo:  document.getElementById('nkpi-periodo').value.trim(),
+    ciclo:    document.getElementById('nkpi-ciclo').value.trim(),
+    ppe:      document.getElementById('nkpi-ppe').value,
+    indice:   parseFloat(document.getElementById('nkpi-indice').value) || 0,
+    meta, realizado: real, analise: document.getElementById('nkpi-analise').value.trim(),
+    pct_realizado: pct,
+  };
+
+  const editId = document.getElementById('nkpi-edit-idx').value;
+  if(editId){
+    const idx = kpis.findIndex(k=>k.id===parseInt(editId));
+    if(idx >= 0){ obj.id = parseInt(editId); kpis[idx] = obj; }
+  } else {
+    obj.id = _kpiIdC++;
+    kpis.push(obj);
+  }
+  document.getElementById('novo-kpi-modal').style.display = 'none';
+  rInd(); toast('Indicador salvo');
 }
 
-function addMedicao(kpiNome, pidStr){
-  const pid = parseInt(pidStr);
-  const d = kpis.find(k=>k.nome===kpiNome&&k.pid===pid);
-  if(!d) return;
-  const periodo = prompt('Período (Ex: Abr/26):');
-  if(!periodo) return;
-  const valor = parseFloat(prompt('Valor medido:'));
-  if(isNaN(valor)) return;
-  d.serie.push({p:periodo, v:valor});
-  rInd(); toast('Medição registrada');
-}
-
-function editKpi(kpiNome, pidStr){
-  const pid = parseInt(pidStr);
-  const d = kpis.find(k=>k.nome===kpiNome&&k.pid===pid);
-  if(!d) return;
-  const novoNome = prompt('Nome do indicador:', d.nome);
-  if(novoNome!=null) d.nome=novoNome;
-  const novaMeta = parseFloat(prompt('Meta:', d.meta));
-  if(!isNaN(novaMeta)) d.meta=novaMeta;
-  rInd();
+function deletarKpi(id){
+  const delId = id || parseInt(document.getElementById('nkpi-edit-idx').value);
+  if(!delId) return;
+  if(!confirm('Remover este indicador?')) return;
+  kpis = kpis.filter(k=>k.id !== delId);
+  document.getElementById('novo-kpi-modal').style.display = 'none';
+  rInd(); toast('Indicador removido', 'var(--amber)');
 }
 
 function simImport(){
-  const proc = processos.find(p=>p.id===1);
-  kpis.push({pid:1,pn:proc?.nome||'Elaborar materiais',nome:'Taxa de retrabalho',meta:10,unid:'%',dir:'min',
-    serie:[{p:'Out/25',v:22},{p:'Nov/25',v:18},{p:'Dez/25',v:15},{p:'Jan/26',v:12},{p:'Fev/26',v:10},{p:'Mar/26',v:8}]});
-  document.getElementById('imp-ind-modal').style.display='none';
-  rInd(); toast('1 indicador importado');
+  // kept for compatibility — now does nothing
+  toast('Use o botão "↑ Importar planilha" para carregar dados reais.','var(--amber)');
 }
 
 // ═══════════════════════════════════════════
