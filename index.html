@@ -4188,6 +4188,8 @@ function deletarUsr(){
   USUARIOS.splice(idx,1);
   document.getElementById('usr-modal').style.display = 'none';
   renderAdmin();
+  fbAutoSave('deletarUsr');
+  toast('Usuário removido','var(--amber)');
 }
 
 
