@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <!-- Config: loaded synchronously so window.CONFIG is available immediately -->
 <script src="config.deploy.js" onerror="console.info('config.deploy.js not found')"></script>
 <script src="config.local.js" onerror="console.info('config.local.js not found')"></script>
@@ -1925,7 +1926,20 @@ const ACOES = {
       <button class="btn" onclick="addEtapaProc()">+ Adicionar manualmente</button>
       <span style="font-size:12px;color:var(--ink3);align-self:center">A extração automática detecta todos os elementos do diagrama AS IS salvo.</span>
     </div>
-    <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:1.25rem;align-items:start">
+      <div>
+        <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
+      </div>
+      <div style="position:sticky;top:1rem">
+        <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.85rem;box-shadow:var(--sh)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+            <div style="font-size:12px;font-weight:600;color:var(--ink2)">Fluxo gerado</div>
+            <button class="btn" style="font-size:10px;padding:2px 8px" onclick="copiarMermaid()">⎘ Copiar código</button>
+          </div>
+          <div id="mermaid-preview" style="overflow-x:auto;min-height:80px"><div style="font-size:11px;color:var(--ink3);text-align:center;padding:1rem">Adicione etapas para visualizar o fluxo</div></div>
+        </div>
+      </div>
+    </div>
     <div class="btn-row"><button class="btn btn-p" onclick="salvarDetEtapas()">Encaminhar para validação do dono →</button></div>`},
 
   valid_dono:{titulo:'Validar modelagem',sub:'O dono do processo revisa AS IS, TO BE e etapas detalhadas.',role:'Dono do processo',rk:'dono',
@@ -2314,6 +2328,9 @@ function rAcao(p){
   </div>`;
   if(p.etapa==='esboco'){
     setTimeout(()=>{initBpmnMod('asis',p);},120);
+  }
+  if(p.etapa==='det_etapas'){
+    setTimeout(atualizarMermaid,300);
   }
 }
 
@@ -2801,7 +2818,7 @@ function renderEtapaDetalheConteudo(e){
   return `<div class="g2" style="margin-top:.6rem">
     <div class="fg"><label class="fl">Nome da etapa</label>
       <input class="fi" value="${(e.nome||'').replace(/"/g,'&quot;')}"
-        oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').nome=this.value;document.querySelector('#ep-${id} .etapa-nome').textContent=this.value">
+        oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').nome=this.value;document.querySelector('#ep-${id} .etapa-nome').textContent=this.value;clearTimeout(window._mmT);window._mmT=setTimeout(atualizarMermaid,600)">
     </div>
     <div class="fg"><label class="fl">Tipo</label>
       <select class="fi" onchange="(function(s){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.tipo=s.value;const _b=document.querySelector('#ep-${id} .etapa-tipo');_b.className='etapa-tipo '+tipoCls(s.value);_b.textContent=s.value;reRenderEtapaDetalhe('${id}')})(this)">
@@ -2864,12 +2881,12 @@ function renderEtapasProc(etapas){
 function reRenderEtapaDetalhe(etapaId){
   const el=document.getElementById('ed-'+etapaId);
   const e=curProc.mod.etapas_proc.find(x=>x.id===etapaId);
-  if(el&&e)el.innerHTML=renderEtapaDetalheConteudo(e);
+  if(el&&e){ el.innerHTML=renderEtapaDetalheConteudo(e); atualizarMermaid(); }
 }
 function reRenderGw(etapaId){
   const el=document.getElementById('gw-'+etapaId);
   const e=curProc.mod.etapas_proc.find(x=>x.id===etapaId);
-  if(el&&e)el.innerHTML=renderGatewaySection(etapaId,0);
+  if(el&&e){ el.innerHTML=renderGatewaySection(etapaId,0); atualizarMermaid(); }
 }
 function addCaminhoGw(path){
   const obj=resolveGwPath(path);
@@ -2895,6 +2912,99 @@ function remAcaoGw(camPath,ai){
   cam.acoes.splice(ai,1);
 }
 
+// ── MERMAID LIVE PREVIEW ─────────────────────
+let _mermaidCode = '';
+
+function etapasToMermaid(etapas){
+  if(!etapas||!etapas.length) return '';
+  const safe = s => (s||'sem nome').replace(/["'<>&\[\]{}()]/g,' ').replace(/\s+/g,' ').trim().slice(0,45);
+  let lines = ['flowchart TD'];
+  let nodeId = 0;
+  const getId = () => 'N'+(nodeId++);
+
+  function buildNodes(items, parentEndId){
+    let prevId = parentEndId;
+    items.forEach(e => {
+      const id = getId();
+      const lbl = safe(e.nome);
+      if(e.tipo==='Evento'){
+        const sub = e.subtipo_evento||'';
+        if(sub==='Início') lines.push(`  ${id}([▶ ${lbl}])`);
+        else if(sub==='Fim')  lines.push(`  ${id}([■ ${lbl}])`);
+        else                  lines.push(`  ${id}((${lbl}))`);
+        lines.push(`  style ${id} fill:#d1fae5,stroke:#16a34a,color:#14532d`);
+      } else if(e.tipo==='Decisao'){
+        lines.push(`  ${id}{${lbl}}`);
+        lines.push(`  style ${id} fill:#fef3c7,stroke:#d97706,color:#78350f`);
+      } else if(e.tipo==='Comentario'){
+        lines.push(`  ${id}[/${lbl}/]`);
+        lines.push(`  style ${id} fill:#f3f4f6,stroke:#d1d5db,color:#6b7280`);
+      } else {
+        lines.push(`  ${id}[${lbl}]`);
+        lines.push(`  style ${id} fill:#dbeafe,stroke:#2563eb,color:#1e3a5f`);
+      }
+      if(prevId!==null) lines.push(`  ${prevId} --> ${id}`);
+
+      if(e.tipo==='Decisao' && e.caminhos && e.caminhos.length){
+        // Each path branches from the gateway node
+        const mergeId = getId();
+        lines.push(`  ${mergeId}[ ]`);
+        lines.push(`  style ${mergeId} fill:transparent,stroke:transparent`);
+        e.caminhos.forEach(cam=>{
+          const clbl = safe(cam.label||'');
+          const acoes = cam.acoes||[];
+          if(!acoes.length){
+            const emptyId = getId();
+            lines.push(`  ${emptyId}[ ]`);
+            lines.push(`  style ${emptyId} fill:transparent,stroke:transparent`);
+            lines.push(`  ${id} -->|${clbl}| ${emptyId}`);
+            lines.push(`  ${emptyId} --> ${mergeId}`);
+          } else {
+            const firstId = 'N'+nodeId;
+            buildNodes(acoes, null);
+            const lastId = 'N'+(nodeId-1);
+            lines.push(`  ${id} -->|${clbl}| ${firstId}`);
+            lines.push(`  ${lastId} --> ${mergeId}`);
+          }
+        });
+        prevId = mergeId;
+        return; // prevId already set
+      }
+      prevId = id;
+    });
+    return prevId;
+  }
+
+  buildNodes(etapas, null);
+  return lines.join('\n');
+}
+
+async function atualizarMermaid(){
+  const el = document.getElementById('mermaid-preview');
+  if(!el) return;
+  const etapas = curProc?.mod?.etapas_proc||[];
+  if(!etapas.length){
+    el.innerHTML = '<div style="font-size:11px;color:var(--ink3);text-align:center;padding:1rem">Adicione etapas para visualizar o fluxo</div>';
+    return;
+  }
+  _mermaidCode = etapasToMermaid(etapas);
+  try {
+    if(typeof mermaid === 'undefined') return;
+    mermaid.initialize({startOnLoad:false, theme:'base',
+      themeVariables:{primaryColor:'#e8f0fe',primaryBorderColor:'#4285f4',fontSize:'12px'}});
+    const uid = 'mm-'+Date.now();
+    const {svg} = await mermaid.render(uid, _mermaidCode);
+    el.innerHTML = svg;
+  } catch(err){
+    el.innerHTML = `<pre style="font-size:10px;color:var(--red);white-space:pre-wrap;word-break:break-all">${_mermaidCode}</pre>`;
+  }
+}
+
+function copiarMermaid(){
+  if(!_mermaidCode){ toast('Nenhum fluxo gerado ainda','var(--amber)'); return; }
+  navigator.clipboard.writeText(_mermaidCode).then(()=>toast('Código Mermaid copiado'));
+}
+
 function toggleEtapaDetalhe(id){
   const el=document.getElementById('ed-'+id);
   if(el)el.style.display=el.style.display==='none'?'block':'none';
@@ -2903,6 +3013,7 @@ function remEtapaProc(id){
   if(!curProc?.mod?.etapas_proc)return;
   curProc.mod.etapas_proc=curProc.mod.etapas_proc.filter(e=>e.id!==id);
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(curProc.mod.etapas_proc);
+  atualizarMermaid();
 }
 function addEtapaProc(){
   if(!curProc?.mod)return;
@@ -2911,7 +3022,7 @@ function addEtapaProc(){
   const nova={id:'ep'+etapasIdC++,seq,nome:'Nova etapa '+seq,tipo:'Atividade',natureza:'Execucao',modo:'Manual',executor:'',desc:'',subtipo_evento:null,caminhos:[]};
   curProc.mod.etapas_proc.push(nova);
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(curProc.mod.etapas_proc);
-  setTimeout(()=>toggleEtapaDetalhe(nova.id),50);
+  setTimeout(()=>{ toggleEtapaDetalhe(nova.id); atualizarMermaid(); },50);
 }
 function extrairBpmn(){
   const p=curProc;
@@ -2960,6 +3071,7 @@ function extrairBpmn(){
   // Re-sequence
   p.mod.etapas_proc.forEach((e,i)=>e.seq=i+1);
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(p.mod.etapas_proc);
+  atualizarMermaid();
   toast(novas.length+' etapas extraídas do BPMN!');
 }
 
