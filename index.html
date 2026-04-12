@@ -357,6 +357,10 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="3" height="7" rx="1" fill="currentColor" opacity=".5"/><rect x="6" y="5" width="3" height="10" rx="1" fill="currentColor"/><rect x="11" y="2" width="3" height="13" rx="1" fill="currentColor" opacity=".7"/></svg>
     Indicadores
   </button>
+  <button class="nav-btn ep-only" onclick="go('plano',this)" id="nb-plano">
+    <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4 5h8M4 8h5M4 11h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="12" cy="11" r="3" fill="var(--surf)" stroke="currentColor" stroke-width="1.4"/><path d="M11 11l.8.8L13 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    PAT
+  </button>
   <button class="nav-btn ep-only" onclick="go('auditoria',this)" id="nb-aud">
     <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4M5 12h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--surf)" stroke="currentColor" stroke-width="1.4"/><path d="M11 12l.8.8L13 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     Auditoria <span class="nav-cnt" id="nb-aud-cnt">0</span>
@@ -615,6 +619,19 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div id="ind-c"></div>
   </div>
   <div id="ind-tab-graficos" class="tab-p" style="display:none">
+    <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem">
+      <input class="fi" id="grfk-srch" placeholder="Buscar por nome..." style="max-width:200px" oninput="rIndGraficos()">
+      <span class="fbar-l">Área</span>
+      <select class="fi" id="grfk-area" onchange="rIndGraficos()" style="max-width:160px"><option value="">Todas</option></select>
+      <span class="fbar-l">PPE?</span>
+      <select class="fi" id="grfk-ppe" onchange="rIndGraficos()" style="max-width:90px">
+        <option value="">Todos</option><option>Sim</option><option>Não</option>
+      </select>
+      <span class="fbar-l">Ciclo</span>
+      <select class="fi" id="grfk-ciclo" onchange="rIndGraficos()" style="max-width:150px"><option value="">Todos</option></select>
+      <span class="fbar-l">Período</span>
+      <select class="fi" id="grfk-periodo" onchange="rIndGraficos()" style="max-width:140px"><option value="">Todos</option></select>
+    </div>
     <div id="ind-graficos-c"></div>
   </div>
 
@@ -688,6 +705,62 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
   </div>
 </div></div>
+<div id="page-plano" class="page ep-only"><div style="padding:2rem">
+  <div class="ph">
+    <div>
+      <div class="ph-t">PAT — Plano Anual de Trabalho</div>
+      <div class="ph-s">Planejamento, execução e acompanhamento de atividades do Escritório de Processos</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select class="fi" id="plano-ano-sel" onchange="rPlano()" style="width:90px"></select>
+      <button class="btn btn-p" onclick="abrirPlanoModal(null)">+ Nova atividade</button>
+    </div>
+  </div>
+  <div id="plano-stats" style="margin-bottom:1rem"></div>
+  <div id="plano-dash" style="margin-bottom:1.2rem"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+    <select class="fi" id="plano-filt-tri" onchange="rPlano()" style="width:100px">
+      <option value="">Todos</option>
+      <option value="Anual">Anual</option>
+      <option value="T1">T1</option><option value="T2">T2</option>
+      <option value="T3">T3</option><option value="T4">T4</option>
+    </select>
+    <select class="fi" id="plano-filt-status" onchange="rPlano()" style="width:140px">
+      <option value="">Todos os status</option>
+      <option value="planejado">Planejado</option>
+      <option value="em_execucao">Em execução</option>
+      <option value="em_atraso">Em atraso</option>
+      <option value="concluida">Concluída</option>
+    </select>
+    <select class="fi" id="plano-filt-prio" onchange="rPlano()" style="width:120px">
+      <option value="">Todas prioridades</option>
+      <option value="alta">Alta</option>
+      <option value="media">Média</option>
+      <option value="baixa">Baixa</option>
+    </select>
+    <select class="fi" id="plano-filt-cat" onchange="rPlano()" style="width:130px">
+      <option value="">Todas categorias</option>
+      <option value="auditoria">Auditoria</option>
+      <option value="mapeamento">Mapeamento</option>
+      <option value="normativa">Normativa</option>
+      <option value="capacitacao">Capacitação</option>
+      <option value="governanca">Governança</option>
+      <option value="outro">Outro</option>
+    </select>
+    <input class="fi" id="plano-filt-srch" placeholder="Buscar..." oninput="rPlano()" style="min-width:170px;flex:1">
+  </div>
+  <div id="plano-c"></div>
+  <div id="plano-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:999;overflow-y:auto">
+    <div style="background:var(--surf);border-radius:var(--rl);max-width:660px;margin:2.5rem auto;padding:1.8rem;position:relative;box-shadow:0 16px 48px rgba(0,0,0,.25)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem">
+        <div style="font-family:var(--fh);font-size:15px;font-weight:600" id="plano-modal-title">Nova atividade</div>
+        <button onclick="fecharPlanoModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);line-height:1">×</button>
+      </div>
+      <div id="plano-modal-body"></div>
+    </div>
+  </div>
+</div></div>
+
 <div id="page-auditoria" class="page"><div style="padding:2rem">
   <div class="ph">
     <div><div class="ph-t">Auditoria de processos</div><div class="ph-s" id="aud-sub">Processos com auditoria em andamento ou concluída</div></div>
@@ -1098,6 +1171,9 @@ let kpis = [];
 let publicacoes = [];
 let _pubIdC = 1;
 
+let plano = [];
+let _planoIdC = 1;
+
 let notifs = [];
 let ejsConfig = {service:'',template:'',pubkey:''};
 
@@ -1167,7 +1243,7 @@ function go(page,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+page).classList.add('on');
   if(btn)btn.classList.add('on');
-  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,melhorias:()=>{populateMelhSel();rMelh();},indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin}[page]||function(){})();
+  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,melhorias:()=>{populateMelhSel();rMelh();},indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano}[page]||function(){})();
 }
 function stab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -1319,6 +1395,7 @@ function rNotif(){
         ${!n.lida?'<button class="btn" style="font-size:10px;padding:2px 7px;margin-top:3px" onclick="marcarLida('+n.id+')">Marcar como lida</button>':''}
       </div>
     </div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma notificação.</div>';
+  if(isEP()) setTimeout(injectAiConfigField, 100);
 }
 function marcarLida(id){const n=notifs.find(x=>x.id===id);if(n)n.lida=true;updCounts();rNotif();}
 function limparNotifs(){notifs=notifs.filter(n=>!n.lida);updCounts();rNotif();}
@@ -1600,7 +1677,11 @@ function renderProcs(){
   const srch=(document.getElementById('srch-p')?.value||'').toLowerCase();
   const isDono=usuarioLogado?.perfil==='dono';
   const lista=processos.filter(p=>{
-    if(isDono&&p.dono!==usuarioLogado.nome)return false;
+    if(isDono){
+      const isDonoProc=(p.dono===usuarioLogado.nome);
+      const isInteressado=(p.interessados||[]).includes(usuarioLogado.email);
+      if(!isDonoProc&&!isInteressado)return false;
+    }
     return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch));
   });
   const el=document.getElementById('proc-list'),em=document.getElementById('proc-empty');
@@ -1668,11 +1749,13 @@ function rDetalhe(){
     document.getElementById('tab-acao').classList.add('on');
     document.getElementById('tab-hist').classList.remove('on');
     rAcao(p);
+    setTimeout(injectIaAssistente, 100);
     return;
   }
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===0));
   document.querySelectorAll('.tab-p').forEach((p,i)=>p.classList.toggle('on',i===0));
   rAcao(p);
+  setTimeout(injectIaAssistente, 100);
 }
 
 // ═══════════════════════════════════════════
@@ -1744,6 +1827,26 @@ function findArqItem(mid, itemId){
     if(s)return s;
   }
   return null;
+}
+function findArqItemById(itemId){
+  for(const m of ARQUITETURA){
+    for(const p of m.processos){
+      if(p.id===itemId) return p;
+      const s=(p.subprocessos||[]).find(s=>s.id===itemId);
+      if(s) return s;
+    }
+  }
+  return null;
+}
+function sincronizarSIPOCArquitetura(proc){
+  if(!proc.arq_id) return;
+  const item = findArqItemById(proc.arq_id);
+  if(!item) return;
+  if(proc.ent.entradas)      item.entradas      = proc.ent.entradas;
+  if(proc.ent.saidas)        item.entregas      = proc.ent.saidas;
+  if(proc.ent.clientes)      item.clientes      = proc.ent.clientes;
+  if(proc.ent.fornecedores)  item.fornecedores  = proc.ent.fornecedores;
+  if(proc.ent.atores)        item.atores        = proc.ent.atores;
 }
 function autoFillDonoEmail(){
   const nome=document.getElementById('novo-dono-nome').value;
@@ -2443,6 +2546,7 @@ function rAcao(p){
   el.innerHTML=buildAcaoCardHTML(ac,p,roleNote);
   if(p.etapa==='esboco') setTimeout(()=>{initBpmnMod('asis',p);},120);
   if(p.etapa==='det_etapas') setTimeout(atualizarMermaid,300);
+  if(p.etapa==='pop') setTimeout(injectIaPop, 100);
 }
 
 // ═══════════════════════════════════════════
@@ -2506,6 +2610,7 @@ function salvarReuniao(){
   if(p.ent.t_ciclo!=null&&p.ent.t_real!=null) p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
   const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.ent.prob=prob;
+  sincronizarSIPOCArquitetura(p);
   av('reuniao','EP','Reunião de entendimento concluída. '+prob.length+' problemas identificados.');
 }
 async function iaGerarRiscos(){
@@ -3308,7 +3413,7 @@ async function atualizarMermaid(){
 
 function copiarMermaid(){
   if(!_mermaidCode){ toast('Nenhum fluxo gerado ainda','var(--amber)'); return; }
-  navigator.clipboard.writeText(_mermaidCode).then(()=>toast('Código Mermaid copiado'));
+  navigator.clipboard.writeText(_mermaidCode).then(()=>toast('Código Mermaid copiado')).catch(()=>toast('Erro ao copiar','var(--red)'));
 }
 
 function toggleEtapaDetalhe(id){
@@ -3509,6 +3614,7 @@ function rMod(p){
   </div>`;
   // Auto-mount asis bpmn
   setTimeout(()=>initBpmnMod('asis',p),80);
+  setTimeout(()=>{ injectIaBpmn('asis'); injectIaBpmn('tobe'); }, 200);
 }
 function sModTab(id,el){
   el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -4710,6 +4816,7 @@ function rInd(){
   const el = document.getElementById('ind-c');
   if(!lista.length){
     el.innerHTML = '<div class="ib ibb">Nenhum indicador. Importe a planilha ou clique em "+ Novo indicador".</div>';
+    setTimeout(injectIaIndicadores, 100);
     return;
   }
 
@@ -4725,6 +4832,7 @@ function rInd(){
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">${inds.map(k=>kpiCard(k)).join('')}</div>
     </div>`).join('');
+  setTimeout(injectIaIndicadores, 100);
 }
 
 function indFiltPpe(val, el){
@@ -4739,11 +4847,32 @@ function kpiGrupoCardHTML(key, items){
   const nome = items[0].nome;
   const polaridade = items[0].polaridade||'Maior é melhor';
   const area = items[0].area||'';
+  const editBtns = items.length === 1
+    ? `<button class="btn" style="font-size:11px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button>`
+    : `<div style="display:flex;gap:4px;flex-wrap:wrap">${items.map(i=>`<button class="btn" style="font-size:10px;padding:1px 6px" onclick="editKpi(${i.id})" title="Editar período ${esc(i.periodo||'?')}">${esc(i.periodo||'?')}</button>`).join('')}</div>`;
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
-    <div style="font-size:12px;color:var(--ink3);margin-bottom:3px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
-    <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:.75rem">${esc(nome)}</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;gap:8px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink)">${esc(nome)}</div>
+      </div>
+      <div style="flex-shrink:0">${isEP()?editBtns:''}</div>
+    </div>
     <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
   </div>`;
+}
+function populateGrfkFilters(){
+  const areaSel  = document.getElementById('grfk-area');
+  const cicloSel = document.getElementById('grfk-ciclo');
+  const periSel  = document.getElementById('grfk-periodo');
+  if(!areaSel) return;
+  const cur = {area:areaSel.value, ciclo:cicloSel.value, peri:periSel.value};
+  const areas   = [...new Set(kpis.map(k=>k.area).filter(Boolean))].sort();
+  const ciclos  = [...new Set(kpis.map(k=>k.ciclo).filter(Boolean))].sort();
+  const periods = [...new Set(kpis.map(k=>k.periodo).filter(Boolean))].sort();
+  areaSel.innerHTML  = '<option value="">Todas as áreas</option>'  + areas.map(a=>`<option ${cur.area===a?'selected':''}>${esc(a)}</option>`).join('');
+  cicloSel.innerHTML = '<option value="">Todos os ciclos</option>' + ciclos.map(a=>`<option ${cur.ciclo===a?'selected':''}>${esc(a)}</option>`).join('');
+  periSel.innerHTML  = '<option value="">Todos os períodos</option>' + periods.map(a=>`<option ${cur.peri===a?'selected':''}>${esc(a)}</option>`).join('');
 }
 function kpiBarColor(r, m, polaridade){
   if(!m) return 'rgba(96,165,250,0.7)';
@@ -4757,9 +4886,10 @@ function kpiApplyMetaFallback(items){
   const media = ultimos.length ? ultimos.reduce((a,b)=>a+b,0)/ultimos.length : 0;
   semMeta.forEach(i=>{ if(!i._metaFallback) i._metaFallback = Math.round(media*10)/10; });
 }
-function kpiGroupByKey(){
+function kpiGroupByKey(list){
+  const source = list || kpis;
   const grupos = {};
-  kpis.forEach(k=>{
+  source.forEach(k=>{
     const key = (k.codigo||k.nome||'').trim() || k.nome;
     if(!grupos[key]) grupos[key] = [];
     grupos[key].push(k);
@@ -4805,7 +4935,21 @@ function rIndGraficos(){
   _indCharts.forEach(c=>{ try{ c.destroy(); }catch(e){} });
   _indCharts = [];
   if(!kpis.length){ el.innerHTML='<div class="ib ibsl">Nenhum indicador cadastrado.</div>'; return; }
-  const grupos = kpiGroupByKey();
+  populateGrfkFilters();
+  const srch   = (document.getElementById('grfk-srch')?.value||'').trim().toLowerCase();
+  const area   = document.getElementById('grfk-area')?.value||'';
+  const ppe    = document.getElementById('grfk-ppe')?.value||'';
+  const ciclo  = document.getElementById('grfk-ciclo')?.value||'';
+  const period = document.getElementById('grfk-periodo')?.value||'';
+  const filtered = kpis.filter(k=>
+    (!srch   || (k.nome||'').toLowerCase().includes(srch)) &&
+    (!area   || k.area   === area)  &&
+    (!ppe    || k.ppe    === ppe)   &&
+    (!ciclo  || k.ciclo  === ciclo) &&
+    (!period || k.periodo === period)
+  );
+  if(!filtered.length){ el.innerHTML='<div class="ib iba">Nenhum indicador encontrado com os filtros selecionados.</div>'; return; }
+  const grupos = kpiGroupByKey(filtered);
   Object.values(grupos).forEach(kpiApplyMetaFallback);
   el.innerHTML = Object.entries(grupos).map(([key,items])=>kpiGrupoCardHTML(key,items)).join('');
   setTimeout(()=>{ Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
@@ -5324,6 +5468,385 @@ async function fbSave(col, id, data){
   } catch(e){ console.warn('fbSave error:', e.message); }
 }
 
+// ═══════════════════════════════════════════
+// PLANO ANUAL DE TRABALHO (PAT)
+// ═══════════════════════════════════════════
+const PLANO_STATUS_CFG = {
+  planejado:   {lb:'Planejado',    cor:'#3b82f6', bg:'rgba(59,130,246,.1)'},
+  em_execucao: {lb:'Em execução',  cor:'#f59e0b', bg:'rgba(245,158,11,.1)'},
+  em_atraso:   {lb:'Em atraso',    cor:'#ef4444', bg:'rgba(239,68,68,.1)'},
+  concluida:   {lb:'Concluída',    cor:'#14b8a6', bg:'rgba(20,184,166,.1)'},
+};
+const PLANO_PRIO_CFG = {
+  alta:  {lb:'Alta',  cor:'#ef4444'},
+  media: {lb:'Média', cor:'#f59e0b'},
+  baixa: {lb:'Baixa', cor:'#14b8a6'},
+};
+const PLANO_CAT_LB = {auditoria:'Auditoria',mapeamento:'Mapeamento',normativa:'Normativa',capacitacao:'Capacitação',governanca:'Governança',outro:'Outro'};
+
+function planoAno(){
+  return parseInt(document.getElementById('plano-ano-sel')?.value)||new Date().getFullYear();
+}
+
+function planoStatusEfetivo(at){
+  if(at.status==='concluida') return 'concluida';
+  if(at.prazo && at.prazo < new Date().toISOString().split('T')[0]) return 'em_atraso';
+  return at.status||'planejado';
+}
+
+function planoPct(at){
+  if(!at.qt_prevista) return at.status==='concluida'?100:0;
+  return Math.min(100, Math.round((at.qt_realizada||0)/at.qt_prevista*100));
+}
+
+function planoPopulateAnoSel(){
+  const sel = document.getElementById('plano-ano-sel');
+  if(!sel) return;
+  const curY = new Date().getFullYear();
+  const anos = [...new Set([curY, curY-1, curY+1, ...plano.map(a=>a.ano)])].sort((a,b)=>b-a);
+  const cur  = parseInt(sel.value)||curY;
+  sel.innerHTML = anos.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
+}
+
+function rPlano(){
+  if(!isEP()) return;
+  planoPopulateAnoSel();
+  const ano  = planoAno();
+  const doAno = plano.filter(a=>a.ano===ano);
+  const triF  = document.getElementById('plano-filt-tri')?.value||'';
+  const stF   = document.getElementById('plano-filt-status')?.value||'';
+  const prF   = document.getElementById('plano-filt-prio')?.value||'';
+  const catF  = document.getElementById('plano-filt-cat')?.value||'';
+  const srch  = (document.getElementById('plano-filt-srch')?.value||'').toLowerCase().trim();
+  let lista = doAno.slice();
+  if(triF)  lista = lista.filter(a=>a.trimestre===triF);
+  if(stF)   lista = lista.filter(a=>planoStatusEfetivo(a)===stF);
+  if(prF)   lista = lista.filter(a=>a.prioridade===prF);
+  if(catF)  lista = lista.filter(a=>a.categoria===catF);
+  if(srch)  lista = lista.filter(a=>
+    (a.nome||'').toLowerCase().includes(srch)||
+    (a.descricao||'').toLowerCase().includes(srch)||
+    (a.responsavel||'').toLowerCase().includes(srch));
+  planoDashAnual(doAno);
+  planoStatsTrimestrais(doAno);
+  const el = document.getElementById('plano-c');
+  if(!el) return;
+  if(!lista.length){
+    el.innerHTML='<div class="ib ibb">Nenhuma atividade encontrada. <button class="btn" onclick="abrirPlanoModal(null)" style="font-size:12px;margin-left:8px">+ Nova atividade</button></div>';
+    return;
+  }
+  const ORDEM = ['Anual','T1','T2','T3','T4'];
+  const grupos = {};
+  lista.forEach(a=>{ const k=a.trimestre||'Anual'; if(!grupos[k])grupos[k]=[]; grupos[k].push(a); });
+  const statusOrd = {em_atraso:0,em_execucao:1,planejado:2,concluida:3};
+  el.innerHTML = ORDEM.filter(k=>grupos[k]).map(tri=>{
+    const items = grupos[tri].sort((a,b)=>(statusOrd[planoStatusEfetivo(a)]??2)-(statusOrd[planoStatusEfetivo(b)]??2));
+    const concl  = items.filter(a=>planoStatusEfetivo(a)==='concluida').length;
+    const atraso = items.filter(a=>planoStatusEfetivo(a)==='em_atraso').length;
+    const pct    = items.length ? Math.round(concl/items.length*100) : 0;
+    return `<div style="margin-bottom:1.8rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem 1rem;background:var(--ink);color:#fff;border-radius:var(--r);margin-bottom:.7rem">
+        <div style="font-family:var(--fh);font-size:13px;font-weight:600">${tri==='Anual'?'📅 Atividades Anuais':tri}</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          ${atraso?`<span style="font-size:10px;background:rgba(239,68,68,.3);color:#fca5a5;padding:1px 8px;border-radius:10px">⚠ ${atraso} em atraso</span>`:''}
+          <span style="font-size:11px;opacity:.6">${items.length} atividade${items.length!==1?'s':''}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:80px;height:6px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:#14b8a6;border-radius:3px"></div>
+            </div>
+            <span style="font-size:11px;opacity:.7">${pct}%</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">${items.map(a=>planoCardHTML(a)).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function planoDashAnual(lista){
+  const el = document.getElementById('plano-dash');
+  if(!el) return;
+  if(!lista.length){el.innerHTML='';return;}
+  const total   = lista.length;
+  const concl   = lista.filter(a=>planoStatusEfetivo(a)==='concluida').length;
+  const atraso  = lista.filter(a=>planoStatusEfetivo(a)==='em_atraso').length;
+  const execucao= lista.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
+  const planej  = lista.filter(a=>planoStatusEfetivo(a)==='planejado').length;
+  const pct = Math.round(concl/total*100);
+  const cor = pct>=75?'#14b8a6':pct>=40?'#f59e0b':'#ef4444';
+  const dc = (v,l,c,bg)=>`<div style="flex:1;min-width:90px;background:${bg};border:1px solid ${c};border-radius:var(--r);padding:.7rem 1rem"><div style="font-size:22px;font-weight:700;color:${c};line-height:1">${v}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">${l}</div></div>`;
+  el.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap;width:100%">
+    ${dc(total,'Total atividades','var(--blue)','rgba(59,130,246,.07)')}
+    ${dc(planej,'Planejadas','var(--ink3)','var(--bg2)')}
+    ${dc(execucao,'Em execução','#f59e0b','rgba(245,158,11,.07)')}
+    ${dc(atraso,'Em atraso','#ef4444','rgba(239,68,68,.07)')}
+    ${dc(concl,'Concluídas','#14b8a6','rgba(20,184,166,.07)')}
+    <div style="flex:1;min-width:120px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.7rem 1rem">
+      <div style="font-size:22px;font-weight:700;color:${cor};line-height:1">${pct}%</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Conclusão anual</div>
+      <div style="margin-top:5px;height:5px;background:var(--bdr2);border-radius:3px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${cor};border-radius:3px;transition:width .4s"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function planoStatsTrimestrais(lista){
+  const el = document.getElementById('plano-stats');
+  if(!el) return;
+  const mes = new Date().getMonth();
+  const trimAtual = mes<3?'T1':mes<6?'T2':mes<9?'T3':'T4';
+  const trimestres = ['T1','T2','T3','T4'];
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:.8rem">
+    ${trimestres.map(tri=>{
+      const items=lista.filter(a=>a.trimestre===tri);
+      const isCur=tri===trimAtual;
+      if(!items.length) return `<div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;opacity:.45">
+        <div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:.3rem">${tri}${isCur?' <span style="color:var(--blue)">●</span>':''}</div>
+        <div style="font-size:11px;color:var(--ink3)">Sem atividades</div></div>`;
+      const concl   =items.filter(a=>planoStatusEfetivo(a)==='concluida').length;
+      const atraso  =items.filter(a=>planoStatusEfetivo(a)==='em_atraso').length;
+      const execucao=items.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
+      const pct=Math.round(concl/items.length*100);
+      const cor=pct>=75?'#14b8a6':pct>=40?'#f59e0b':'#ef4444';
+      return `<div style="background:${isCur?'rgba(59,130,246,.06)':'var(--bg2)'};border:${isCur?'2px solid var(--blue)':'1px solid var(--bdr)'};border-radius:var(--r);padding:.8rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+          <span style="font-size:11px;font-weight:700;color:${isCur?'var(--blue)':'var(--ink)'}">${tri}${isCur?' ●':''}</span>
+          <span style="font-size:18px;font-weight:700;color:${cor}">${pct}%</span>
+        </div>
+        <div style="height:4px;background:var(--bdr2);border-radius:2px;overflow:hidden;margin-bottom:.4rem">
+          <div style="width:${pct}%;height:100%;background:${cor};border-radius:2px"></div>
+        </div>
+        <div style="font-size:10px;color:var(--ink3);display:flex;gap:7px;flex-wrap:wrap">
+          <span>${items.length} ativ.</span>
+          <span style="color:#14b8a6">${concl} concl.</span>
+          ${atraso?`<span style="color:#ef4444">${atraso} atr.</span>`:''}
+          ${execucao?`<span style="color:#f59e0b">${execucao} exec.</span>`:''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function planoCardHTML(at){
+  const st  = planoStatusEfetivo(at);
+  const cfg = PLANO_STATUS_CFG[st]||PLANO_STATUS_CFG.planejado;
+  const pct = planoPct(at);
+  const prioC = PLANO_PRIO_CFG[at.prioridade]||PLANO_PRIO_CFG.media;
+  const hoje = new Date().toISOString().split('T')[0];
+  const diasRest = at.prazo && st!=='concluida'
+    ? Math.ceil((new Date(at.prazo)-new Date(hoje))/86400000) : null;
+  const prazoProximo = diasRest!==null && diasRest>=0 && diasRest<=7;
+  return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${cfg.cor};border-radius:var(--r);padding:.9rem 1rem;box-shadow:var(--sh)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:10px;font-weight:700;background:${cfg.bg};color:${cfg.cor};padding:2px 8px;border-radius:10px">${cfg.lb}</span>
+          <span style="font-size:10px;color:${prioC.cor};padding:2px 7px;border-radius:10px;background:rgba(0,0,0,.04)">${prioC.lb}</span>
+          ${at.categoria?`<span style="font-size:10px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px">${esc(PLANO_CAT_LB[at.categoria]||at.categoria)}</span>`:''}
+          ${at.vinculo_nome?`<span style="font-size:10px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px">🔗 ${esc(at.vinculo_nome)}</span>`:''}
+          ${prazoProximo?`<span style="font-size:10px;color:#f59e0b;background:rgba(245,158,11,.1);padding:2px 7px;border-radius:10px">⏰ ${diasRest===0?'Vence hoje':diasRest+'d restantes'}</span>`:''}
+        </div>
+        <div style="font-weight:600;font-size:13px;color:var(--ink);word-break:break-word">${esc(at.nome)}</div>
+        ${at.descricao?`<div style="font-size:12px;color:var(--ink2);margin-top:2px">${esc(at.descricao)}</div>`:''}
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="btn" style="font-size:11px;padding:2px 8px" onclick="abrirPlanoModal(${at.id})" title="Editar">✎</button>
+        <button class="btn" style="font-size:11px;padding:2px 8px" onclick="duplicarAtividade(${at.id})" title="Duplicar">⧉</button>
+        <button class="btn" style="font-size:11px;padding:2px 8px;color:var(--red)" onclick="deletarAtividade(${at.id})" title="Excluir">🗑</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:.6rem;flex-wrap:wrap">
+      ${at.responsavel?`<span style="font-size:11px;color:var(--ink3)">👤 ${esc(at.responsavel)}</span>`:''}
+      ${at.prazo?`<span style="font-size:11px;color:${st==='em_atraso'?'#ef4444':'var(--ink3)'}">📅 ${at.prazo}${st==='em_atraso'?' ⚠':''}</span>`:''}
+      ${at.qt_prevista?`<span style="font-size:11px;color:var(--ink3)">📊 ${at.qt_realizada||0}/${at.qt_prevista} (${pct}%)</span>`:''}
+    </div>
+    ${at.qt_prevista?`<div style="margin-top:7px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+        <span style="font-size:10px;color:var(--ink3)">Progresso realizado</span>
+        <span style="font-size:10px;font-weight:700;color:${cfg.cor}">${pct}%</span>
+      </div>
+      <div style="height:5px;background:var(--bdr2);border-radius:3px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${cfg.cor};border-radius:3px;transition:width .4s"></div>
+      </div>
+    </div>`:''}
+    ${at.obs?`<div style="margin-top:6px;font-size:11px;color:var(--ink2);background:var(--bg2);border-radius:4px;padding:4px 8px;border-left:2px solid var(--bdr2)">📝 ${esc(at.obs)}</div>`:''}
+    ${at.evidencia&&st==='concluida'?`<div style="margin-top:5px;font-size:11px;color:#14b8a6;background:rgba(20,184,166,.07);border-radius:4px;padding:4px 8px">✅ ${esc(at.evidencia)}</div>`:''}
+  </div>`;
+}
+
+function fecharPlanoModal(){
+  document.getElementById('plano-modal').style.display='none';
+}
+
+function planoVinculoOptsHTML(tipo, selId){
+  if(tipo==='mapeamento')
+    return processos.map(p=>`<option value="${p.id}" ${selId==p.id?'selected':''}>${esc(p.nome)}</option>`).join('');
+  if(tipo==='auditoria'){
+    const src = processos.filter(p=>p.auditoria||p.aud?.length);
+    return (src.length?src:processos).map(p=>`<option value="${p.id}" ${selId==p.id?'selected':''}>Aud: ${esc(p.nome)}</option>`).join('');
+  }
+  return '';
+}
+
+function abrirPlanoModal(idOrObj){
+  const at = typeof idOrObj==='number' ? plano.find(a=>a.id===idOrObj) : (idOrObj||null);
+  const isNew = !at||!at.id;
+  document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
+  const vTipo = at?.vinculo_tipo||'';
+  const vId   = at?.vinculo_id||'';
+  document.getElementById('plano-modal-body').innerHTML = `
+    <input type="hidden" id="pm-id" value="${at?.id||''}">
+    <input type="hidden" id="pm-ano" value="${at?.ano||planoAno()}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+      <div style="grid-column:1/-1">
+        <div class="fl">Nome da atividade *</div>
+        <input class="fi" id="pm-nome" value="${esc(at?.nome||'')}" placeholder="Ex: Auditoria do processo de licitação">
+      </div>
+      <div style="grid-column:1/-1">
+        <div class="fl">Descrição</div>
+        <textarea class="fi" id="pm-desc" rows="2" style="resize:vertical">${esc(at?.descricao||'')}</textarea>
+      </div>
+      <div>
+        <div class="fl">Responsável</div>
+        <input class="fi" id="pm-resp" value="${esc(at?.responsavel||usuarioLogado?.nome||'')}">
+      </div>
+      <div>
+        <div class="fl">Prazo para conclusão</div>
+        <input class="fi" type="date" id="pm-prazo" value="${at?.prazo||''}">
+      </div>
+      <div>
+        <div class="fl">Trimestre</div>
+        <select class="fi" id="pm-tri">
+          ${['Anual','T1','T2','T3','T4'].map(t=>`<option value="${t}" ${(at?.trimestre||'Anual')===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <div class="fl">Status</div>
+        <select class="fi" id="pm-status">
+          <option value="planejado"   ${(!at||at.status==='planejado')?'selected':''}>Planejado</option>
+          <option value="em_execucao" ${at?.status==='em_execucao'?'selected':''}>Em execução</option>
+          <option value="em_atraso"   ${at?.status==='em_atraso'?'selected':''}>Em atraso</option>
+          <option value="concluida"   ${at?.status==='concluida'?'selected':''}>Concluída</option>
+        </select>
+      </div>
+      <div>
+        <div class="fl">Prioridade</div>
+        <select class="fi" id="pm-prio">
+          <option value="alta"  ${at?.prioridade==='alta'?'selected':''}>Alta</option>
+          <option value="media" ${(!at||at.prioridade==='media')?'selected':''}>Média</option>
+          <option value="baixa" ${at?.prioridade==='baixa'?'selected':''}>Baixa</option>
+        </select>
+      </div>
+      <div>
+        <div class="fl">Categoria</div>
+        <select class="fi" id="pm-cat">
+          <option value="">Selecione...</option>
+          ${Object.entries(PLANO_CAT_LB).map(([v,l])=>`<option value="${v}" ${at?.categoria===v?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <div class="fl">Quantidade prevista</div>
+        <input class="fi" type="number" id="pm-qtprev" value="${at?.qt_prevista||''}" min="0" placeholder="0">
+      </div>
+      <div>
+        <div class="fl">Quantidade realizada</div>
+        <input class="fi" type="number" id="pm-qtreal" value="${at?.qt_realizada||''}" min="0" placeholder="0">
+      </div>
+      <div>
+        <div class="fl">Tipo de vínculo</div>
+        <select class="fi" id="pm-vint" onchange="planoAtualizarVinculo()">
+          <option value="">Sem vínculo</option>
+          <option value="mapeamento" ${vTipo==='mapeamento'?'selected':''}>Mapeamento</option>
+          <option value="auditoria"  ${vTipo==='auditoria'?'selected':''}>Auditoria</option>
+        </select>
+      </div>
+      <div>
+        <div class="fl">Processo vinculado</div>
+        <select class="fi" id="pm-vinid" ${!vTipo?'disabled':''}>
+          <option value="">Selecione...</option>
+          ${planoVinculoOptsHTML(vTipo,vId)}
+        </select>
+      </div>
+      <div style="grid-column:1/-1">
+        <div class="fl">Observações / andamento</div>
+        <textarea class="fi" id="pm-obs" rows="2" style="resize:vertical">${esc(at?.obs||'')}</textarea>
+      </div>
+      <div style="grid-column:1/-1">
+        <div class="fl">Evidência de conclusão</div>
+        <textarea class="fi" id="pm-evid" rows="2" style="resize:vertical" placeholder="Descreva como a conclusão será/foi comprovada...">${esc(at?.evidencia||'')}</textarea>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:1.2rem;border-top:1px solid var(--bdr);padding-top:1rem">
+      <button class="btn" onclick="fecharPlanoModal()">Cancelar</button>
+      <button class="btn btn-p" onclick="salvarAtividade()">Salvar atividade</button>
+    </div>`;
+  document.getElementById('plano-modal').style.display='block';
+}
+
+function planoAtualizarVinculo(){
+  const tipo = document.getElementById('pm-vint')?.value||'';
+  const sel  = document.getElementById('pm-vinid');
+  if(!sel) return;
+  sel.disabled = !tipo;
+  sel.innerHTML = '<option value="">Selecione...</option>' + planoVinculoOptsHTML(tipo,'');
+}
+
+function salvarAtividade(){
+  const nome = document.getElementById('pm-nome')?.value.trim();
+  if(!nome){alert('Informe o nome da atividade.');return;}
+  const id    = parseInt(document.getElementById('pm-id')?.value)||0;
+  const ano   = parseInt(document.getElementById('pm-ano')?.value)||planoAno();
+  const vTipo = document.getElementById('pm-vint')?.value||'';
+  const vSel  = document.getElementById('pm-vinid');
+  const vId   = vTipo&&vSel?.value ? parseInt(vSel.value)||null : null;
+  const vNome = vId ? (vSel.options[vSel.selectedIndex]?.text||'').replace(/^Aud:\s*/,'') : '';
+  const qtPrev= parseFloat(document.getElementById('pm-qtprev')?.value)||0;
+  const qtReal= parseFloat(document.getElementById('pm-qtreal')?.value)||0;
+  const antigo= plano.find(a=>a.id===id);
+  const at = {
+    id: id||_planoIdC++,
+    ano,
+    nome,
+    descricao:    document.getElementById('pm-desc')?.value.trim()||'',
+    responsavel:  document.getElementById('pm-resp')?.value.trim()||'',
+    prazo:        document.getElementById('pm-prazo')?.value||'',
+    trimestre:    document.getElementById('pm-tri')?.value||'Anual',
+    status:       document.getElementById('pm-status')?.value||'planejado',
+    prioridade:   document.getElementById('pm-prio')?.value||'media',
+    categoria:    document.getElementById('pm-cat')?.value||'',
+    vinculo_tipo: vTipo,
+    vinculo_id:   vId,
+    vinculo_nome: vNome,
+    qt_prevista:  qtPrev,
+    qt_realizada: qtReal,
+    obs:          document.getElementById('pm-obs')?.value.trim()||'',
+    evidencia:    document.getElementById('pm-evid')?.value.trim()||'',
+    dt_criacao:   antigo?.dt_criacao||new Date().toISOString().split('T')[0],
+    dt_atualizacao: new Date().toISOString().split('T')[0],
+  };
+  if(id){ const i=plano.findIndex(a=>a.id===id); if(i>=0) plano[i]=at; else plano.push(at); }
+  else plano.push(at);
+  fecharPlanoModal();
+  fbSaveAll();
+  rPlano();
+  toast(id?'Atividade atualizada':'Atividade criada');
+}
+
+function deletarAtividade(id){
+  if(!confirm('Excluir esta atividade do plano?')) return;
+  plano = plano.filter(a=>a.id!==id);
+  fbSaveAll();
+  rPlano();
+  toast('Atividade excluída','var(--amber)');
+}
+
+function duplicarAtividade(id){
+  const src = plano.find(a=>a.id===id);
+  if(!src) return;
+  abrirPlanoModal({...src, id:0, nome:src.nome+' (cópia)', status:'planejado', qt_realizada:0, evidencia:'', dt_criacao:'', dt_atualizacao:''});
+}
+
 async function fbSaveAll(){
   if(!fbReady()) return;
   try {
@@ -5335,6 +5858,7 @@ async function fbSaveAll(){
     melhorias.forEach(m => ops.push({ref: doc(db,'melhorias',String(m.id)), data: m}));
     kpis.forEach(k => ops.push({ref: doc(db,'kpis',String(k.id)), data: k}));
     publicacoes.forEach(p => ops.push({ref: doc(db,'publicacoes',String(p.id)), data: p}));
+    plano.forEach(a => ops.push({ref: doc(db,'plano',String(a.id)), data: a}));
     ops.push({ref: doc(db,'config','arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}});
     ops.push({ref: doc(db,'config','usuarios'),    data: {data: JSON.stringify(USUARIOS)}});
     ops.push({ref: doc(db,'config','mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}});
@@ -5385,6 +5909,14 @@ async function fbLoad(){
       kpis = [];
       kSnap.forEach(d => kpis.push(d.data()));
       _kpiIdC = Math.max(...kpis.map(k=>k.id), 0) + 1;
+    }
+
+    // plano de trabalho
+    const planoSnap = await getDocs(collection(db,'plano'));
+    if(!planoSnap.empty){
+      plano = [];
+      planoSnap.forEach(d => plano.push(d.data()));
+      _planoIdC = Math.max(...plano.map(a=>a.id), 0) + 1;
     }
 
     // publicacoes
@@ -5832,30 +6364,6 @@ function injectIaAssistente(){
   if(firstTab) firstTab.before(panel);
 }
 
-// Patch rMod and rAcao to inject IA buttons after render
-const _origRMod = rMod;
-rMod = function(p){
-  _origRMod(p);
-  setTimeout(()=>{ injectIaBpmn('asis'); injectIaBpmn('tobe'); }, 200);
-};
-
-const _origRAcao = rAcao;
-rAcao = function(p){
-  _origRAcao(p);
-  if(p.etapa === 'pop') setTimeout(injectIaPop, 100);
-};
-
-const _origRDetalhe = rDetalhe;
-rDetalhe = function(){
-  _origRDetalhe();
-  setTimeout(injectIaAssistente, 100);
-};
-
-const _origRInd = rInd;
-rInd = function(){
-  _origRInd();
-  setTimeout(injectIaIndicadores, 100);
-};
 
 // ── CONFIG URL ────────────────────────────
 // Show AI config field in notificacoes page for EP
@@ -5887,13 +6395,6 @@ function salvarAiUrl(){
   toast('URL da IA salva');
 }
 
-
-// Patch rNotif to inject AI config field
-const _origRNotif = rNotif;
-rNotif = function(){
-  _origRNotif();
-  if(isEP()) setTimeout(injectAiConfigField, 100);
-};
 
 // Restore AI URL from localStorage on boot
 (function(){
