@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.emailjs.com https://*.a.run.app; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'">
-<title>EP·CAGE — Gestão de Processos v2</title>
+<title>SIGA 2.0 — Sistema Integrado de Gestão Estratégica e Alinhamento</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-js.css">
@@ -220,6 +220,7 @@ select.fi{cursor:pointer}
 .etapa-tipo{font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;flex-shrink:0}
 .et-ativ{background:var(--blue-l);color:var(--blue)}
 .et-evento{background:var(--green-l);color:var(--green)}
+.et-evento-fim{background:var(--red-b);color:var(--red)}
 .et-decisao{background:var(--amber-l);color:var(--amber)}
 .et-coment{background:var(--bg3);color:var(--ink3)}
 .etapa-nome{font-size:13px;font-weight:600;color:var(--ink);flex:1}
@@ -315,8 +316,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <!-- LOGIN -->
 <div id="login-screen" class="login-screen">
   <div class="login-box">
-    <div class="login-logo">EP·CAGE</div>
-    <div class="login-sub">Escritório de Processos</div>
+    <div id="login-logo-img" style="display:none;margin-bottom:.75rem"></div>
+    <div class="login-logo">SIGA <span style="color:rgba(255,255,255,.45)">2.0</span></div>
+    <div class="login-sub">Sistema Integrado de Gestão Estratégica e Alinhamento</div>
     <label class="login-label">E-mail institucional</label>
     <input class="login-input" id="login-email" type="email" placeholder="usuario@sefaz.rs.gov.br" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="login-btn" onclick="doLogin()">Entrar</button>
@@ -327,8 +329,20 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div class="shell">
 <aside class="aside">
   <div class="aside-top">
-    <div class="brand">EP<span>·</span>CAGE</div>
-    <div class="brand-sub">Escritório de Processos</div>
+    <div class="aside-logos" id="aside-logos" style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem;min-height:0">
+      <img id="logo-cage-img" style="display:none;max-height:36px;max-width:80px;object-fit:contain" alt="Logo CAGE">
+      <img id="logo-siga-img" style="display:none;max-height:36px;max-width:80px;object-fit:contain" alt="Logo SIGA">
+    </div>
+    <div id="logo-ep-actions" style="display:none;gap:6px;margin-bottom:.4rem">
+      <label style="font-size:10px;color:var(--ink3);cursor:pointer;padding:2px 6px;border:1px dashed var(--bdr);border-radius:4px" title="Definir logo do sistema">
+        ↑ Logo sistema<input type="file" accept="image/*" style="display:none" onchange="setLogo('siga',this)">
+      </label>
+      <label style="font-size:10px;color:var(--ink3);cursor:pointer;padding:2px 6px;border:1px dashed var(--bdr);border-radius:4px" title="Definir logo da CAGE">
+        ↑ Logo CAGE<input type="file" accept="image/*" style="display:none" onchange="setLogo('cage',this)">
+      </label>
+    </div>
+    <div class="brand">SIGA <span>2.0</span></div>
+    <div class="brand-sub">Gestão Estratégica</div>
   </div>
   <div class="nav-sec">Principal</div>
   <button class="nav-btn on" onclick="go('fila',this)" id="nb-fila">
@@ -544,7 +558,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-melhorias" class="page"><div style="padding:2rem">
   <div class="ph">
     <div><div class="ph-t">Melhorias</div><div class="ph-s" id="melh-sub">Oportunidades identificadas no mapeamento</div></div>
-    <button class="btn btn-p" onclick="novaMelh()">+ Registrar</button>
+    <button class="btn btn-p ep-only" onclick="novaMelh()">+ Registrar</button>
   </div>
   <div class="fbar" style="flex-direction:column;align-items:stretch;gap:10px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -552,7 +566,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <select class="fi" id="melh-proc-sel" onchange="rMelh()" style="max-width:360px">
         <option value="">Todos os processos</option>
       </select>
-      <button class="btn" onclick="novaMelh()" style="margin-left:auto;font-size:12px">+ Registrar melhoria</button>
+      <button class="btn ep-only" onclick="novaMelh()" style="margin-left:auto;font-size:12px">+ Registrar melhoria</button>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span class="fbar-l">Status</span>
@@ -583,7 +597,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-indicadores" class="page"><div style="padding:2rem">
   <div class="ph">
     <div><div class="ph-t">Indicadores</div><div class="ph-s" id="ind-sub">Monitoramento de KPIs</div></div>
-    <div style="display:flex;gap:8px" id="ind-actions-ep">
+    <div style="display:flex;gap:8px" id="ind-actions-ep" class="ep-only">
       <label class="btn" style="cursor:pointer">↑ Importar planilha
         <input type="file" id="ind-xlsx-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarIndicadores(this)">
       </label>
@@ -825,7 +839,7 @@ Não responda este e-mail.</pre>
 <div id="page-publicacoes" class="page"><div style="padding:2rem">
   <div class="ph">
     <div><div class="ph-t">Metodologias e Publicações</div><div class="ph-s" id="pub-sub">Manuais, drops e documentos publicados</div></div>
-    <button class="btn btn-p" onclick="abrirModalPub()">+ Nova publicação</button>
+    <button class="btn btn-p ep-only" onclick="abrirModalPub()">+ Nova publicação</button>
   </div>
 
   <!-- Filtros -->
@@ -1118,20 +1132,10 @@ function getEPEmail(proc){
 function doLogin(){
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   if(!email){mostrarErrLogin('Informe seu e-mail.');return;}
-  let user = USUARIOS.find(u=>u.email===email);
+  const user = USUARIOS.find(u=>u.email===email);
   if(!user){
-    const dom = email.split('@')[1];
-    const dc = dominios.find(d=>d.dominio===dom);
-    if(dc){
-      const pts=email.split('@')[0].split('.');
-      const nome=pts.map(p=>p[0].toUpperCase()+p.slice(1)).join(' ');
-      user={email,nome,perfil:dc.perfil,iniciais:pts.map(p=>p[0].toUpperCase()).join('').slice(0,2)};
-    } else {
-      // Domínio não cadastrado — acesso liberado temporariamente como dono
-      const pts=email.split('@')[0].split('.');
-      const nome=pts.map(p=>p[0].toUpperCase()+p.slice(1)).join(' ');
-      user={email,nome,perfil:'dono',iniciais:pts.map(p=>p[0].toUpperCase()).join('').slice(0,2)};
-    }
+    mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao Escritório de Processos.');
+    return;
   }
   usuarioLogado=user;
   document.getElementById('login-err').style.display='none';
@@ -1488,8 +1492,37 @@ function taskCard(p,ACT){
 
 // ─── PERMISSÕES ───────────────────────────────────────────
 function isEP(){ return usuarioLogado?.perfil === 'ep'; }
+function isDono(){ return usuarioLogado?.perfil === 'dono'; }
+
+function setLogo(tipo, input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { localStorage.setItem('logo_'+tipo, e.target.result); loadLogos(); toast('Logo atualizado'); };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+function loadLogos(){
+  const cage = localStorage.getItem('logo_cage');
+  const siga = localStorage.getItem('logo_siga');
+  const cageEl = document.getElementById('logo-cage-img');
+  const sigaEl = document.getElementById('logo-siga-img');
+  if(cageEl){ cageEl.src=cage||''; cageEl.style.display=cage?'inline-block':'none'; }
+  if(sigaEl){ sigaEl.src=siga||''; sigaEl.style.display=siga?'inline-block':'none'; }
+  const logosWrap = document.getElementById('aside-logos');
+  if(logosWrap) logosWrap.style.display=(cage||siga)?'flex':'none';
+  // Show CAGE logo on login screen too
+  const loginLogoEl = document.getElementById('login-logo-img');
+  if(loginLogoEl && cage){
+    loginLogoEl.innerHTML=`<img src="${cage}" style="max-height:48px;max-width:140px;object-fit:contain;filter:brightness(0) invert(1);opacity:.7">`;
+    loginLogoEl.style.display='block';
+  }
+}
 
 function aplicarPermissoes(){
+  // Logo controls — only EP can upload logos
+  const logoActions = document.getElementById('logo-ep-actions');
+  if(logoActions) logoActions.style.display = isEP() ? 'flex' : 'none';
+
   // Processos page: novo processo button
   const btnNovo = document.getElementById('btn-novo-proc');
   if(btnNovo) btnNovo.innerHTML = isEP()
@@ -1603,6 +1636,9 @@ function excluirMapeamento(id){
 }
 function abrirProc(id){
   curProc=processos.find(p=>p.id===id);
+  // Keep etapasIdC ahead of any existing etapa IDs in this process
+  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>parseInt((e.id||'').replace('ep',''))||0);
+  if(nums.length) etapasIdC=Math.max(etapasIdC,...nums)+1;
   rDetalhe();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
@@ -2889,7 +2925,12 @@ function gerarAtivPop(etapas){
 const NATUREZAS=['Execucao','Comunicacao','Distribuicao','Preparacao','Revisao','Aprovacao'];
 let etapasIdC=100;
 
-function tipoCls(t){return t==='Atividade'?'et-ativ':t==='Decisao'?'et-decisao':t==='Evento'?'et-evento':'et-coment';}
+function tipoCls(t,sub){
+  if(t==='Atividade') return 'et-ativ';
+  if(t==='Decisao')  return 'et-decisao';
+  if(t==='Evento')   return sub==='Fim' ? 'et-evento-fim' : 'et-evento';
+  return 'et-coment';
+}
 
 // Navigate a dot-path like "ep100.c0.a1.c0" into etapas_proc nested objects
 function resolveGwPath(path){
@@ -3001,7 +3042,7 @@ function renderEtapaDetalheConteudo(e){
         oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').nome=this.value;document.querySelector('#ep-${id} .etapa-nome').textContent=this.value;clearTimeout(window._mmT);window._mmT=setTimeout(atualizarMermaid,600)">
     </div>
     <div class="fg"><label class="fl">Tipo</label>
-      <select class="fi" onchange="(function(s){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.tipo=s.value;const _b=document.querySelector('#ep-${id} .etapa-tipo');_b.className='etapa-tipo '+tipoCls(s.value);_b.textContent=s.value;reRenderEtapaDetalhe('${id}')})(this)">
+      <select class="fi" onchange="(function(s){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.tipo=s.value;_e.subtipo_evento=null;const _b=document.querySelector('#ep-${id} .etapa-tipo');_b.className='etapa-tipo '+tipoCls(s.value,null);_b.textContent=s.value;reRenderEtapaDetalhe('${id}')})(this)">
         <option ${e.tipo==='Atividade'?'selected':''}>Atividade</option>
         <option ${e.tipo==='Evento'?'selected':''}>Evento</option>
         <option ${e.tipo==='Decisao'?'selected':''}>Decisao</option>
@@ -3029,7 +3070,7 @@ function renderEtapaDetalheConteudo(e){
     </div>
   </div>`:''}
   ${e.tipo==='Evento'?`<div class="fg" style="margin-top:.4rem"><label class="fl">Subtipo do evento</label>
-    <select class="fi" onchange="curProc.mod.etapas_proc.find(x=>x.id==='${id}').subtipo_evento=this.value">
+    <select class="fi" onchange="(function(s){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.subtipo_evento=s.value||null;const _b=document.querySelector('#ep-${id} .etapa-tipo');if(_b){_b.className='etapa-tipo '+tipoCls('Evento',s.value||null);_b.textContent='Evento'+(_e.subtipo_evento?' · '+_e.subtipo_evento:'');}})(this)">
       <option value="" ${!e.subtipo_evento?'selected':''}>Selecione...</option>
       <option ${e.subtipo_evento==='Início'?'selected':''}>Início</option>
       <option ${e.subtipo_evento==='Intermediário'?'selected':''}>Intermediário</option>
@@ -3040,7 +3081,17 @@ function renderEtapaDetalheConteudo(e){
   <div class="fg" style="margin-top:.4rem"><label class="fl">Descrição detalhada</label>
     <textarea class="fi" style="min-height:60px"
       oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').desc=this.value">${e.desc||''}</textarea>
+  </div>
+  <div style="margin-top:.6rem">
+    <button class="btn btn-p" style="font-size:11px;padding:4px 12px" onclick="salvarEtapa('${id}')">✓ Salvar etapa</button>
   </div>`;
+}
+
+function salvarEtapa(id){
+  toggleEtapaDetalhe(id); // collapse the panel
+  atualizarMermaid();
+  fbAutoSave('salvarEtapa');
+  toast('Etapa salva');
 }
 
 function renderEtapasProc(etapas){
@@ -3054,7 +3105,7 @@ function renderEtapasProc(etapas){
       <div class="etapa-proc-hd">
         <span class="etapa-drag-handle" title="Arrastar para reordenar">⠿</span>
         <div class="etapa-seq">${e.seq}</div>
-        <span class="etapa-tipo ${tipoCls(e.tipo)}">${e.tipo}</span>
+        <span class="etapa-tipo ${tipoCls(e.tipo,e.subtipo_evento)}">${e.tipo}${e.subtipo_evento?' · '+e.subtipo_evento:''}</span>
         <div class="etapa-nome">${e.nome}</div>
         <button class="btn" style="font-size:11px;padding:3px 8px" onclick="toggleEtapaDetalhe('${e.id}')">✎ Detalhar</button>
         <button class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red-b)" onclick="remEtapaProc('${e.id}')">×</button>
@@ -3207,30 +3258,34 @@ let _dragSrcId = null;
 function onEtapaDragStart(e, id){
   _dragSrcId = id;
   e.dataTransfer.effectAllowed = 'move';
-  setTimeout(()=>{ const el=document.getElementById('ep-'+id); if(el) el.style.opacity='0.4'; }, 0);
+  e.dataTransfer.setData('text/plain', id); // required for Firefox
+  setTimeout(()=>{ e.currentTarget.style.opacity='0.4'; }, 0);
 }
 function onEtapaDragEnd(e, id){
-  const el=document.getElementById('ep-'+id); if(el) el.style.opacity='';
+  e.currentTarget.style.opacity='';
   document.querySelectorAll('.etapa-proc').forEach(el=>el.classList.remove('drag-over'));
+  _dragSrcId = null;
 }
 function onEtapaDragOver(e, id){
   e.preventDefault();
+  e.stopPropagation();
   e.dataTransfer.dropEffect = 'move';
   if(id !== _dragSrcId){
     document.querySelectorAll('.etapa-proc').forEach(el=>el.classList.remove('drag-over'));
-    document.getElementById('ep-'+id)?.classList.add('drag-over');
+    e.currentTarget.classList.add('drag-over');
   }
 }
 function onEtapaDrop(e, id){
   e.preventDefault(); e.stopPropagation();
-  if(!_dragSrcId || _dragSrcId === id) return;
+  const srcId = _dragSrcId;
+  if(!srcId || srcId === id) return;
   const etapas = curProc.mod.etapas_proc;
-  const srcIdx = etapas.findIndex(x=>x.id===_dragSrcId);
+  const srcIdx = etapas.findIndex(x=>x.id===srcId);
   const tgtIdx = etapas.findIndex(x=>x.id===id);
   if(srcIdx<0||tgtIdx<0) return;
   const [moved] = etapas.splice(srcIdx, 1);
   etapas.splice(tgtIdx, 0, moved);
-  etapas.forEach((e,i)=>e.seq=i+1);
+  etapas.forEach((et,i)=>et.seq=i+1);
   document.getElementById('etapas-proc-list').innerHTML = renderEtapasProc(etapas);
   atualizarMermaid();
   fbAutoSave('reordenarEtapas');
@@ -4426,6 +4481,7 @@ function deleteMelh(id){
 }
 
 function novaMelh(){
+  if(!isEP()){alert('Ação restrita ao Escritório de Processos.');return;}
   // Open the edit modal with a new item pre-linked to curProc if in detail view
   const arqSelM = document.getElementById('melh-proc-sel')?.value || curProc?.arq_id || '';
   const unit = arqSelM ? getUnidadesMapeaveis().find(u=>u.arq_id===arqSelM) : null;
@@ -4779,6 +4835,7 @@ function kpiCard(k){
 }
 
 function abrirNovoKpi(preselArea){
+  if(!isEP()){alert('Ação restrita ao Escritório de Processos.');return;}
   const modal = document.getElementById('novo-kpi-modal');
   if(!modal) return;
   document.getElementById('kpi-modal-titulo').textContent = 'Novo indicador';
@@ -4961,6 +5018,7 @@ function rPub(){
 }
 
 function abrirModalPub(){
+  if(!isEP()){alert('Ação restrita ao Escritório de Processos.');return;}
   document.getElementById('pub-modal-titulo').textContent = 'Nova publicação';
   document.getElementById('pub-edit-id').value = '';
   document.getElementById('pub-del-btn').style.display = 'none';
@@ -5266,6 +5324,9 @@ async function fbLoad(){
       pSnap.forEach(d => processos.push(d.data()));
       processos.sort((a,b) => a.id - b.id);
       nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
+      // Sync etapasIdC so new etapa IDs never collide with existing ones
+      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>parseInt((e.id||'').replace('ep',''))||0));
+      if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
     }
 
     // melhorias
@@ -5479,6 +5540,7 @@ document.getElementById('login-screen').style.display='flex';
   }
 
   if(loadMsg) loadMsg.remove();
+  loadLogos();
   updCounts();
   fbStatusBadge();
   injectSaveBtn();
