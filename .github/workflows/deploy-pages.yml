@@ -26,30 +26,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject Firebase credentials (if secrets are set)
+      - name: Create config with secrets
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          AI_URL: ${{ secrets.AI_FUNCTION_URL }}
         run: |
-          FIREBASE_KEY='${{ secrets.FIREBASE_API_KEY }}'
-          AI_URL='${{ secrets.AI_FUNCTION_URL }}'
-
-          # Create config file with secrets injected
-          cat > config.deploy.js << 'ENDOFFILE'
+          cat > config.deploy.js << 'EOF'
           window.CONFIG = {
-            FIREBASE_API_KEY: '__FIREBASE_API_KEY__',
-            AI_FUNCTION_URL: '__AI_FUNCTION_URL__'
+            FIREBASE_API_KEY: '',
+            AI_FUNCTION_URL: ''
           };
-          ENDOFFILE
+          EOF
 
-          # Replace placeholders if secrets exist
-          if [ ! -z "$FIREBASE_KEY" ]; then
-            sed -i "s|__FIREBASE_API_KEY__|$FIREBASE_KEY|g" config.deploy.js
-          fi
-          if [ ! -z "$AI_URL" ]; then
-            sed -i "s|__AI_FUNCTION_URL__|$AI_URL|g" config.deploy.js
-          fi
+          # Simple replacement using Python
+          python3 << 'PYTHON'
+          import os
 
-          # Inject script tag into HTML
-          sed -i '/<title>/i\  <script src="config.deploy.js"><\/script>' index.html
-          echo "✓ Configuration injected"
+          firebase_key = os.environ.get('FIREBASE_KEY', '')
+          ai_url = os.environ.get('AI_URL', '')
+
+          with open('config.deploy.js', 'w') as f:
+              f.write(f"""window.CONFIG = {{
+  FIREBASE_API_KEY: '{firebase_key}',
+  AI_FUNCTION_URL: '{ai_url}'
+}};
+""")
+
+          # Add script tag to HTML if not already there
+          with open('index.html', 'r') as f:
+              html = f.read()
+
+          if 'config.deploy.js' not in html:
+              html = html.replace('<head>', '<head>\n  <script src="config.deploy.js"></script>')
+              with open('index.html', 'w') as f:
+                  f.write(html)
+
+          print("✓ Configuration created")
+          PYTHON
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
