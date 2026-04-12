@@ -6441,6 +6441,7 @@ function injectIaIndicadores(){
 
 // Assistente — inject chat panel in detalhe page
 function injectIaAssistente(){
+  if(!isEP()) return;
   const hist = document.getElementById('tab-hist');
   if(!hist || document.getElementById('ia-chat-panel')) return;
   const panel = document.createElement('div');
