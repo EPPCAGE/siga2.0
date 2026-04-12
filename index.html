@@ -374,6 +374,10 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
     Usuários
   </button>
+  <button class="nav-btn ep-only" onclick="go('avisos',this)" id="nb-avisos">
+    <svg viewBox="0 0 16 16" fill="none"><path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H9l-1 2-1-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M5 7h6M5 9.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    Quadro de avisos <span class="nav-cnt" id="nb-avisos-cnt">0</span>
+  </button>
   <div class="aside-foot">
     <div class="user-chip">
       <div class="user-av" id="aside-av">?</div>
@@ -391,6 +395,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-fila" class="page on"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Minhas tarefas</div><div class="ph-s" id="fila-sub">Carregando...</div></div>
   <button class="btn btn-p" onclick="go('dashboard',document.getElementById('nb-dash'))">Ver painel</button></div>
+  <div id="avisos-carousel" style="display:none"></div>
   <div id="fila-content"></div>
 </div></div>
 
@@ -967,6 +972,50 @@ Não responda este e-mail.</pre>
     </div>
   </div>
 </div></div>
+
+<!-- QUADRO DE AVISOS — gestão EP -->
+<div id="page-avisos" class="page"><div style="padding:2rem">
+  <div class="ph">
+    <div><div class="ph-t">Quadro de avisos</div><div class="ph-s">Crie e gerencie avisos visíveis para os usuários do sistema</div></div>
+    <button class="btn btn-p" onclick="abrirModalAviso(null)">+ Novo aviso</button>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="pop-tbl"><thead><tr><th>Título</th><th>Mensagem</th><th>Destinatários</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody id="avisos-tbody"></tbody></table>
+  </div>
+
+  <!-- MODAL AVISO -->
+  <div id="aviso-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
+    <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
+      <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="aviso-modal-t">Novo aviso</div>
+      <input type="hidden" id="aviso-id">
+      <div class="fg"><label class="fl">Título<span>*</span></label><input class="fi" id="aviso-titulo" placeholder="Ex: Manutenção programada em 15/04"></div>
+      <div class="fg"><label class="fl">Mensagem<span>*</span></label><textarea class="fi" id="aviso-corpo" rows="4" placeholder="Texto do aviso..."></textarea></div>
+      <div class="fg">
+        <label class="fl">Destinatários<span>*</span></label>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="aviso-perfil-todos" onchange="onAvisoPerfisChg()" checked> Todos os perfis
+          </label>
+          <div id="aviso-perfis-ind" style="display:flex;flex-direction:column;gap:6px;padding-left:1.2rem;opacity:.4;pointer-events:none">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-ep"> EPP</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-dono"> Executor de Processo</label>
+          </div>
+        </div>
+      </div>
+      <div class="fg" style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="aviso-ativo" checked>
+        <label class="fl" style="margin:0;cursor:pointer" for="aviso-ativo">Aviso ativo (visível para os usuários)</label>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-r" id="aviso-del-btn" style="margin-right:auto;display:none" onclick="excluirAvisoModal()">Excluir</button>
+        <button class="btn" onclick="document.getElementById('aviso-modal').style.display='none'">Cancelar</button>
+        <button class="btn btn-p" onclick="salvarAviso()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
 </main>
 </div>
 <script>
@@ -1126,6 +1175,7 @@ let _planoIdC = 1;
 
 let notifs = [];
 let ejsConfig = {service:'',template:'',pubkey:''};
+let AVISOS = [];
 
 let usuarioLogado = null;
 let curProc = null;
@@ -1193,7 +1243,7 @@ function go(page,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+page).classList.add('on');
   if(btn)btn.classList.add('on');
-  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano}[page]||function(){})();
+  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano,avisos:rAvisos}[page]||function(){})();
 }
 function stab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -1459,6 +1509,7 @@ function rAuditoria(){
 }
 function rFila(){
   if(!usuarioLogado)return;
+  rCarrosselAvisos();
   const tarefas=getTarefasUsr();
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
   const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',mapeamento:'Registrar volumetria, equipe e prazos',analise_asis:'Elaborar análise completa do AS IS',esboco:'Elaborar esboço AS IS / TO BE com BPMN',det_etapas:'Detalhar etapas extraídas do fluxo',valid_dono:'Validar modelagem do processo',desenho_final:'Finalizar desenho do processo',aprovacao:'Aprovar processo para construção do POP',pop:'Construir POP no padrão CAGE',complement:'Complementar POP (FAQ, formulários)',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',monitora:'Monitorar indicadores de desempenho',auditoria:'Conduzir auditoria do processo'};
@@ -1560,6 +1611,9 @@ function aplicarPermissoes(){
   // Auditoria nav — only EP
   const nbAud = document.getElementById('nb-aud');
   if(nbAud) nbAud.style.display = isEP() ? '' : 'none';
+  // Painel geral — hidden for dono (executores de processo)
+  const nbDash = document.getElementById('nb-dash');
+  if(nbDash) nbDash.style.display = usuarioLogado?.perfil === 'dono' ? 'none' : '';
   // Botões marcados ep-only
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
 }
@@ -1988,7 +2042,7 @@ const ACOES = {
 
   reuniao:{titulo:'Reunião de entendimento',sub:'Levantar SIPOC, volumetria e dores do processo.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibt">Registre as informações levantadas na reunião com o dono do processo e equipe.</div>
-    <div class="card-t">SIPOC</div>
+    <div class="card-t">SIPOC
     <div class="g2" style="margin-top:.5rem">
       <div class="fg"><label class="fl">Fornecedores</label><input class="fi" id="r-fornec" value="${esc(p.ent.fornecedores||'')}" placeholder="Quem fornece entradas ao processo?"></div>
       <div class="fg"><label class="fl">Clientes</label><input class="fi" id="r-clientes" value="${esc(p.ent.clientes||'')}" placeholder="Quem recebe as saídas do processo?"></div>
@@ -2068,7 +2122,9 @@ const ACOES = {
       <div class="tab" onclick="sModTab('sm-tobe',this)">TO BE</div>
     </div>
     <div id="sm-asis" class="tab-p on">
-      <div class="fg"><label class="fl">Descrição AS IS</label><textarea class="fi" id="e-asis" style="min-height:80px" placeholder="Como o processo funciona hoje...">${p.mod.asIs||''}</textarea></div>
+      <div class="fg"><label class="fl">Descrição AS IS</label>
+        ${!p.mod.asIs && p.ent.atividades_principais ? `<div class="ib" style="margin-bottom:.4rem;font-size:12px">Pré-preenchido com as atividades registradas na reunião de entendimento.</div>` : ''}
+        <textarea class="fi" id="e-asis" style="min-height:120px" placeholder="Como o processo funciona hoje...">${p.mod.asIs || p.ent.atividades_principais || ''}</textarea></div>
       ${bpmnEditorHTML('asis', p.mod.bpmnAsIs)}
     </div>
     <div id="sm-tobe" class="tab-p" style="display:none">
@@ -5796,12 +5852,157 @@ async function fbLoad(){
       }
     }
 
+    // avisos
+    const avSnap = await getDocs(collection(db,'avisos'));
+    if(!avSnap.empty){
+      AVISOS = [];
+      avSnap.forEach(d => AVISOS.push(d.data()));
+    }
+
     console.info('Firebase: dados carregados');
     return true;
   } catch(e){
     console.warn('fbLoad error:', e.message);
     return false;
   }
+}
+
+// ─── QUADRO DE AVISOS ────────────────────────────────────────
+
+function rCarrosselAvisos(){
+  const el = document.getElementById('avisos-carousel');
+  if(!el || !usuarioLogado) return;
+  const perfil = usuarioLogado.perfil;
+  const ativos = AVISOS.filter(a => a.ativo && a.perfis && (a.perfis.includes('todos') || a.perfis.includes(perfil)));
+  if(!ativos.length){ el.style.display='none'; el.innerHTML=''; return; }
+
+  if(window._avTimer){ clearInterval(window._avTimer); window._avTimer=null; }
+  let idx = 0;
+
+  function render(){
+    const a = ativos[idx];
+    const dots = ativos.length > 1
+      ? `<div style="display:flex;gap:5px;align-items:center">${ativos.map((_,i)=>`<span style="width:${i===idx?18:6}px;height:6px;border-radius:99px;background:${i===idx?'var(--blue)':'var(--blue-b)'};transition:width .2s"></span>`).join('')}</div>`
+      : '';
+    const nav = ativos.length > 1
+      ? `<button onclick="window._avPrev()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">‹</button>
+         <button onclick="window._avNext()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">›</button>`
+      : '';
+    el.innerHTML = `
+      <div style="position:relative;background:var(--blue-l);border:1px solid var(--blue-b);border-radius:var(--rl);padding:1rem ${ativos.length>1?'2.8rem':'1.2rem'} 1rem 1.2rem;margin-bottom:1.2rem">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H9l-1 2-1-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="var(--blue)" stroke-width="1.5"/></svg>
+          <span style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:.08em;text-transform:uppercase">Aviso ${ativos.length>1?idx+1+' / '+ativos.length:''}</span>
+        </div>
+        <div style="font-family:var(--fh);font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">${a.titulo}</div>
+        <div style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:.6rem">${a.corpo}</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--ink4)">${a.autor} · ${a.data}</span>
+          ${dots}
+        </div>
+        ${nav}
+      </div>`;
+  }
+
+  window._avNext = ()=>{ idx=(idx+1)%ativos.length; render(); };
+  window._avPrev = ()=>{ idx=(idx-1+ativos.length)%ativos.length; render(); };
+  el.style.display = '';
+  render();
+  if(ativos.length > 1) window._avTimer = setInterval(window._avNext, 6000);
+}
+
+function updAvisosCnt(){
+  const el = document.getElementById('nb-avisos-cnt');
+  if(el) el.textContent = AVISOS.filter(a=>a.ativo).length;
+}
+
+function rAvisos(){
+  updAvisosCnt();
+  const tbody = document.getElementById('avisos-tbody');
+  if(!tbody) return;
+  if(!AVISOS.length){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink4)">Nenhum aviso criado</td></tr>';
+    return;
+  }
+  tbody.innerHTML = AVISOS.map(a=>`
+    <tr>
+      <td style="font-weight:500">${a.titulo}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)">${a.corpo}</td>
+      <td style="font-size:12px">${(a.perfis||[]).map(p=>p==='todos'?'<span style="background:var(--slate-l);color:var(--slate);padding:2px 7px;border-radius:99px;font-size:11px">Todos</span>':('<span style="background:var(--bg2);color:var(--ink2);padding:2px 7px;border-radius:99px;font-size:11px">'+(PERFIL_LABELS[p]||p)+'</span>')).join(' ')}</td>
+      <td><span style="padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;background:${a.ativo?'var(--green-l)':'var(--bg2)'};color:${a.ativo?'var(--green)':'var(--ink4)'}">${a.ativo?'Ativo':'Inativo'}</span></td>
+      <td style="display:flex;gap:6px">
+        <button class="btn" style="font-size:11px" onclick="abrirModalAviso('${a.id}')">Editar</button>
+      </td>
+    </tr>`).join('');
+}
+
+function abrirModalAviso(id){
+  const modal = document.getElementById('aviso-modal');
+  const aviso = id ? AVISOS.find(a=>a.id===id) : null;
+  document.getElementById('aviso-modal-t').textContent = aviso ? 'Editar aviso' : 'Novo aviso';
+  document.getElementById('aviso-id').value = id||'';
+  document.getElementById('aviso-titulo').value = aviso?.titulo||'';
+  document.getElementById('aviso-corpo').value = aviso?.corpo||'';
+  document.getElementById('aviso-ativo').checked = aviso ? aviso.ativo : true;
+  const perfis = aviso?.perfis || ['todos'];
+  const todosChk = document.getElementById('aviso-perfil-todos');
+  todosChk.checked = perfis.includes('todos');
+  ['ep','dono'].forEach(p=>{
+    const cb = document.getElementById('aviso-perfil-'+p);
+    if(cb) cb.checked = perfis.includes(p);
+  });
+  onAvisoPerfisChg();
+  const delBtn = document.getElementById('aviso-del-btn');
+  if(delBtn) delBtn.style.display = aviso ? '' : 'none';
+  modal.style.display = 'flex';
+}
+
+function onAvisoPerfisChg(){
+  const todos = document.getElementById('aviso-perfil-todos');
+  const ind = document.getElementById('aviso-perfis-ind');
+  if(!todos || !ind) return;
+  ind.style.opacity = todos.checked ? '.4' : '1';
+  ind.style.pointerEvents = todos.checked ? 'none' : '';
+}
+
+async function salvarAviso(){
+  const id = document.getElementById('aviso-id').value || ('av_'+Date.now());
+  const titulo = document.getElementById('aviso-titulo').value.trim();
+  const corpo = document.getElementById('aviso-corpo').value.trim();
+  const ativo = document.getElementById('aviso-ativo').checked;
+  if(!titulo){ alert('Informe o título do aviso.'); return; }
+  if(!corpo)  { alert('Informe a mensagem do aviso.'); return; }
+  const todosChk = document.getElementById('aviso-perfil-todos').checked;
+  let perfis;
+  if(todosChk){
+    perfis = ['todos'];
+  } else {
+    perfis = ['ep','dono'].filter(p=>document.getElementById('aviso-perfil-'+p)?.checked);
+    if(!perfis.length){ alert('Selecione ao menos um perfil destinatário.'); return; }
+  }
+  const aviso = { id, titulo, corpo, perfis, ativo, autor: usuarioLogado.nome, data: now() };
+  const idx = AVISOS.findIndex(a=>a.id===id);
+  if(idx>=0) AVISOS[idx]=aviso; else AVISOS.push(aviso);
+  if(fbReady()){
+    try{ const {db,doc,setDoc}=fb(); await setDoc(doc(db,'avisos',id), aviso); }
+    catch(e){ console.warn('salvarAviso error:',e.message); }
+  }
+  document.getElementById('aviso-modal').style.display='none';
+  rAvisos();
+  toast('✓ Aviso salvo','var(--teal)');
+}
+
+async function excluirAvisoModal(){
+  const id = document.getElementById('aviso-id').value;
+  if(!id || !confirm('Excluir este aviso permanentemente?')) return;
+  AVISOS = AVISOS.filter(a=>a.id!==id);
+  if(fbReady()){
+    try{ const {db,doc,deleteDoc}=fb(); await deleteDoc(doc(db,'avisos',id)); }
+    catch(e){ console.warn('excluirAviso error:',e.message); }
+  }
+  document.getElementById('aviso-modal').style.display='none';
+  rAvisos();
+  toast('Aviso excluído','var(--ink3)');
 }
 
 // ── AUTO-SAVE HOOKS ───────────────────────
