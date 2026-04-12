@@ -28,25 +28,32 @@ jobs:
         run: |
           python3 << 'PYTHON'
           import os
+          import json
 
           firebase_key = os.environ.get('FIREBASE_KEY', '')
           ai_url = os.environ.get('AI_URL', '')
 
-          config = f"""window.CONFIG = {{
-  FIREBASE_API_KEY: '{firebase_key}',
-  AI_FUNCTION_URL: '{ai_url}'
-}};"""
+          # Use JSON to safely escape values
+          config = f"""window.CONFIG = {json.dumps({
+              'FIREBASE_API_KEY': firebase_key,
+              'AI_FUNCTION_URL': ai_url
+          })};"""
 
           with open('config.deploy.js', 'w') as f:
               f.write(config)
 
           print("✓ Config created")
+          print(f"Firebase Key set: {bool(firebase_key)}")
+          print(f"AI URL set: {bool(ai_url)}")
           PYTHON
 
       - name: Verify config file
         run: |
-          ls -la config.deploy.js
-          head -5 config.deploy.js
+          echo "=== Checking config.deploy.js ==="
+          ls -lh config.deploy.js || echo "ERROR: File not found!"
+          echo ""
+          echo "=== File content ==="
+          cat config.deploy.js || echo "ERROR: Cannot read file!"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
