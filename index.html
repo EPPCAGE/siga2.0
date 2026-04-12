@@ -1091,11 +1091,11 @@ const ETAPAS = [
   // Entendimento
   {id:'abertura',lb:'Abertura',fase:'Entendimento',cor:'pip-e',resp:'ep'},
   {id:'reuniao',lb:'Reunião entend.',fase:'Entendimento',cor:'pip-e',resp:'ep'},
-  {id:'riscos',lb:'Identificação de riscos',fase:'Entendimento',cor:'pip-e',resp:'ep'},
   {id:'questionario',lb:'Quest. maturidade',fase:'Entendimento',cor:'pip-e',resp:'dono'},
   // Modelagem
   {id:'esboco',lb:'Esboço AS IS / TO BE',fase:'Modelagem',cor:'pip-m',resp:'ep'},
   {id:'det_etapas',lb:'Detalhamento etapas',fase:'Modelagem',cor:'pip-m',resp:'ep'},
+  {id:'riscos',lb:'Identificação de riscos',fase:'Modelagem',cor:'pip-m',resp:'ep'},
   {id:'analise_asis',lb:'Análise inteligente',fase:'Modelagem',cor:'pip-m',resp:'ep'},
   {id:'valid_dono',lb:'Validação dono',fase:'Modelagem',cor:'pip-m',resp:'dono'},
   // Formalização
@@ -1111,7 +1111,7 @@ const ETAPAS = [
 ];
 const FASES = ['Entendimento','Modelagem','Formalizacao','Operacao','Auditoria'];
 const FASE_COR = {Entendimento:'bt',Modelagem:'bp',Formalizacao:'ba',Operacao:'bb',Auditoria:'br'};
-const EBADGE = {abertura:'bt',reuniao:'bt',riscos:'bt',questionario:'bt',esboco:'bp',det_etapas:'bp',analise_asis:'bp',valid_dono:'bp',desenho_final:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
+const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',esboco:'bp',det_etapas:'bp',riscos:'bp',analise_asis:'bp',valid_dono:'bp',desenho_final:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
 
 function etIdx(id){return ETAPAS.findIndex(e=>e.id===id);}
 function etFase(id){return ETAPAS.find(e=>e.id===id)?.fase||'';}
@@ -2189,6 +2189,8 @@ const ACOES = {
             ${a.ia_resultado.gaps?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Gaps de controle</div><ul>${a.ia_resultado.gaps.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>`:''}
             ${a.ia_resultado.oportunidades?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Oportunidades</div><ul>${a.ia_resultado.oportunidades.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>`:''}
             ${a.ia_resultado.complexidade?`<div class="ai-result-lbl" style="margin-top:.8rem">Complexidade</div><p>${esc(a.ia_resultado.complexidade)}</p>`:''}
+            ${a.ia_resultado.solucoes_problemas?.length?`<div class="ai-result-lbl" style="margin-top:.8rem;color:var(--teal)">💡 Soluções para problemas levantados</div><ul>${a.ia_resultado.solucoes_problemas.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:''}
+            ${a.ia_resultado.mitigacoes_riscos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem;color:var(--amber)">🛡 Propostas de mitigação de riscos</div><ul>${a.ia_resultado.mitigacoes_riscos.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:''}
           </div>`:'<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>'}</div>
           <button class="btn btn-t" onclick="gerarAnaliseIA()" style="margin-top:.8rem">✦ Gerar análise com IA</button>
         </div>
@@ -2787,7 +2789,8 @@ async function iaGerarRiscos(){
   const p=curProc;if(!p)return;
   const statusEl=document.getElementById('risco-ia-status');
   if(statusEl)statusEl.textContent='Gerando...';
-  const payload=`Processo: ${p.nome}\nÁrea: ${p.area}\nObjetivo: ${p.objetivo||''}\nAtividades principais: ${p.ent.atividades_principais||''}\nEntradas: ${p.ent.entradas||''}\nSaídas: ${p.ent.saidas||''}\nProblemas identificados: ${(p.ent.prob||[]).join('; ')}\n\nIdentifique até 6 riscos operacionais relevantes para este processo. Responda com uma lista, cada linha no formato exato:\nRisco | Probabilidade | Impacto\nOnde Probabilidade é Baixa/Media/Alta e Impacto é Baixo/Medio/Alto/Critico. Sem numeração, sem cabeçalho.`;
+  const etapasRisco=(p.mod?.etapas_proc||[]).map((e,i)=>`${i+1}. ${e.nome||e.desc||''} (${e.tipo||'Atividade'}, resp: ${e.resp||'—'})`).join('\n');
+  const payload=`Processo: ${p.nome}\nÁrea: ${p.area}\nObjetivo: ${p.objetivo||''}\nAtividades principais: ${p.ent.atividades_principais||''}\nEntradas: ${p.ent.entradas||''}\nSaídas: ${p.ent.saidas||''}\nProblemas identificados: ${(p.ent.prob||[]).join('; ')}${etapasRisco?'\nEtapas detalhadas do processo:\n'+etapasRisco:''}\n\nIdentifique até 6 riscos operacionais relevantes para este processo, considerando as etapas detalhadas e os problemas identificados. Responda com uma lista, cada linha no formato exato:\nRisco | Probabilidade | Impacto\nOnde Probabilidade é Baixa/Media/Alta e Impacto é Baixo/Medio/Alto/Critico. Sem numeração, sem cabeçalho.`;
   const result=await chamarIA('assistente',payload,null);
   if(result){
     const linhas=result.split('\n').map(l=>l.trim()).filter(l=>l.includes('|'));
@@ -2869,7 +2872,10 @@ async function gerarAnaliseIA(){
   const el=document.getElementById('ia-analise-result');
   if(!el)return;
   const etapas=(p.mod?.etapas_proc||[]).map((e,i)=>`${i+1}. ${e.nome||e.desc||''} | Resp: ${e.resp||''} | Tipo: ${e.tipo||''}`).join('\n');
-  const payload=`Processo: ${p.nome}\nMacro: ${p.macro} | Área: ${p.area}\nObjetivo: ${p.objetivo||''}\nVolumetria: ${JSON.stringify(p.ent?.vol||{})}\nRiscos: ${JSON.stringify(p.ent?.riscos||[])}\nTempo de ciclo: ${p.ent?.analise?.t_ciclo_medio||'não informado'}\nTempo de espera: ${p.ent?.analise?.t_espera_medio||'não informado'}\nQtd atividades: ${p.ent?.analise?.qtd_atividades||0}\nQtd decisões: ${p.ent?.analise?.qtd_decisoes||0}${etapas?'\nEtapas do processo:\n'+etapas:''}${p.mod?.asIs?'\nDescrição AS IS:\n'+p.mod.asIs.substring(0,2000):''}${p.mod?.toBe?'\nDescrição TO BE:\n'+p.mod.toBe.substring(0,1000):''}`;
+  const problemas=(p.ent?.prob||[]).filter(Boolean);
+  const riscos=(p.ent?.riscos||[]).map(r=>`${r.descricao||r.desc||''} (probabilidade: ${r.probabilidade||'—'}, impacto: ${r.impacto||'—'})`).filter(s=>s.trim()!=='(probabilidade: —, impacto: —)');
+  const payloadExtra=`${problemas.length?'\n\nProblemas/dores levantados na reunião de entendimento:\n'+problemas.map((p,i)=>`${i+1}. ${p}`).join('\n'):''}${riscos.length?'\n\nRiscos identificados na etapa de identificação de riscos:\n'+riscos.map((r,i)=>`${i+1}. ${r}`).join('\n'):''}${(problemas.length||riscos.length)?'\n\nAlém dos campos padrão (resumo, gargalos, retrabalhos, gaps, oportunidades, complexidade), inclua obrigatoriamente no JSON:\n- "solucoes_problemas": array de strings com uma sugestão de solução concreta para cada problema listado acima (mesma ordem e quantidade)\n- "mitigacoes_riscos": array de strings com uma proposta de mitigação concreta para cada risco listado acima (mesma ordem e quantidade)':''}`;
+  const payload=`Processo: ${p.nome}\nMacro: ${p.macro} | Área: ${p.area}\nObjetivo: ${p.objetivo||''}\nVolumetria: ${JSON.stringify(p.ent?.vol||{})}\nTempo de ciclo: ${p.ent?.analise?.t_ciclo_medio||'não informado'}\nTempo de espera: ${p.ent?.analise?.t_espera_medio||'não informado'}\nQtd atividades: ${p.ent?.analise?.qtd_atividades||0}\nQtd decisões: ${p.ent?.analise?.qtd_decisoes||0}${etapas?'\nEtapas do processo:\n'+etapas:''}${p.mod?.asIs?'\nDescrição AS IS:\n'+p.mod.asIs.substring(0,2000):''}${p.mod?.toBe?'\nDescrição TO BE:\n'+p.mod.toBe.substring(0,1000):''}${payloadExtra}`;
   const result=await chamarIA('analisar_bpmn',payload,el);
   if(result){
     try{
@@ -2880,6 +2886,8 @@ async function gerarAnaliseIA(){
       if(json.gaps)p.ent.analise.gaps=json.gaps;
       if(json.oportunidades)p.ent.analise.oportunidades=json.oportunidades;
       if(json.complexidade)p.ent.analise.complexidade=json.complexidade;
+      if(json.solucoes_problemas)p.ent.analise.solucoes_problemas=json.solucoes_problemas;
+      if(json.mitigacoes_riscos)p.ent.analise.mitigacoes_riscos=json.mitigacoes_riscos;
       fbAutoSave('salvar');
       rDetalhe();
     }catch(e){
