@@ -10,13 +10,8 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
-  deploy:
-    name: Deploy
+  build-and-deploy:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -31,38 +26,27 @@ jobs:
           FIREBASE_KEY: ${{ secrets.FIREBASE_API_KEY }}
           AI_URL: ${{ secrets.AI_FUNCTION_URL }}
         run: |
-          cat > config.deploy.js << 'EOF'
-          window.CONFIG = {
-            FIREBASE_API_KEY: '',
-            AI_FUNCTION_URL: ''
-          };
-          EOF
-
-          # Simple replacement using Python
           python3 << 'PYTHON'
           import os
 
           firebase_key = os.environ.get('FIREBASE_KEY', '')
           ai_url = os.environ.get('AI_URL', '')
 
-          with open('config.deploy.js', 'w') as f:
-              f.write(f"""window.CONFIG = {{
+          config = f"""window.CONFIG = {{
   FIREBASE_API_KEY: '{firebase_key}',
   AI_FUNCTION_URL: '{ai_url}'
-}};
-""")
+}};"""
 
-          # Add script tag to HTML if not already there
-          with open('index.html', 'r') as f:
-              html = f.read()
+          with open('config.deploy.js', 'w') as f:
+              f.write(config)
 
-          if 'config.deploy.js' not in html:
-              html = html.replace('<head>', '<head>\n  <script src="config.deploy.js"></script>')
-              with open('index.html', 'w') as f:
-                  f.write(html)
-
-          print("✓ Configuration created")
+          print("✓ Config created")
           PYTHON
+
+      - name: Verify config file
+        run: |
+          ls -la config.deploy.js
+          head -5 config.deploy.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -71,7 +55,8 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+          retention-days: 1
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v2
