@@ -599,16 +599,25 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <div class="fg"><label class="fl">Período</label><input class="fi" id="nkpi-periodo" placeholder="Ex: janeiro/2026"></div>
         <div class="fg"><label class="fl">Ciclo</label><input class="fi" id="nkpi-ciclo" placeholder="Ex: JAN/2026 - DEZ/2026"></div>
       </div>
+      <div class="g2">
+        <div class="fg"><label class="fl">Unidade de medida</label><input class="fi" id="nkpi-unidade" placeholder="Ex: %, dias, R$, qtd"></div>
+        <div class="fg"><label class="fl">Polaridade</label>
+          <select class="fi" id="nkpi-polaridade" onchange="calcPctReal()">
+            <option value="Maior é melhor">↑ Maior é melhor</option>
+            <option value="Menor é melhor">↓ Menor é melhor</option>
+          </select>
+        </div>
+      </div>
       <div class="g3">
-        <div class="fg"><label class="fl">Meta (%)</label><input class="fi" id="nkpi-meta" type="number" placeholder="80"></div>
-        <div class="fg"><label class="fl">Realizado (%)</label><input class="fi" id="nkpi-real" type="number" placeholder="100"></div>
+        <div class="fg"><label class="fl">Meta</label><input class="fi" id="nkpi-meta" type="number" placeholder="80" oninput="calcPctReal()"></div>
+        <div class="fg"><label class="fl">Realizado</label><input class="fi" id="nkpi-real" type="number" placeholder="100" oninput="calcPctReal()"></div>
         <div class="fg"><label class="fl">% Índice</label><input class="fi" id="nkpi-indice" type="number" placeholder="80"></div>
       </div>
       <div class="g2">
         <div class="fg"><label class="fl">PPE?</label>
           <select class="fi" id="nkpi-ppe"><option>Não</option><option>Sim</option></select>
         </div>
-        <div class="fg"><label class="fl">% Realizado (calculado)</label><input class="fi" id="nkpi-pct-real" readonly placeholder="Calculado automaticamente"></div>
+        <div class="fg"><label class="fl">Desempenho (calculado)</label><input class="fi" id="nkpi-pct-real" readonly placeholder="Calculado automaticamente"></div>
       </div>
       <div class="fg"><label class="fl">Análise</label>
         <textarea class="fi" id="nkpi-analise" style="min-height:70px" placeholder="Comentário sobre o resultado..."></textarea>
@@ -2621,48 +2630,207 @@ function gerarAtivPop(etapas){
 const NATUREZAS=['Execucao','Comunicacao','Distribuicao','Preparacao','Revisao','Aprovacao'];
 let etapasIdC=100;
 
+function tipoCls(t){return t==='Atividade'?'et-ativ':t==='Decisao'?'et-decisao':t==='Evento'?'et-evento':'et-coment';}
+
+// Navigate a dot-path like "ep100.c0.a1.c0" into etapas_proc nested objects
+function resolveGwPath(path){
+  const parts=path.split('.');
+  let obj=curProc.mod.etapas_proc.find(x=>x.id===parts[0]);
+  if(!obj)return null;
+  for(let i=1;i<parts.length;i++){
+    const p=parts[i];
+    if(p[0]==='c')obj=obj.caminhos?.[parseInt(p.slice(1))];
+    else if(p[0]==='a')obj=obj.acoes?.[parseInt(p.slice(1))];
+    if(obj==null)return null;
+  }
+  return obj;
+}
+
+function renderAcaoGw(camPath,ai,ac,depth){
+  const acPath=`${camPath}.a${ai}`;
+  const tipo=ac.tipo||'Atividade';
+  const rootId=camPath.split('.')[0];
+  return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.55rem .75rem;margin-bottom:.4rem">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:.35rem">
+      <span class="etapa-tipo ${tipoCls(tipo)}" style="font-size:10px">${tipo}</span>
+      <input class="fi" style="flex:1;font-size:12px" placeholder="Nome da ação" value="${(ac.nome||'').replace(/"/g,'&quot;')}"
+        oninput="resolveGwPath('${camPath}').acoes[${ai}].nome=this.value">
+      <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red);border-color:var(--red-b)"
+        onclick="remAcaoGw('${camPath}',${ai});reRenderGw('${rootId}')">×</button>
+    </div>
+    <div class="g2" style="margin-bottom:.35rem">
+      <div class="fg"><label class="fl" style="font-size:10px">Tipo</label>
+        <select class="fi" style="font-size:12px"
+          onchange="resolveGwPath('${camPath}').acoes[${ai}].tipo=this.value;reRenderGw('${rootId}')">
+          <option ${tipo==='Atividade'?'selected':''}>Atividade</option>
+          <option ${tipo==='Evento'?'selected':''}>Evento</option>
+          <option ${tipo==='Decisao'?'selected':''}>Decisao</option>
+          <option ${tipo==='Comentario'?'selected':''}>Comentario</option>
+        </select>
+      </div>
+      ${tipo==='Evento'?`<div class="fg"><label class="fl" style="font-size:10px">Subtipo do evento</label>
+        <select class="fi" style="font-size:12px" onchange="resolveGwPath('${camPath}').acoes[${ai}].subtipo_evento=this.value">
+          <option value="" ${!ac.subtipo_evento?'selected':''}>Selecione...</option>
+          <option ${ac.subtipo_evento==='Início'?'selected':''}>Início</option>
+          <option ${ac.subtipo_evento==='Intermediário'?'selected':''}>Intermediário</option>
+          <option ${ac.subtipo_evento==='Fim'?'selected':''}>Fim</option>
+        </select></div>`:''}
+    </div>
+    ${tipo==='Atividade'?`<div class="g3" style="margin-bottom:.35rem">
+      <div class="fg"><label class="fl" style="font-size:10px">Natureza</label>
+        <select class="fi" style="font-size:12px" onchange="resolveGwPath('${camPath}').acoes[${ai}].natureza=this.value">
+          <option value="">Selecione...</option>
+          ${NATUREZAS.map(n=>`<option ${ac.natureza===n?'selected':''}>${n}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fg"><label class="fl" style="font-size:10px">Modo</label>
+        <select class="fi" style="font-size:12px" onchange="resolveGwPath('${camPath}').acoes[${ai}].modo=this.value">
+          <option ${ac.modo==='Manual'?'selected':''}>Manual</option>
+          <option ${ac.modo==='Automatica'?'selected':''}>Automatica</option>
+          <option ${ac.modo==='Semi-automatica'?'selected':''}>Semi-automatica</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl" style="font-size:10px">Executor</label>
+        <input class="fi" style="font-size:12px" value="${(ac.executor||'').replace(/"/g,'&quot;')}"
+          oninput="resolveGwPath('${camPath}').acoes[${ai}].executor=this.value">
+      </div>
+    </div>`:''}
+    ${tipo==='Decisao'?renderGatewaySection(acPath,depth+1):''}
+    <div class="fg"><label class="fl" style="font-size:10px">Descrição</label>
+      <textarea class="fi" style="min-height:40px;font-size:12px"
+        oninput="resolveGwPath('${camPath}').acoes[${ai}].desc=this.value">${ac.desc||''}</textarea>
+    </div>
+  </div>`;
+}
+
+function renderCaminhoGw(parentPath,ci,cam,depth){
+  const camPath=`${parentPath}.c${ci}`;
+  const rootId=parentPath.split('.')[0];
+  const acoes=cam.acoes||[];
+  return `<div style="border-left:3px solid var(--amber);padding:.5rem .75rem;margin-bottom:.5rem;background:var(--bg2);border-radius:0 6px 6px 0">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:.4rem">
+      <input class="fi" style="flex:1;font-size:12px" placeholder="Rótulo do caminho (ex: Sim, Não, Aprovado)"
+        value="${(cam.label||'').replace(/"/g,'&quot;')}"
+        oninput="resolveGwPath('${parentPath}').caminhos[${ci}].label=this.value">
+      <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red);border-color:var(--red-b)"
+        onclick="remCaminhoGw('${parentPath}',${ci});reRenderGw('${rootId}')">×</button>
+    </div>
+    <div style="padding-left:4px">${acoes.map((ac,ai)=>renderAcaoGw(camPath,ai,ac,depth)).join('')}</div>
+    <button class="btn" style="font-size:11px;margin-top:.3rem"
+      onclick="addAcaoGw('${camPath}');reRenderGw('${rootId}')">+ Ação neste caminho</button>
+  </div>`;
+}
+
+function renderGatewaySection(path,depth){
+  depth=depth||0;
+  const obj=resolveGwPath(path);
+  if(!obj)return '';
+  if(!obj.caminhos)obj.caminhos=[];
+  const ml=depth>0?`margin-left:${depth*10}px;`:'';
+  return `<div style="${ml}margin-top:.75rem;border-top:1px dashed var(--amber);padding-top:.6rem">
+    <div style="font-size:11px;font-weight:700;color:var(--amber);margin-bottom:.5rem">🔀 Caminhos do gateway</div>
+    ${obj.caminhos.map((cam,ci)=>renderCaminhoGw(path,ci,cam,depth)).join('')}
+    <button class="btn" style="font-size:11px" onclick="addCaminhoGw('${path}');reRenderGw('${path.split('.')[0]}')">+ Caminho</button>
+  </div>`;
+}
+
+function renderEtapaDetalheConteudo(e){
+  const id=e.id;
+  return `<div class="g2" style="margin-top:.6rem">
+    <div class="fg"><label class="fl">Nome da etapa</label>
+      <input class="fi" value="${(e.nome||'').replace(/"/g,'&quot;')}"
+        oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').nome=this.value;document.querySelector('#ep-${id} .etapa-nome').textContent=this.value">
+    </div>
+    <div class="fg"><label class="fl">Tipo</label>
+      <select class="fi" onchange="(function(s){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.tipo=s.value;const _b=document.querySelector('#ep-${id} .etapa-tipo');_b.className='etapa-tipo '+tipoCls(s.value);_b.textContent=s.value;reRenderEtapaDetalhe('${id}')})(this)">
+        <option ${e.tipo==='Atividade'?'selected':''}>Atividade</option>
+        <option ${e.tipo==='Evento'?'selected':''}>Evento</option>
+        <option ${e.tipo==='Decisao'?'selected':''}>Decisao</option>
+        <option ${e.tipo==='Comentario'?'selected':''}>Comentario</option>
+      </select>
+    </div>
+  </div>
+  ${e.tipo==='Atividade'?`<div class="g3" style="margin-top:.4rem">
+    <div class="fg"><label class="fl">Natureza</label>
+      <select class="fi" onchange="curProc.mod.etapas_proc.find(x=>x.id==='${id}').natureza=this.value">
+        <option value="">Selecione...</option>
+        ${NATUREZAS.map(n=>`<option ${e.natureza===n?'selected':''}>${n}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Modo</label>
+      <select class="fi" onchange="curProc.mod.etapas_proc.find(x=>x.id==='${id}').modo=this.value">
+        <option ${e.modo==='Manual'?'selected':''}>Manual</option>
+        <option ${e.modo==='Automatica'?'selected':''}>Automatica</option>
+        <option ${e.modo==='Semi-automatica'?'selected':''}>Semi-automatica</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Executor</label>
+      <input class="fi" value="${(e.executor||'').replace(/"/g,'&quot;')}"
+        oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').executor=this.value">
+    </div>
+  </div>`:''}
+  ${e.tipo==='Evento'?`<div class="fg" style="margin-top:.4rem"><label class="fl">Subtipo do evento</label>
+    <select class="fi" onchange="curProc.mod.etapas_proc.find(x=>x.id==='${id}').subtipo_evento=this.value">
+      <option value="" ${!e.subtipo_evento?'selected':''}>Selecione...</option>
+      <option ${e.subtipo_evento==='Início'?'selected':''}>Início</option>
+      <option ${e.subtipo_evento==='Intermediário'?'selected':''}>Intermediário</option>
+      <option ${e.subtipo_evento==='Fim'?'selected':''}>Fim</option>
+    </select>
+  </div>`:''}
+  ${e.tipo==='Decisao'?`<div id="gw-${id}">${renderGatewaySection(id,0)}</div>`:''}
+  <div class="fg" style="margin-top:.4rem"><label class="fl">Descrição detalhada</label>
+    <textarea class="fi" style="min-height:60px"
+      oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').desc=this.value">${e.desc||''}</textarea>
+  </div>`;
+}
+
 function renderEtapasProc(etapas){
   if(!etapas||!etapas.length)return '<div class="ib ibsl">Nenhuma etapa adicionada. Extraia do BPMN ou adicione manualmente.</div>';
-  return etapas.map((e,i)=>`
+  return etapas.map((e)=>`
     <div class="etapa-proc" id="ep-${e.id}">
       <div class="etapa-proc-hd">
         <div class="etapa-seq">${e.seq}</div>
-        <span class="etapa-tipo ${e.tipo==='Atividade'?'et-ativ':e.tipo==='Decisao'?'et-decisao':e.tipo==='Evento'?'et-evento':'et-coment'}">${e.tipo}</span>
+        <span class="etapa-tipo ${tipoCls(e.tipo)}">${e.tipo}</span>
         <div class="etapa-nome">${e.nome}</div>
         <button class="btn" style="font-size:11px;padding:3px 8px" onclick="toggleEtapaDetalhe('${e.id}')">✎ Detalhar</button>
         <button class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red-b)" onclick="remEtapaProc('${e.id}')">×</button>
       </div>
-      <div id="ed-${e.id}" style="display:none">
-        <div class="g2" style="margin-top:.6rem">
-          <div class="fg"><label class="fl">Nome da etapa</label><input class="fi" id="en-${e.id}" value="${e.nome}" oninput="curProc.mod.etapas_proc.find(x=>x.id==='${e.id}').nome=this.value;document.querySelector('#ep-${e.id} .etapa-nome').textContent=this.value"></div>
-          <div class="fg"><label class="fl">Tipo</label>
-            <select class="fi" id="et-${e.id}" onchange="curProc.mod.etapas_proc.find(x=>x.id==='${e.id}').tipo=this.value">
-              <option ${e.tipo==='Atividade'?'selected':''}>Atividade</option>
-              <option ${e.tipo==='Evento'?'selected':''}>Evento</option>
-              <option ${e.tipo==='Decisao'?'selected':''}>Decisao</option>
-              <option ${e.tipo==='Comentario'?'selected':''}>Comentario</option>
-            </select>
-          </div>
-        </div>
-        ${e.tipo==='Atividade'?`<div class="g3">
-          <div class="fg"><label class="fl">Natureza</label>
-            <select class="fi" id="enat-${e.id}" onchange="curProc.mod.etapas_proc.find(x=>x.id==='${e.id}').natureza=this.value">
-              <option value="">Selecione...</option>
-              ${NATUREZAS.map(n=>`<option ${e.natureza===n?'selected':''}>${n}</option>`).join('')}
-            </select>
-          </div>
-          <div class="fg"><label class="fl">Modo</label>
-            <select class="fi" id="emodo-${e.id}" onchange="curProc.mod.etapas_proc.find(x=>x.id==='${e.id}').modo=this.value">
-              <option ${e.modo==='Manual'?'selected':''}>Manual</option>
-              <option ${e.modo==='Automatica'?'selected':''}>Automatica</option>
-              <option ${e.modo==='Semi-automatica'?'selected':''}>Semi-automatica</option>
-            </select>
-          </div>
-          <div class="fg"><label class="fl">Executor</label><input class="fi" id="eexec-${e.id}" value="${e.executor||''}" oninput="curProc.mod.etapas_proc.find(x=>x.id==='${e.id}').executor=this.value"></div>
-        </div>`:''}
-        <div class="fg"><label class="fl">Descrição detalhada</label><textarea class="fi" id="edesc-${e.id}" style="min-height:60px" oninput="curProc.mod.etapas_proc.find(x=>x.id==='${e.id}').desc=this.value">${e.desc||''}</textarea></div>
-      </div>
+      <div id="ed-${e.id}" style="display:none">${renderEtapaDetalheConteudo(e)}</div>
     </div>`).join('');
+}
+
+function reRenderEtapaDetalhe(etapaId){
+  const el=document.getElementById('ed-'+etapaId);
+  const e=curProc.mod.etapas_proc.find(x=>x.id===etapaId);
+  if(el&&e)el.innerHTML=renderEtapaDetalheConteudo(e);
+}
+function reRenderGw(etapaId){
+  const el=document.getElementById('gw-'+etapaId);
+  const e=curProc.mod.etapas_proc.find(x=>x.id===etapaId);
+  if(el&&e)el.innerHTML=renderGatewaySection(etapaId,0);
+}
+function addCaminhoGw(path){
+  const obj=resolveGwPath(path);
+  if(!obj)return;
+  if(!obj.caminhos)obj.caminhos=[];
+  obj.caminhos.push({label:'',acoes:[]});
+}
+function remCaminhoGw(path,ci){
+  const obj=resolveGwPath(path);
+  if(!obj?.caminhos)return;
+  if(!confirm('Remover este caminho e todas as suas ações?'))return;
+  obj.caminhos.splice(ci,1);
+}
+function addAcaoGw(camPath){
+  const cam=resolveGwPath(camPath);
+  if(!cam)return;
+  if(!cam.acoes)cam.acoes=[];
+  cam.acoes.push({nome:'',tipo:'Atividade',natureza:'',modo:'Manual',executor:'',desc:'',subtipo_evento:null,caminhos:[]});
+}
+function remAcaoGw(camPath,ai){
+  const cam=resolveGwPath(camPath);
+  if(!cam?.acoes)return;
+  cam.acoes.splice(ai,1);
 }
 
 function toggleEtapaDetalhe(id){
@@ -2678,7 +2846,7 @@ function addEtapaProc(){
   if(!curProc?.mod)return;
   if(!curProc.mod.etapas_proc)curProc.mod.etapas_proc=[];
   const seq=(curProc.mod.etapas_proc.length||0)+1;
-  const nova={id:'ep'+etapasIdC++,seq,nome:'Nova etapa '+seq,tipo:'Atividade',natureza:'Execucao',modo:'Manual',executor:'',desc:''};
+  const nova={id:'ep'+etapasIdC++,seq,nome:'Nova etapa '+seq,tipo:'Atividade',natureza:'Execucao',modo:'Manual',executor:'',desc:'',subtipo_evento:null,caminhos:[]};
   curProc.mod.etapas_proc.push(nova);
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(curProc.mod.etapas_proc);
   setTimeout(()=>toggleEtapaDetalhe(nova.id),50);
@@ -2695,31 +2863,31 @@ function extrairBpmn(){
   let seq=1;
   // Eventos de início
   xml.querySelectorAll('startEvent').forEach(e=>{
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Início',tipo:'Evento',natureza:null,modo:null,executor:'',desc:'Evento de início do processo'});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Início',tipo:'Evento',subtipo_evento:'Início',natureza:null,modo:null,executor:'',desc:'Evento de início do processo',caminhos:[]});
   });
   // Tasks / atividades
   xml.querySelectorAll('task,userTask,serviceTask,sendTask,receiveTask,manualTask,scriptTask').forEach(e=>{
     const tag=e.tagName.toLowerCase();
     const nat=tag==='sendtask'?'Comunicacao':tag==='usertask'?'Execucao':tag==='servicetask'?'Execucao':'Execucao';
     const modo=tag==='servicetask'||tag==='scripttask'?'Automatica':'Manual';
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Atividade '+seq,tipo:'Atividade',natureza:nat,modo,executor:'',desc:''});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Atividade '+seq,tipo:'Atividade',subtipo_evento:null,natureza:nat,modo,executor:'',desc:'',caminhos:[]});
   });
   // Gateways / decisões
   xml.querySelectorAll('exclusiveGateway,inclusiveGateway,parallelGateway,complexGateway').forEach(e=>{
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Decisão '+seq,tipo:'Decisao',natureza:null,modo:null,executor:'',desc:''});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Decisão '+seq,tipo:'Decisao',subtipo_evento:null,natureza:null,modo:null,executor:'',desc:'',caminhos:[]});
   });
   // Intermediate events
   xml.querySelectorAll('intermediateThrowEvent,intermediateCatchEvent').forEach(e=>{
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Evento '+seq,tipo:'Evento',natureza:null,modo:null,executor:'',desc:''});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Evento '+seq,tipo:'Evento',subtipo_evento:'Intermediário',natureza:null,modo:null,executor:'',desc:'',caminhos:[]});
   });
   // Eventos de fim
   xml.querySelectorAll('endEvent').forEach(e=>{
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Fim',tipo:'Evento',natureza:null,modo:null,executor:'',desc:'Evento de fim do processo'});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Fim',tipo:'Evento',subtipo_evento:'Fim',natureza:null,modo:null,executor:'',desc:'Evento de fim do processo',caminhos:[]});
   });
   // Text annotations
   xml.querySelectorAll('textAnnotation').forEach(e=>{
     const txt=e.querySelector('text')?.textContent;
-    if(txt)elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:txt.slice(0,60),tipo:'Comentario',natureza:null,modo:null,executor:'',desc:txt});
+    if(txt)elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:txt.slice(0,60),tipo:'Comentario',subtipo_evento:null,natureza:null,modo:null,executor:'',desc:txt,caminhos:[]});
   });
   if(!elems.length){toast('Nenhum elemento encontrado no BPMN. Desenhe o fluxo primeiro.','var(--amber)');return;}
   // Merge with existing — add only new
@@ -4024,9 +4192,17 @@ function rInd(){
 }
 
 function kpiCard(k){
-  const pct = k.pct_realizado || (k.meta > 0 ? Math.round((k.realizado/k.meta)*100) : 0);
+  const polaridade = k.polaridade || 'Maior é melhor';
+  const unidade    = k.unidade ? ' '+k.unidade : '';
+  const polIcon    = polaridade === 'Menor é melhor' ? '↓' : '↑';
+  let pct;
+  if(polaridade === 'Menor é melhor'){
+    pct = k.realizado > 0 ? Math.round((k.meta/k.realizado)*100) : (k.pct_realizado || 0);
+  } else {
+    pct = k.meta > 0 ? Math.round((k.realizado/k.meta)*100) : (k.pct_realizado || 0);
+  }
   const ok   = pct >= 100;
-  const warn = pct >= k.meta * 0.8 && pct < 100;
+  const warn = pct >= 80 && pct < 100;
   const color = ok ? 'var(--green)' : warn ? 'var(--amber)' : 'var(--red)';
   const status = ok ? '✓ Meta atingida' : warn ? '~ Próximo da meta' : '✗ Abaixo da meta';
   const barW  = Math.min(100, Math.max(0, pct));
@@ -4040,6 +4216,7 @@ function kpiCard(k){
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
         <span style="font-size:11px;font-weight:600;color:${color}">${status}</span>
+        <span style="font-size:10px;color:var(--ink3)">${polIcon} ${polaridade}</span>
         ${k.ppe==='Sim' ? '<span class="badge bb" style="font-size:10px">PPE</span>' : ''}
       </div>
     </div>
@@ -4050,14 +4227,14 @@ function kpiCard(k){
       </div>
       <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
         <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Meta</div>
-        <div style="font-weight:700;color:var(--ink)">${k.meta}%</div>
+        <div style="font-weight:700;color:var(--ink)">${k.meta}${unidade}</div>
       </div>
       <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
         <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Realizado</div>
-        <div style="font-weight:700;color:var(--ink)">${k.realizado}%</div>
+        <div style="font-weight:700;color:var(--ink)">${k.realizado}${unidade}</div>
       </div>
       <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px;border:1px solid ${color}">
-        <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">% Realiz.</div>
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Desempenho</div>
         <div style="font-weight:700;color:${color}">${pct}%</div>
       </div>
     </div>
@@ -4085,24 +4262,28 @@ function abrirNovoKpi(preselArea){
   document.getElementById('nkpi-period').value   = 'Mensal';
   document.getElementById('nkpi-periodo').value  = '';
   document.getElementById('nkpi-ciclo').value    = '';
-  document.getElementById('nkpi-ppe').value      = 'Não';
-  document.getElementById('nkpi-indice').value   = '';
-  document.getElementById('nkpi-meta').value     = '';
-  document.getElementById('nkpi-real').value     = '';
-  document.getElementById('nkpi-pct-real').value = '';
-  document.getElementById('nkpi-analise').value  = '';
+  document.getElementById('nkpi-ppe').value        = 'Não';
+  document.getElementById('nkpi-indice').value     = '';
+  document.getElementById('nkpi-meta').value       = '';
+  document.getElementById('nkpi-real').value       = '';
+  document.getElementById('nkpi-pct-real').value   = '';
+  document.getElementById('nkpi-unidade').value    = '';
+  document.getElementById('nkpi-polaridade').value = 'Maior é melhor';
+  document.getElementById('nkpi-analise').value    = '';
   modal.style.display = 'flex';
-
-  // Auto-calc % realizado
-  ['nkpi-meta','nkpi-real'].forEach(id=>{
-    document.getElementById(id).oninput = calcPctReal;
-  });
 }
 
 function calcPctReal(){
   const meta = parseFloat(document.getElementById('nkpi-meta').value) || 0;
   const real = parseFloat(document.getElementById('nkpi-real').value) || 0;
-  document.getElementById('nkpi-pct-real').value = meta > 0 ? Math.round((real/meta)*100)+'%' : '';
+  const pol  = document.getElementById('nkpi-polaridade').value;
+  let pct = '';
+  if(pol === 'Menor é melhor'){
+    pct = real > 0 ? Math.round((meta/real)*100)+'%' : '';
+  } else {
+    pct = meta > 0 ? Math.round((real/meta)*100)+'%' : '';
+  }
+  document.getElementById('nkpi-pct-real').value = pct;
 }
 
 function editKpi(id){
@@ -4124,8 +4305,9 @@ function editKpi(id){
   document.getElementById('nkpi-meta').value        = k.meta || '';
   document.getElementById('nkpi-real').value        = k.realizado || '';
   document.getElementById('nkpi-pct-real').value    = k.pct_realizado ? k.pct_realizado+'%' : '';
+  document.getElementById('nkpi-unidade').value     = k.unidade || '';
+  document.getElementById('nkpi-polaridade').value  = k.polaridade || 'Maior é melhor';
   document.getElementById('nkpi-analise').value     = k.analise || '';
-  ['nkpi-meta','nkpi-real'].forEach(fid=>{ document.getElementById(fid).oninput = calcPctReal; });
   modal.style.display = 'flex';
 }
 
@@ -4134,9 +4316,12 @@ function salvarNovoKpi(){
   const nome    = document.getElementById('nkpi-nome').value.trim();
   if(!area || !nome){ alert('Informe Área e Enunciado do indicador.'); return; }
 
-  const meta  = parseFloat(document.getElementById('nkpi-meta').value)   || 0;
-  const real  = parseFloat(document.getElementById('nkpi-real').value)   || 0;
-  const pct   = meta > 0 ? Math.round((real/meta)*100) : 0;
+  const meta      = parseFloat(document.getElementById('nkpi-meta').value)   || 0;
+  const real      = parseFloat(document.getElementById('nkpi-real').value)   || 0;
+  const polaridade = document.getElementById('nkpi-polaridade').value;
+  const pct = polaridade === 'Menor é melhor'
+    ? (real > 0 ? Math.round((meta/real)*100) : 0)
+    : (meta > 0 ? Math.round((real/meta)*100) : 0);
 
   const obj = {
     id: null,
@@ -4149,6 +4334,8 @@ function salvarNovoKpi(){
     ciclo:    document.getElementById('nkpi-ciclo').value.trim(),
     ppe:      document.getElementById('nkpi-ppe').value,
     indice:   parseFloat(document.getElementById('nkpi-indice').value) || 0,
+    unidade:  document.getElementById('nkpi-unidade').value.trim(),
+    polaridade,
     meta, realizado: real, analise: document.getElementById('nkpi-analise').value.trim(),
     pct_realizado: pct,
   };
