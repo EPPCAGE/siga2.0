@@ -2203,13 +2203,13 @@ const ACOES = {
       <div class="tab on" onclick="sModTab('sm-asis',this)">AS IS</div>
       <div class="tab" onclick="sModTab('sm-tobe',this)">TO BE</div>
     </div>
-    <div id="sm-asis" class="tab-p on">
+    <div id="sm-asis" style="display:block">
       <div class="fg"><label class="fl">Descrição AS IS</label>
         ${!p.mod.asIs && p.ent.atividades_principais ? `<div class="ib" style="margin-bottom:.4rem;font-size:12px">Pré-preenchido com as atividades registradas na reunião de entendimento.</div>` : ''}
         <textarea class="fi" id="e-asis" style="min-height:120px" placeholder="Como o processo funciona hoje...">${p.mod.asIs || p.ent.atividades_principais || ''}</textarea></div>
       ${bpmnEditorHTML('asis', p.mod.bpmnAsIs)}
     </div>
-    <div id="sm-tobe" class="tab-p" style="display:none">
+    <div id="sm-tobe" style="display:none">
       <div class="fg"><label class="fl">Descrição TO BE</label><textarea class="fi" id="e-tobe" style="min-height:80px" placeholder="Como o processo deve funcionar...">${p.mod.toBe||''}</textarea></div>
       ${bpmnEditorHTML('tobe', p.mod.bpmnToBe)}
     </div>
@@ -2267,11 +2267,11 @@ const ACOES = {
         <div class="tab on" onclick="sModTab('sm-asis',this)">AS IS</div>
         <div class="tab" onclick="sModTab('sm-tobe',this)">TO BE</div>
       </div>
-      <div id="sm-asis" class="tab-p on">
+      <div id="sm-asis" style="display:block">
         ${p.mod.asIs?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Descrição AS IS</div><div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;line-height:1.7">${esc(p.mod.asIs)}</div></div>`:''}
         ${bpmnEditorHTML('asis',p.mod.bpmnAsIs)}
       </div>
-      <div id="sm-tobe" class="tab-p" style="display:none">
+      <div id="sm-tobe" style="display:none">
         ${p.mod.toBe?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Descrição TO BE</div><div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;line-height:1.7">${esc(p.mod.toBe)}</div></div>`:''}
         ${bpmnEditorHTML('tobe',p.mod.bpmnToBe)}
       </div>
