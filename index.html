@@ -1075,21 +1075,21 @@ function pBadge(p){return '<span class="badge '+(p==='Critica'?'br':p==='Alta'?'
 
 // QUESTIONÁRIO DE MATURIDADE — 15 perguntas, 6 dimensões
 const QUESTOES = [
-  {id:'q1',dim:'Alinhamento estratégico',txt:'O processo está formalmente associado a objetivos estratégicos da organização?'},
-  {id:'q2',dim:'Alinhamento estratégico',txt:'Existe indicador que demonstre a contribuição do processo para resultados institucionais?'},
-  {id:'q3',dim:'Estrutura e padronização',txt:'O processo possui documentação atualizada (POP, fluxo, manual)?'},
-  {id:'q4',dim:'Estrutura e padronização',txt:'As atividades seguem um padrão definido e comunicado a todos os executores?'},
-  {id:'q5',dim:'Estrutura e padronização',txt:'Existem templates e formulários padronizados para as principais atividades?'},
-  {id:'q6',dim:'Papéis e responsabilidades',txt:'Cada atividade tem um responsável claramente designado?'},
-  {id:'q7',dim:'Papéis e responsabilidades',txt:'O dono do processo está identificado e exerce seu papel ativamente?'},
-  {id:'q8',dim:'Execução e controle',txt:'O processo é executado conforme documentado, sem desvios frequentes?'},
-  {id:'q9',dim:'Execução e controle',txt:'Existem pontos de controle (gates) ao longo do processo?'},
-  {id:'q10',dim:'Execução e controle',txt:'Problemas e não-conformidades são registrados e tratados sistematicamente?'},
-  {id:'q11',dim:'Automação e tecnologia',txt:'O processo utiliza algum sistema de informação ou ferramenta digital de suporte?'},
-  {id:'q12',dim:'Automação e tecnologia',txt:'Existem integrações automatizadas com outros sistemas/processos?'},
-  {id:'q13',dim:'Monitoramento e melhoria',txt:'O processo possui indicadores de desempenho monitorados regularmente?'},
-  {id:'q14',dim:'Monitoramento e melhoria',txt:'Existe ciclo formal de análise e melhoria contínua do processo?'},
-  {id:'q15',dim:'Monitoramento e melhoria',txt:'As melhorias identificadas são priorizadas e implementadas sistematicamente?'},
+  {id:'q1',dim:'Alinhamento estratégico',txt:'O processo está formalmente associado a objetivos estratégicos da organização.'},
+  {id:'q2',dim:'Alinhamento estratégico',txt:'Indicadores de desempenho demonstram a contribuição do processo para resultados institucionais.'},
+  {id:'q3',dim:'Estrutura e padronização',txt:'O processo possui documentação atualizada (POP, fluxo, manual).'},
+  {id:'q4',dim:'Estrutura e padronização',txt:'As atividades seguem um padrão definido e comunicado a todos os executores.'},
+  {id:'q5',dim:'Estrutura e padronização',txt:'Templates e formulários padronizados são utilizados nas principais atividades.'},
+  {id:'q6',dim:'Papéis e responsabilidades',txt:'Cada atividade tem um responsável claramente designado.'},
+  {id:'q7',dim:'Papéis e responsabilidades',txt:'O executor do processo está identificado e exerce seu papel ativamente.'},
+  {id:'q8',dim:'Execução e controle',txt:'O processo é executado conforme documentado, sem desvios.'},
+  {id:'q9',dim:'Execução e controle',txt:'Pontos de controle (gates) são aplicados ao longo do processo.'},
+  {id:'q10',dim:'Execução e controle',txt:'Problemas e não-conformidades são registrados e tratados sistematicamente.'},
+  {id:'q11',dim:'Automação e tecnologia',txt:'O processo utiliza sistema de informação ou ferramenta digital de suporte.'},
+  {id:'q12',dim:'Automação e tecnologia',txt:'O processo possui integrações automatizadas com outros sistemas ou processos.'},
+  {id:'q13',dim:'Monitoramento e melhoria',txt:'Os indicadores de desempenho do processo são monitorados regularmente.'},
+  {id:'q14',dim:'Monitoramento e melhoria',txt:'Existe um ciclo formal de análise e melhoria contínua do processo.'},
+  {id:'q15',dim:'Monitoramento e melhoria',txt:'As melhorias identificadas são priorizadas e implementadas sistematicamente.'},
 ];
 const LIKERT = ['Nunca','Raramente','Às vezes','Frequentemente','Sempre'];
 
@@ -1955,10 +1955,22 @@ const ACOES = {
     <div class="fg"><label class="fl">Objetivo do trabalho</label><textarea class="fi" id="a-obj" style="min-height:60px">${esc(p.objetivo||'')}</textarea></div>
     <div class="btn-row"><button class="btn btn-t" onclick="salvarAbertura()">Confirmar e agendar reunião de entendimento →</button></div>`},
 
-  questionario:{titulo:'Questionário de maturidade',sub:'Responder as 15 perguntas sobre o estado atual do processo.',role:'Dono do processo',rk:'dono',
+  questionario:{titulo:'Questionário de maturidade',sub:'Responder as 15 afirmações sobre o estado atual do processo.',role:'Dono do processo',rk:'dono',
     form:p=>{
       const resp = p.ent.quest_resp||{};
-      return `<div class="ib ibp">Responda as 15 perguntas com base na situação atual do processo. Cada resposta de 1 (Nunca) a 5 (Sempre).</div>
+      const hist = p.ent.quest_hist||[];
+      const histHtml = hist.length ? `
+        <div class="card-t" style="margin-top:1.2rem">Histórico de aplicações</div>
+        <div style="margin-top:.4rem;display:flex;flex-direction:column;gap:6px">
+          ${hist.slice().reverse().map(h=>`
+            <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:var(--bg2);border-radius:6px;border:1px solid var(--bdr);font-size:12px">
+              <div style="min-width:90px;color:var(--ink3)">${h.dt}</div>
+              <div style="font-weight:700;color:var(--blue)">Nível ${h.nivel}/5</div>
+              <div style="color:var(--ink3)">Média ${h.media} · ${h.respondidas}/15</div>
+              ${h.nota?`<div style="color:var(--ink2);flex:1;border-left:1px solid var(--bdr);padding-left:8px">${esc(h.nota)}</div>`:''}
+            </div>`).join('')}
+        </div>` : '';
+      return `<div class="ib ibp">Para cada afirmação, selecione com que frequência ela é verdadeira no processo. Escala: 1 (Nunca) a 5 (Sempre).</div>
       <div id="quest-list">
         ${QUESTOES.map(q=>`
           <div class="quest-item">
@@ -1969,7 +1981,9 @@ const ACOES = {
             </div>
           </div>`).join('')}
       </div>
-      <div class="btn-row"><button class="btn btn-p" onclick="salvarQuestionario()">Enviar respostas →</button></div>`;
+      <div class="fg" style="margin-top:.8rem"><label class="fl">Observações / nota desta aplicação <small style="font-weight:400;color:var(--ink3)">(opcional)</small></label><textarea class="fi" id="quest-nota" style="min-height:54px" placeholder="Contexto, dificuldades, observações do executore...">${esc(p.ent.quest_nota||'')}</textarea></div>
+      <div class="btn-row"><button class="btn btn-p" onclick="salvarQuestionario()">Enviar respostas →</button></div>
+      ${histHtml}`;
     }},
 
   reuniao:{titulo:'Reunião de entendimento',sub:'Levantar SIPOC, volumetria e dores do processo.',role:'EP',rk:'ep',
@@ -2521,11 +2535,15 @@ function setLikert(qid,val,btn){
 function salvarQuestionario(){
   const p=curProc;const resp=p.ent.quest_resp||{};
   const respondidas=Object.keys(resp).length;
-  if(respondidas<15&&!confirm(`Apenas ${respondidas}/15 perguntas respondidas. Continuar assim mesmo?`))return;
+  if(respondidas<15&&!confirm(`Apenas ${respondidas}/15 afirmações respondidas. Continuar assim mesmo?`))return;
   const total=Object.values(resp).reduce((a,b)=>a+b,0);
   const media=respondidas>0?(total/respondidas).toFixed(1):0;
   const nivel=media<=1.5?1:media<=2.5?2:media<=3.5?3:media<=4.5?4:5;
   p.ent.mat=nivel;
+  const nota=document.getElementById('quest-nota')?.value||'';
+  p.ent.quest_nota=nota;
+  if(!p.ent.quest_hist)p.ent.quest_hist=[];
+  p.ent.quest_hist.push({dt:now(),nivel,media,respondidas,nota});
   push(p,'questionario','Dono do processo','Questionário respondido — '+respondidas+'/15 perguntas — média '+media+' — nível '+nivel);
   const nx=nextEt('questionario');
   if(nx){p.etapa=nx;push(p,nx,'Sistema','Etapa iniciada');}
@@ -6057,11 +6075,10 @@ async function iaAssistente(){
   const payload  = contexto ? `Contexto: ${contexto}\n\nPergunta: ${pergunta}` : pergunta;
 
   document.getElementById('ia-chat-input').value = '';
-  await chamarIA('assistente', payload, el);
+  const result = await chamarIA('assistente', payload, el);
 
-  if(el.querySelector('.ai-result')){
-    el.querySelector('.ai-result').innerHTML =
-      `<div class="ai-result-lbl">✦ Resposta</div>` + el.querySelector('.ai-result').innerHTML;
+  if(result && el){
+    el.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">✦ Resposta</div>${esc(result).replace(/\n/g,'<br>')}</div>`;
   }
 }
 
