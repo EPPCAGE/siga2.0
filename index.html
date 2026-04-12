@@ -1100,7 +1100,6 @@ const ETAPAS = [
   {id:'valid_dono',lb:'Validação dono',fase:'Modelagem',cor:'pip-m',resp:'dono'},
   // Formalização
   {id:'desenho_final',lb:'Desenho final',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
-  {id:'aprovacao',lb:'Aprov. dono',fase:'Formalizacao',cor:'pip-f',resp:'dono'},
   {id:'pop',lb:'Construção POP',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'complement',lb:'Complement. dono',fase:'Formalizacao',cor:'pip-f',resp:'dono'},
   {id:'apresentacao',lb:'Aprov. gestor',fase:'Formalizacao',cor:'pip-f',resp:'gestor'},
@@ -1112,7 +1111,7 @@ const ETAPAS = [
 ];
 const FASES = ['Entendimento','Modelagem','Formalizacao','Operacao','Auditoria'];
 const FASE_COR = {Entendimento:'bt',Modelagem:'bp',Formalizacao:'ba',Operacao:'bb',Auditoria:'br'};
-const EBADGE = {abertura:'bt',reuniao:'bt',riscos:'bt',questionario:'bt',esboco:'bp',det_etapas:'bp',analise_asis:'bp',valid_dono:'bp',desenho_final:'ba',aprovacao:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
+const EBADGE = {abertura:'bt',reuniao:'bt',riscos:'bt',questionario:'bt',esboco:'bp',det_etapas:'bp',analise_asis:'bp',valid_dono:'bp',desenho_final:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
 
 function etIdx(id){return ETAPAS.findIndex(e=>e.id===id);}
 function etFase(id){return ETAPAS.find(e=>e.id===id)?.fase||'';}
@@ -1271,7 +1270,7 @@ function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'b
 function mBadge(s){return '<span class="badge '+({Identificada:'bsl','Em analise':'bp','Em execucao':'bb',Concluida:'bg'}[s]||'bgr')+'">'+s+'</span>';}
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.length;
-  document.getElementById('nb-pend').textContent=processos.filter(p=>['valid_dono','aprovacao','complement','apresentacao'].includes(p.etapa)).length;
+  document.getElementById('nb-pend').textContent=processos.filter(p=>['valid_dono','complement','apresentacao'].includes(p.etapa)).length;
   document.getElementById('nb-fila-cnt').textContent=getTarefasUsr().length;
   document.getElementById('nb-notif-cnt').textContent=notifs.filter(n=>!n.lida).length;
   const audCnt=processos.filter(p=>p.etapa==='auditoria'||(p.auditoria?.concluida===true)).length;
@@ -1512,7 +1511,7 @@ function rFila(){
   rCarrosselAvisos();
   const tarefas=getTarefasUsr();
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
-  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',mapeamento:'Registrar volumetria, equipe e prazos',analise_asis:'Elaborar análise completa do AS IS',esboco:'Elaborar esboço AS IS / TO BE com BPMN',det_etapas:'Detalhar etapas extraídas do fluxo',valid_dono:'Validar modelagem do processo',desenho_final:'Finalizar desenho do processo',aprovacao:'Aprovar processo para construção do POP',pop:'Construir POP no padrão CAGE',complement:'Complementar POP (FAQ, formulários)',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',monitora:'Monitorar indicadores de desempenho',auditoria:'Conduzir auditoria do processo'};
+  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',mapeamento:'Registrar volumetria, equipe e prazos',analise_asis:'Elaborar análise completa do AS IS',esboco:'Elaborar esboço AS IS / TO BE com BPMN',det_etapas:'Detalhar etapas extraídas do fluxo',valid_dono:'Validar modelagem do processo',desenho_final:'Finalizar desenho do processo',pop:'Construir POP no padrão CAGE',complement:'Complementar POP (FAQ, formulários)',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',monitora:'Monitorar indicadores de desempenho',auditoria:'Conduzir auditoria do processo'};
   const el=document.getElementById('fila-content');
   if(!tarefas.length){el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>';return;}
   const crit=tarefas.filter(t=>t.prio==='Critica');
@@ -1643,7 +1642,7 @@ function rDash(){
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
-  const pend=processos.filter(p=>['valid_dono','aprovacao','complement','apresentacao'].includes(p.etapa));
+  const pend=processos.filter(p=>['valid_dono','complement','apresentacao'].includes(p.etapa));
   document.getElementById('dash-pend').innerHTML=buildPendentesHTML(pend);
 }
 function filtEtapaGo(etId){filtFaseAtual='';document.querySelectorAll('#fase-chips .chip').forEach((c,i)=>c.classList.toggle('on',i===0));go('processos',document.getElementById('nb-proc'));}
@@ -1994,6 +1993,74 @@ function reprovarDono(voltaEt,role,acao){
   setTimeout(()=>popupConclusaoDono('Ajuste solicitado com sucesso! O EP foi notificado e revisará o material antes de encaminhar novamente.'),200);
 }
 
+// ─── FEEDBACK DO DONO (valid_dono) ───────────────────────────────────────────
+function dfbRow(tipo,texto,emoji){
+  const idx=window._dfbItems.length;
+  window._dfbItems.push({tipo,texto});
+  const fb=window._dfb[tipo]?.[texto];
+  const confirmed=fb==='confirmado',discarded=fb==='descartado';
+  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr)" id="dfb-row-${idx}">
+    <span id="dfb-txt-${idx}" style="flex:1;font-size:12.5px;color:var(--ink)${discarded?';text-decoration:line-through;opacity:.5':''}">${emoji} ${esc(texto)}</span>
+    <button id="dfb-c-${idx}" onclick="dfbToggle(${idx},'confirmado')" style="border:1.5px solid ${confirmed?'var(--green)':'var(--bdr)'};background:${confirmed?'var(--green-l)':'transparent'};color:${confirmed?'var(--green)':'var(--ink4)'};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer">✓</button>
+    <button id="dfb-d-${idx}" onclick="dfbToggle(${idx},'descartado')" style="border:1.5px solid ${discarded?'var(--red)':'var(--bdr)'};background:${discarded?'var(--red-l)':'transparent'};color:${discarded?'var(--red)':'var(--ink4)'};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer">✗</button>
+  </div>`;
+}
+function dfbToggle(idx,val){
+  const {tipo,texto}=window._dfbItems[idx];
+  if(!window._dfb[tipo])window._dfb[tipo]={};
+  window._dfb[tipo][texto]=window._dfb[tipo][texto]===val?null:val;
+  const fb=window._dfb[tipo][texto];
+  const confirmed=fb==='confirmado',discarded=fb==='descartado';
+  const cBtn=document.getElementById('dfb-c-'+idx);
+  const dBtn=document.getElementById('dfb-d-'+idx);
+  const txt=document.getElementById('dfb-txt-'+idx);
+  if(cBtn){cBtn.style.borderColor=confirmed?'var(--green)':'var(--bdr)';cBtn.style.background=confirmed?'var(--green-l)':'transparent';cBtn.style.color=confirmed?'var(--green)':'var(--ink4)';}
+  if(dBtn){dBtn.style.borderColor=discarded?'var(--red)':'var(--bdr)';dBtn.style.background=discarded?'var(--red-l)':'transparent';dBtn.style.color=discarded?'var(--red)':'var(--ink4)';}
+  if(txt){txt.style.textDecoration=discarded?'line-through':'none';txt.style.opacity=discarded?'.45':'1';}
+}
+function aprovarComFeedback(){
+  const p=curProc;
+  if(!p.ent.analise)p.ent.analise={};
+  const fb={};
+  (window._dfbItems||[]).forEach(({tipo,texto})=>{
+    const val=window._dfb?.[tipo]?.[texto];
+    if(val){if(!fb[tipo])fb[tipo]={};fb[tipo][texto]=val;}
+  });
+  p.ent.analise.feedback_dono=fb;
+  avDono('valid_dono','Dono do processo','Modelagem validada pelo dono',null);
+}
+function renderFeedbackEP(analise){
+  const fb=analise.feedback_dono||{};
+  const override=analise.ep_override||[];
+  const labels={gargalos:['⚠','analise-gar','Gargalos'],retrabalhos:['↩','analise-ret','Retrabalhos'],gaps:['○','analise-gap','Pontos cegos'],oportunidades:['✦','analise-oport','Oportunidades']};
+  let html='',total=0;
+  Object.entries(labels).forEach(([tipo,[emoji,cls,nome]])=>{
+    const items=fb[tipo];
+    if(!items||!Object.keys(items).length)return;
+    html+=`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat ${cls}">${nome}</div>`;
+    Object.entries(items).forEach(([texto,status])=>{
+      total++;
+      const isDesc=status==='descartado',mantido=override.includes(texto);
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bdr)">
+        <span style="flex:1;font-size:12.5px;${isDesc&&!mantido?'text-decoration:line-through;opacity:.5':''}">${emoji} ${esc(texto)}</span>
+        ${status==='confirmado'?`<span style="font-size:10px;font-weight:600;padding:1px 8px;border-radius:99px;background:var(--green-l);color:var(--green)">✓ Confirmado</span>`:''}
+        ${isDesc&&!mantido?`<span style="font-size:10px;font-weight:600;padding:1px 8px;border-radius:99px;background:var(--red-l);color:var(--red)">✗ Descartado</span><button class="btn" style="font-size:10px;padding:1px 8px" data-txt="${esc(texto)}" onclick="epManterItem(this)">Manter</button>`:''}
+        ${mantido?`<span style="font-size:10px;font-weight:600;padding:1px 8px;border-radius:99px;background:var(--blue-l);color:var(--blue)">↩ EPP manteve</span>`:''}
+      </div>`;
+    });
+    html+='</div>';
+  });
+  return total?html:'<div class="ib iba">Nenhum item avaliado pelo dono.</div>';
+}
+function epManterItem(el){
+  const p=curProc,texto=el.dataset.txt;
+  if(!p.ent.analise.ep_override)p.ent.analise.ep_override=[];
+  if(!p.ent.analise.ep_override.includes(texto))p.ent.analise.ep_override.push(texto);
+  fbAutoSave('ep_override');
+  rEnt(p);
+  toast('Item mantido pelo EPP','var(--blue)');
+}
+
 // ═══════════════════════════════════════════
 // ABA: AÇÃO ATUAL (formulários por etapa)
 // ═══════════════════════════════════════════
@@ -2174,7 +2241,12 @@ const ACOES = {
       const oportunidades=[...new Set([...(a.oportunidades||[]),...(ia.oportunidades||[])])];
       const complexidade=a.complexidade||ia.complexidade||'';
       const temAnalise=!!(ia.resumo||gargalos.length||retrabalhos.length||gaps.length||oportunidades.length);
-      return `<div class="ib ibp" style="margin-bottom:1.2rem">Revise os materiais abaixo e, ao final, aprove ou solicite ajustes ao EP.</div>
+      // Inicializa estado dos toggles a partir do feedback já salvo
+      window._dfb = {};
+      window._dfbItems = [];
+      const savedFb = a.feedback_dono || {};
+      Object.keys(savedFb).forEach(t=>{ window._dfb[t]={...savedFb[t]}; });
+      return `<div class="ib ibp" style="margin-bottom:1.2rem">Revise os materiais abaixo. Para cada item da análise, confirme (✓) se concorda ou descarte (✗) se discorda. Ao final, aprove ou solicite ajustes.</div>
 
       <div class="card-t" style="margin-bottom:.6rem">1. Desenho do processo</div>
       <div class="tabs" style="margin-bottom:.8rem">
@@ -2191,16 +2263,17 @@ const ACOES = {
       </div>
 
       <hr>
-      <div class="card-t" style="margin:.8rem 0 .6rem">2. Análise inteligente</div>
+      <div class="card-t" style="margin:.8rem 0 .2rem">2. Análise inteligente</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Confirme (✓) os achados com os quais concorda ou descarte (✗) os que não se aplicam ao seu processo.</div>
       ${temAnalise?`
         ${ia.resumo?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Resumo</div><div style="font-size:13px;color:var(--ink2);line-height:1.7">${esc(ia.resumo)}</div></div>`:''}
         <div class="g4" style="margin-bottom:.8rem">
           ${[['Complexidade',complexidade||'—'],['Ciclo médio',a.t_ciclo_medio||'—'],['Tempo de espera',a.t_espera_medio||'—'],['Atividades',a.qtd_atividades||'—']].map(([l,v])=>`<div class="card"><div class="sec-lbl" style="margin-bottom:2px">${l}</div><div style="font-size:14px;font-weight:600">${v}</div></div>`).join('')}
         </div>
-        ${gargalos.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-gar">Gargalos (${gargalos.length})</div>${gargalos.map(g=>`<div style="font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--bdr)">⚠ ${esc(g)}</div>`).join('')}</div>`:''}
-        ${retrabalhos.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-ret">Retrabalhos (${retrabalhos.length})</div>${retrabalhos.map(r=>`<div style="font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--bdr)">↩ ${esc(r)}</div>`).join('')}</div>`:''}
-        ${gaps.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-gap">Pontos cegos (${gaps.length})</div>${gaps.map(g=>`<div style="font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--bdr)">○ ${esc(g)}</div>`).join('')}</div>`:''}
-        ${oportunidades.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-oport">Oportunidades (${oportunidades.length})</div>${oportunidades.map(o=>`<div style="font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--bdr)">✦ ${esc(o)}</div>`).join('')}</div>`:''}
+        ${gargalos.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-gar">Gargalos (${gargalos.length})</div>${gargalos.map(g=>dfbRow('gargalos',g,'⚠')).join('')}</div>`:''}
+        ${retrabalhos.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-ret">Retrabalhos (${retrabalhos.length})</div>${retrabalhos.map(r=>dfbRow('retrabalhos',r,'↩')).join('')}</div>`:''}
+        ${gaps.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-gap">Pontos cegos (${gaps.length})</div>${gaps.map(g=>dfbRow('gaps',g,'○')).join('')}</div>`:''}
+        ${oportunidades.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-oport">Oportunidades (${oportunidades.length})</div>${oportunidades.map(o=>dfbRow('oportunidades',o,'✦')).join('')}</div>`:''}
       `:`<div class="ib iba" style="margin-bottom:.8rem">Análise inteligente ainda não gerada pelo EP.</div>`}
 
       <hr>
@@ -2234,26 +2307,30 @@ const ACOES = {
       </div>
       <div class="btn-row">
         <button class="btn btn-a" onclick="reprovarDono('esboco','Dono','Dono solicitou ajustes')">Solicitar ajustes</button>
-        <button class="btn btn-g" onclick="avDono('valid_dono','Dono do processo','Modelagem validada pelo dono',null)">Aprovar ✓</button>
+        <button class="btn btn-g" onclick="aprovarComFeedback()">Aprovar ✓</button>
       </div>`;
     }},
 
-  desenho_final:{titulo:'Desenho final do processo',sub:'Consolidar e finalizar o fluxo validado.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibp">Finalize o desenho incorporando os ajustes da validação.</div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Link do arquivo final (BPMN / imagem)</label><input class="fi" id="a-link" placeholder="https://... ou repositório"></div>
-      <div class="fg"><label class="fl">Ferramenta utilizada</label><input class="fi" id="a-ferr" placeholder="Ex: Zeev, BizAgi, Draw.io"></div>
-    </div>
-    <div class="fg"><label class="fl">Observações</label><textarea class="fi" id="a-obs" style="min-height:60px" placeholder="Principais mudanças em relação ao esboço..."></textarea></div>
-    <div class="btn-row"><button class="btn btn-p" onclick="av('desenho_final','EP','Desenho final concluído',null,curProc?.pat)">Encaminhar para aprovação →</button></div>`},
-
-  aprovacao:{titulo:'Aprovação pelo Dono do Processo',sub:'O dono revisa o desenho final e aprova para construção do POP.',role:'Dono do processo',rk:'dono',
-    form:p=>`<div class="ib iba">Revise o modelo do processo (AS IS / TO BE e etapas detalhadas) antes de aprovar a construção do POP.</div>
-    <div class="fg"><label class="fl">Comentários / solicitação de ajustes</label><textarea class="fi" id="aobs" style="min-height:70px" placeholder="Deixe em branco se aprovado..."></textarea></div>
-    <div class="btn-row">
-      <button class="btn btn-a" onclick="reprovar('desenho_final','Dono','Dono solicitou ajustes no modelo')">Solicitar ajustes</button>
-      <button class="btn btn-g" onclick="av('aprovacao','Dono','Modelo aprovado pelo dono — construção do POP autorizada',null)">Aprovar modelo ✓</button>
-    </div>`},
+  desenho_final:{titulo:'Desenho final do processo',sub:'Consolide e finalize o fluxo validado pelo dono.',role:'EP',rk:'ep',
+    form:p=>{
+      const fb=p.ent?.analise?.feedback_dono||{};
+      const override=p.ent?.analise?.ep_override||[];
+      const descartados=Object.entries(fb).flatMap(([,items])=>Object.entries(items).filter(([,v])=>v==='descartado').map(([txt])=>txt)).filter(d=>!override.includes(d));
+      return `
+      ${descartados.length?`<div class="ib" style="background:#fef3c7;border-color:#d97706;margin-bottom:.8rem"><strong>Itens descartados pelo dono (${descartados.length}):</strong> ${descartados.map(d=>`<span style="font-size:11px;background:var(--red-l);color:var(--red);border-radius:4px;padding:1px 6px;margin:2px">${esc(d)}</span>`).join('')}<div style="font-size:11px;color:var(--ink3);margin-top:4px">Considere estes pontos ao finalizar o desenho.</div></div>`:'<div class="ib ibg" style="margin-bottom:.8rem">Nenhum item descartado pelo dono. O fluxo validado está pronto para ajustes finais.</div>'}
+      <div class="tabs" style="margin-bottom:.8rem">
+        <div class="tab on" onclick="sstab('df-asis',this)">AS IS</div>
+        <div class="tab" onclick="sstab('df-tobe',this);setTimeout(()=>initBpmnMod('tobe',curProc),80)">TO BE</div>
+      </div>
+      <div id="df-asis" class="tab-p on">${bpmnEditorHTML('asis',p.mod?.bpmnAsIs)}</div>
+      <div id="df-tobe" class="tab-p" style="display:none">${bpmnEditorHTML('tobe',p.mod?.bpmnToBe)}</div>
+      <div class="fg" style="margin-top:.8rem"><label class="fl">Observações sobre ajustes finais</label><textarea class="fi" id="a-obs" style="min-height:60px" placeholder="Descreva as alterações feitas em relação ao esboço validado...">${esc(p.form?.obs_final||'')}</textarea></div>
+      <div class="btn-row" style="flex-wrap:wrap;gap:6px">
+        <button class="btn" onclick="bpmnExportPNG('asis')">↓ PNG do fluxo AS IS</button>
+        <button class="btn btn-t" onclick="vincularDesenhoFinalArq()">📎 Vincular imagem à arquitetura</button>
+        <button class="btn btn-p" onclick="salvarDesenhoFinal()">Encaminhar para aprovação →</button>
+      </div>`;
+    }},
 
   pop:{titulo:'Construção do POP',sub:'Redigir o Procedimento Operacional Padrão no modelo CAGE.',role:'EP',rk:'ep',
     form:p=>`<div class="ib iba">Preencha as seções do POP conforme padrão CAGE.</div>
@@ -2622,6 +2699,7 @@ function rAcao(p){
   const roleNote=role!==ac.rk?`<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>${ac.role}</strong>. Troque o perfil para interagir.</div>`:'';
   el.innerHTML=buildAcaoCardHTML(ac,p,roleNote);
   if(p.etapa==='esboco') setTimeout(()=>{initBpmnMod('asis',p);},120);
+  if(p.etapa==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
   if(p.etapa==='det_etapas') setTimeout(atualizarMermaid,300);
   if(p.etapa==='pop') setTimeout(injectIaPop, 100);
 }
@@ -3652,6 +3730,12 @@ function rEnt(p){
     ${(e.analise.gaps||[]).length?`<div class="analise-item"><div class="analise-cat analise-gap">Pontos cegos (${e.analise.gaps.length})</div>${e.analise.gaps.map(g=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">○ ${g}</div>`).join('')}</div>`:''}
     ${(e.analise.oportunidades||[]).length?`<div class="analise-item"><div class="analise-cat analise-oport">Oportunidades (${e.analise.oportunidades.length})</div>${e.analise.oportunidades.map(o=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">✦ ${o}</div>`).join('')}</div>`:''}
   </div>`:''}
+  ${isEP()&&e.analise?.feedback_dono&&Object.keys(e.analise.feedback_dono).length?`
+  <div class="card" style="margin-top:.8rem;margin-bottom:1rem">
+    <div class="card-t">Revisão do Dono — Feedback da validação</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Itens avaliados pelo dono durante a validação. O EPP pode manter itens descartados.</div>
+    ${renderFeedbackEP(e.analise)}
+  </div>`:''}
   ${(e.riscos||[]).length?`<div class="card"><div class="card-t">Riscos (${e.riscos.length})</div>
     <table class="pop-tbl"><thead><tr><th>Risco</th><th>Prob.</th><th>Impacto</th></tr></thead>
     <tbody>${(e.riscos||[]).map(r=>`<tr><td>${r.desc}</td><td>${pbBadge(r.prob)}</td><td>${ibBadge(r.imp)}</td></tr>`).join('')}</tbody></table>
@@ -3829,6 +3913,62 @@ function bpmnImport(which){
     bpmnDirty[which]=true;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');if(lbl)lbl.style.display='inline';
   }).catch(err=>alert('XML inválido: '+(err.message||err)));
+}
+
+// ─── DESENHO FINAL ───────────────────────────────────────────────────────────
+function bpmnExportPNG(which){
+  const m=bpmnModelers[which];
+  if(!m||!curProc){alert('Editor BPMN não carregado.');return;}
+  m.saveSVG().then(({svg})=>{
+    const img=new Image();
+    const blob=new Blob([svg],{type:'image/svg+xml'});
+    const url=URL.createObjectURL(blob);
+    img.onload=()=>{
+      const scale=2;
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width*scale; canvas.height=img.height*scale;
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.scale(scale,scale); ctx.drawImage(img,0,0);
+      URL.revokeObjectURL(url);
+      const a=document.createElement('a');
+      a.href=canvas.toDataURL('image/png');
+      a.download=(curProc.nome||'processo').replace(/\s+/g,'_').slice(0,30)+'_'+which+'.png';
+      a.click();
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);alert('Erro ao gerar PNG.');};
+    img.src=url;
+  }).catch(e=>alert('Erro ao exportar: '+(e.message||e)));
+}
+function vincularDesenhoFinalArq(){
+  const m=bpmnModelers['asis'];
+  if(!m||!curProc){alert('Editor BPMN não carregado.');return;}
+  if(!curProc.arq_id){alert('Este processo não está vinculado a um item da arquitetura. Vincule na tela de arquitetura.');return;}
+  m.saveSVG().then(({svg})=>{
+    const img=new Image();
+    const blob=new Blob([svg],{type:'image/svg+xml'});
+    const url=URL.createObjectURL(blob);
+    img.onload=async()=>{
+      const scale=2;
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width*scale; canvas.height=img.height*scale;
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.scale(scale,scale); ctx.drawImage(img,0,0);
+      URL.revokeObjectURL(url);
+      const png=canvas.toDataURL('image/png');
+      await saveFluxoImg(curProc.arq_id, png);
+      toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);alert('Erro ao gerar imagem.');};
+    img.src=url;
+  }).catch(e=>alert('Erro: '+(e.message||e)));
+}
+function salvarDesenhoFinal(){
+  const p=curProc; if(!p) return;
+  p.form=p.form||{};
+  p.form.obs_final=document.getElementById('a-obs')?.value||p.form.obs_final;
+  av('desenho_final','EP','Desenho final concluído',null,p.pat);
 }
 
 // ═══════════════════════════════════════════
