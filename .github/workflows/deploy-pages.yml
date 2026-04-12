@@ -36,8 +36,13 @@ jobs:
           };
           EOF
 
-          # Replace placeholder with injected script
-          sed -i "s|<script>$|<script src=\"config.deploy.js\"></script>\n  <script>|" index.html
+          # Update index.html to load the config
+          node -e "
+            const fs = require('fs');
+            let html = fs.readFileSync('index.html', 'utf8');
+            html = html.replace('<title>', '<script src=\"config.deploy.js\"><\/script>\n<title>');
+            fs.writeFileSync('index.html', html);
+          "
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
