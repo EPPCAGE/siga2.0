@@ -14,6 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <!-- Config: loaded synchronously so window.CONFIG is available immediately -->
 <script src="config.deploy.js" onerror="console.info('config.deploy.js not found')"></script>
 <script src="config.local.js" onerror="console.info('config.local.js not found')"></script>
@@ -569,16 +570,31 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button class="btn btn-p" onclick="abrirNovoKpi()">+ Novo indicador</button>
     </div>
   </div>
-  <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap">
-    <span class="fbar-l">Área</span>
-    <select class="fi" id="ind-area-sel" onchange="rInd()" style="max-width:200px"><option value="">Todas</option></select>
-    <span class="fbar-l">Ciclo</span>
-    <select class="fi" id="ind-ciclo-sel" onchange="rInd()" style="max-width:200px"><option value="">Todos</option></select>
-    <span class="fbar-l">Período</span>
-    <select class="fi" id="ind-periodo-sel" onchange="rInd()" style="max-width:160px"><option value="">Todos</option></select>
+  <div class="tabs" style="margin-bottom:.75rem">
+    <div class="tab on" onclick="sstab('ind-tab-lista',this)">Lista</div>
+    <div class="tab" onclick="sstab('ind-tab-graficos',this);rIndGraficos()">Gráficos</div>
   </div>
-  <div id="ind-summary" style="margin-bottom:.8rem"></div>
-  <div id="ind-c"></div>
+  <div id="ind-tab-lista" class="tab-p">
+    <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="fbar-l">Área</span>
+      <select class="fi" id="ind-area-sel" onchange="rInd()" style="max-width:180px"><option value="">Todas</option></select>
+      <span class="fbar-l">Ciclo</span>
+      <select class="fi" id="ind-ciclo-sel" onchange="rInd()" style="max-width:180px"><option value="">Todos</option></select>
+      <span class="fbar-l">Período</span>
+      <select class="fi" id="ind-periodo-sel" onchange="rInd()" style="max-width:140px"><option value="">Todos</option></select>
+      <span class="fbar-l">PPE?</span>
+      <div class="chips">
+        <span class="chip on" onclick="indFiltPpe('',this)">Todos</span>
+        <span class="chip" onclick="indFiltPpe('Sim',this)">Sim</span>
+        <span class="chip" onclick="indFiltPpe('Não',this)">Não</span>
+      </div>
+    </div>
+    <div id="ind-summary" style="margin-bottom:.8rem"></div>
+    <div id="ind-c"></div>
+  </div>
+  <div id="ind-tab-graficos" class="tab-p" style="display:none">
+    <div id="ind-graficos-c"></div>
+  </div>
 
   <!-- Modal novo/editar KPI -->
   <div id="novo-kpi-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
@@ -2110,7 +2126,7 @@ const ACOES = {
         <div class="tab" onclick="sstab('aud4',this)">Ações</div>
         <div class="tab" onclick="sstab('aud5',this)">Relatório</div>
       </div>
-      <div id="aud1">
+      <div id="aud1" class="tab-p">
         <div class="g2">
           <div class="fg"><label class="fl">Data de início</label><input class="fi" id="aud-ini" type="date" value="${aud.data_inicio||''}"></div>
           <div class="fg"><label class="fl">Data prevista de conclusão</label><input class="fi" id="aud-fim" type="date" value="${aud.data_fim||''}"></div>
@@ -2129,7 +2145,7 @@ const ACOES = {
         </div>
         <button class="btn" onclick="salvarPlanejamentoAuditoria()">Salvar planejamento</button>
       </div>
-      <div id="aud2" style="display:none">
+      <div id="aud2" class="tab-p" style="display:none">
         <div style="margin-bottom:1rem">${questoesHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhuma questão cadastrada.</div>'}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Adicionar questão de auditoria</div>
         <div class="fg"><label class="fl">Questão</label><textarea class="fi" id="aud-q-texto" style="min-height:60px" placeholder="Ex: O processo é executado conforme o POP?"></textarea></div>
@@ -2139,7 +2155,7 @@ const ACOES = {
         </div>
         <button class="btn" onclick="adicionarQuestaoAuditoria()">＋ Adicionar questão</button>
       </div>
-      <div id="aud3" style="display:none">
+      <div id="aud3" class="tab-p" style="display:none">
         <div style="margin-bottom:1rem">${achadosHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhum achado registrado.</div>'}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Registrar achado / não-conformidade</div>
         <div class="g2">
@@ -2158,7 +2174,7 @@ const ACOES = {
         <div class="fg"><label class="fl">Critério infringido</label><input class="fi" id="aud-a-crit" placeholder="Qual critério não foi atendido?"></div>
         <button class="btn" onclick="adicionarAchadoAuditoria()">＋ Registrar achado</button>
       </div>
-      <div id="aud4" style="display:none">
+      <div id="aud4" class="tab-p" style="display:none">
         <div style="margin-bottom:1rem">${acoesHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhuma ação registrada.</div>'}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Incluir ação corretiva</div>
         <div class="fg"><label class="fl">Ação</label><textarea class="fi" id="aud-ac-acao" style="min-height:60px" placeholder="Descreva a ação corretiva..."></textarea></div>
@@ -2176,7 +2192,7 @@ const ACOES = {
         <div class="fg"><label class="fl">Achado relacionado</label><input class="fi" id="aud-ac-achado" placeholder="NC ou achado ao qual essa ação se refere"></div>
         <button class="btn" onclick="adicionarAcaoAuditoria()">＋ Incluir ação</button>
       </div>
-      <div id="aud5" style="display:none">
+      <div id="aud5" class="tab-p" style="display:none">
         <div class="fg"><label class="fl">Conformidade geral</label>
           <select class="fi" id="aud-conf">
             <option ${aud.conformidade==='Conforme'?'selected':''}>Conforme</option>
@@ -4227,6 +4243,7 @@ function novaMelh(){
 //  ppe, indice, meta, realizado, analise, pct_realizado}
 
 let _kpiIdC = 1;
+let _indPpeFiltro = '';
 
 function importarIndicadores(input){
   const file = input.files[0]; if(!file) return;
@@ -4330,7 +4347,8 @@ function rInd(){
   const lista = kpis.filter(k=>
     (!area   || k.area   === area)   &&
     (!ciclo  || k.ciclo  === ciclo)  &&
-    (!period || k.periodo === period)
+    (!period || k.periodo === period) &&
+    (!_indPpeFiltro || k.ppe === _indPpeFiltro)
   );
 
   // Summary
@@ -4363,6 +4381,120 @@ function rInd(){
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">${inds.map(k=>kpiCard(k)).join('')}</div>
     </div>`).join('');
+}
+
+function indFiltPpe(val, el){
+  _indPpeFiltro = val;
+  document.querySelectorAll('#page-indicadores .chips .chip').forEach(c=>c.classList.remove('on'));
+  if(el) el.classList.add('on');
+  rInd();
+}
+
+let _indCharts = [];
+function rIndGraficos(){
+  const el = document.getElementById('ind-graficos-c');
+  if(!el) return;
+  // Destroy previous charts
+  _indCharts.forEach(c=>{ try{ c.destroy(); }catch(e){} });
+  _indCharts = [];
+
+  if(!kpis.length){
+    el.innerHTML = '<div class="ib ibsl">Nenhum indicador cadastrado.</div>';
+    return;
+  }
+
+  // Group kpis by nome+codigo to build time series
+  const grupos = {};
+  kpis.forEach(k=>{
+    const key = (k.codigo||k.nome||'').trim() || k.nome;
+    if(!grupos[key]) grupos[key] = [];
+    grupos[key].push(k);
+  });
+
+  // Sort each group by periodo
+  Object.values(grupos).forEach(g => g.sort((a,b)=>(a.periodo||'').localeCompare(b.periodo||'')));
+
+  el.innerHTML = Object.entries(grupos).map(([key, items])=>{
+    const nome = items[0].nome;
+    const unidade = items[0].unidade||'';
+    const polaridade = items[0].polaridade||'Maior é melhor';
+    const area = items[0].area||'';
+
+    // Compute meta fallback: average of last 12 realizado values
+    const semMeta = items.filter(i=>!i.meta||i.meta===0);
+    if(semMeta.length){
+      const ultimos = items.slice(-12).map(i=>parseFloat(i.realizado)||0);
+      const media = ultimos.length ? ultimos.reduce((a,b)=>a+b,0)/ultimos.length : 0;
+      semMeta.forEach(i=>{ if(!i._metaFallback) i._metaFallback = Math.round(media*10)/10; });
+    }
+
+    return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:3px">${area}${items[0].codigo?' · '+items[0].codigo:''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
+      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:.75rem">${nome}</div>
+      <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
+    </div>`;
+  }).join('');
+
+  // Render charts after DOM update
+  setTimeout(()=>{
+    Object.entries(grupos).forEach(([key, items])=>{
+      const canvasId = 'chart-kpi-'+key.replace(/\W/g,'_');
+      const canvas = document.getElementById(canvasId);
+      if(!canvas) return;
+      const polaridade = items[0].polaridade||'Maior é melhor';
+      const unidade = items[0].unidade||'';
+      const labels = items.map(i=>i.periodo||'?');
+      const realizados = items.map(i=>parseFloat(i.realizado)||0);
+      const metas = items.map(i=>{
+        const m = parseFloat(i.meta)||0;
+        return m > 0 ? m : (i._metaFallback||null);
+      });
+      const chart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Realizado'+(unidade?' ('+unidade+')':''),
+              data: realizados,
+              backgroundColor: items.map((_,i)=>{
+                const m = metas[i]; const r = realizados[i];
+                if(!m) return 'rgba(96,165,250,0.7)';
+                const pct = polaridade==='Menor é melhor' ? (r>0?m/r:0) : r/m;
+                return pct>=1 ? 'rgba(34,197,94,0.75)' : pct>=0.8 ? 'rgba(251,191,36,0.75)' : 'rgba(239,68,68,0.75)';
+              }),
+              borderRadius: 4,
+              order: 2,
+            },
+            {
+              label: 'Meta'+(unidade?' ('+unidade+')':(metas.some(m=>m!==null&&items[metas.indexOf(m)]?._metaFallback)?'  (média histórica)':'')),
+              data: metas,
+              type: 'line',
+              borderColor: 'rgba(99,102,241,0.9)',
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              borderDash: [5,4],
+              pointRadius: 3,
+              order: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 11 } } },
+            tooltip: { callbacks: { label: ctx => ctx.dataset.label+': '+ctx.parsed.y+(unidade?' '+unidade:'') } }
+          },
+          scales: {
+            y: { beginAtZero: false, ticks: { font: { size: 10 } } },
+            x: { ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+      _indCharts.push(chart);
+    });
+  }, 50);
 }
 
 function kpiCard(k){
