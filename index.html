@@ -316,7 +316,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <!-- LOGIN -->
 <div id="login-screen" class="login-screen">
   <div class="login-box">
-    <div id="login-logo-img" style="display:none;margin-bottom:.75rem"></div>
     <div class="login-logo">SIGA <span style="color:rgba(255,255,255,.45)">2.0</span></div>
     <div class="login-sub">Sistema Integrado de Gestão Estratégica e Alinhamento</div>
     <label class="login-label">E-mail institucional</label>
@@ -1071,8 +1070,7 @@ const LIKERT = ['Nunca','Raramente','Às vezes','Frequentemente','Sempre'];
 // ── SECURITY HELPERS ─────────────────────────
 // HTML-escape user-supplied content before inserting into innerHTML
 function esc(s){
-  if(s==null) return '';
-  return String(s)
+  return String(s ?? '')
     .replace(/&/g,'&amp;')
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;')
@@ -1080,11 +1078,11 @@ function esc(s){
     .replace(/'/g,'&#39;');
 }
 // Allow only http/https URLs; return empty string for anything else (blocks javascript: etc.)
-function safeUrl(u){
-  if(!u) return '';
+function safeUrl(url){
+  if(!url) return '';
   try {
-    const parsed = new URL(u);
-    if(parsed.protocol === 'https:' || parsed.protocol === 'http:') return u;
+    const parsed = new URL(url);
+    if(parsed.protocol === 'https:' || parsed.protocol === 'http:') return url;
   } catch(e){}
   return '';
 }
@@ -1372,7 +1370,7 @@ function rListaAptosAuditoria(){
     return true;
   });
   if(!aptos.length){
-    el.innerHTML='<div class="ib ibg">Nenhum processo mapeado encontrado'+(srch?' para "'+srch+'"':'')+'. Marque processos como mapeados na arquitetura para habilitá-los.</div>';
+    el.innerHTML='<div class="ib ibg">Nenhum processo mapeado encontrado'+(srch?' para "'+esc(srch)+'"':'')+'. Marque processos como mapeados na arquitetura para habilitá-los.</div>';
     return;
   }
   el.innerHTML=aptos.map(p=>`
@@ -1505,29 +1503,6 @@ function taskCard(p,ACT){
 function isEP(){ return usuarioLogado?.perfil === 'ep'; }
 function isDono(){ return usuarioLogado?.perfil === 'dono'; }
 
-function setLogo(tipo, input){
-  const file = input.files[0]; if(!file) return;
-  const reader = new FileReader();
-  reader.onload = e => { localStorage.setItem('logo_'+tipo, e.target.result); loadLogos(); toast('Logo atualizado'); };
-  reader.readAsDataURL(file);
-  input.value = '';
-}
-function loadLogos(){
-  const cage = localStorage.getItem('logo_cage');
-  const siga = localStorage.getItem('logo_siga');
-  const cageEl = document.getElementById('logo-cage-img');
-  const sigaEl = document.getElementById('logo-siga-img');
-  if(cageEl){ cageEl.src=cage||''; cageEl.style.display=cage?'inline-block':'none'; }
-  if(sigaEl){ sigaEl.src=siga||''; sigaEl.style.display=siga?'inline-block':'none'; }
-  const logosWrap = document.getElementById('aside-logos');
-  if(logosWrap) logosWrap.style.display=(cage||siga)?'flex':'none';
-  // Show CAGE logo on login screen too
-  const loginLogoEl = document.getElementById('login-logo-img');
-  if(loginLogoEl && cage){
-    loginLogoEl.innerHTML=`<img src="${cage}" style="max-height:48px;max-width:140px;object-fit:contain;filter:brightness(0) invert(1);opacity:.7">`;
-    loginLogoEl.style.display='block';
-  }
-}
 
 function aplicarPermissoes(){
   // Processos page: novo processo button
@@ -2650,9 +2625,9 @@ function salvarEsboco(){
   p.mod.toBe=document.getElementById('e-tobe')?.value||'';
   // Save BPMN if modeler active
   const mAs=bpmnModelers['asis'];
-  if(mAs){mAs.saveXML({format:true}).then(({xml})=>{p.mod.bpmnAsIs=xml;}).catch(()=>{});}
+  if(mAs){mAs.saveXML({format:true}).then(({xml})=>{p.mod.bpmnAsIs=xml;}).catch(e=>console.warn('bpmn saveXML asis:',e.message));}
   const mTo=bpmnModelers['tobe'];
-  if(mTo){mTo.saveXML({format:true}).then(({xml})=>{p.mod.bpmnToBe=xml;}).catch(()=>{});}
+  if(mTo){mTo.saveXML({format:true}).then(({xml})=>{p.mod.bpmnToBe=xml;}).catch(e=>console.warn('bpmn saveXML tobe:',e.message));}
   const op=(document.getElementById('e-oport')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   op.forEach(o=>{if(!melhorias.find(m=>m.titulo===o&&m.pid===p.id))melhorias.push({id:nextMid++,pid:p.id,pnome:p.nome,titulo:o,tipo:'Identificada no esboço',status:'Identificada',resp:p.resp_ep,prazo:'',desc:''});});
   av('esboco','EP','Esboço AS IS/TO BE elaborado com BPMN');
@@ -5603,11 +5578,10 @@ document.getElementById('login-screen').style.display='flex';
         ejsConfig.pubkey   = cfg.pubkey   || '';
         if(ejsConfig.pubkey && typeof emailjs !== 'undefined') emailjs.init({publicKey: ejsConfig.pubkey});
       }
-    } catch(e){}
+    } catch(e){ console.warn('ejsConfig localStorage parse error:', e.message); }
   }
 
   if(loadMsg) loadMsg.remove();
-  loadLogos();
   updCounts();
   fbStatusBadge();
   injectSaveBtn();
