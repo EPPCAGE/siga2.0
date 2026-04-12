@@ -43,6 +43,11 @@ jobs:
           print("✓ Config created")
           PYTHON
 
+      - name: Verify config file
+        run: |
+          ls -la config.deploy.js
+          head -5 config.deploy.js
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
