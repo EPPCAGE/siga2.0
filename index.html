@@ -329,18 +329,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div class="shell">
 <aside class="aside">
   <div class="aside-top">
-    <div class="aside-logos" id="aside-logos" style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem;min-height:0">
-      <img id="logo-cage-img" style="display:none;max-height:36px;max-width:80px;object-fit:contain" alt="Logo CAGE">
-      <img id="logo-siga-img" style="display:none;max-height:36px;max-width:80px;object-fit:contain" alt="Logo SIGA">
-    </div>
-    <div id="logo-ep-actions" style="display:none;gap:6px;margin-bottom:.4rem">
-      <label style="font-size:10px;color:var(--ink3);cursor:pointer;padding:2px 6px;border:1px dashed var(--bdr);border-radius:4px" title="Definir logo do sistema">
-        ↑ Logo sistema<input type="file" accept="image/*" style="display:none" onchange="setLogo('siga',this)">
-      </label>
-      <label style="font-size:10px;color:var(--ink3);cursor:pointer;padding:2px 6px;border:1px dashed var(--bdr);border-radius:4px" title="Definir logo da CAGE">
-        ↑ Logo CAGE<input type="file" accept="image/*" style="display:none" onchange="setLogo('cage',this)">
-      </label>
-    </div>
     <div class="brand">SIGA <span>2.0</span></div>
     <div class="brand-sub">Gestão Estratégica</div>
   </div>
@@ -1029,8 +1017,8 @@ const ETAPAS = [
   // Entendimento
   {id:'abertura',lb:'Abertura',fase:'Entendimento',cor:'pip-e',resp:'ep'},
   {id:'reuniao',lb:'Reunião entend.',fase:'Entendimento',cor:'pip-e',resp:'ep'},
+  {id:'riscos',lb:'Identificação de riscos',fase:'Entendimento',cor:'pip-e',resp:'ep'},
   {id:'questionario',lb:'Quest. maturidade',fase:'Entendimento',cor:'pip-e',resp:'dono'},
-  {id:'mapeamento',lb:'Mapeamento',fase:'Entendimento',cor:'pip-e',resp:'ep'},
   // Modelagem
   {id:'esboco',lb:'Esboço AS IS / TO BE',fase:'Modelagem',cor:'pip-m',resp:'ep'},
   {id:'det_etapas',lb:'Detalhamento etapas',fase:'Modelagem',cor:'pip-m',resp:'ep'},
@@ -1050,7 +1038,7 @@ const ETAPAS = [
 ];
 const FASES = ['Entendimento','Modelagem','Formalizacao','Operacao','Auditoria'];
 const FASE_COR = {Entendimento:'bt',Modelagem:'bp',Formalizacao:'ba',Operacao:'bb',Auditoria:'br'};
-const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',mapeamento:'bt',esboco:'bp',det_etapas:'bp',analise_asis:'bp',valid_dono:'bp',desenho_final:'ba',aprovacao:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
+const EBADGE = {abertura:'bt',reuniao:'bt',riscos:'bt',questionario:'bt',esboco:'bp',det_etapas:'bp',analise_asis:'bp',valid_dono:'bp',desenho_final:'ba',aprovacao:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
 
 function etIdx(id){return ETAPAS.findIndex(e=>e.id===id);}
 function etFase(id){return ETAPAS.find(e=>e.id===id)?.fase||'';}
@@ -1660,7 +1648,7 @@ function excluirMapeamento(id){
 function abrirProc(id){
   curProc=processos.find(p=>p.id===id);
   // Keep etapasIdC ahead of any existing etapa IDs in this process
-  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>parseInt((e.id||'').replace('ep',''))||0);
+  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>parseInt(String(e.id||'').replace('ep',''))||0);
   if(nums.length) etapasIdC=Math.max(etapasIdC,...nums)+1;
   rDetalhe();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -1932,12 +1920,12 @@ const ACOES = {
   abertura:{titulo:'Abrir processo',sub:'Confirmar dados iniciais e vincular equipe.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibt">Confirme os dados importados da arquitetura e defina a equipe do trabalho.</div>
     <div class="g3">
-      <div class="fg"><label class="fl">Data de início</label><input class="fi" id="a-ini" type="date" value="${p.ent.dt_inicio||''}"></div>
-      <div class="fg"><label class="fl">Data prevista de entrega</label><input class="fi" id="a-prev" type="date" value="${p.ent.dt_prev||''}"></div>
-      <div class="fg"><label class="fl">Produto da demanda</label><input class="fi" value="${p.produto}" readonly></div>
+      <div class="fg"><label class="fl">Data de início</label><input class="fi" id="a-ini" type="date" value="${p.ent.dt_inicio||''}" oninput="calcPrevAbr()"></div>
+      <div class="fg"><label class="fl">Previsão de entrega <small style="font-weight:400;color:var(--ink3)">(90 dias após início)</small></label><input class="fi" id="a-prev" type="date" value="${p.ent.dt_prev||''}" readonly style="background:var(--bg2);color:var(--ink3)"></div>
+      <div class="fg"><label class="fl">Produto da demanda</label><input class="fi" value="${esc(p.produto)}" readonly></div>
     </div>
-    <div class="fg"><label class="fl">Equipe do trabalho</label><input class="fi" id="a-equipe" value="${p.ent.equipe||''}" placeholder="Nomes dos membros envolvidos"></div>
-    <div class="fg"><label class="fl">Objetivo do trabalho</label><textarea class="fi" id="a-obj" style="min-height:60px">${p.objetivo||''}</textarea></div>
+    <div class="fg"><label class="fl">Equipe de trabalho</label><input class="fi" id="a-equipe" value="${esc(p.ent.equipe||'')}" placeholder="Nomes dos membros envolvidos"></div>
+    <div class="fg"><label class="fl">Objetivo do trabalho</label><textarea class="fi" id="a-obj" style="min-height:60px">${esc(p.objetivo||'')}</textarea></div>
     <div class="btn-row"><button class="btn btn-t" onclick="salvarAbertura()">Confirmar e agendar reunião de entendimento →</button></div>`},
 
   questionario:{titulo:'Questionário de maturidade',sub:'Responder as 15 perguntas sobre o estado atual do processo.',role:'Dono do processo',rk:'dono',
@@ -1957,47 +1945,46 @@ const ACOES = {
       <div class="btn-row"><button class="btn btn-p" onclick="salvarQuestionario()">Enviar respostas →</button></div>`;
     }},
 
-  reuniao:{titulo:'Reunião de entendimento',sub:'Conduzir reunião com dono do processo e equipe.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibt">Registre a realização da reunião e pontos principais levantados.</div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Data da reunião</label><input class="fi" id="a-dt" type="date" value="${now().split('/').reverse().join('-')}"></div>
-      <div class="fg"><label class="fl">Participantes</label><input class="fi" id="a-part" placeholder="Nomes separados por vírgula" value="${p.ent.equipe||''}"></div>
-    </div>
-    <div class="fg"><label class="fl">Pontos levantados / pauta</label><textarea class="fi" id="a-pontos" style="min-height:80px" placeholder="Problemas identificados, escopo, expectativas..."></textarea></div>
-    <div class="fg"><label class="fl">Problemas e dores identificados (um por linha)</label><textarea class="fi" id="a-prob" style="min-height:80px" placeholder="${(p.ent.prob||[]).join('\n')}">${(p.ent.prob||[]).join('\n')}</textarea></div>
-    <div class="btn-row"><button class="btn btn-t" onclick="salvarReuniao()">Registrar reunião →</button></div>`},
-
-  mapeamento:{titulo:'Mapeamento — Entendimento completo',sub:'Registrar volumetria, prazos, tempo e equipe.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibt">Preencha todos os campos de entendimento quantitativo e operacional do processo.</div>
-    <div class="card-t">Identificação temporal</div>
-    <div class="g3" style="margin-bottom:1rem">
-      <div class="fg"><label class="fl">Data início</label><input class="fi" id="m-ini" type="date" value="${p.ent.dt_inicio||''}"></div>
-      <div class="fg"><label class="fl">Previsão de entrega</label><input class="fi" id="m-prev" type="date" value="${p.ent.dt_prev||''}"></div>
-      <div class="fg"><label class="fl">Produto</label><input class="fi" value="${p.produto}" readonly></div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Duração total do processo mapeado (lead time)</label><input class="fi" id="m-ttotal" value="${p.ent.t_total||''}" placeholder="Ex: 90 dias"><small style="color:var(--ink3);font-size:11px">Informação do processo, não do projeto de mapeamento</small></div>
-      <div class="fg"><label class="fl">Tempo produtivo do processo (sem esperas)</label><input class="fi" id="m-tsemfila" value="${p.ent.t_sem_fila||''}" placeholder="Ex: 35 dias"><small style="color:var(--ink3);font-size:11px">Informação do processo, não do projeto de mapeamento</small></div>
-    </div>
-    <div class="fg"><label class="fl">Equipe do trabalho</label><input class="fi" id="m-equipe" value="${p.ent.equipe||''}" placeholder="Todos os membros envolvidos"></div>
-    <hr>
-    <div class="card-t">Volumetria</div>
+  reuniao:{titulo:'Reunião de entendimento',sub:'Levantar SIPOC, volumetria e dores do processo.',role:'EP',rk:'ep',
+    form:p=>`<div class="ib ibt">Registre as informações levantadas na reunião com o dono do processo e equipe.</div>
+    <div class="card-t">SIPOC</div>
     <div class="g2" style="margin-top:.5rem">
-      <div class="fg"><label class="fl">Execuções / período</label><input class="fi" id="m-exec" value="${p.ent.vol.exec||''}" placeholder="Ex: ~40/mês"></div>
-      <div class="fg"><label class="fl">Tempo médio de ciclo</label><input class="fi" id="m-tempo" value="${p.ent.vol.tempo||''}" placeholder="Ex: 2,5 dias"></div>
-      <div class="fg"><label class="fl">Custo estimado</label><input class="fi" id="m-custo" value="${p.ent.vol.custo||''}" placeholder="Ex: R$ 800/unidade"></div>
-      <div class="fg"><label class="fl">Sazonalidade</label><input class="fi" id="m-sazon" value="${p.ent.vol.sazon||''}" placeholder="Ex: Picos em eventos institucionais"></div>
+      <div class="fg"><label class="fl">Fornecedores</label><input class="fi" id="r-fornec" value="${esc(p.ent.fornecedores||'')}" placeholder="Quem fornece entradas ao processo?"></div>
+      <div class="fg"><label class="fl">Clientes</label><input class="fi" id="r-clientes" value="${esc(p.ent.clientes||'')}" placeholder="Quem recebe as saídas do processo?"></div>
+    </div>
+    <div class="fg"><label class="fl">Entradas</label><textarea class="fi" id="r-entradas" style="min-height:54px" placeholder="Documentos, dados, materiais que chegam ao processo...">${esc(p.ent.entradas||'')}</textarea></div>
+    <div class="fg"><label class="fl">Atividades principais <small style="font-weight:400;color:var(--ink3)">(uma por linha)</small></label><textarea class="fi" id="r-atividades" style="min-height:80px" placeholder="1. Receber demanda&#10;2. Analisar documentação&#10;...">${esc(p.ent.atividades_principais||'')}</textarea></div>
+    <div class="fg"><label class="fl">Saídas</label><textarea class="fi" id="r-saidas" style="min-height:54px" placeholder="Produtos, documentos, resultados gerados...">${esc(p.ent.saidas||'')}</textarea></div>
+    <div class="fg"><label class="fl">Atores</label><input class="fi" id="r-atores" value="${esc(p.ent.atores||'')}" placeholder="Unidades e pessoas que participam do processo"></div>
+    <hr>
+    <div class="card-t">Volumetria e tempos</div>
+    <div class="g3" style="margin-top:.5rem">
+      <div class="fg"><label class="fl">Volume de execuções</label><input class="fi" id="r-exec" value="${esc(p.ent.vol?.exec||'')}" placeholder="Ex: ~40/mês"></div>
+      <div class="fg"><label class="fl">Tempo médio de ciclo (dias)</label><input class="fi" id="r-tciclo" type="number" min="0" step="0.5" value="${p.ent.t_ciclo||''}" oninput="calcGaveta()" placeholder="Ex: 5"></div>
+      <div class="fg"><label class="fl">Tempo real / lead time (dias)</label><input class="fi" id="r-treal" type="number" min="0" step="0.5" value="${p.ent.t_real||''}" oninput="calcGaveta()" placeholder="Ex: 15"></div>
+    </div>
+    <div class="fg"><label class="fl">Tempo de gaveta <small style="font-weight:400;color:var(--ink3)">(calculado: tempo real − tempo médio de ciclo)</small></label>
+      <input class="fi" id="r-tgaveta" readonly style="background:var(--bg2);color:var(--ink3)" value="${p.ent.t_gaveta!=null&&p.ent.t_gaveta!==''?p.ent.t_gaveta+' dias':''}">
     </div>
     <hr>
-    <div class="card-t">Riscos do processo</div>
-    <div id="risco-list" style="margin-top:.5rem">${rRiscoList(p.ent.riscos)}</div>
-    <div class="g3" style="margin-top:.5rem">
+    <div class="card-t">Problemas e dores</div>
+    <div class="fg" style="margin-top:.5rem"><label class="fl">Problemas/dores identificados <small style="font-weight:400;color:var(--ink3)">(um por linha)</small></label><textarea class="fi" id="a-prob" style="min-height:80px" placeholder="Descreva os problemas identificados...">${esc((p.ent.prob||[]).join('\n'))}</textarea></div>
+    <div class="btn-row"><button class="btn btn-t" onclick="salvarReuniao()">Registrar reunião e avançar →</button></div>`},
+
+  riscos:{titulo:'Identificação de riscos',sub:'Mapear e avaliar riscos operacionais do processo.',role:'EP',rk:'ep',
+    form:p=>`<div class="ib ibt">Identifique os riscos do processo. Utilize a IA para gerar sugestões ou adicione manualmente.</div>
+    <div style="margin-bottom:.8rem;display:flex;gap:8px;align-items:center">
+      <button class="btn" style="font-size:12px" onclick="iaGerarRiscos()">✦ Gerar riscos com IA</button>
+      <span id="risco-ia-status" style="font-size:11px;color:var(--ink3)"></span>
+    </div>
+    <div id="risco-list" style="margin-bottom:.8rem">${rRiscoList(p.ent.riscos)}</div>
+    <div class="g3">
       <input class="fi" id="rd" placeholder="Descrição do risco">
       <select class="fi" id="rp"><option value="">Probabilidade</option><option>Baixa</option><option>Media</option><option>Alta</option></select>
       <select class="fi" id="ri"><option value="">Impacto</option><option>Baixo</option><option>Medio</option><option>Alto</option><option>Critico</option></select>
     </div>
     <button class="btn" style="margin-top:6px;font-size:12px" onclick="addRisco()">+ Adicionar risco</button>
-    <div class="btn-row"><button class="btn btn-t" onclick="salvarMapeamento()">Salvar mapeamento →</button></div>`},
+    <div class="btn-row"><button class="btn btn-t" onclick="salvarRiscos()">Registrar riscos e avançar →</button></div>`},
 
   analise_asis:{titulo:'Análise do fluxo AS IS',sub:'Análise inteligente gerada por IA com base no BPMN e etapas mapeadas.',role:'EP',rk:'ep',
     form:p=>{
@@ -2393,22 +2380,27 @@ function salvarRetroativo(etId){
       p.objetivo=document.getElementById('a-obj')?.value||p.objetivo;
     },
     reuniao:()=>{
+      p.ent.fornecedores=document.getElementById('r-fornec')?.value||p.ent.fornecedores;
+      p.ent.clientes=document.getElementById('r-clientes')?.value||p.ent.clientes;
+      p.ent.entradas=document.getElementById('r-entradas')?.value||p.ent.entradas;
+      p.ent.atividades_principais=document.getElementById('r-atividades')?.value||p.ent.atividades_principais;
+      p.ent.saidas=document.getElementById('r-saidas')?.value||p.ent.saidas;
+      p.ent.atores=document.getElementById('r-atores')?.value||p.ent.atores;
+      if(!p.ent.vol)p.ent.vol={};
+      p.ent.vol.exec=document.getElementById('r-exec')?.value||p.ent.vol.exec;
+      const tc=parseFloat(document.getElementById('r-tciclo')?.value);const tr=parseFloat(document.getElementById('r-treal')?.value);
+      if(!isNaN(tc))p.ent.t_ciclo=tc;if(!isNaN(tr))p.ent.t_real=tr;
+      if(p.ent.t_ciclo!=null&&p.ent.t_real!=null)p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
       const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
       if(prob.length) p.ent.prob=prob;
-      const prevOps=(document.getElementById('a-prev-ops')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-      if(prevOps.length) p.ent.prev_ops=prevOps;
     },
+    riscos:()=>{/* riscos already stored live via addRisco/remR */},
     questionario:()=>{
       const resp=p.ent.quest_resp||{};
       const vals=Object.values(resp);
       const total=vals.reduce((a,b)=>a+b,0);
       const media=vals.length>0?(total/vals.length).toFixed(1):0;
       p.ent.mat=media<=1.5?1:media<=2.5?2:media<=3.5?3:media<=4.5?4:5;
-    },
-    mapeamento:()=>{
-      p.ent.vol=document.getElementById('a-vol')?.value||p.ent.vol;
-      p.ent.equipe_det=document.getElementById('a-eqdet')?.value||p.ent.equipe_det;
-      p.ent.bench=document.getElementById('a-bench')?.value||p.ent.bench;
     },
     analise_asis:()=>{
       p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
@@ -2490,6 +2482,19 @@ function rAcao(p){
 // ═══════════════════════════════════════════
 // FUNÇÕES DE SALVAR POR ETAPA
 // ═══════════════════════════════════════════
+function calcPrevAbr(){
+  const ini=document.getElementById('a-ini')?.value;
+  const prev=document.getElementById('a-prev');
+  if(!ini||!prev)return;
+  const d=new Date(ini);d.setDate(d.getDate()+90);
+  prev.value=d.toISOString().split('T')[0];
+}
+function calcGaveta(){
+  const ciclo=parseFloat(document.getElementById('r-tciclo')?.value)||0;
+  const real=parseFloat(document.getElementById('r-treal')?.value)||0;
+  const gav=document.getElementById('r-tgaveta');
+  if(gav&&(ciclo||real)) gav.value=(real-ciclo).toFixed(1)+' dias';
+}
 function salvarAbertura(){
   const p=curProc;
   p.ent.dt_inicio=document.getElementById('a-ini')?.value||'';
@@ -2522,9 +2527,49 @@ function salvarQuestionario(){
 }
 function salvarReuniao(){
   const p=curProc;
+  p.ent.fornecedores=document.getElementById('r-fornec')?.value||'';
+  p.ent.clientes=document.getElementById('r-clientes')?.value||'';
+  p.ent.entradas=document.getElementById('r-entradas')?.value||'';
+  p.ent.atividades_principais=document.getElementById('r-atividades')?.value||'';
+  p.ent.saidas=document.getElementById('r-saidas')?.value||'';
+  p.ent.atores=document.getElementById('r-atores')?.value||'';
+  if(!p.ent.vol)p.ent.vol={};
+  p.ent.vol.exec=document.getElementById('r-exec')?.value||'';
+  p.ent.t_ciclo=parseFloat(document.getElementById('r-tciclo')?.value)||null;
+  p.ent.t_real=parseFloat(document.getElementById('r-treal')?.value)||null;
+  if(p.ent.t_ciclo!=null&&p.ent.t_real!=null) p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
   const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.ent.prob=prob;
-  av('reuniao','EP','Reunião realizada. '+prob.length+' problemas identificados.');
+  av('reuniao','EP','Reunião de entendimento concluída. '+prob.length+' problemas identificados.');
+}
+async function iaGerarRiscos(){
+  const p=curProc;if(!p)return;
+  const statusEl=document.getElementById('risco-ia-status');
+  if(statusEl)statusEl.textContent='Gerando...';
+  const payload=`Processo: ${p.nome}\nÁrea: ${p.area}\nObjetivo: ${p.objetivo||''}\nAtividades principais: ${p.ent.atividades_principais||''}\nEntradas: ${p.ent.entradas||''}\nSaídas: ${p.ent.saidas||''}\nProblemas identificados: ${(p.ent.prob||[]).join('; ')}\n\nIdentifique até 6 riscos operacionais relevantes para este processo. Responda com uma lista, cada linha no formato exato:\nRisco | Probabilidade | Impacto\nOnde Probabilidade é Baixa/Media/Alta e Impacto é Baixo/Medio/Alto/Critico. Sem numeração, sem cabeçalho.`;
+  const result=await chamarIA('assistente',payload,null);
+  if(result){
+    const linhas=result.split('\n').map(l=>l.trim()).filter(l=>l.includes('|'));
+    let adicionados=0;
+    if(!p.ent.riscos)p.ent.riscos=[];
+    linhas.forEach(l=>{
+      const partes=l.split('|').map(s=>s.trim());
+      if(partes.length>=3){
+        const prob=['Baixa','Media','Alta'].find(v=>partes[1].includes(v))||'Media';
+        const imp=['Baixo','Medio','Alto','Critico'].find(v=>partes[2].includes(v))||'Medio';
+        p.ent.riscos.push({desc:partes[0],prob,imp});
+        adicionados++;
+      }
+    });
+    document.getElementById('risco-list').innerHTML=rRiscoList(p.ent.riscos);
+    if(statusEl)statusEl.textContent=adicionados+' riscos adicionados pela IA';
+  } else {
+    if(statusEl)statusEl.textContent='Erro ao gerar riscos.';
+  }
+}
+function salvarRiscos(){
+  const p=curProc;
+  av('riscos','EP','Riscos identificados: '+(p.ent.riscos||[]).length+' registro(s).');
 }
 function registrarReuniaoAcomp(){
   const p=curProc;if(!p)return;
@@ -2560,16 +2605,6 @@ function publicarProcesso(){
   (p.interessados||[]).forEach(email=>{
     if(email) enviarNotif(email, email, acao, p.nome, '', usuarioLogado?.nome||'EP');
   });
-}
-function salvarMapeamento(){
-  const p=curProc;
-  p.ent.dt_inicio=document.getElementById('m-ini')?.value||p.ent.dt_inicio;
-  p.ent.dt_prev=document.getElementById('m-prev')?.value||p.ent.dt_prev;
-  p.ent.t_total=document.getElementById('m-ttotal')?.value||'';
-  p.ent.t_sem_fila=document.getElementById('m-tsemfila')?.value||'';
-  p.ent.equipe=document.getElementById('m-equipe')?.value||p.ent.equipe;
-  p.ent.vol={exec:document.getElementById('m-exec')?.value||'',tempo:document.getElementById('m-tempo')?.value||'',custo:document.getElementById('m-custo')?.value||'',sazon:document.getElementById('m-sazon')?.value||''};
-  av('mapeamento','EP','Mapeamento completo. Volumetria e prazos registrados.');
 }
 function salvarAnalise(){
   const p=curProc;
@@ -3456,7 +3491,9 @@ function rEnt(p){
   </div>
   <div class="g2" style="gap:12px;margin-bottom:1rem">
     <div class="card"><div class="card-t">Volumetria</div>
-      ${e.vol.exec?`<div class="g2">${Object.entries({exec:'Execuções/período',tempo:'Tempo médio',custo:'Custo estimado',sazon:'Sazonalidade'}).map(([k,l])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${e.vol[k]||'—'}</div></div>`).join('')}</div>`:'<div class="ib iba">Não preenchido.</div>'}
+      ${e.vol?.exec||e.t_ciclo||e.t_real?`<div class="g3" style="gap:10px">
+        ${[['Execuções/período',e.vol?.exec],['Tempo médio de ciclo',e.t_ciclo!=null?e.t_ciclo+' dias':''],['Tempo real (lead time)',e.t_real!=null?e.t_real+' dias':''],['Tempo de gaveta',e.t_gaveta!=null?e.t_gaveta+' dias':'']].map(([l,v])=>v?`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`:'').join('')}
+      </div>`:'<div class="ib iba">Não preenchido.</div>'}
     </div>
     <div class="card"><div class="card-t">Problemas identificados (${(e.prob||[]).length})</div>
       ${(e.prob||[]).length?(e.prob||[]).map((pr,i)=>`<div style="display:flex;gap:6px;padding:5px 0;border-bottom:1px solid var(--bdr);font-size:12.5px"><span style="color:var(--red);font-weight:700;flex-shrink:0">${i+1}</span>${pr}</div>`).join(''):'<div class="ib iba">Nenhum problema registrado.</div>'}
@@ -5309,7 +5346,7 @@ function salvarUsr(){
   }
   document.getElementById('usr-modal').style.display = 'none';
   renderAdmin();
-  fbAutoSave('salvarUsr');
+  fbSaveAll();
   toast('Usuário salvo');
 }
 
@@ -5321,7 +5358,7 @@ function deletarUsr(){
   USUARIOS.splice(idx,1);
   document.getElementById('usr-modal').style.display = 'none';
   renderAdmin();
-  fbAutoSave('deletarUsr');
+  fbSaveAll();
   toast('Usuário removido','var(--amber)');
 }
 
@@ -5394,7 +5431,7 @@ async function fbLoad(){
       processos.sort((a,b) => a.id - b.id);
       nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
       // Sync etapasIdC so new etapa IDs never collide with existing ones
-      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>parseInt((e.id||'').replace('ep',''))||0));
+      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>parseInt(String(e.id||'').replace('ep',''))||0));
       if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
     }
 
