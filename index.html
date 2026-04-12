@@ -1660,7 +1660,7 @@ function excluirMapeamento(id){
 function abrirProc(id){
   curProc=processos.find(p=>p.id===id);
   // Keep etapasIdC ahead of any existing etapa IDs in this process
-  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>parseInt((e.id||'').replace('ep',''))||0);
+  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>parseInt(String(e.id||'').replace('ep',''))||0);
   if(nums.length) etapasIdC=Math.max(etapasIdC,...nums)+1;
   rDetalhe();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -5443,7 +5443,7 @@ async function fbLoad(){
       processos.sort((a,b) => a.id - b.id);
       nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
       // Sync etapasIdC so new etapa IDs never collide with existing ones
-      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>parseInt((e.id||'').replace('ep',''))||0));
+      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>parseInt(String(e.id||'').replace('ep',''))||0));
       if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
     }
 
