@@ -10,12 +10,13 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -27,43 +28,33 @@ jobs:
           AI_URL: ${{ secrets.AI_FUNCTION_URL }}
         run: |
           python3 << 'PYTHON'
-          import os
           import json
+          import os
 
           firebase_key = os.environ.get('FIREBASE_KEY', '')
           ai_url = os.environ.get('AI_URL', '')
 
-          # Use JSON to safely escape values
-          config = f"""window.CONFIG = {json.dumps({
-              'FIREBASE_API_KEY': firebase_key,
-              'AI_FUNCTION_URL': ai_url
-          })};"""
+          config = f"window.CONFIG = {json.dumps({{'FIREBASE_API_KEY': firebase_key, 'AI_FUNCTION_URL': ai_url}})};"
 
           with open('config.deploy.js', 'w') as f:
               f.write(config)
 
-          print("✓ Config created")
-          print(f"Firebase Key set: {bool(firebase_key)}")
-          print(f"AI URL set: {bool(ai_url)}")
+          print(f"✓ Config created")
+          print(f"  Firebase: {bool(firebase_key)}")
+          print(f"  AI URL: {bool(ai_url)}")
           PYTHON
 
-      - name: Verify config file
-        run: |
-          echo "=== Checking config.deploy.js ==="
-          ls -lh config.deploy.js || echo "ERROR: File not found!"
-          echo ""
-          echo "=== File content ==="
-          cat config.deploy.js || echo "ERROR: Cannot read file!"
+      - name: Verify config
+        run: cat config.deploy.js
 
-      - name: Setup Pages
+      - name: Configure Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
-          retention-days: 1
 
-      - name: Deploy
+      - name: Deploy to Pages
         id: deployment
         uses: actions/deploy-pages@v2
