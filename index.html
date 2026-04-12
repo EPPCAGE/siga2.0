@@ -2318,17 +2318,17 @@ const ACOES = {
       const descartados=Object.entries(fb).flatMap(([,items])=>Object.entries(items).filter(([,v])=>v==='descartado').map(([txt])=>txt)).filter(d=>!override.includes(d));
       return `
       ${descartados.length?`<div class="ib" style="background:#fef3c7;border-color:#d97706;margin-bottom:.8rem"><strong>Itens descartados pelo dono (${descartados.length}):</strong> ${descartados.map(d=>`<span style="font-size:11px;background:var(--red-l);color:var(--red);border-radius:4px;padding:1px 6px;margin:2px">${esc(d)}</span>`).join('')}<div style="font-size:11px;color:var(--ink3);margin-top:4px">Considere estes pontos ao finalizar o desenho.</div></div>`:'<div class="ib ibg" style="margin-bottom:.8rem">Nenhum item descartado pelo dono. O fluxo validado está pronto para ajustes finais.</div>'}
-      <div class="tabs" style="margin-bottom:.8rem">
-        <div class="tab on" onclick="sstab('df-asis',this)">AS IS</div>
-        <div class="tab" onclick="sstab('df-tobe',this);setTimeout(()=>initBpmnMod('tobe',curProc),80)">TO BE</div>
+      <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:.5rem">AS IS — Fluxo validado pelo dono</div>
+      ${bpmnEditorHTML('asis',p.mod?.bpmnAsIs)}
+      <div style="margin-top:.8rem">
+        <button class="btn" style="width:100%;text-align:left;font-size:12px;justify-content:flex-start" onclick="toggleEl('df-tobe-wrap','df-tobe-chv');if(document.getElementById('df-tobe-wrap').style.display!=='none')setTimeout(()=>initBpmnMod('tobe',curProc),80)"><span id="df-tobe-chv">▶</span> TO BE — Processo futuro (expandir para editar)</button>
+        <div id="df-tobe-wrap" style="display:none;margin-top:.5rem">${bpmnEditorHTML('tobe',p.mod?.bpmnToBe)}</div>
       </div>
-      <div id="df-asis" class="tab-p on">${bpmnEditorHTML('asis',p.mod?.bpmnAsIs)}</div>
-      <div id="df-tobe" class="tab-p" style="display:none">${bpmnEditorHTML('tobe',p.mod?.bpmnToBe)}</div>
       <div class="fg" style="margin-top:.8rem"><label class="fl">Observações sobre ajustes finais</label><textarea class="fi" id="a-obs" style="min-height:60px" placeholder="Descreva as alterações feitas em relação ao esboço validado...">${esc(p.form?.obs_final||'')}</textarea></div>
-      <div class="btn-row" style="flex-wrap:wrap;gap:6px">
+      <div class="btn-row" style="flex-wrap:wrap;gap:6px;margin-top:.8rem">
         <button class="btn" onclick="bpmnExportPNG('asis')">↓ PNG do fluxo AS IS</button>
         <button class="btn btn-t" onclick="vincularDesenhoFinalArq()">📎 Vincular imagem à arquitetura</button>
-        <button class="btn btn-p" onclick="salvarDesenhoFinal()">Encaminhar para aprovação →</button>
+        <button class="btn btn-p" onclick="salvarDesenhoFinal()">Encaminhar para construção POP →</button>
       </div>`;
     }},
 
@@ -2338,27 +2338,24 @@ const ACOES = {
       <div class="tab on" onclick="sstab('pp1',this)">Identificação</div>
       <div class="tab" onclick="sstab('pp2',this)">Objetivo</div>
       <div class="tab" onclick="sstab('pp3',this)">Atividades</div>
-      <div class="tab" onclick="sstab('pp4',this)">Indicadores</div>
     </div>
     <div id="pp1" class="tab-p on">
       <div class="g3">
-        <div class="fg"><label class="fl">Área</label><input class="fi" id="pp-area" value="${p.area}"></div>
-        <div class="fg"><label class="fl">Gerente do processo</label><input class="fi" id="pp-ger" value="${p.dono}"></div>
-        <div class="fg"><label class="fl">Macroprocesso</label><input class="fi" id="pp-mac" value="${p.macro}"></div>
+        <div class="fg"><label class="fl">Área</label><input class="fi" id="pp-area" value="${esc(p.area||'')}"></div>
+        <div class="fg"><label class="fl">Gerente do processo</label><input class="fi" id="pp-ger" value="${esc(p.dono||'')}"></div>
+        <div class="fg"><label class="fl">Macroprocesso</label><input class="fi" id="pp-mac" value="${esc(p.macro||'')}"></div>
       </div>
     </div>
-    <div id="pp2" class="tab-p">
-      <div class="fg"><label class="fl">Objetivo</label><textarea class="fi" id="pp-obj" style="min-height:80px">${p.objetivo||''}</textarea></div>
-      <div class="fg"><label class="fl">Definições e siglas</label><textarea class="fi" id="pp-def" style="min-height:60px" placeholder="Termo: Definição, uma por linha"></textarea></div>
-      <div class="fg"><label class="fl">Entradas do processo</label><input class="fi" id="pp-ent" placeholder="O que inicia o processo?"></div>
-      <div class="fg"><label class="fl">Saídas do processo</label><input class="fi" id="pp-sai" placeholder="O que é produzido ao final?"></div>
+    <div id="pp2" class="tab-p" style="display:none">
+      <div class="fg"><label class="fl">Objetivo</label><textarea class="fi" id="pp-obj" style="min-height:80px">${esc(p.form?.pop?.obj||p.objetivo||'')}</textarea></div>
+      <div class="fg"><label class="fl">Definições e siglas</label><textarea class="fi" id="pp-def" style="min-height:60px" placeholder="Termo: Definição, uma por linha">${esc(p.form?.pop?.def||'')}</textarea></div>
+      <div class="fg"><label class="fl">Entradas do processo <span style="font-size:10px;color:var(--teal);font-weight:400">← SIPOC</span></label><textarea class="fi" id="pp-ent" style="min-height:54px" placeholder="O que inicia o processo?">${esc(p.form?.pop?.ent||p.ent?.entradas||'')}</textarea></div>
+      <div class="fg"><label class="fl">Saídas do processo <span style="font-size:10px;color:var(--teal);font-weight:400">← SIPOC</span></label><textarea class="fi" id="pp-sai" style="min-height:54px" placeholder="O que é produzido ao final?">${esc(p.form?.pop?.sai||p.ent?.saidas||'')}</textarea></div>
+      <div class="fg"><label class="fl">Documentos correlatos</label><textarea class="fi" id="pp-docs" style="min-height:50px" placeholder="Normas, regulamentos, formulários relacionados...">${esc(p.form?.pop?.docs||'')}</textarea></div>
     </div>
-    <div id="pp3" class="tab-p">
-      <div class="fg"><label class="fl">Descrição das atividades</label><textarea class="fi" id="pp-ativ" style="min-height:140px" placeholder="Responsável A\n- Atividade 1\n\nResponsável B\n- Atividade 2">${gerarAtivPop(p.mod.etapas_proc)}</textarea></div>
-    </div>
-    <div id="pp4" class="tab-p">
-      <div class="fg"><label class="fl">Indicadores previstos</label><textarea class="fi" id="pp-ind" style="min-height:70px" placeholder="Nome — Meta — Periodicidade"></textarea></div>
-      <div class="fg"><label class="fl">Documentos correlatos</label><textarea class="fi" id="pp-docs" style="min-height:50px"></textarea></div>
+    <div id="pp3" class="tab-p" style="display:none">
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Atividades puxadas do desenho final. Complemente tipo, descrição, responsável e etapa seguinte de cada uma.</div>
+      ${popAtivCards(p)}
     </div>
     <div class="btn-row">
       <button class="btn" onclick="visPopPreview()" style="margin-right:auto">👁 Pré-visualizar</button>
@@ -2893,7 +2890,27 @@ function salvarDetEtapas(){
 function salvarPOP(){
   const p=curProc;
   if(!p.form)p.form={pop_ok:false,pop:null,apresent:'',bpmnXml:null};
-  p.form.pop={area:document.getElementById('pp-area')?.value||'',ger:document.getElementById('pp-ger')?.value||'',mac:document.getElementById('pp-mac')?.value||'',obj:document.getElementById('pp-obj')?.value||'',def:document.getElementById('pp-def')?.value||'',ent:document.getElementById('pp-ent')?.value||'',sai:document.getElementById('pp-sai')?.value||'',ativ:document.getElementById('pp-ativ')?.value||'',ind:document.getElementById('pp-ind')?.value||'',docs:document.getElementById('pp-docs')?.value||''};
+  const etapas=p.mod?.etapas_proc||[];
+  const ativ_detalhes={};
+  etapas.forEach((_,i)=>{
+    ativ_detalhes[i]={
+      tipo:document.getElementById(`pop-at-tipo-${i}`)?.value||'Atividade',
+      desc:document.getElementById(`pop-at-desc-${i}`)?.value||'',
+      resp:document.getElementById(`pop-at-resp-${i}`)?.value||'',
+      prox:document.getElementById(`pop-at-prox-${i}`)?.value||'',
+    };
+  });
+  p.form.pop={
+    area:document.getElementById('pp-area')?.value||'',
+    ger:document.getElementById('pp-ger')?.value||'',
+    mac:document.getElementById('pp-mac')?.value||'',
+    obj:document.getElementById('pp-obj')?.value||'',
+    def:document.getElementById('pp-def')?.value||'',
+    ent:document.getElementById('pp-ent')?.value||'',
+    sai:document.getElementById('pp-sai')?.value||'',
+    docs:document.getElementById('pp-docs')?.value||'',
+    ativ_detalhes,
+  };
   p.form.pop_ok=true;
   av('pop','EP','POP construído no padrão CAGE');
 }
@@ -3242,6 +3259,37 @@ function gerarAtivPop(etapas){
   const grupos={};
   etapas.forEach(e=>{if(!grupos[e.executor])grupos[e.executor]=[];grupos[e.executor].push(e);});
   return Object.entries(grupos).map(([exec,ets])=>exec+'\n'+ets.map(e=>'- '+e.nome+(e.desc?' ('+e.desc+')':'')).join('\n')).join('\n\n');
+}
+function popAtivCards(p){
+  const etapas=p.mod?.etapas_proc||[];
+  const det=p.form?.pop?.ativ_detalhes||{};
+  if(!etapas.length) return '<div class="ib iba">Nenhuma etapa cadastrada na modelagem. Complete a etapa "Detalhamento de etapas" primeiro.</div>';
+  const TIPOS=['Atividade','Decisão','Observação','Evento'];
+  return etapas.map((e,i)=>{
+    const d=det[i]||{};
+    const tipo=d.tipo||e.tipo||'Atividade';
+    const desc=d.desc!==undefined?d.desc:(e.desc||'');
+    const resp=d.resp!==undefined?d.resp:(e.executor||'');
+    const prox=d.prox||'';
+    return `<div style="border:1px solid var(--bdr);border-left:3px solid var(--blue);border-radius:var(--r);padding:.7rem .9rem;margin-bottom:.6rem;background:var(--surf)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
+        <span style="font-size:10px;font-weight:700;color:var(--ink3);background:var(--bg2);border-radius:4px;padding:1px 7px;flex-shrink:0">${i+1}</span>
+        <strong style="font-size:13px;color:var(--ink)">${esc(e.nome||'(sem nome)')}</strong>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+        <div class="fg"><label class="fl" style="font-size:10px">Tipo</label>
+          <select class="fi" id="pop-at-tipo-${i}" style="font-size:12px">
+            ${TIPOS.map(t=>`<option ${tipo===t?'selected':''}>${t}</option>`).join('')}
+          </select></div>
+        <div class="fg"><label class="fl" style="font-size:10px">Responsável</label>
+          <input class="fi" id="pop-at-resp-${i}" value="${esc(resp)}" style="font-size:12px"></div>
+        <div class="fg" style="grid-column:span 2"><label class="fl" style="font-size:10px">Descrição</label>
+          <textarea class="fi" id="pop-at-desc-${i}" style="min-height:44px;font-size:12px">${esc(desc)}</textarea></div>
+        <div class="fg" style="grid-column:span 2"><label class="fl" style="font-size:10px">Etapa seguinte</label>
+          <input class="fi" id="pop-at-prox-${i}" value="${esc(prox)}" style="font-size:12px" placeholder="Nome da próxima etapa ou FIM"></div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ═══════════════════════════════════════════
@@ -5631,9 +5679,18 @@ function planoAno(){
   return parseInt(document.getElementById('plano-ano-sel')?.value)||new Date().getFullYear();
 }
 
+const PLANO_FIM_TRI = {T1:'-03-31',T2:'-06-30',T3:'-09-30',T4:'-12-31',Anual:'-12-31'};
 function planoStatusEfetivo(at){
+  // 1. Quantidade realizada >= prevista → concluída automaticamente
+  if(at.qt_prevista > 0 && (at.qt_realizada||0) >= at.qt_prevista) return 'concluida';
+  // 2. Status manual concluída
   if(at.status==='concluida') return 'concluida';
-  if(at.prazo && at.prazo < new Date().toISOString().split('T')[0]) return 'em_atraso';
+  const hoje = new Date().toISOString().split('T')[0];
+  // 3. Prazo individual ultrapassado
+  if(at.prazo && at.prazo < hoje) return 'em_atraso';
+  // 4. Data final do trimestre ultrapassada
+  const sufTri = PLANO_FIM_TRI[at.trimestre];
+  if(sufTri && at.ano && (`${at.ano}${sufTri}`) < hoje) return 'em_atraso';
   return at.status||'planejado';
 }
 
