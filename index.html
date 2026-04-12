@@ -1724,9 +1724,10 @@ function rDetalhe(){
   const idx=etIdx(p.etapa);
   const epUser=isEP();
   document.getElementById('det-prog').innerHTML=ETAPAS.map((e,i)=>{
-    const past=i<idx,cur=i===idx;
-    const clickable=past&&epUser;
-    return `<div class="prog-s ${past?'dn':cur?'da':''}" ${clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="Revisar: ${e.lb}"`:''}">
+    const past=i<idx,cur=i===idx,future=i>idx;
+    const clickable=epUser&&!cur;
+    const tip=past?`Ver etapa: ${e.lb}`:`Visualizar: ${e.lb}`;
+    return `<div class="prog-s ${past?'dn':cur?'da':''}" ${clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="${tip}"`:''}">
       <div class="prog-d ${past?'dn':cur?'da':''}">${past?'✓':(i+1)}</div>
       <div class="prog-l ${cur?'da':''}">${e.lb}</div>
     </div>`;
@@ -2509,9 +2510,11 @@ function rAcaoRetro(){
   const p=curProc,etId=epRetroEtapa;
   const ac=ACOES[etId];
   if(!ac)return;
+  const idxRetro=etIdx(etId),idxAtual=etIdx(p.etapa);
+  const isPast=idxRetro<idxAtual;
   document.getElementById('tab-acao').innerHTML=`
     <div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <span style="font-size:13px"><strong>Revisão retroativa:</strong> ${ac.titulo}</span>
+      <span style="font-size:13px">👁 <strong>Visualizando:</strong> ${ac.titulo}</span>
       <button class="btn" style="font-size:11px;padding:3px 8px;margin-left:auto" onclick="fecharRetro()">← Voltar à etapa atual</button>
     </div>
     <div class="card">
