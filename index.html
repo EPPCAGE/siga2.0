@@ -2659,9 +2659,9 @@ function salvarRetroativo(etId){
     },
     desenho_final:()=>{
       p.form=p.form||{};
-      p.form.link_final=document.getElementById('a-link')?.value||p.form.link_final;
-      p.form.ferramenta=document.getElementById('a-ferr')?.value||p.form.ferramenta;
-      p.form.obs_final=document.getElementById('a-obs')?.value||p.form.obs_final;
+      p.form.link_final=document.getElementById('a-link')?.value||p.form.link_final||'';
+      p.form.ferramenta=document.getElementById('a-ferr')?.value||p.form.ferramenta||'';
+      p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
     },
     complement:()=>{
       p.form=p.form||{};
@@ -4179,7 +4179,7 @@ function vincularDesenhoFinalArq(){
 function salvarDesenhoFinal(){
   const p=curProc; if(!p) return;
   p.form=p.form||{};
-  p.form.obs_final=document.getElementById('a-obs')?.value||p.form.obs_final;
+  p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
   av('desenho_final','EP','Desenho final concluído',null,p.pat);
 }
 
