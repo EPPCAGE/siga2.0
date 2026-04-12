@@ -5358,7 +5358,7 @@ function salvarUsr(){
   }
   document.getElementById('usr-modal').style.display = 'none';
   renderAdmin();
-  fbAutoSave('salvarUsr');
+  fbSaveAll();
   toast('Usuário salvo');
 }
 
@@ -5370,7 +5370,7 @@ function deletarUsr(){
   USUARIOS.splice(idx,1);
   document.getElementById('usr-modal').style.display = 'none';
   renderAdmin();
-  fbAutoSave('deletarUsr');
+  fbSaveAll();
   toast('Usuário removido','var(--amber)');
 }
 
