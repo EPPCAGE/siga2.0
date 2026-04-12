@@ -883,13 +883,12 @@ const ETAPAS = [
   {id:'publicacao',lb:'Publicação',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   // Operação
   {id:'acompanha',lb:'Acompanhamento',fase:'Operacao',cor:'pip-o',resp:'ep'},
-  {id:'monitora',lb:'Monitoramento KPIs',fase:'Operacao',cor:'pip-o',resp:'ep'},
   // Auditoria
   {id:'auditoria',lb:'Auditoria do processo',fase:'Auditoria',cor:'pip-a',resp:'ep'},
 ];
 const FASES = ['Entendimento','Modelagem','Formalizacao','Operacao','Auditoria'];
 const FASE_COR = {Entendimento:'bt',Modelagem:'bp',Formalizacao:'ba',Operacao:'bb',Auditoria:'br'};
-const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',mapeamento:'bt',esboco:'bp',det_etapas:'bp',analise_asis:'bp',valid_dono:'bp',desenho_final:'ba',aprovacao:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',monitora:'bb',auditoria:'br'};
+const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',mapeamento:'bt',esboco:'bp',det_etapas:'bp',analise_asis:'bp',valid_dono:'bp',desenho_final:'ba',aprovacao:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
 
 function etIdx(id){return ETAPAS.findIndex(e=>e.id===id);}
 function etFase(id){return ETAPAS.find(e=>e.id===id)?.fase||'';}
@@ -1200,7 +1199,7 @@ function rListaAptosAuditoria(){
   // Processos aptos = mapeados na arquitetura E não em auditoria ativa
   const aptos=processos.filter(p=>{
     if(p.etapa==='auditoria') return false; // já em auditoria ativa
-    const mapped=p.arq_id?isMapeado(p.arq_id):['publicacao','acompanha','monitora'].includes(p.etapa);
+    const mapped=p.arq_id?isMapeado(p.arq_id):['publicacao','acompanha'].includes(p.etapa);
     if(!mapped) return false;
     if(srch){
       const hay=[p.nome,p.area,p.macro,p.dono].join(' ').toLowerCase();
@@ -1990,14 +1989,8 @@ const ACOES = {
     <div class="fg"><label class="fl">Desvios / ações corretivas</label><textarea class="fi" id="a-desv" style="min-height:70px" placeholder="Descreva desvios identificados..."></textarea></div>
     <div class="btn-row">
       <button class="btn" onclick="av('acompanha','EP','Verificação registrada — processo em acompanhamento')">Registrar verificação</button>
-      <button class="btn btn-p" onclick="av('acompanha','EP','Acompanhamento concluído — entrando em monitoramento')">Concluir acompanhamento →</button>
+      <button class="btn btn-p" onclick="av('acompanha','EP','Acompanhamento concluído — encaminhando para auditoria')">Concluir acompanhamento →</button>
     </div>`},
-
-  monitora:{titulo:'Monitoramento contínuo de KPIs',sub:'Processo em operação. Acompanhar indicadores.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibg">Processo em operação ativa. Importe medições e registre melhorias contínuas.</div>
-    <button class="btn btn-p" onclick="go('indicadores',document.getElementById('nb-ind'))" style="margin-right:8px">Ver indicadores →</button>
-    <button class="btn" onclick="novaMelh()">+ Nova melhoria</button>
-    <div class="btn-row"><button class="btn" onclick="av('monitora','EP','Encaminhado para auditoria do processo')">Iniciar auditoria →</button></div>`},
 
   auditoria:{titulo:'Auditoria do processo',sub:'Verificação sistemática da conformidade, desempenho e melhorias implementadas.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibr">Auditoria formal do processo. Avalie execução, documentação, indicadores e conformidade.</div>
@@ -3434,7 +3427,7 @@ function getUnidadesMapeaveis(){
 function isMapeado(arqId){
   if(mapeadosManual.has(arqId)) return true;
   const proc=processos.find(p=>p.arq_id===arqId);
-  return proc ? ['publicacao','acompanha','monitora','auditoria'].includes(proc.etapa) : false;
+  return proc ? ['publicacao','acompanha','auditoria'].includes(proc.etapa) : false;
 }
 function toggleMapeadoManual(arqId,ev){
   ev&&ev.stopPropagation();
