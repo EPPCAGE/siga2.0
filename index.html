@@ -4423,12 +4423,10 @@ const AI_FUNCTION_URL = 'https://ai-kvhsbvnxhq-uc.a.run.app';
 
 async function chamarIA(mode, payload, targetEl){
   if(!targetEl) return null;
-
-  // Show loading
+  const url = localStorage.getItem('epcage_ai_url') || AI_FUNCTION_URL;
   targetEl.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA analisando...</div>';
-
   try {
-    const resp = await fetch(AI_FUNCTION_URL, {
+    const resp = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({mode, payload}),
@@ -4699,7 +4697,7 @@ function injectAiConfigField(){
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <input class="fi" id="ai-fn-url" placeholder="https://ai-XXXXXXXX-uc.a.run.app"
-        value="${AI_FUNCTION_URL !== 'https://ai-XXXXXXXX-uc.a.run.app' ? AI_FUNCTION_URL : ''}"
+        value="${localStorage.getItem('epcage_ai_url') || AI_FUNCTION_URL}"
         style="flex:1">
       <button class="btn btn-p" onclick="salvarAiUrl()" style="font-size:12px">Salvar URL</button>
     </div>`;
@@ -4715,13 +4713,6 @@ function salvarAiUrl(){
   toast('URL da IA salva');
 }
 
-// Override chamarIA to use runtime URL if set
-const _origChamarIA = chamarIA;
-chamarIA = async function(mode, payload, targetEl){
-  const url = window._aiUrl || localStorage.getItem('epcage_ai_url') || AI_FUNCTION_URL;
-  window._aiUrl = url;
-  return _origChamarIA(mode, payload, targetEl);
-};
 
 // Patch rNotif to inject AI config field
 const _origRNotif = rNotif;
