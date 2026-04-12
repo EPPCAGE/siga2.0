@@ -2932,16 +2932,16 @@ function etapasToMermaid(etapas){
         if(sub==='Início') lines.push(`  ${id}([▶ ${lbl}])`);
         else if(sub==='Fim')  lines.push(`  ${id}([■ ${lbl}])`);
         else                  lines.push(`  ${id}((${lbl}))`);
-        lines.push(`  style ${id} fill:var(--green-l),stroke:var(--green),color:#1a3d2b`);
+        lines.push(`  style ${id} fill:#d1fae5,stroke:#16a34a,color:#14532d`);
       } else if(e.tipo==='Decisao'){
         lines.push(`  ${id}{${lbl}}`);
-        lines.push(`  style ${id} fill:var(--amber-l),stroke:var(--amber),color:#4a2d00`);
+        lines.push(`  style ${id} fill:#fef3c7,stroke:#d97706,color:#78350f`);
       } else if(e.tipo==='Comentario'){
         lines.push(`  ${id}[/${lbl}/]`);
-        lines.push(`  style ${id} fill:var(--bg3),stroke:var(--bdr),color:var(--ink3)`);
+        lines.push(`  style ${id} fill:#f3f4f6,stroke:#d1d5db,color:#6b7280`);
       } else {
         lines.push(`  ${id}[${lbl}]`);
-        lines.push(`  style ${id} fill:var(--blue-l),stroke:var(--blue),color:#0a2540`);
+        lines.push(`  style ${id} fill:#dbeafe,stroke:#2563eb,color:#1e3a5f`);
       }
       if(prevId!==null) lines.push(`  ${prevId} --> ${id}`);
 
