@@ -349,10 +349,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><rect x="6" y="1" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1" y="6" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="11" y="6" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="6" y="11" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M8 4v2M8 9v2M3 9v1a1 1 0 001 1h4M13 9v1a1 1 0 01-1 1H8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
     Arquitetura
   </button>
-  <button class="nav-btn" onclick="go('melhorias',this)" id="nb-melh">
-    <svg viewBox="0 0 16 16" fill="none"><path d="M2 12l4-4 3 3 5-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    Melhorias <span class="nav-cnt hot" id="nb-mc">0</span>
-  </button>
   <button class="nav-btn" onclick="go('indicadores',this)" id="nb-ind">
     <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="3" height="7" rx="1" fill="currentColor" opacity=".5"/><rect x="6" y="5" width="3" height="10" rx="1" fill="currentColor"/><rect x="11" y="2" width="3" height="13" rx="1" fill="currentColor" opacity=".7"/></svg>
     Indicadores
@@ -403,9 +399,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="btn-novo-proc-dash"></div></div>
   <div class="stats" id="dash-stats"></div>
   <div class="card" style="margin-bottom:1rem"><div class="card-t">Pipeline por fase</div><div class="pipeline-phases" id="dash-pipe"></div></div>
-  <div class="g2" style="gap:12px">
+  <div style="gap:12px">
     <div><div class="card-t" style="margin-bottom:.6rem">Aguardando ação</div><div id="dash-pend"></div></div>
-    <div><div class="card-t" style="margin-bottom:.6rem">Melhorias em aberto</div><div id="dash-melh"></div></div>
   </div>
 </div></div>
 
@@ -544,45 +539,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
   <div class="ib ibb" id="arq-import-hint">Colunas esperadas na planilha: <strong>macroprocesso, processo, subprocesso, natureza, gerente_processo, area, objetivo_processo, objetivo_estrategico, entradas, entregas, clientes, documentacoes</strong></div>
   <div id="arq-content"></div>
-</div></div>
-
-<div id="page-melhorias" class="page"><div style="padding:2rem">
-  <div class="ph">
-    <div><div class="ph-t">Melhorias</div><div class="ph-s" id="melh-sub">Oportunidades identificadas no mapeamento</div></div>
-    <button class="btn btn-p ep-only" onclick="novaMelh()">+ Registrar</button>
-  </div>
-  <div class="fbar" style="flex-direction:column;align-items:stretch;gap:10px">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span class="fbar-l">Processo</span>
-      <select class="fi" id="melh-proc-sel" onchange="rMelh()" style="max-width:360px">
-        <option value="">Todos os processos</option>
-      </select>
-      <button class="btn ep-only" onclick="novaMelh()" style="margin-left:auto;font-size:12px">+ Registrar melhoria</button>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span class="fbar-l">Status</span>
-      <div class="chips" id="melh-chips">
-        <span class="chip on" onclick="filtMelh('',this)">Todos</span>
-        <span class="chip" onclick="filtMelh('Identificada',this)">Identificada</span>
-        <span class="chip" onclick="filtMelh('Em analise',this)">Em análise</span>
-        <span class="chip" onclick="filtMelh('Em execucao',this)">Em execução</span>
-        <span class="chip" onclick="filtMelh('Concluida',this)">Concluída</span>
-      </div>
-      <span class="fbar-l" style="margin-left:8px">Tipo</span>
-      <select class="fi" id="melh-tipo-sel" onchange="rMelh()" style="max-width:200px">
-        <option value="">Todos os tipos</option>
-        <option>Automação</option>
-        <option>Padronização</option>
-        <option>Eliminação de retrabalho</option>
-        <option>Controle</option>
-        <option>Identificada na análise AS IS</option>
-        <option>Identificada no esboço</option>
-        <option>Melhoria contínua</option>
-      </select>
-    </div>
-  </div>
-  <div id="melh-summary" style="margin-bottom:.8rem"></div>
-  <div id="melh-list"></div>
 </div></div>
 
 <div id="page-indicadores" class="page"><div style="padding:2rem">
@@ -1163,9 +1119,6 @@ function safeUrl(url){
 let processos = [];
 let nextProcId = 1;
 
-let melhorias = [];
-let nextMid = 1;
-
 let kpis = [];
 
 let publicacoes = [];
@@ -1243,7 +1196,7 @@ function go(page,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+page).classList.add('on');
   if(btn)btn.classList.add('on');
-  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,melhorias:()=>{populateMelhSel();rMelh();},indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano}[page]||function(){})();
+  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano}[page]||function(){})();
 }
 function stab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -1272,7 +1225,6 @@ function mBadge(s){return '<span class="badge '+({Identificada:'bsl','Em analise
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.length;
   document.getElementById('nb-pend').textContent=processos.filter(p=>['valid_dono','aprovacao','complement','apresentacao'].includes(p.etapa)).length;
-  document.getElementById('nb-mc').textContent=melhorias.filter(m=>m.status!=='Concluida').length;
   document.getElementById('nb-fila-cnt').textContent=getTarefasUsr().length;
   document.getElementById('nb-notif-cnt').textContent=notifs.filter(n=>!n.lida).length;
   const audCnt=processos.filter(p=>p.etapa==='auditoria'||(p.auditoria?.concluida===true)).length;
@@ -1643,8 +1595,6 @@ function rDash(){
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
   const pend=processos.filter(p=>['valid_dono','aprovacao','complement','apresentacao'].includes(p.etapa));
   document.getElementById('dash-pend').innerHTML=buildPendentesHTML(pend);
-  const ma=melhorias.filter(m=>m.status!=='Concluida').slice(0,4);
-  document.getElementById('dash-melh').innerHTML=buildMelhoriasHTML(ma);
 }
 function filtEtapaGo(etId){filtFaseAtual='';document.querySelectorAll('#fase-chips .chip').forEach((c,i)=>c.classList.toggle('on',i===0));go('processos',document.getElementById('nb-proc'));}
 
@@ -1663,11 +1613,6 @@ function buildPendentesHTML(pend){
   if(!pend.length) return '<div class="ib ibg">Nenhuma aprovação pendente.</div>';
   return pend.map(p=>`<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:7px"><div><div class="prc-t">${esc(p.nome)}</div><div class="prc-m">${esc(p.dono)}</div></div><div>${eBadge(p.etapa)}</div></div>`).join('');
 }
-function buildMelhoriasHTML(ma){
-  if(!ma.length) return '<div class="ib ibg">Nenhuma melhoria pendente.</div>';
-  return ma.map(m=>`<div class="prc" onclick="go('melhorias',document.getElementById('nb-melh'))" style="margin-bottom:7px"><div><div class="prc-t">${esc(m.titulo)}</div><div class="prc-m"><strong>${esc(m.pnome)}</strong> · ${esc(m.resp)}</div></div><div>${mBadge(m.status)}</div></div>`).join('');
-}
-
 // ═══════════════════════════════════════════
 // LISTA DE PROCESSOS
 // ═══════════════════════════════════════════
@@ -2118,9 +2063,6 @@ const ACOES = {
     <div id="sm-tobe" class="tab-p" style="display:none">
       <div class="fg"><label class="fl">Descrição TO BE</label><textarea class="fi" id="e-tobe" style="min-height:80px" placeholder="Como o processo deve funcionar...">${p.mod.toBe||''}</textarea></div>
       ${bpmnEditorHTML('tobe', p.mod.bpmnToBe)}
-    </div>
-    <div class="fg" style="margin-top:.8rem"><label class="fl">Oportunidades de melhoria identificadas (uma por linha)</label>
-      <textarea class="fi" id="e-oport" style="min-height:60px" placeholder="Serão criadas automaticamente no módulo de melhorias"></textarea>
     </div>
     <div class="btn-row"><button class="btn btn-p" onclick="salvarEsboco()">Encaminhar para detalhamento de etapas →</button></div>`},
 
@@ -2705,17 +2647,10 @@ async function gerarAnaliseIA(){
     try{
       const json=JSON.parse(result);
       p.ent.analise.ia_resultado=json;
-      // Populate legacy fields for auto-create of melhorias
       if(json.gargalos)p.ent.analise.gargalos=json.gargalos;
       if(json.retrabalhos)p.ent.analise.retrabalhos=json.retrabalhos;
       if(json.gaps)p.ent.analise.gaps=json.gaps;
-      if(json.oportunidades){
-        p.ent.analise.oportunidades=json.oportunidades;
-        json.oportunidades.forEach(o=>{
-          if(!melhorias.find(m=>m.titulo===o&&m.pid===p.id))
-            melhorias.push({id:nextMid++,pid:p.id,pnome:p.nome,titulo:o,tipo:'Identificada na análise AS IS',status:'Identificada',resp:p.resp_ep,prazo:'',desc:''});
-        });
-      }
+      if(json.oportunidades)p.ent.analise.oportunidades=json.oportunidades;
       if(json.complexidade)p.ent.analise.complexidade=json.complexidade;
       fbAutoSave('salvar');
       rDetalhe();
@@ -2733,8 +2668,6 @@ function salvarEsboco(){
   if(mAs){mAs.saveXML({format:true}).then(({xml})=>{p.mod.bpmnAsIs=xml;}).catch(e=>console.warn('bpmn saveXML asis:',e.message));}
   const mTo=bpmnModelers['tobe'];
   if(mTo){mTo.saveXML({format:true}).then(({xml})=>{p.mod.bpmnToBe=xml;}).catch(e=>console.warn('bpmn saveXML tobe:',e.message));}
-  const op=(document.getElementById('e-oport')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  op.forEach(o=>{if(!melhorias.find(m=>m.titulo===o&&m.pid===p.id))melhorias.push({id:nextMid++,pid:p.id,pnome:p.nome,titulo:o,tipo:'Identificada no esboço',status:'Identificada',resp:p.resp_ep,prazo:'',desc:''});});
   av('esboco','EP','Esboço AS IS/TO BE elaborado com BPMN');
 }
 function salvarDetEtapas(){
@@ -4395,13 +4328,6 @@ function importarArqExcel(input){
   reader.readAsArrayBuffer(file);
 }
 
-// ═══════════════════════════════════════════
-// MELHORIAS
-// ═══════════════════════════════════════════
-let filtMelhStatus = '';
-let filtMelhDir = '';
-
-
 // Retorna lista plana de todas as unidades mapeáveis da arquitetura
 function getUnidadesMapeaveis(){
   const lista = [];
@@ -4519,157 +4445,6 @@ function isMeuProcesso(arq_id){
   const vinculos = usuarioLogado.processos_vinculados||[];
   return vinculos.includes(arq_id);
 }
-function populateMelhSel(){
-  const sel = document.getElementById('melh-proc-sel');
-  if(!sel) return;
-  const cur = sel.value;
-  const units = getMinhasUnidades(); // dono vê só os seus; EP vê todos
-  sel.innerHTML = '<option value="">Todos os meus processos</option>' +
-    units.map(u=>`<option value="${u.arq_id}" ${cur===u.arq_id?'selected':''}>${u.label}</option>`).join('');
-}
-
-function filtMelh(s, el){
-  filtMelhStatus = s;
-  document.querySelectorAll('#melh-chips .chip').forEach(c=>c.classList.remove('on'));
-  el.classList.add('on');
-  rMelh();
-}
-
-function rMelh(){
-  populateMelhSel();
-  const arqSel = document.getElementById('melh-proc-sel')?.value||'';
-  const tipo = document.getElementById('melh-tipo-sel')?.value||'';
-  // Match by arq_id (string) or by linked proc id
-  const matchProc = (m) => {
-    if(!arqSel) return true;
-    if(m.arq_id === arqSel) return true;
-    // legacy: melhorias stored with pid (numeric proc id)
-    const proc = processos.find(p=>p.id===m.pid);
-    if(proc && proc.arq_id === arqSel) return true;
-    return false;
-  };
-  const lista = melhorias.filter(m=>
-    matchProc(m) &&
-    (!filtMelhStatus || m.status===filtMelhStatus) &&
-    (!tipo || m.tipo===tipo)
-  );
-
-  // Summary bar
-  const counts = {Identificada:0,'Em analise':0,'Em execucao':0,Concluida:0};
-  lista.forEach(m=>{ if(counts[m.status]!==undefined) counts[m.status]++; });
-  const total = lista.length;
-  const sumEl = document.getElementById('melh-summary');
-  if(sumEl && total > 0){
-    sumEl.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:12px;color:var(--ink3)">${total} melhoria${total!==1?'s':''}</span>
-      ${Object.entries(counts).filter(([,v])=>v>0).map(([s,v])=>`<span class="badge ${{'Identificada':'bsl','Em analise':'bp','Em execucao':'bb',Concluida:'bg'}[s]||'bgr'}">${v} ${s}</span>`).join('')}
-    </div>`;
-  } else if(sumEl){ sumEl.innerHTML=''; }
-
-  // Update page subtitle
-  const selUnit = arqSel ? getUnidadesMapeaveis().find(u=>u.arq_id===arqSel) : null;
-  const subEl = document.getElementById('melh-sub');
-  if(subEl) subEl.textContent = selUnit ? selUnit.nome : 'Todos os processos';
-
-  const el = document.getElementById('melh-list');
-  if(!lista.length){ el.innerHTML='<div class="ib ibg">Nenhuma melhoria com os filtros selecionados.</div>'; updCounts(); return; }
-
-  el.innerHTML = lista.map(m=>`
-    <div class="prc" style="margin-bottom:8px">
-      <div>
-        <div class="prc-t">${m.titulo}</div>
-        <div class="prc-m" style="margin-top:4px">
-          <strong>${m.pnome}</strong>
-          <span style="color:var(--bdr2)">·</span>
-          <span class="badge bgr" style="font-size:10px">${m.tipo}</span>
-          <span style="color:var(--bdr2)">·</span> ${m.resp}
-          ${m.prazo ? `<span style="color:var(--bdr2)">·</span> <span style="color:var(--amber);font-weight:500">Prazo: ${m.prazo.split('-').reverse().join('/')}</span>` : ''}
-        </div>
-        ${m.desc ? `<div style="font-size:12px;color:var(--ink3);margin-top:4px">${m.desc}</div>` : ''}
-      </div>
-      <div class="prc-r">
-        ${mBadge(m.status)}
-        <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
-          ${m.status!=='Concluida' ? ['Em analise','Em execucao','Concluida'].filter(st=>st!==m.status).map(st=>`<button class="btn" style="font-size:10px;padding:2px 7px" onclick="updM(${m.id},'${st}')">${st}</button>`).join('') : '<span style="font-size:11px;color:var(--green)">✓ Concluída</span>'}
-        </div>
-        <button class="btn" style="font-size:10px;padding:2px 7px;margin-top:4px" onclick="editMelh(${m.id})">✎ Editar</button>
-      </div>
-    </div>`).join('');
-  updCounts();
-}
-
-function updM(id, s){ const m=melhorias.find(m=>m.id===id); if(m){m.status=s; rMelh(); fbAutoSave('updM');} }
-
-function editMelh(id){
-  const m = melhorias.find(x=>x.id===id);
-  if(!m) return;
-  document.getElementById('melh-edit-modal')?.remove();
-  const modal = document.createElement('div');
-  modal.id = 'melh-edit-modal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem';
-  modal.innerHTML = `<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:520px;box-shadow:var(--sh2)">
-    <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem">Editar melhoria</div>
-    <div class="fg"><label class="fl">Título</label><input class="fi" id="em-titulo" value="${m.titulo}"></div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Tipo</label>
-        <select class="fi" id="em-tipo">
-          ${['Automação','Padronização','Eliminação de retrabalho','Controle','Identificada na análise AS IS','Identificada no esboço','Melhoria contínua'].map(t=>`<option ${m.tipo===t?'selected':''}>${t}</option>`).join('')}
-        </select>
-      </div>
-      <div class="fg"><label class="fl">Status</label>
-        <select class="fi" id="em-status">
-          ${['Identificada','Em analise','Em execucao','Concluida'].map(s=>`<option ${m.status===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Responsável</label><input class="fi" id="em-resp" value="${m.resp||''}"></div>
-      <div class="fg"><label class="fl">Prazo</label><input class="fi" id="em-prazo" type="date" value="${m.prazo||''}"></div>
-    </div>
-    <div class="fg"><label class="fl">Descrição</label><textarea class="fi" id="em-desc" style="min-height:60px">${m.desc||''}</textarea></div>
-    <div class="btn-row">
-      <button class="btn btn-r" style="margin-right:auto" onclick="deleteMelh(${m.id})">Remover</button>
-      <button class="btn" onclick="document.getElementById('melh-edit-modal').remove()">Cancelar</button>
-      <button class="btn btn-p" onclick="salvarEditMelh(${m.id})">Salvar</button>
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
-}
-
-function salvarEditMelh(id){
-  const m = melhorias.find(x=>x.id===id);
-  if(!m) return;
-  m.titulo = document.getElementById('em-titulo').value.trim() || m.titulo;
-  m.tipo   = document.getElementById('em-tipo').value;
-  m.status = document.getElementById('em-status').value;
-  m.resp   = document.getElementById('em-resp').value.trim();
-  m.prazo  = document.getElementById('em-prazo').value;
-  m.desc   = document.getElementById('em-desc').value.trim();
-  document.getElementById('melh-edit-modal').remove();
-  fbAutoSave('salvarMelh');
-  rMelh(); toast('Melhoria atualizada');
-}
-
-function deleteMelh(id){
-  if(!confirm('Remover esta melhoria?')) return;
-  melhorias = melhorias.filter(m=>m.id!==id);
-  document.getElementById('melh-edit-modal')?.remove();
-  rMelh();
-}
-
-function novaMelh(){
-  if(!isEP()){alert('Ação restrita ao Escritório de Processos.');return;}
-  // Open the edit modal with a new item pre-linked to curProc if in detail view
-  const arqSelM = document.getElementById('melh-proc-sel')?.value || curProc?.arq_id || '';
-  const unit = arqSelM ? getUnidadesMapeaveis().find(u=>u.arq_id===arqSelM) : null;
-  const pnome = unit?.nome || curProc?.nome || 'Geral';
-  const pid = unit?.proc?.id || curProc?.id || 0;
-  const m = {id:nextMid++, arq_id:arqSelM, pid, pnome, titulo:'', tipo:'Melhoria contínua', status:'Identificada', resp:usuarioLogado?.nome||'EP', prazo:'', desc:''};
-  melhorias.push(m);
-  editMelh(m.id);
-}
-
 // ═══════════════════════════════════════════
 // INDICADORES — estrutura real da planilha
 // Colunas: Área, Indicador, Enunciado, Descrição, Periodicidade,
@@ -5454,7 +5229,6 @@ function fb(){ return window._fb; }
 // ── SAVE ──────────────────────────────────
 // Each collection stores one document per logical "table"
 // processos   → doc per process id
-// melhorias   → doc per melhoria id
 // kpis        → doc per kpi id
 // arquitetura → single doc "all"
 // usuarios    → single doc "all"
@@ -5855,7 +5629,6 @@ async function fbSaveAll(){
     // Collect all set operations
     const ops = [];
     processos.forEach(p => ops.push({ref: doc(db,'processos',String(p.id)), data: p}));
-    melhorias.forEach(m => ops.push({ref: doc(db,'melhorias',String(m.id)), data: m}));
     kpis.forEach(k => ops.push({ref: doc(db,'kpis',String(k.id)), data: k}));
     publicacoes.forEach(p => ops.push({ref: doc(db,'publicacoes',String(p.id)), data: p}));
     plano.forEach(a => ops.push({ref: doc(db,'plano',String(a.id)), data: a}));
@@ -5893,14 +5666,6 @@ async function fbLoad(){
       // Sync etapasIdC so new etapa IDs never collide with existing ones
       const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>parseInt(String(e.id||'').replace('ep',''))||0));
       if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
-    }
-
-    // melhorias
-    const mSnap = await getDocs(collection(db,'melhorias'));
-    if(!mSnap.empty){
-      melhorias = [];
-      mSnap.forEach(d => melhorias.push(d.data()));
-      nextMid = Math.max(...melhorias.map(m=>m.id), 0) + 1;
     }
 
     // kpis
