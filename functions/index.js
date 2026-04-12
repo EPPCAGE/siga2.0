@@ -1,7 +1,19 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
+const ALLOWED_ORIGINS = [
+  "https://eppcage.github.io",
+  "http://localhost:3000",
+  "http://localhost:5000",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5000",
+];
 const corsMiddleware = require("cors")({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, same-origin server calls)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error("CORS: origin not allowed"));
+  },
   methods: ["POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"]
 });
@@ -71,7 +83,7 @@ exports.ai = onRequest(
         if (!resp.ok) {
           const err = await resp.text();
           console.error("Azure error:", err);
-          res.status(502).json({ error: "Erro na API Azure OpenAI", detail: err });
+          res.status(502).json({ error: "Erro na API Azure OpenAI" });
           return;
         }
 
@@ -81,7 +93,7 @@ exports.ai = onRequest(
 
       } catch (e) {
         console.error("Function error:", e);
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ error: "Erro interno ao processar a requisição." });
       }
     });
   }

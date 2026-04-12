@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.emailjs.com https://*.a.run.app; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'">
 <title>EP·CAGE — Gestão de Processos v2</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css">
@@ -1007,6 +1008,27 @@ const QUESTOES = [
 ];
 const LIKERT = ['Nunca','Raramente','Às vezes','Frequentemente','Sempre'];
 
+// ── SECURITY HELPERS ─────────────────────────
+// HTML-escape user-supplied content before inserting into innerHTML
+function esc(s){
+  if(s==null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+// Allow only http/https URLs; return empty string for anything else (blocks javascript: etc.)
+function safeUrl(u){
+  if(!u) return '';
+  try {
+    const parsed = new URL(u);
+    if(parsed.protocol === 'https:' || parsed.protocol === 'http:') return u;
+  } catch(e){}
+  return '';
+}
+
 let processos = [];
 let nextProcId = 1;
 
@@ -1244,8 +1266,8 @@ function rNotif(){
     <div class="notif-item ${n.lida?'':''}">
       <div class="notif-dot" style="${n.lida?'background:var(--bdr2)':''}"></div>
       <div style="flex:1">
-        <div style="font-weight:500">${n.acao}</div>
-        <div style="color:var(--ink3)">Para: ${n.para} · Processo: ${n.proc_nome} · Prazo: ${n.prazo||'—'} · ${n.data}</div>
+        <div style="font-weight:500">${esc(n.acao)}</div>
+        <div style="color:var(--ink3)">Para: ${esc(n.para)} · Processo: ${esc(n.proc_nome)} · Prazo: ${esc(n.prazo||'—')} · ${esc(n.data)}</div>
         ${!n.lida?'<button class="btn" style="font-size:10px;padding:2px 7px;margin-top:3px" onclick="marcarLida('+n.id+')">Marcar como lida</button>':''}
       </div>
     </div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma notificação.</div>';
@@ -1306,12 +1328,12 @@ function rListaAptosAuditoria(){
   el.innerHTML=aptos.map(p=>`
     <div class="prc" style="margin-bottom:8px;cursor:pointer" onclick="iniciarNovaAuditoria(${p.id})">
       <div style="flex:1">
-        <div class="prc-t">${p.nome}</div>
-        <div class="prc-m"><strong>${p.macro||'—'}</strong> · ${p.area||'—'} · Dono: ${p.dono||'—'}</div>
+        <div class="prc-t">${esc(p.nome)}</div>
+        <div class="prc-m"><strong>${esc(p.macro||'—')}</strong> · ${esc(p.area||'—')} · Dono: ${esc(p.dono||'—')}</div>
         <div style="font-size:11px;color:var(--ink3);margin-top:2px">
           <span class="badge bg" style="font-size:9px">Mapeado</span>
           &nbsp;Etapa atual: <strong>${etLb(p.etapa)}</strong>
-          ${p.auditoria?.data?`&nbsp;· Última auditoria: ${p.auditoria.data}`:''}
+          ${p.auditoria?.data?`&nbsp;· Última auditoria: ${esc(p.auditoria.data)}`:''}
         </div>
       </div>
       <button class="btn btn-p" style="font-size:11px;padding:4px 12px" onclick="event.stopPropagation();iniciarNovaAuditoria(${p.id})">Iniciar auditoria →</button>
@@ -1350,10 +1372,10 @@ function rAuditoria(){
     const concluida=aud.concluida===true;
     return `<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})" style="margin-bottom:8px">
       <div style="flex:1">
-        <div class="prc-t">${p.nome}</div>
-        <div class="prc-m"><strong>${p.macro}</strong> · ${p.area} · Dono: ${p.dono}</div>
-        ${aud.data?`<div style="font-size:11px;color:var(--ink3);margin-top:3px">Auditoria: ${aud.data}${aud.conformidade?' · '+aud.conformidade:''}</div>`:''}
-        ${aud.conclusao?`<div style="font-size:11px;color:var(--ink3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px">${aud.conclusao}</div>`:''}
+        <div class="prc-t">${esc(p.nome)}</div>
+        <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: ${esc(p.dono)}</div>
+        ${aud.data?`<div style="font-size:11px;color:var(--ink3);margin-top:3px">Auditoria: ${esc(aud.data)}${aud.conformidade?' · '+esc(aud.conformidade):''}</div>`:''}
+        ${aud.conclusao?`<div style="font-size:11px;color:var(--ink3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px">${esc(aud.conclusao)}</div>`:''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
         <span class="badge ${concluida?'bg':'ba'}">${concluida?'Concluída':'Em andamento'}</span>
@@ -1418,9 +1440,9 @@ function rMeusProc(){
 }
 function taskCard(p,ACT){
   return `<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})" style="margin-bottom:8px">
-    <div><div class="prc-t">${p.nome}</div>
-    <div style="font-size:12px;color:var(--ink3);margin-top:3px">${ACT[p.etapa]||p.etapa}</div>
-    <div class="prc-m" style="margin-top:4px"><strong>${p.macro}</strong> · ${p.area}</div></div>
+    <div><div class="prc-t">${esc(p.nome)}</div>
+    <div style="font-size:12px;color:var(--ink3);margin-top:3px">${esc(ACT[p.etapa]||p.etapa)}</div>
+    <div class="prc-m" style="margin-top:4px"><strong>${esc(p.macro)}</strong> · ${esc(p.area)}</div></div>
     <div class="prc-r">${eBadge(p.etapa)}${pBadge(p.prio)}</div>
   </div>`;
 }
@@ -1501,9 +1523,9 @@ function rDash(){
       </div>`).join('')}
     </div></div>`).join('');
   const pend=processos.filter(p=>['valid_dono','aprovacao','complement','apresentacao'].includes(p.etapa));
-  document.getElementById('dash-pend').innerHTML=pend.length?pend.map(p=>`<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:7px"><div><div class="prc-t">${p.nome}</div><div class="prc-m">${p.dono}</div></div><div>${eBadge(p.etapa)}</div></div>`).join(''):'<div class="ib ibg">Nenhuma aprovação pendente.</div>';
+  document.getElementById('dash-pend').innerHTML=pend.length?pend.map(p=>`<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:7px"><div><div class="prc-t">${esc(p.nome)}</div><div class="prc-m">${esc(p.dono)}</div></div><div>${eBadge(p.etapa)}</div></div>`).join(''):'<div class="ib ibg">Nenhuma aprovação pendente.</div>';
   const ma=melhorias.filter(m=>m.status!=='Concluida').slice(0,4);
-  document.getElementById('dash-melh').innerHTML=ma.length?ma.map(m=>`<div class="prc" onclick="go('melhorias',document.getElementById('nb-melh'))" style="margin-bottom:7px"><div><div class="prc-t">${m.titulo}</div><div class="prc-m"><strong>${m.pnome}</strong> · ${m.resp}</div></div><div>${mBadge(m.status)}</div></div>`).join(''):'<div class="ib ibg">Nenhuma melhoria pendente.</div>';
+  document.getElementById('dash-melh').innerHTML=ma.length?ma.map(m=>`<div class="prc" onclick="go('melhorias',document.getElementById('nb-melh'))" style="margin-bottom:7px"><div><div class="prc-t">${esc(m.titulo)}</div><div class="prc-m"><strong>${esc(m.pnome)}</strong> · ${esc(m.resp)}</div></div><div>${mBadge(m.status)}</div></div>`).join(''):'<div class="ib ibg">Nenhuma melhoria pendente.</div>';
 }
 function filtEtapaGo(etId){filtFaseAtual='';document.querySelectorAll('#fase-chips .chip').forEach((c,i)=>c.classList.toggle('on',i===0));go('processos',document.getElementById('nb-proc'));}
 
@@ -1523,8 +1545,8 @@ function renderProcs(){
   if(!lista.length){el.innerHTML='';em.style.display='block';return;}
   em.style.display='none';
   el.innerHTML=lista.map(p=>`<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})">
-    <div><div class="prc-t">${p.nome}</div>
-    <div class="prc-m"><strong>${p.macro}</strong> · ${p.area} · Dono: <strong>${p.dono}</strong> · EP: <strong>${p.resp_ep}</strong></div></div>
+    <div><div class="prc-t">${esc(p.nome)}</div>
+    <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong></div></div>
     <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${pBadge(p.prio)}${isEP()?`<button class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
   </div>`).join('');
 }
@@ -4429,8 +4451,8 @@ function rIndGraficos(){
     }
 
     return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:3px">${area}${items[0].codigo?' · '+items[0].codigo:''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
-      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:.75rem">${nome}</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:3px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
+      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:.75rem">${esc(nome)}</div>
       <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
     </div>`;
   }).join('');
@@ -4516,9 +4538,9 @@ function kpiCard(k){
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${color};border-radius:var(--r);padding:.85rem 1rem;box-shadow:var(--sh)">
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;margin-bottom:.5rem">
       <div>
-        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${k.codigo ? '<strong>'+k.codigo+'</strong> · ' : ''}${k.periodicidade} · ${k.periodo}${k.ciclo?' · '+k.ciclo:''}</div>
-        <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.4">${k.nome}</div>
-        ${k.desc ? `<div style="font-size:11px;color:var(--ink3);margin-top:2px">${k.desc}</div>` : ''}
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${k.codigo ? '<strong>'+esc(k.codigo)+'</strong> · ' : ''}${esc(k.periodicidade)} · ${esc(k.periodo)}${k.ciclo?' · '+esc(k.ciclo):''}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.4">${esc(k.nome)}</div>
+        ${k.desc ? `<div style="font-size:11px;color:var(--ink3);margin-top:2px">${esc(k.desc)}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
         <span style="font-size:11px;font-weight:600;color:${color}">${status}</span>
@@ -4547,7 +4569,7 @@ function kpiCard(k){
     <div style="height:6px;background:var(--bg3);border-radius:99px;overflow:hidden;margin-bottom:.5rem">
       <div style="height:100%;border-radius:99px;background:${color};width:${barW}%;transition:width .4s"></div>
     </div>
-    ${k.analise ? `<div style="font-size:11px;color:var(--ink3);line-height:1.5;padding:.4rem .6rem;background:var(--surf2);border-radius:5px;border-left:2px solid ${color}">📝 ${k.analise}</div>` : ''}
+    ${k.analise ? `<div style="font-size:11px;color:var(--ink3);line-height:1.5;padding:.4rem .6rem;background:var(--surf2);border-radius:5px;border-left:2px solid ${color}">📝 ${esc(k.analise)}</div>` : ''}
     <div style="display:flex;gap:5px;margin-top:.5rem">
       <button class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${k.id})">✎ Editar</button>
       <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${k.id})">×</button>
@@ -4698,19 +4720,19 @@ function rPub(){
       return `<div style="background:var(--surf);border:1px solid var(--bdr);border-top:3px solid ${cor};border-radius:var(--r);padding:1rem;box-shadow:var(--sh);display:flex;flex-direction:column;gap:6px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
           <div>
-            <div style="font-size:10px;font-weight:700;color:${cor};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${p.categoria}</div>
-            <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.35">${p.titulo}</div>
+            <div style="font-size:10px;font-weight:700;color:${cor};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${esc(p.categoria)}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.35">${esc(p.titulo)}</div>
           </div>
-          ${p.versao?`<span style="font-size:10px;background:var(--bg2);color:var(--ink3);padding:2px 7px;border-radius:99px;flex-shrink:0">${p.versao}</span>`:''}
+          ${p.versao?`<span style="font-size:10px;background:var(--bg2);color:var(--ink3);padding:2px 7px;border-radius:99px;flex-shrink:0">${esc(p.versao)}</span>`:''}
         </div>
-        ${p.desc?`<div style="font-size:11.5px;color:var(--ink2);line-height:1.5">${p.desc}</div>`:''}
+        ${p.desc?`<div style="font-size:11.5px;color:var(--ink2);line-height:1.5">${esc(p.desc)}</div>`:''}
         <div style="display:flex;flex-wrap:wrap;gap:4px">
-          ${tags.map(t=>`<span style="font-size:10px;background:var(--bg3);color:var(--ink3);padding:1px 6px;border-radius:99px">${t}</span>`).join('')}
+          ${tags.map(t=>`<span style="font-size:10px;background:var(--bg3);color:var(--ink3);padding:1px 6px;border-radius:99px">${esc(t)}</span>`).join('')}
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--bdr)">
-          <div style="font-size:10.5px;color:var(--ink3)">${p.data?p.data+' · ':''}${p.responsavel||''}</div>
+          <div style="font-size:10.5px;color:var(--ink3)">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div style="display:flex;gap:5px">
-            ${p.url?`<a href="${p.url}" target="_blank" rel="noopener" class="btn" style="font-size:10px;padding:2px 8px;text-decoration:none">↗ Abrir</a>`:''}
+            ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener" class="btn" style="font-size:10px;padding:2px 8px;text-decoration:none">↗ Abrir</a>`:''}
             <button class="btn" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">✎</button>
             <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarPub(${p.id})">×</button>
           </div>
