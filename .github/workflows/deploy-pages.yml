@@ -16,9 +16,6 @@ concurrency:
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
     steps:
@@ -30,38 +27,23 @@ jobs:
           FIREBASE_KEY: ${{ secrets.FIREBASE_API_KEY }}
           AI_URL: ${{ secrets.AI_FUNCTION_URL }}
         run: |
-          python3 << 'PYTHON'
-          import json
-          import os
-
-          firebase_key = os.environ.get('FIREBASE_KEY', '')
-          ai_url = os.environ.get('AI_URL', '')
-
-          config_obj = {
-              'FIREBASE_API_KEY': firebase_key,
-              'AI_FUNCTION_URL': ai_url
-          }
-          config = f"window.CONFIG = {json.dumps(config_obj)};"
-
-          with open('config.deploy.js', 'w') as f:
-              f.write(config)
-
-          print("✓ Config created")
-          print(f"  Firebase: {bool(firebase_key)}")
-          print(f"  AI URL: {bool(ai_url)}")
-          PYTHON
-
-      - name: Verify config
-        run: ls -lh config.deploy.js && cat config.deploy.js
+          python3 -c "
+import json
+firebase_key = '${{ secrets.FIREBASE_API_KEY }}'
+ai_url = '${{ secrets.AI_FUNCTION_URL }}'
+config = f'window.CONFIG = {json.dumps({\"FIREBASE_API_KEY\": firebase_key, \"AI_FUNCTION_URL\": ai_url})};'
+with open('config.deploy.js', 'w') as f:
+    f.write(config)
+print('✓ Config created')
+          "
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v2
         with:
           path: '.'
 
-      - name: Deploy to Pages
-        id: deployment
-        uses: actions/deploy-pages@v2
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
