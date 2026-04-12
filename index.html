@@ -542,7 +542,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
   </div>
 
-  <div class="ib ibb" id="arq-import-hint">Colunas esperadas na planilha: <strong>macroprocesso, processo, subprocesso, natureza, gerente_processo, area, objetivo_processo, objetivo_estrategico, entradas, entregas, clientes, documentacoes</strong></div>
+  <div class="ib ibb ep-only" id="arq-import-hint">Colunas esperadas na planilha: <strong>macroprocesso, processo, subprocesso, natureza, gerente_processo, area, objetivo_processo, objetivo_estrategico, entradas, entregas, clientes, documentacoes</strong></div>
   <div id="arq-content"></div>
 </div></div>
 
@@ -2159,19 +2159,83 @@ const ACOES = {
     </div>
     <div class="btn-row"><button class="btn btn-p" onclick="salvarDetEtapas()">Encaminhar para validação do dono →</button></div>`},
 
-  valid_dono:{titulo:'Validar modelagem',sub:'O dono do processo revisa AS IS, TO BE e etapas detalhadas.',role:'Dono do processo',rk:'dono',
-    form:p=>`<div class="ib ibp">
-      <strong>AS IS:</strong> ${p.mod.asIs||'Não preenchido'}<br><br>
-      <strong>TO BE:</strong> ${p.mod.toBe||'Não preenchido'}<br><br>
-      <strong>Etapas detalhadas:</strong> ${(p.mod.etapas_proc||[]).length} etapas registradas
-    </div>
-    <div class="fg"><label class="fl">Comentários / ajustes solicitados</label>
-      <textarea class="fi" id="aobs" style="min-height:70px" placeholder="Descreva ajustes ou deixe em branco se aprovado..."></textarea>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-a" onclick="reprovarDono('esboco','Dono','Dono solicitou ajustes')">Solicitar ajustes</button>
-      <button class="btn btn-g" onclick="avDono('valid_dono','Dono do processo','Modelagem validada pelo dono',null)">Aprovar ✓</button>
-    </div>`},
+  valid_dono:{titulo:'Validar modelagem',sub:'Revise o desenho do processo, a análise inteligente e a nota de maturidade.',role:'Dono do processo',rk:'dono',
+    form:p=>{
+      const a=p.ent.analise||{};
+      const ia=a.ia_resultado||{};
+      const mat=p.ent.mat||0;
+      const ML=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
+      const matCor=mat<=1?'var(--red)':mat<=2?'var(--amber)':mat<=3?'var(--amber)':mat<=4?'var(--teal)':'var(--green)';
+      const matBg=mat<=1?'var(--red-l)':mat<=2?'var(--amber-l)':mat<=3?'var(--amber-l)':mat<=4?'var(--teal-l)':'var(--green-l)';
+      const gargalos=[...new Set([...(a.gargalos||[]),...(ia.gargalos||[])])];
+      const retrabalhos=[...new Set([...(a.retrabalhos||[]),...(ia.retrabalhos||[])])];
+      const gaps=[...new Set([...(a.gaps||[]),...(ia.gaps||[])])];
+      const oportunidades=[...new Set([...(a.oportunidades||[]),...(ia.oportunidades||[])])];
+      const complexidade=a.complexidade||ia.complexidade||'';
+      const temAnalise=!!(ia.resumo||gargalos.length||retrabalhos.length||gaps.length||oportunidades.length);
+      return `<div class="ib ibp" style="margin-bottom:1.2rem">Revise os materiais abaixo e, ao final, aprove ou solicite ajustes ao EP.</div>
+
+      <div class="card-t" style="margin-bottom:.6rem">1. Desenho do processo</div>
+      <div class="tabs" style="margin-bottom:.8rem">
+        <div class="tab on" onclick="sModTab('sm-asis',this)">AS IS</div>
+        <div class="tab" onclick="sModTab('sm-tobe',this)">TO BE</div>
+      </div>
+      <div id="sm-asis" class="tab-p on">
+        ${p.mod.asIs?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Descrição AS IS</div><div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;line-height:1.7">${esc(p.mod.asIs)}</div></div>`:''}
+        ${bpmnEditorHTML('asis',p.mod.bpmnAsIs)}
+      </div>
+      <div id="sm-tobe" class="tab-p" style="display:none">
+        ${p.mod.toBe?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Descrição TO BE</div><div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;line-height:1.7">${esc(p.mod.toBe)}</div></div>`:''}
+        ${bpmnEditorHTML('tobe',p.mod.bpmnToBe)}
+      </div>
+
+      <hr>
+      <div class="card-t" style="margin:.8rem 0 .6rem">2. Análise inteligente</div>
+      ${temAnalise?`
+        ${ia.resumo?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Resumo</div><div style="font-size:13px;color:var(--ink2);line-height:1.7">${esc(ia.resumo)}</div></div>`:''}
+        <div class="g4" style="margin-bottom:.8rem">
+          ${[['Complexidade',complexidade||'—'],['Ciclo médio',a.t_ciclo_medio||'—'],['Tempo de espera',a.t_espera_medio||'—'],['Atividades',a.qtd_atividades||'—']].map(([l,v])=>`<div class="card"><div class="sec-lbl" style="margin-bottom:2px">${l}</div><div style="font-size:14px;font-weight:600">${v}</div></div>`).join('')}
+        </div>
+        ${gargalos.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-gar">Gargalos (${gargalos.length})</div>${gargalos.map(g=>`<div style="font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--bdr)">⚠ ${esc(g)}</div>`).join('')}</div>`:''}
+        ${retrabalhos.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-ret">Retrabalhos (${retrabalhos.length})</div>${retrabalhos.map(r=>`<div style="font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--bdr)">↩ ${esc(r)}</div>`).join('')}</div>`:''}
+        ${gaps.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-gap">Pontos cegos (${gaps.length})</div>${gaps.map(g=>`<div style="font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--bdr)">○ ${esc(g)}</div>`).join('')}</div>`:''}
+        ${oportunidades.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-oport">Oportunidades (${oportunidades.length})</div>${oportunidades.map(o=>`<div style="font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--bdr)">✦ ${esc(o)}</div>`).join('')}</div>`:''}
+      `:`<div class="ib iba" style="margin-bottom:.8rem">Análise inteligente ainda não gerada pelo EP.</div>`}
+
+      <hr>
+      <div class="card-t" style="margin:.8rem 0 .6rem">3. Maturidade do processo</div>
+      ${mat?`
+        <div class="card" style="margin-bottom:.8rem">
+          <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+            <div style="text-align:center;min-width:80px">
+              <div style="font-size:48px;font-weight:700;font-family:var(--fh);color:${matCor};line-height:1">${mat}</div>
+              <div style="font-size:12px;font-weight:600;color:${matCor};margin-top:2px">${ML[mat]||''}</div>
+            </div>
+            <div style="flex:1;min-width:160px">
+              <div style="background:var(--bg2);border-radius:99px;overflow:hidden;height:10px;margin-bottom:.5rem">
+                <div style="width:${mat*20}%;height:100%;background:${matCor};border-radius:99px"></div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center">
+                ${['Inicial','Repetível','Definido','Gerenciado','Otimizado'].map((l,i)=>`
+                  <div style="padding:4px 2px;border-radius:6px;background:${mat===i+1?matBg:'transparent'};border:1px solid ${mat===i+1?matCor:'var(--bdr)'}">
+                    <div style="font-size:13px;font-weight:700;color:${mat===i+1?matCor:'var(--ink4)'}">${i+1}</div>
+                    <div style="font-size:9px;color:${mat===i+1?matCor:'var(--ink4)'};">${l}</div>
+                  </div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `:`<div class="ib iba" style="margin-bottom:.8rem">Questionário de maturidade ainda não respondido.</div>`}
+
+      <hr style="margin:.8rem 0">
+      <div class="fg"><label class="fl">Comentários / ajustes solicitados</label>
+        <textarea class="fi" id="aobs" style="min-height:70px" placeholder="Descreva ajustes ou deixe em branco se aprovado..."></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-a" onclick="reprovarDono('esboco','Dono','Dono solicitou ajustes')">Solicitar ajustes</button>
+        <button class="btn btn-g" onclick="avDono('valid_dono','Dono do processo','Modelagem validada pelo dono',null)">Aprovar ✓</button>
+      </div>`;
+    }},
 
   desenho_final:{titulo:'Desenho final do processo',sub:'Consolidar e finalizar o fluxo validado.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibp">Finalize o desenho incorporando os ajustes da validação.</div>
@@ -2549,6 +2613,7 @@ function rAcao(p){
     el.innerHTML=minhaTarefa
       ?`<div class="ib ibt" style="margin-bottom:1rem">O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</div>${buildAcaoCardHTML(ac,p,'')}`
       :`<div class="card"><div class="ib iba" style="margin-bottom:1rem">Esta etapa — <strong>${ac.titulo}</strong> — está sendo conduzida pelo EP. Não há nenhuma ação necessária da sua parte neste momento.</div><div style="font-size:13px;color:var(--ink2)">${ac.sub}</div></div>`;
+    if(p.etapa==='valid_dono' && minhaTarefa) setTimeout(()=>initBpmnMod('asis',p),120);
     return;
   }
   const roleNote=role!==ac.rk?`<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>${ac.role}</strong>. Troque o perfil para interagir.</div>`:'';
