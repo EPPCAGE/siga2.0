@@ -338,6 +338,10 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M5 6h6M5 9h4M5 12h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--surf)" stroke="currentColor" stroke-width="1.4"/><path d="M11 12l.8.8L13 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     Auditoria <span class="nav-cnt" id="nb-aud-cnt">0</span>
   </button>
+  <button class="nav-btn" onclick="go('publicacoes',this)" id="nb-pub">
+    <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M10 2v3h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    Metodologias
+  </button>
   <button class="nav-btn" onclick="go('notificacoes',this)" id="nb-notif">
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a5 5 0 00-5 5v3l-1 2h12l-1-2V7a5 5 0 00-5-5z" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg>
     Notificações <span class="nav-cnt" id="nb-notif-cnt">0</span>
@@ -765,6 +769,61 @@ Não responda este e-mail.</pre>
   </div>
 </div></div>
 
+<div id="page-publicacoes" class="page"><div style="padding:2rem">
+  <div class="ph">
+    <div><div class="ph-t">Metodologias e Publicações</div><div class="ph-s" id="pub-sub">Manuais, drops e documentos publicados</div></div>
+    <button class="btn btn-p" onclick="abrirModalPub()">+ Nova publicação</button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="fbar" style="margin-bottom:1.25rem">
+    <span class="fbar-l">Categoria</span>
+    <div class="chips" id="pub-chips">
+      <span class="chip on" onclick="filtPub('',this)">Todas</span>
+      <span class="chip" onclick="filtPub('Manual',this)">Manual</span>
+      <span class="chip" onclick="filtPub('Drop',this)">Drop</span>
+      <span class="chip" onclick="filtPub('Metodologia',this)">Metodologia</span>
+      <span class="chip" onclick="filtPub('Formulário',this)">Formulário</span>
+      <span class="chip" onclick="filtPub('Outro',this)">Outro</span>
+    </div>
+  </div>
+
+  <div id="pub-list"></div>
+
+  <!-- Modal nova/editar publicação -->
+  <div id="pub-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
+    <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
+      <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="pub-modal-titulo">Nova publicação</div>
+      <input type="hidden" id="pub-edit-id">
+      <div class="fg"><label class="fl">Título<span>*</span></label><input class="fi" id="pub-titulo" placeholder="Ex: Manual de Mapeamento de Processos v2"></div>
+      <div class="g2">
+        <div class="fg"><label class="fl">Categoria</label>
+          <select class="fi" id="pub-cat">
+            <option>Manual</option>
+            <option>Drop</option>
+            <option>Metodologia</option>
+            <option>Formulário</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Versão</label><input class="fi" id="pub-versao" placeholder="Ex: v1.0, 2026"></div>
+      </div>
+      <div class="fg"><label class="fl">Descrição</label><textarea class="fi" id="pub-desc" style="min-height:65px" placeholder="Resumo do conteúdo ou objetivo do documento..."></textarea></div>
+      <div class="fg"><label class="fl">Link / URL do documento</label><input class="fi" id="pub-url" placeholder="https://... ou caminho da rede"></div>
+      <div class="g2">
+        <div class="fg"><label class="fl">Data de publicação</label><input class="fi" type="date" id="pub-data"></div>
+        <div class="fg"><label class="fl">Responsável</label><input class="fi" id="pub-resp" placeholder="Ex: EP·CAGE"></div>
+      </div>
+      <div class="fg"><label class="fl">Tags (separadas por vírgula)</label><input class="fi" id="pub-tags" placeholder="Ex: bpmn, mapeamento, tutorial"></div>
+      <div class="btn-row">
+        <button class="btn btn-r" id="pub-del-btn" style="margin-right:auto;display:none" onclick="deletarPub()">Remover</button>
+        <button class="btn" onclick="document.getElementById('pub-modal').style.display='none'">Cancelar</button>
+        <button class="btn btn-p" onclick="salvarPub()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
 <div id="page-admin" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Usuários</div><div class="ph-s">Cadastro de e-mails, perfis e vínculos com processos</div></div>
   <button class="btn btn-p" onclick="abrirModalUsr(null)">+ Novo usuário</button></div>
@@ -939,6 +998,9 @@ let nextMid = 1;
 
 let kpis = [];
 
+let publicacoes = [];
+let _pubIdC = 1;
+
 let notifs = [];
 let ejsConfig = {service:'',template:'',pubkey:''};
 
@@ -1018,7 +1080,7 @@ function go(page,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+page).classList.add('on');
   if(btn)btn.classList.add('on');
-  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,melhorias:()=>{populateMelhSel();rMelh();},indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,admin:renderAdmin}[page]||function(){})();
+  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,melhorias:()=>{populateMelhSel();rMelh();},indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin}[page]||function(){})();
 }
 function stab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -4362,6 +4424,128 @@ function deletarKpi(id){
   rInd(); toast('Indicador removido', 'var(--amber)');
 }
 
+// ═══════════════════════════════════════════
+// METODOLOGIAS E PUBLICAÇÕES
+// ═══════════════════════════════════════════
+let _pubFiltro = '';
+
+function filtPub(cat, el){
+  _pubFiltro = cat;
+  document.querySelectorAll('#pub-chips .chip').forEach(c=>c.classList.remove('on'));
+  if(el) el.classList.add('on');
+  rPub();
+}
+
+function rPub(){
+  const lista = _pubFiltro ? publicacoes.filter(p=>p.categoria===_pubFiltro) : publicacoes;
+  const el = document.getElementById('pub-list');
+  if(!el) return;
+  document.getElementById('pub-sub').textContent =
+    publicacoes.length + ' documento' + (publicacoes.length!==1?'s':'') + ' publicado' + (publicacoes.length!==1?'s':'');
+  if(!lista.length){
+    el.innerHTML = '<div class="ib ibsl">Nenhuma publicação encontrada. Clique em "+ Nova publicação" para adicionar.</div>';
+    return;
+  }
+  const catColor = {Manual:'var(--blue)',Drop:'var(--teal)',Metodologia:'var(--purple,#7c3aed)',Formulário:'var(--amber)',Outro:'var(--ink3)'};
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">` +
+    lista.map(p=>{
+      const cor = catColor[p.categoria]||'var(--ink3)';
+      const tags = (p.tags||'').split(',').map(t=>t.trim()).filter(Boolean);
+      return `<div style="background:var(--surf);border:1px solid var(--bdr);border-top:3px solid ${cor};border-radius:var(--r);padding:1rem;box-shadow:var(--sh);display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:${cor};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${p.categoria}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.35">${p.titulo}</div>
+          </div>
+          ${p.versao?`<span style="font-size:10px;background:var(--bg2);color:var(--ink3);padding:2px 7px;border-radius:99px;flex-shrink:0">${p.versao}</span>`:''}
+        </div>
+        ${p.desc?`<div style="font-size:11.5px;color:var(--ink2);line-height:1.5">${p.desc}</div>`:''}
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${tags.map(t=>`<span style="font-size:10px;background:var(--bg3);color:var(--ink3);padding:1px 6px;border-radius:99px">${t}</span>`).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--bdr)">
+          <div style="font-size:10.5px;color:var(--ink3)">${p.data?p.data+' · ':''}${p.responsavel||''}</div>
+          <div style="display:flex;gap:5px">
+            ${p.url?`<a href="${p.url}" target="_blank" rel="noopener" class="btn" style="font-size:10px;padding:2px 8px;text-decoration:none">↗ Abrir</a>`:''}
+            <button class="btn" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">✎</button>
+            <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarPub(${p.id})">×</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+function abrirModalPub(){
+  document.getElementById('pub-modal-titulo').textContent = 'Nova publicação';
+  document.getElementById('pub-edit-id').value = '';
+  document.getElementById('pub-del-btn').style.display = 'none';
+  document.getElementById('pub-titulo').value  = '';
+  document.getElementById('pub-cat').value     = 'Manual';
+  document.getElementById('pub-versao').value  = '';
+  document.getElementById('pub-desc').value    = '';
+  document.getElementById('pub-url').value     = '';
+  document.getElementById('pub-data').value    = new Date().toISOString().slice(0,10);
+  document.getElementById('pub-resp').value    = '';
+  document.getElementById('pub-tags').value    = '';
+  document.getElementById('pub-modal').style.display = 'flex';
+}
+
+function editarPub(id){
+  const p = publicacoes.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('pub-modal-titulo').textContent = 'Editar publicação';
+  document.getElementById('pub-edit-id').value  = id;
+  document.getElementById('pub-del-btn').style.display = 'inline-flex';
+  document.getElementById('pub-titulo').value   = p.titulo||'';
+  document.getElementById('pub-cat').value      = p.categoria||'Manual';
+  document.getElementById('pub-versao').value   = p.versao||'';
+  document.getElementById('pub-desc').value     = p.desc||'';
+  document.getElementById('pub-url').value      = p.url||'';
+  document.getElementById('pub-data').value     = p.data||'';
+  document.getElementById('pub-resp').value     = p.responsavel||'';
+  document.getElementById('pub-tags').value     = p.tags||'';
+  document.getElementById('pub-modal').style.display = 'flex';
+}
+
+function salvarPub(){
+  const titulo = document.getElementById('pub-titulo').value.trim();
+  if(!titulo){ alert('Informe o título da publicação.'); return; }
+  const obj = {
+    id: null,
+    titulo,
+    categoria:   document.getElementById('pub-cat').value,
+    versao:      document.getElementById('pub-versao').value.trim(),
+    desc:        document.getElementById('pub-desc').value.trim(),
+    url:         document.getElementById('pub-url').value.trim(),
+    data:        document.getElementById('pub-data').value,
+    responsavel: document.getElementById('pub-resp').value.trim(),
+    tags:        document.getElementById('pub-tags').value.trim(),
+  };
+  const editId = document.getElementById('pub-edit-id').value;
+  if(editId){
+    const idx = publicacoes.findIndex(p=>p.id===parseInt(editId));
+    if(idx>=0){ obj.id=parseInt(editId); publicacoes[idx]=obj; }
+  } else {
+    obj.id = _pubIdC++;
+    publicacoes.push(obj);
+  }
+  document.getElementById('pub-modal').style.display = 'none';
+  fbAutoSave('salvarPub');
+  rPub();
+  toast('Publicação salva');
+}
+
+function deletarPub(id){
+  const delId = id || parseInt(document.getElementById('pub-edit-id').value);
+  if(!delId) return;
+  if(!confirm('Remover esta publicação?')) return;
+  publicacoes = publicacoes.filter(p=>p.id!==delId);
+  document.getElementById('pub-modal').style.display = 'none';
+  fbAutoSave('deletarPub');
+  rPub();
+  toast('Publicação removida','var(--amber)');
+}
+
 function simImport(){
   // kept for compatibility — now does nothing
   toast('Use o botão "↑ Importar planilha" para carregar dados reais.','var(--amber)');
@@ -4567,6 +4751,8 @@ async function fbSaveAll(){
     melhorias.forEach(m => batch.set(doc(db,'melhorias',String(m.id)), m));
     // kpis
     kpis.forEach(k => batch.set(doc(db,'kpis',String(k.id)), k));
+    // publicacoes
+    publicacoes.forEach(p => batch.set(doc(db,'publicacoes',String(p.id)), p));
     // arquitetura (single doc — serialize full array)
     batch.set(doc(db,'config','arquitetura'), {data: JSON.stringify(ARQUITETURA)});
     // usuarios (single doc)
@@ -4613,6 +4799,14 @@ async function fbLoad(){
       kpis = [];
       kSnap.forEach(d => kpis.push(d.data()));
       _kpiIdC = Math.max(...kpis.map(k=>k.id), 0) + 1;
+    }
+
+    // publicacoes
+    const pubSnap = await getDocs(collection(db,'publicacoes'));
+    if(!pubSnap.empty){
+      publicacoes = [];
+      pubSnap.forEach(d => publicacoes.push(d.data()));
+      _pubIdC = Math.max(...publicacoes.map(p=>p.id), 0) + 1;
     }
 
     // arquitetura
