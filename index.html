@@ -264,10 +264,6 @@ select.fi{cursor:pointer}
 .pop-tbl{width:100%;border-collapse:collapse;font-size:12px}
 .pop-tbl th{text-align:left;padding:6px 9px;background:var(--bg2);border:1px solid var(--bdr);font-weight:600;color:var(--ink2);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 .pop-tbl td{padding:6px 9px;border:1px solid var(--bdr);color:var(--ink2)}
-/* prazo input inline */
-.prazo-inline{display:flex;align-items:center;gap:8px;padding:.6rem .8rem;background:var(--amber-l);border:1px solid var(--amber-b);border-radius:var(--r);margin-bottom:.7rem}
-.prazo-inline label{font-size:12px;font-weight:600;color:var(--amber);flex-shrink:0}
-.prazo-inline input{padding:5px 8px;border-radius:6px;border:1px solid var(--amber-b);font-size:12px;font-family:var(--f);background:var(--surf);color:var(--ink)}
 /* import xlsx */
 .upl{border:1.5px dashed var(--bdr2);border-radius:var(--r);padding:1.5rem;text-align:center;cursor:pointer;transition:all .14s;background:var(--surf2)}
 .upl:hover{border-color:var(--blue);background:var(--blue-l)}
@@ -437,6 +433,10 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="fg"><label class="fl">E-mail do dono do processo<span>*</span></label>
         <input class="fi" id="novo-dono-email" type="email" placeholder="email@exemplo.com">
       </div>
+    </div>
+    <div class="fg" style="margin-top:.5rem">
+      <label class="fl">Interessados para notificação <span style="font-size:11px;color:var(--ink3)">(opcional — um e-mail por linha)</span></label>
+      <textarea class="fi" id="novo-interessados" rows="3" placeholder="email1@sefaz.rs.gov.br&#10;email2@sefaz.rs.gov.br"></textarea>
     </div>
     <div class="btn-row">
       <button class="btn" onclick="go('processos',document.getElementById('nb-proc'))">Cancelar</button>
@@ -1241,6 +1241,9 @@ function iniciarNovaAuditoria(procId){
   rAuditoria();
   updCounts();
   toast('Auditoria iniciada para "'+p.nome+'"','var(--teal)');
+  // Notificar dono sobre início de auditoria
+  const donoEmailAud=getDonoEmail(p);
+  if(donoEmailAud && p.dono) enviarNotif(donoEmailAud, p.dono, 'Auditoria iniciada para "'+p.nome+'" — aguarda sua participação para responder questões e ciência do relatório.', p.nome, '', usuarioLogado?.nome||'EP');
   // Abre o processo direto na aba auditoria
   setTimeout(()=>abrirProc(procId),300);
 }
@@ -1326,11 +1329,10 @@ function rMeusProc(){
   }).join('');
 }
 function taskCard(p,ACT){
-  const prazo=p.prazos&&p.prazos[p.etapa];
   return `<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})" style="margin-bottom:8px">
     <div><div class="prc-t">${p.nome}</div>
     <div style="font-size:12px;color:var(--ink3);margin-top:3px">${ACT[p.etapa]||p.etapa}</div>
-    <div class="prc-m" style="margin-top:4px"><strong>${p.macro}</strong> · ${p.area}${prazo?' · <span style="color:var(--amber);font-weight:600">Prazo: '+prazo+'</span>':''}</div></div>
+    <div class="prc-m" style="margin-top:4px"><strong>${p.macro}</strong> · ${p.area}</div></div>
     <div class="prc-r">${eBadge(p.etapa)}${pBadge(p.prio)}</div>
   </div>`;
 }
@@ -1610,6 +1612,7 @@ function criarProcesso(){
   ap.proc_id=nextProcId;
   const p={
     id:nextProcId++,arq_id:sid,nome:ap.nome,macro:m.nome,area:ap.area,dono:donoNome,dono_email:donoEmail,
+    interessados:(document.getElementById('novo-interessados')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean),
     pat:USUARIOS.find(u=>u.perfil==='patrocinador')?.nome||'',
     resp_ep,prio,produto,objetivo:objetivo||ap.objetivo,
     ent:{dt_inicio:new Date().toISOString().slice(0,10),dt_prev:'',dt_efetiva:'',equipe:resp_ep+', '+donoNome,t_total:'',t_sem_fila:'',
@@ -1617,7 +1620,7 @@ function criarProcesso(){
       analise:{gargalos:[],retrabalhos:[],gaps:[],oportunidades:[],complexidade:'',t_ciclo_medio:'',t_espera_medio:'',qtd_decisoes:0,qtd_atividades:0}},
     mod:{asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,obs:'',etapas_proc:[]},
     form:{pop_ok:false,pop:null,apresent:'',bpmnXml:null},
-    etapa:'abertura',prazos:{},
+    etapa:'abertura',
     hist:[{step:'abertura',role:'EP',acao:'Processo aberto e vinculado à arquitetura',data:now()}],
   };
   processos.push(p);
@@ -1643,13 +1646,10 @@ function criarProcesso(){
 }
 
 // ═══════════════════════════════════════════
-// AVANÇAR ETAPA COM PRAZO E NOTIFICAÇÃO
+// AVANÇAR ETAPA COM NOTIFICAÇÃO
 // ═══════════════════════════════════════════
-function av(etAtu, role, acao, prazoEl, notifDest){
-  // Capture prazo if provided
-  const prazoVal = prazoEl ? (document.getElementById(prazoEl)?.value||'') : '';
-  if(prazoVal && curProc) curProc.prazos[nextEt(etAtu)||etAtu] = prazoVal;
-  push(curProc, etAtu, role, acao+(prazoVal?' · Prazo: '+prazoVal:''));
+function av(etAtu, role, acao, _prazoEl, notifDest){
+  push(curProc, etAtu, role, acao);
   const nx = nextEt(etAtu);
   if(nx){
     curProc.etapa = nx;
@@ -1657,27 +1657,20 @@ function av(etAtu, role, acao, prazoEl, notifDest){
   }
   rDetalhe();updCounts();
   fbAutoSave('av');
-  // Sempre pede confirmação antes de qualquer notificação ao dono
+  // Notificar dono apenas quando a próxima etapa é dele (tarefa)
   if(isEP() && curProc?.dono){
     const etObj = ETAPAS.find(e=>e.id===nx);
     if(etObj?.resp==='dono'){
-      // Próxima etapa é do dono — pergunta se quer notificá-lo sobre a nova tarefa
-      setTimeout(()=>perguntarNotifDono('tarefa', nx, etAtu),200);
-    } else {
-      // Etapa EP concluída — pergunta se quer dar ciência ao dono
-      setTimeout(()=>perguntarNotifDono('ciencia', nx, etAtu),200);
+      setTimeout(()=>perguntarNotifDono(nx, etAtu),200);
     }
   }
 }
-// tipo='tarefa': próxima etapa é do dono. tipo='ciencia': EP concluiu etapa EP e quer informar dono.
-function perguntarNotifDono(tipo, etapaProxId, etapaConcluidaId){
+// Pergunta ao EP se deseja notificar o dono quando a próxima etapa é dele
+function perguntarNotifDono(etapaProxId, etapaConcluidaId){
   const p=curProc;
   if(!p||!p.dono) return;
-  const isTarefa = tipo==='tarefa';
-  const titulo = isTarefa ? 'Notificar Dono sobre nova tarefa?' : 'Dar ciência ao Dono do Processo?';
-  const msg = isTarefa
-    ? `A etapa <em>${etLb(etapaProxId)}</em> aguarda ação de <strong>${p.dono}</strong>. Deseja enviar notificação e e-mail agora?`
-    : `Deseja notificar <strong>${p.dono}</strong> sobre a conclusão da etapa <em>${etLb(etapaConcluidaId)}</em>?`;
+  const titulo = 'Notificar Dono sobre nova tarefa?';
+  const msg = `A etapa <em>${etLb(etapaProxId)}</em> aguarda ação de <strong>${p.dono}</strong>. Deseja enviar notificação e e-mail agora?`;
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
   ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
@@ -1685,19 +1678,17 @@ function perguntarNotifDono(tipo, etapaProxId, etapaConcluidaId){
     <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">${msg} Um e-mail será enviado e registrado nas notificações.</div>
     <div class="btn-row">
       <button class="btn" onclick="this.closest('[style*=fixed]').remove()">Não, obrigado</button>
-      <button class="btn btn-p" onclick="confirmarNotifDono('${tipo}','${etapaProxId||''}','${etapaConcluidaId||''}');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
+      <button class="btn btn-p" onclick="confirmarNotifDono('${etapaProxId||''}');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
 }
-function confirmarNotifDono(tipo, etapaProxId, etapaConcluidaId){
+function confirmarNotifDono(etapaProxId){
   const p=curProc;
   if(!p||!p.dono) return;
   const email=getDonoEmail(p);
   if(!email){toast('E-mail do dono não encontrado no cadastro.','var(--amber)');return;}
-  const acao = tipo==='tarefa'
-    ? 'Nova tarefa: '+etLb(etapaProxId)+' aguarda sua ação'
-    : 'Etapa concluída pelo EP: '+etLb(etapaConcluidaId)+' — processo "'+p.nome+'"';
+  const acao = 'Nova tarefa: '+etLb(etapaProxId)+' aguarda sua ação';
   enviarNotif(email, p.dono, acao, p.nome, '', usuarioLogado?.nome||'EP');
   toast('Notificação enviada para '+p.dono,'var(--teal)');
 }
@@ -1732,14 +1723,6 @@ function reprovarDono(voltaEt,role,acao){
 // ═══════════════════════════════════════════
 // ABA: AÇÃO ATUAL (formulários por etapa)
 // ═══════════════════════════════════════════
-function prazoField(etId){
-  if(usuarioLogado?.perfil==='dono') return '';
-  return `<div class="prazo-inline">
-    <label>Prazo para a próxima etapa:</label>
-    <input type="date" id="prazo-${etId}" value="">
-    <span style="font-size:11px;color:var(--amber)">Obrigatório ao encaminhar</span>
-  </div>`;
-}
 
 const ACOES = {
   abertura:{titulo:'Abrir processo',sub:'Confirmar dados iniciais e vincular equipe.',role:'EP',rk:'ep',
@@ -1751,7 +1734,6 @@ const ACOES = {
     </div>
     <div class="fg"><label class="fl">Equipe do trabalho</label><input class="fi" id="a-equipe" value="${p.ent.equipe||''}" placeholder="Nomes dos membros envolvidos"></div>
     <div class="fg"><label class="fl">Objetivo do trabalho</label><textarea class="fi" id="a-obj" style="min-height:60px">${p.objetivo||''}</textarea></div>
-    ${prazoField('abertura')}
     <div class="btn-row"><button class="btn btn-t" onclick="salvarAbertura()">Confirmar e agendar reunião de entendimento →</button></div>`},
 
   questionario:{titulo:'Questionário de maturidade',sub:'Responder as 15 perguntas sobre o estado atual do processo.',role:'Dono do processo',rk:'dono',
@@ -1768,7 +1750,6 @@ const ACOES = {
             </div>
           </div>`).join('')}
       </div>
-      ${prazoField('questionario')}
       <div class="btn-row"><button class="btn btn-p" onclick="salvarQuestionario()">Enviar respostas →</button></div>`;
     }},
 
@@ -1780,7 +1761,6 @@ const ACOES = {
     </div>
     <div class="fg"><label class="fl">Pontos levantados / pauta</label><textarea class="fi" id="a-pontos" style="min-height:80px" placeholder="Problemas identificados, escopo, expectativas..."></textarea></div>
     <div class="fg"><label class="fl">Problemas e dores identificados (um por linha)</label><textarea class="fi" id="a-prob" style="min-height:80px" placeholder="${(p.ent.prob||[]).join('\n')}">${(p.ent.prob||[]).join('\n')}</textarea></div>
-    ${prazoField('reuniao')}
     <div class="btn-row"><button class="btn btn-t" onclick="salvarReuniao()">Registrar reunião →</button></div>`},
 
   mapeamento:{titulo:'Mapeamento — Entendimento completo',sub:'Registrar volumetria, prazos, tempo e equipe.',role:'EP',rk:'ep',
@@ -1792,8 +1772,8 @@ const ACOES = {
       <div class="fg"><label class="fl">Produto</label><input class="fi" value="${p.produto}" readonly></div>
     </div>
     <div class="g2">
-      <div class="fg"><label class="fl">Tempo total de trabalho</label><input class="fi" id="m-ttotal" value="${p.ent.t_total||''}" placeholder="Ex: 90 dias"></div>
-      <div class="fg"><label class="fl">Tempo sem fila (produtivo)</label><input class="fi" id="m-tsemfila" value="${p.ent.t_sem_fila||''}" placeholder="Ex: 35 dias"></div>
+      <div class="fg"><label class="fl">Duração total do processo mapeado (lead time)</label><input class="fi" id="m-ttotal" value="${p.ent.t_total||''}" placeholder="Ex: 90 dias"><small style="color:var(--ink3);font-size:11px">Informação do processo, não do projeto de mapeamento</small></div>
+      <div class="fg"><label class="fl">Tempo produtivo do processo (sem esperas)</label><input class="fi" id="m-tsemfila" value="${p.ent.t_sem_fila||''}" placeholder="Ex: 35 dias"><small style="color:var(--ink3);font-size:11px">Informação do processo, não do projeto de mapeamento</small></div>
     </div>
     <div class="fg"><label class="fl">Equipe do trabalho</label><input class="fi" id="m-equipe" value="${p.ent.equipe||''}" placeholder="Todos os membros envolvidos"></div>
     <hr>
@@ -1813,37 +1793,39 @@ const ACOES = {
       <select class="fi" id="ri"><option value="">Impacto</option><option>Baixo</option><option>Medio</option><option>Alto</option><option>Critico</option></select>
     </div>
     <button class="btn" style="margin-top:6px;font-size:12px" onclick="addRisco()">+ Adicionar risco</button>
-    ${prazoField('mapeamento')}
     <div class="btn-row"><button class="btn btn-t" onclick="salvarMapeamento()">Salvar mapeamento →</button></div>`},
 
-  analise_asis:{titulo:'Análise do fluxo AS IS',sub:'Identificar gargalos, retrabalhos, pontos cegos e oportunidades.',role:'EP',rk:'ep',
+  analise_asis:{titulo:'Análise do fluxo AS IS',sub:'Análise inteligente gerada por IA com base no BPMN e etapas mapeadas.',role:'EP',rk:'ep',
     form:p=>{
       const a=p.ent.analise||{};
-      return `<div class="ib ibt">Documente a análise crítica do processo atual. Esta análise fundamenta as propostas de melhoria.</div>
-      <div class="g2">
-        <div class="fg"><label class="fl">Complexidade geral</label>
-          <select class="fi" id="an-comp">
-            <option ${a.complexidade==='Baixa'?'selected':''}>Baixa</option>
-            <option ${a.complexidade==='Media'?'selected':''}>Media</option>
-            <option ${a.complexidade==='Alta'?'selected':''}>Alta</option>
-            <option ${a.complexidade==='Muito alta'?'selected':''}>Muito alta</option>
-          </select>
+      const bpmnOk=!!(p.mod?.bpmnAsIs||p.mod?.asIs);
+      return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN e etapas mapeadas.</div>
+        ${bpmnOk?'':'<div class="ib ibr">⚠ Mapeamento BPMN ainda não realizado. A análise será limitada.</div>'}
+        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem">Dados quantitativos do processo</div>
+        <div class="g2">
+          <div class="fg"><label class="fl">Tempo médio de ciclo (lead time)</label><input class="fi" id="an-tciclo" value="${a.t_ciclo_medio||''}" placeholder="Ex: 15 dias úteis"></div>
+          <div class="fg"><label class="fl">Tempo médio de espera/fila</label><input class="fi" id="an-tespera" value="${a.t_espera_medio||''}" placeholder="Ex: 8 dias úteis"></div>
         </div>
-        <div class="fg"><label class="fl">Tempo médio de ciclo</label><input class="fi" id="an-tciclo" value="${a.t_ciclo_medio||''}" placeholder="Ex: 2,5 dias"></div>
-        <div class="fg"><label class="fl">Tempo médio de espera/fila</label><input class="fi" id="an-tespera" value="${a.t_espera_medio||''}" placeholder="Ex: 1,2 dias"></div>
-        <div class="fg"><label class="fl">Qtd. atividades</label><input class="fi" id="an-ativ" type="number" value="${a.qtd_atividades||0}"></div>
-        <div class="fg"><label class="fl">Qtd. decisões (gateways)</label><input class="fi" id="an-dec" type="number" value="${a.qtd_decisoes||0}"></div>
-      </div>
-      <div class="fg"><label class="fl">Gargalos identificados (um por linha)</label>
-        <textarea class="fi" id="an-gar" style="min-height:80px" placeholder="Ex: Aprovação do adjunto sem prazo definido">${(a.gargalos||[]).join('\n')}</textarea></div>
-      <div class="fg"><label class="fl">Retrabalhos e loops</label>
-        <textarea class="fi" id="an-ret" style="min-height:70px" placeholder="Ex: 28% dos textos retornam para revisão">${(a.retrabalhos||[]).join('\n')}</textarea></div>
-      <div class="fg"><label class="fl">Pontos cegos e gaps de controle</label>
-        <textarea class="fi" id="an-gap" style="min-height:70px" placeholder="Ex: Ausência de SLA formal por tipo de produto">${(a.gaps||[]).join('\n')}</textarea></div>
-      <div class="fg"><label class="fl">Oportunidades de melhoria</label>
-        <textarea class="fi" id="an-oport" style="min-height:70px" placeholder="Ex: Automatizar triagem via Zeev">${(a.oportunidades||[]).join('\n')}</textarea></div>
-      ${prazoField('analise_asis')}
-      <div class="btn-row"><button class="btn btn-t" onclick="salvarAnalise()">Salvar análise e avançar para modelagem →</button></div>`;
+        <div class="g2">
+          <div class="fg"><label class="fl">Qtd. de atividades</label><input class="fi" id="an-ativ" type="number" value="${a.qtd_atividades||''}"></div>
+          <div class="fg"><label class="fl">Qtd. de decisões/gateways</label><input class="fi" id="an-dec" type="number" value="${a.qtd_decisoes||''}"></div>
+        </div>
+        <button class="btn" onclick="salvarDadosQuantitativos()" style="margin-bottom:1rem">Salvar dados quantitativos</button>
+        <div style="border-top:1px solid var(--bdr);padding-top:1rem;margin-top:.5rem">
+          <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
+          <div id="ia-analise-result">${a.ia_resultado?`<div class="ai-result">
+            ${a.ia_resultado.resumo?`<div class="ai-result-lbl">Resumo</div><p>${a.ia_resultado.resumo}</p>`:''}
+            ${a.ia_resultado.gargalos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Gargalos</div><ul>${a.ia_resultado.gargalos.map(g=>`<li>${g}</li>`).join('')}</ul>`:''}
+            ${a.ia_resultado.retrabalhos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Retrabalhos</div><ul>${a.ia_resultado.retrabalhos.map(r=>`<li>${r}</li>`).join('')}</ul>`:''}
+            ${a.ia_resultado.gaps?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Gaps de controle</div><ul>${a.ia_resultado.gaps.map(g=>`<li>${g}</li>`).join('')}</ul>`:''}
+            ${a.ia_resultado.oportunidades?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Oportunidades</div><ul>${a.ia_resultado.oportunidades.map(o=>`<li>${o}</li>`).join('')}</ul>`:''}
+            ${a.ia_resultado.complexidade?`<div class="ai-result-lbl" style="margin-top:.8rem">Complexidade</div><p>${a.ia_resultado.complexidade}</p>`:''}
+          </div>`:'<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>'}</div>
+          <button class="btn btn-t" onclick="gerarAnaliseIA()" style="margin-top:.8rem">✦ Gerar análise com IA</button>
+        </div>
+        <div class="btn-row" style="margin-top:1rem">
+          <button class="btn btn-p" onclick="av('analise_asis','EP','Análise inteligente concluída')">Concluir análise →</button>
+        </div>`;
     }},
 
   esboco:{titulo:'Esboço AS IS / TO BE',sub:'Descrever e desenhar os fluxos atual e futuro.',role:'EP',rk:'ep',
@@ -1863,7 +1845,6 @@ const ACOES = {
     <div class="fg" style="margin-top:.8rem"><label class="fl">Oportunidades de melhoria identificadas (uma por linha)</label>
       <textarea class="fi" id="e-oport" style="min-height:60px" placeholder="Serão criadas automaticamente no módulo de melhorias"></textarea>
     </div>
-    ${prazoField('esboco')}
     <div class="btn-row"><button class="btn btn-p" onclick="salvarEsboco()">Encaminhar para detalhamento de etapas →</button></div>`},
 
   det_etapas:{titulo:'Detalhar etapas do processo',sub:'Extrair do BPMN e detalhar cada atividade, evento e decisão.',role:'EP',rk:'ep',
@@ -1874,7 +1855,6 @@ const ACOES = {
       <span style="font-size:12px;color:var(--ink3);align-self:center">A extração automática detecta todos os elementos do diagrama AS IS salvo.</span>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
-    ${prazoField('det_etapas')}
     <div class="btn-row"><button class="btn btn-p" onclick="salvarDetEtapas()">Encaminhar para validação do dono →</button></div>`},
 
   valid_dono:{titulo:'Validar modelagem',sub:'O dono do processo revisa AS IS, TO BE e etapas detalhadas.',role:'Dono do processo',rk:'dono',
@@ -1886,7 +1866,6 @@ const ACOES = {
     <div class="fg"><label class="fl">Comentários / ajustes solicitados</label>
       <textarea class="fi" id="aobs" style="min-height:70px" placeholder="Descreva ajustes ou deixe em branco se aprovado..."></textarea>
     </div>
-    ${prazoField('valid_dono')}
     <div class="btn-row">
       <button class="btn btn-a" onclick="reprovarDono('esboco','Dono','Dono solicitou ajustes')">Solicitar ajustes</button>
       <button class="btn btn-g" onclick="avDono('valid_dono','Dono do processo','Modelagem validada pelo dono',null)">Aprovar ✓</button>
@@ -1899,16 +1878,14 @@ const ACOES = {
       <div class="fg"><label class="fl">Ferramenta utilizada</label><input class="fi" id="a-ferr" placeholder="Ex: Zeev, BizAgi, Draw.io"></div>
     </div>
     <div class="fg"><label class="fl">Observações</label><textarea class="fi" id="a-obs" style="min-height:60px" placeholder="Principais mudanças em relação ao esboço..."></textarea></div>
-    ${prazoField('desenho_final')}
-    <div class="btn-row"><button class="btn btn-p" onclick="av('desenho_final','EP','Desenho final concluído','prazo-desenho_final',curProc?.pat)">Encaminhar para aprovação →</button></div>`},
+    <div class="btn-row"><button class="btn btn-p" onclick="av('desenho_final','EP','Desenho final concluído',null,curProc?.pat)">Encaminhar para aprovação →</button></div>`},
 
   aprovacao:{titulo:'Aprovação pelo Dono do Processo',sub:'O dono revisa o desenho final e aprova para construção do POP.',role:'Dono do processo',rk:'dono',
     form:p=>`<div class="ib iba">Revise o modelo do processo (AS IS / TO BE e etapas detalhadas) antes de aprovar a construção do POP.</div>
     <div class="fg"><label class="fl">Comentários / solicitação de ajustes</label><textarea class="fi" id="aobs" style="min-height:70px" placeholder="Deixe em branco se aprovado..."></textarea></div>
-    ${prazoField('aprovacao')}
     <div class="btn-row">
       <button class="btn btn-a" onclick="reprovar('desenho_final','Dono','Dono solicitou ajustes no modelo')">Solicitar ajustes</button>
-      <button class="btn btn-g" onclick="av('aprovacao','Dono','Modelo aprovado pelo dono — construção do POP autorizada','prazo-aprovacao')">Aprovar modelo ✓</button>
+      <button class="btn btn-g" onclick="av('aprovacao','Dono','Modelo aprovado pelo dono — construção do POP autorizada',null)">Aprovar modelo ✓</button>
     </div>`},
 
   pop:{titulo:'Construção do POP',sub:'Redigir o Procedimento Operacional Padrão no modelo CAGE.',role:'EP',rk:'ep',
@@ -1939,7 +1916,6 @@ const ACOES = {
       <div class="fg"><label class="fl">Indicadores previstos</label><textarea class="fi" id="pp-ind" style="min-height:70px" placeholder="Nome — Meta — Periodicidade"></textarea></div>
       <div class="fg"><label class="fl">Documentos correlatos</label><textarea class="fi" id="pp-docs" style="min-height:50px"></textarea></div>
     </div>
-    ${prazoField('pop')}
     <div class="btn-row">
       <button class="btn" onclick="visPopPreview()" style="margin-right:auto">👁 Pré-visualizar</button>
       <button class="btn btn-a" onclick="salvarPOP()">Salvar e avançar →</button>
@@ -1952,7 +1928,6 @@ const ACOES = {
     <div class="fg"><label class="fl">Contatos-chave do processo</label><textarea class="fi" id="a-contatos" style="min-height:60px" placeholder="Nome — Função — E-mail ou ramal">${p.form?.contatos||''}</textarea></div>
     <div class="fg"><label class="fl">Formulários / sistemas utilizados</label><input class="fi" id="aforms" placeholder="Nome do formulário ou sistema — link se houver" value="${p.form?.forms||''}"></div>
     <div class="fg"><label class="fl">Observações ou correções ao POP</label><textarea class="fi" id="aobs" style="min-height:60px" placeholder="Aponte qualquer ajuste necessário no documento..."></textarea></div>
-    ${prazoField('complement')}
     <div class="btn-row"><button class="btn btn-g" onclick="salvarComplementacaoDono()">Enviar complementação →</button></div>`},
 
   apresentacao:{titulo:'Aprovação pelo Patrocinador',sub:'Aprovação de alta gestão antes da publicação. Apresentação executiva gerada por IA.',role:'Patrocinador',rk:'patrocinador',
@@ -1982,50 +1957,157 @@ const ACOES = {
     </div>
     <div class="btn-row"><button class="btn btn-g" onclick="publicarProcesso()">Publicar →</button></div>`},
 
-  acompanha:{titulo:'Acompanhamento da implementação',sub:'Verificar conformidade com o POP e registrar desvios.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibb">Registre verificações periódicas. Identifique e corrija desvios de execução.</div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Data da verificação</label><input class="fi" id="adt" type="date"></div>
-      <div class="fg"><label class="fl">Conformidade</label>
-        <select class="fi" id="acnf"><option>Conforme</option><option>Parcialmente conforme</option><option>Não conforme</option></select>
-      </div>
-    </div>
-    <div class="fg"><label class="fl">Desvios / ações corretivas</label><textarea class="fi" id="a-desv" style="min-height:70px" placeholder="Descreva desvios identificados..."></textarea></div>
-    <div class="btn-row">
-      <button class="btn" onclick="av('acompanha','EP','Verificação registrada — processo em acompanhamento')">Registrar verificação</button>
-      <button class="btn btn-p" onclick="av('acompanha','EP','Acompanhamento concluído — encaminhando para auditoria')">Concluir acompanhamento →</button>
-    </div>`},
+  acompanha:{titulo:'Acompanhamento da implementação',sub:'Registre todas as reuniões de acompanhamento da implementação.',role:'EP',rk:'ep',
+    form:p=>{
+      const reunioes=p.reunioes_acomp||[];
+      const listaHtml=reunioes.length?reunioes.map((r,i)=>`
+        <div class="card" style="margin-bottom:.5rem;padding:.8rem">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>${r.data}</strong>
+            <span class="badge ${r.conformidade==='Conforme'?'bg':'br'}">${r.conformidade}</span>
+          </div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:.3rem">${r.pauta||'—'}</div>
+          ${r.desvios?`<div style="font-size:12px;color:var(--red);margin-top:.2rem">Desvios: ${r.desvios}</div>`:''}
+          ${r.acoes?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem">Ações: ${r.acoes}</div>`:''}
+        </div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma reunião registrada ainda.</div>';
+      return `<div class="ib ibb">Registre todas as reuniões de acompanhamento da implementação.</div>
+        <div style="margin-bottom:1rem">${listaHtml}</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Nova reunião de acompanhamento</div>
+        <div class="g2">
+          <div class="fg"><label class="fl">Data da reunião</label><input class="fi" id="ac-data" type="date"></div>
+          <div class="fg"><label class="fl">Conformidade</label>
+            <select class="fi" id="ac-conf"><option>Conforme</option><option>Parcialmente conforme</option><option>Não conforme</option></select>
+          </div>
+        </div>
+        <div class="fg"><label class="fl">Pauta / objetivo da reunião</label><textarea class="fi" id="ac-pauta" style="min-height:60px" placeholder="Descreva a pauta..."></textarea></div>
+        <div class="fg"><label class="fl">Desvios identificados</label><textarea class="fi" id="ac-desv" style="min-height:60px" placeholder="Descreva os desvios..."></textarea></div>
+        <div class="fg"><label class="fl">Ações corretivas</label><textarea class="fi" id="ac-acoes" style="min-height:60px" placeholder="Ações definidas..."></textarea></div>
+        <div class="fg"><label class="fl">Participantes</label><input class="fi" id="ac-partic" placeholder="Nomes dos participantes"></div>
+        <div class="fg"><label class="fl">Próxima reunião prevista</label><input class="fi" id="ac-proxima" type="date"></div>
+        <div class="btn-row">
+          <button class="btn" onclick="registrarReuniaoAcomp()">＋ Registrar reunião</button>
+          <button class="btn btn-p" onclick="av('acompanha','EP','Acompanhamento concluído')">Concluir acompanhamento →</button>
+        </div>`;
+    }},
 
-  auditoria:{titulo:'Auditoria do processo',sub:'Verificação sistemática da conformidade, desempenho e melhorias implementadas.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibr">Auditoria formal do processo. Avalie execução, documentação, indicadores e conformidade.</div>
-    <div class="tabs" style="margin-bottom:.8rem">
-      <div class="tab on" onclick="sstab('aud1',this)">Escopo</div>
-      <div class="tab" onclick="sstab('aud2',this)">Achados</div>
-      <div class="tab" onclick="sstab('aud3',this)">Conclusão</div>
-    </div>
-    <div id="aud1" class="tab-p on">
-      <div class="g2">
-        <div class="fg"><label class="fl">Data de início da auditoria</label><input class="fi" id="aud-ini" type="date"></div>
-        <div class="fg"><label class="fl">Auditores responsáveis</label><input class="fi" id="aud-resp" placeholder="Nomes dos auditores" value="${p.resp_ep||''}"></div>
+  auditoria:{titulo:'Auditoria do processo',sub:'Verificação sistemática da conformidade, desempenho e melhorias.',role:'EP',rk:'ep',
+    form:p=>{
+      const aud=p.auditoria||{};
+      const questoes=aud.questoes||[];
+      const achados=aud.achados_list||[];
+      const acoes=aud.acoes_list||[];
+      const questoesHtml=questoes.length?questoes.map((q,i)=>`
+        <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
+          <strong>Q${i+1}:</strong> ${q.questao}
+          ${q.resposta?`<div style="color:var(--teal);margin-top:.2rem">✓ ${q.resposta}</div>`:'<div style="color:var(--amber);margin-top:.2rem">Aguardando resposta</div>'}
+        </div>`).join(''):'';
+      const achadosHtml=achados.length?achados.map((a,i)=>`
+        <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
+          <div style="display:flex;justify-content:space-between">
+            <strong>NC${i+1}: ${a.titulo}</strong>
+            <span class="badge ${a.tipo==='Não conformidade'?'br':a.tipo==='Observação'?'ba':'bt'}">${a.tipo}</span>
+          </div>
+          <div style="color:var(--ink3);margin-top:.2rem">${a.descricao}</div>
+          ${a.evidencia?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Evidência: ${a.evidencia}</div>`:''}
+        </div>`).join(''):'';
+      const acoesHtml=acoes.length?acoes.map((a,i)=>`
+        <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>${a.acao}</strong>
+            <span style="font-size:11px;color:var(--ink3)">${a.responsavel} · ${a.prazo}</span>
+          </div>
+          <span class="badge ${a.status==='Concluída'?'bg':a.status==='Em andamento'?'ba':'bt'}">${a.status}</span>
+        </div>`).join(''):'';
+      return `<div class="tabs" style="margin-bottom:1rem">
+        <div class="tab on" onclick="sstab('aud1',this)">Planejamento</div>
+        <div class="tab" onclick="sstab('aud2',this)">Questões</div>
+        <div class="tab" onclick="sstab('aud3',this)">Achados</div>
+        <div class="tab" onclick="sstab('aud4',this)">Ações</div>
+        <div class="tab" onclick="sstab('aud5',this)">Relatório</div>
       </div>
-      <div class="fg"><label class="fl">Escopo e critérios de auditoria</label><textarea class="fi" id="aud-escopo" style="min-height:80px" placeholder="O que será auditado, com base em quais critérios e documentos..."></textarea></div>
-    </div>
-    <div id="aud2" class="tab-p">
-      <div class="fg"><label class="fl">Conformidade de execução vs POP</label>
-        <select class="fi" id="aud-conf"><option>Conforme</option><option>Conforme com ressalvas</option><option>Não conforme</option></select>
+      <div id="aud1">
+        <div class="g2">
+          <div class="fg"><label class="fl">Data de início</label><input class="fi" id="aud-ini" type="date" value="${aud.data_inicio||''}"></div>
+          <div class="fg"><label class="fl">Data prevista de conclusão</label><input class="fi" id="aud-fim" type="date" value="${aud.data_fim||''}"></div>
+        </div>
+        <div class="fg"><label class="fl">Objetivo da auditoria</label><textarea class="fi" id="aud-obj" style="min-height:70px" placeholder="Descreva o objetivo...">${aud.objetivo||''}</textarea></div>
+        <div class="fg"><label class="fl">Escopo</label><textarea class="fi" id="aud-escopo" style="min-height:70px" placeholder="Defina o escopo da auditoria...">${aud.escopo||''}</textarea></div>
+        <div class="fg"><label class="fl">Equipe de auditoria</label><input class="fi" id="aud-equipe" value="${aud.equipe||''}" placeholder="Nomes dos auditores"></div>
+        <div class="fg"><label class="fl">Critérios de auditoria</label><textarea class="fi" id="aud-crit" style="min-height:70px" placeholder="Ex: POP publicado, normas internas, indicadores de desempenho...">${aud.criterios||''}</textarea></div>
+        <div class="fg"><label class="fl">Metodologia</label>
+          <select class="fi" id="aud-metod">
+            <option ${aud.metodologia==='Análise documental'?'selected':''}>Análise documental</option>
+            <option ${aud.metodologia==='Entrevistas'?'selected':''}>Entrevistas</option>
+            <option ${aud.metodologia==='Observação in loco'?'selected':''}>Observação in loco</option>
+            <option ${aud.metodologia==='Mista'?'selected':''}>Mista</option>
+          </select>
+        </div>
+        <button class="btn" onclick="salvarPlanejamentoAuditoria()">Salvar planejamento</button>
       </div>
-      <div class="fg"><label class="fl">Achados de auditoria</label><textarea class="fi" id="aud-achados" style="min-height:100px" placeholder="Liste os achados, evidências e não-conformidades..."></textarea></div>
-      <div class="fg"><label class="fl">Indicadores de desempenho avaliados</label><textarea class="fi" id="aud-ind" style="min-height:70px" placeholder="KPIs analisados e avaliação de atingimento..."></textarea></div>
-      <div class="fg"><label class="fl">Melhorias implementadas desde última revisão</label><textarea class="fi" id="aud-melh" style="min-height:70px" placeholder="Liste melhorias implantadas e seus impactos..."></textarea></div>
-    </div>
-    <div id="aud3" class="tab-p">
-      <div class="fg"><label class="fl">Conclusão geral</label><textarea class="fi" id="aud-conc" style="min-height:80px" placeholder="Síntese da auditoria: pontos fortes, fragilidades e recomendações..."></textarea></div>
-      <div class="fg"><label class="fl">Recomendações e plano de ação</label><textarea class="fi" id="aud-rec" style="min-height:80px" placeholder="Ações recomendadas, responsáveis e prazos..."></textarea></div>
-    </div>
-    <div class="btn-row">
-      <button class="btn" onclick="salvarAuditoria(false)">Salvar rascunho</button>
-      <button class="btn btn-r" onclick="salvarAuditoria(true)">Concluir auditoria →</button>
-    </div>`},
+      <div id="aud2" style="display:none">
+        <div style="margin-bottom:1rem">${questoesHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhuma questão cadastrada.</div>'}</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Adicionar questão de auditoria</div>
+        <div class="fg"><label class="fl">Questão</label><textarea class="fi" id="aud-q-texto" style="min-height:60px" placeholder="Ex: O processo é executado conforme o POP?"></textarea></div>
+        <div class="g2">
+          <div class="fg"><label class="fl">Critério relacionado</label><input class="fi" id="aud-q-crit" placeholder="Qual critério essa questão avalia?"></div>
+          <div class="fg"><label class="fl">Responsável por responder</label><input class="fi" id="aud-q-resp" placeholder="Nome do respondente"></div>
+        </div>
+        <button class="btn" onclick="adicionarQuestaoAuditoria()">＋ Adicionar questão</button>
+      </div>
+      <div id="aud3" style="display:none">
+        <div style="margin-bottom:1rem">${achadosHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhum achado registrado.</div>'}</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Registrar achado / não-conformidade</div>
+        <div class="g2">
+          <div class="fg"><label class="fl">Título</label><input class="fi" id="aud-a-titulo" placeholder="Título do achado"></div>
+          <div class="fg"><label class="fl">Tipo</label>
+            <select class="fi" id="aud-a-tipo">
+              <option>Não conformidade</option>
+              <option>Observação</option>
+              <option>Ponto de melhoria</option>
+              <option>Conformidade</option>
+            </select>
+          </div>
+        </div>
+        <div class="fg"><label class="fl">Descrição</label><textarea class="fi" id="aud-a-desc" style="min-height:60px" placeholder="Descreva o achado..."></textarea></div>
+        <div class="fg"><label class="fl">Evidência</label><input class="fi" id="aud-a-evid" placeholder="Documento, observação, entrevista..."></div>
+        <div class="fg"><label class="fl">Critério infringido</label><input class="fi" id="aud-a-crit" placeholder="Qual critério não foi atendido?"></div>
+        <button class="btn" onclick="adicionarAchadoAuditoria()">＋ Registrar achado</button>
+      </div>
+      <div id="aud4" style="display:none">
+        <div style="margin-bottom:1rem">${acoesHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhuma ação registrada.</div>'}</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Incluir ação corretiva</div>
+        <div class="fg"><label class="fl">Ação</label><textarea class="fi" id="aud-ac-acao" style="min-height:60px" placeholder="Descreva a ação corretiva..."></textarea></div>
+        <div class="g2">
+          <div class="fg"><label class="fl">Responsável</label><input class="fi" id="aud-ac-resp" placeholder="Nome do responsável"></div>
+          <div class="fg"><label class="fl">Prazo</label><input class="fi" id="aud-ac-prazo" type="date"></div>
+        </div>
+        <div class="fg"><label class="fl">Status</label>
+          <select class="fi" id="aud-ac-status">
+            <option>Pendente</option>
+            <option>Em andamento</option>
+            <option>Concluída</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Achado relacionado</label><input class="fi" id="aud-ac-achado" placeholder="NC ou achado ao qual essa ação se refere"></div>
+        <button class="btn" onclick="adicionarAcaoAuditoria()">＋ Incluir ação</button>
+      </div>
+      <div id="aud5" style="display:none">
+        <div class="fg"><label class="fl">Conformidade geral</label>
+          <select class="fi" id="aud-conf">
+            <option ${aud.conformidade==='Conforme'?'selected':''}>Conforme</option>
+            <option ${aud.conformidade==='Conforme com ressalvas'?'selected':''}>Conforme com ressalvas</option>
+            <option ${aud.conformidade==='Não conforme'?'selected':''}>Não conforme</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Conclusão geral</label><textarea class="fi" id="aud-conc" style="min-height:80px" placeholder="Síntese dos resultados da auditoria...">${aud.conclusao||''}</textarea></div>
+        <div class="fg"><label class="fl">Recomendações finais</label><textarea class="fi" id="aud-rec" style="min-height:80px" placeholder="Principais recomendações...">${aud.recomendacoes||''}</textarea></div>
+        <div class="fg"><label class="fl">Trilha de auditoria / evidências</label><textarea class="fi" id="aud-trilha" style="min-height:70px" placeholder="Documentos, entrevistas realizadas, observações...">${aud.trilha||''}</textarea></div>
+        <div class="btn-row">
+          <button class="btn" onclick="salvarRelatorioAuditoria(false)">Salvar relatório</button>
+          <button class="btn btn-p" onclick="salvarRelatorioAuditoria(true)">Concluir auditoria →</button>
+        </div>
+      </div>`;
+    }},
 };
 
 function navegarRetro(etId){
@@ -2173,7 +2255,7 @@ function salvarAbertura(){
   p.ent.dt_prev=document.getElementById('a-prev')?.value||'';
   p.ent.equipe=document.getElementById('a-equipe')?.value||'';
   p.objetivo=document.getElementById('a-obj')?.value||p.objetivo;
-  av('abertura','EP','Dados iniciais confirmados. Reunião de entendimento agendada.','prazo-abertura');
+  av('abertura','EP','Dados iniciais confirmados. Reunião de entendimento agendada.');
 }
 function setLikert(qid,val,btn){
   if(!curProc.ent.quest_resp)curProc.ent.quest_resp={};
@@ -2201,7 +2283,27 @@ function salvarReuniao(){
   const p=curProc;
   const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.ent.prob=prob;
-  av('reuniao','EP','Reunião realizada. '+prob.length+' problemas identificados.','prazo-reuniao');
+  av('reuniao','EP','Reunião realizada. '+prob.length+' problemas identificados.');
+}
+function registrarReuniaoAcomp(){
+  const p=curProc;if(!p)return;
+  if(!p.reunioes_acomp)p.reunioes_acomp=[];
+  const r={
+    data:document.getElementById('ac-data')?.value||now(),
+    conformidade:document.getElementById('ac-conf')?.value||'Conforme',
+    pauta:document.getElementById('ac-pauta')?.value||'',
+    desvios:document.getElementById('ac-desv')?.value||'',
+    acoes:document.getElementById('ac-acoes')?.value||'',
+    participantes:document.getElementById('ac-partic')?.value||'',
+    proxima:document.getElementById('ac-proxima')?.value||'',
+    registrada_em:now()
+  };
+  if(!r.data){toast('Informe a data da reunião','var(--red)');return;}
+  p.reunioes_acomp.push(r);
+  push(p,'acompanha','EP','Reunião de acompanhamento registrada — '+r.data+' — '+r.conformidade);
+  fbAutoSave('salvar');
+  toast('Reunião registrada!','var(--teal)');
+  rDetalhe();
 }
 function publicarProcesso(){
   const p=curProc;
@@ -2209,7 +2311,14 @@ function publicarProcesso(){
   p.form=p.form||{};
   p.form.link_pub=document.getElementById('a-link')?.value||p.form.link_pub||'';
   p.form.vig=document.getElementById('a-vig')?.value||p.form.vig||'';
-  av('publicacao','EP','Processo publicado. Início da operação.','prazo-publicacao');
+  av('publicacao','EP','Processo publicado. Início da operação.');
+  // Notificar dono e interessados sobre publicação
+  const donoEmail=getDonoEmail(p);
+  const acao='Processo "'+p.nome+'" publicado! O POP está disponível no repositório.';
+  if(donoEmail && p.dono) enviarNotif(donoEmail, p.dono, acao, p.nome, '', usuarioLogado?.nome||'EP');
+  (p.interessados||[]).forEach(email=>{
+    if(email) enviarNotif(email, email, acao, p.nome, '', usuarioLogado?.nome||'EP');
+  });
 }
 function salvarMapeamento(){
   const p=curProc;
@@ -2219,27 +2328,54 @@ function salvarMapeamento(){
   p.ent.t_sem_fila=document.getElementById('m-tsemfila')?.value||'';
   p.ent.equipe=document.getElementById('m-equipe')?.value||p.ent.equipe;
   p.ent.vol={exec:document.getElementById('m-exec')?.value||'',tempo:document.getElementById('m-tempo')?.value||'',custo:document.getElementById('m-custo')?.value||'',sazon:document.getElementById('m-sazon')?.value||''};
-  av('mapeamento','EP','Mapeamento completo. Volumetria e prazos registrados.','prazo-mapeamento');
+  av('mapeamento','EP','Mapeamento completo. Volumetria e prazos registrados.');
 }
 function salvarAnalise(){
   const p=curProc;
   if(!p.ent.analise)p.ent.analise={};
+  salvarDadosQuantitativos();
+  av('analise_asis','EP','Análise AS IS concluída');
+}
+function salvarDadosQuantitativos(){
+  const p=curProc;if(!p)return;
+  if(!p.ent.analise)p.ent.analise={};
   const a=p.ent.analise;
-  a.complexidade=document.getElementById('an-comp')?.value||'';
   a.t_ciclo_medio=document.getElementById('an-tciclo')?.value||'';
   a.t_espera_medio=document.getElementById('an-tespera')?.value||'';
   a.qtd_atividades=parseInt(document.getElementById('an-ativ')?.value)||0;
   a.qtd_decisoes=parseInt(document.getElementById('an-dec')?.value)||0;
-  a.gargalos=(document.getElementById('an-gar')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  a.retrabalhos=(document.getElementById('an-ret')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  a.gaps=(document.getElementById('an-gap')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  a.oportunidades=(document.getElementById('an-oport')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  // Auto-create melhorias from oportunidades
-  a.oportunidades.forEach(o=>{
-    if(!melhorias.find(m=>m.titulo===o&&m.pid===p.id))
-      melhorias.push({id:nextMid++,pid:p.id,pnome:p.nome,titulo:o,tipo:'Identificada na análise AS IS',status:'Identificada',resp:p.resp_ep,prazo:'',desc:''});
-  });
-  av('analise_asis','EP','Análise AS IS concluída: '+a.gargalos.length+' gargalos, '+a.retrabalhos.length+' retrabalhos identificados','prazo-analise_asis');
+  fbAutoSave('salvar');toast('Dados salvos!','var(--teal)');
+}
+async function gerarAnaliseIA(){
+  const p=curProc;if(!p)return;
+  if(!p.ent.analise)p.ent.analise={};
+  const el=document.getElementById('ia-analise-result');
+  if(!el)return;
+  const etapas=(p.mod?.etapas_proc||[]).map((e,i)=>`${i+1}. ${e.nome||e.desc||''} | Resp: ${e.resp||''} | Tipo: ${e.tipo||''}`).join('\n');
+  const payload=`Processo: ${p.nome}\nMacro: ${p.macro} | Área: ${p.area}\nObjetivo: ${p.objetivo||''}\nVolumetria: ${JSON.stringify(p.ent?.vol||{})}\nRiscos: ${JSON.stringify(p.ent?.riscos||[])}\nTempo de ciclo: ${p.ent?.analise?.t_ciclo_medio||'não informado'}\nTempo de espera: ${p.ent?.analise?.t_espera_medio||'não informado'}\nQtd atividades: ${p.ent?.analise?.qtd_atividades||0}\nQtd decisões: ${p.ent?.analise?.qtd_decisoes||0}${etapas?'\nEtapas do processo:\n'+etapas:''}${p.mod?.asIs?'\nDescrição AS IS:\n'+p.mod.asIs.substring(0,2000):''}${p.mod?.toBe?'\nDescrição TO BE:\n'+p.mod.toBe.substring(0,1000):''}`;
+  const result=await chamarIA('analisar_bpmn',payload,el);
+  if(result){
+    try{
+      const json=JSON.parse(result);
+      p.ent.analise.ia_resultado=json;
+      // Populate legacy fields for auto-create of melhorias
+      if(json.gargalos)p.ent.analise.gargalos=json.gargalos;
+      if(json.retrabalhos)p.ent.analise.retrabalhos=json.retrabalhos;
+      if(json.gaps)p.ent.analise.gaps=json.gaps;
+      if(json.oportunidades){
+        p.ent.analise.oportunidades=json.oportunidades;
+        json.oportunidades.forEach(o=>{
+          if(!melhorias.find(m=>m.titulo===o&&m.pid===p.id))
+            melhorias.push({id:nextMid++,pid:p.id,pnome:p.nome,titulo:o,tipo:'Identificada na análise AS IS',status:'Identificada',resp:p.resp_ep,prazo:'',desc:''});
+        });
+      }
+      if(json.complexidade)p.ent.analise.complexidade=json.complexidade;
+      fbAutoSave('salvar');
+      rDetalhe();
+    }catch(e){
+      el.innerHTML=`<div class="ai-result"><div class="ai-result-lbl">✦ Análise IA</div>${result}</div>`;
+    }
+  }
 }
 function salvarEsboco(){
   const p=curProc;
@@ -2252,17 +2388,17 @@ function salvarEsboco(){
   if(mTo){mTo.saveXML({format:true}).then(({xml})=>{p.mod.bpmnToBe=xml;}).catch(()=>{});}
   const op=(document.getElementById('e-oport')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   op.forEach(o=>{if(!melhorias.find(m=>m.titulo===o&&m.pid===p.id))melhorias.push({id:nextMid++,pid:p.id,pnome:p.nome,titulo:o,tipo:'Identificada no esboço',status:'Identificada',resp:p.resp_ep,prazo:'',desc:''});});
-  av('esboco','EP','Esboço AS IS/TO BE elaborado com BPMN','prazo-esboco');
+  av('esboco','EP','Esboço AS IS/TO BE elaborado com BPMN');
 }
 function salvarDetEtapas(){
-  av('det_etapas','EP','Etapas detalhadas: '+(curProc?.mod?.etapas_proc||[]).length+' etapas','prazo-det_etapas',curProc?.dono);
+  av('det_etapas','EP','Etapas detalhadas: '+(curProc?.mod?.etapas_proc||[]).length+' etapas');
 }
 function salvarPOP(){
   const p=curProc;
   if(!p.form)p.form={pop_ok:false,pop:null,apresent:'',bpmnXml:null};
   p.form.pop={area:document.getElementById('pp-area')?.value||'',ger:document.getElementById('pp-ger')?.value||'',mac:document.getElementById('pp-mac')?.value||'',obj:document.getElementById('pp-obj')?.value||'',def:document.getElementById('pp-def')?.value||'',ent:document.getElementById('pp-ent')?.value||'',sai:document.getElementById('pp-sai')?.value||'',ativ:document.getElementById('pp-ativ')?.value||'',ind:document.getElementById('pp-ind')?.value||'',docs:document.getElementById('pp-docs')?.value||''};
   p.form.pop_ok=true;
-  av('pop','EP','POP construído no padrão CAGE','prazo-pop');
+  av('pop','EP','POP construído no padrão CAGE');
 }
 function salvarComplementacaoDono(){
   const p=curProc;
@@ -2273,14 +2409,14 @@ function salvarComplementacaoDono(){
   p.form.forms=document.getElementById('aforms')?.value||p.form.forms||'';
   const obs=document.getElementById('aobs')?.value||'';
   if(obs) p.form.obs_complement=obs;
-  av('complement','Dono','Complementação fornecida pelo dono do processo','prazo-complement');
+  av('complement','Dono','Complementação fornecida pelo dono do processo');
 }
 function salvarApresentacao(){
   const obs=document.getElementById('aobs')?.value||'';
   const p=curProc;
   if(!p.form)p.form={pop_ok:false,pop:null,apresent:''};
   p.form.apresent='Aprovado pelo patrocinador em '+now()+(obs?'. '+obs:'');
-  av('apresentacao','Patrocinador','Aprovado pelo patrocinador para publicação','prazo-apresentacao');
+  av('apresentacao','Patrocinador','Aprovado pelo patrocinador para publicação');
 }
 
 // ── GERAÇÃO DE APRESENTAÇÃO PPT COM IA ──
@@ -2384,21 +2520,87 @@ async function montarPPT(dados, p){
   await pptx.writeFile({fileName:nomeArq+'.pptx'});
 }
 function salvarAuditoria(concluir){
-  const p=curProc;
-  const esc=document.getElementById('aud-escopo')?.value||'';
-  const ach=document.getElementById('aud-achados')?.value||'';
-  const conc=document.getElementById('aud-conc')?.value||'';
-  const rec=document.getElementById('aud-rec')?.value||'';
-  if(concluir&&(!ach||!conc)){alert('Preencha ao menos os Achados e a Conclusão antes de concluir.');return;}
-  p.auditoria={escopo:esc,achados:ach,conformidade:document.getElementById('aud-conf')?.value,conclusao:conc,recomendacoes:rec,data:now(),concluida:concluir};
-  if(concluir){
-    push(p,'auditoria','EP','Auditoria concluída. Conformidade: '+p.auditoria.conformidade);
-    toast('Auditoria concluída!');
-    updCounts();rDetalhe();
-  } else {
-    push(p,'auditoria','EP','Rascunho da auditoria salvo');
-    toast('Rascunho salvo','var(--amber)');
-  }
+  // Delegate to new full auditoria module
+  salvarRelatorioAuditoria(concluir);
+}
+function salvarPlanejamentoAuditoria(){
+  const p=curProc;if(!p)return;
+  if(!p.auditoria)p.auditoria={};
+  Object.assign(p.auditoria,{
+    data_inicio:document.getElementById('aud-ini')?.value||'',
+    data_fim:document.getElementById('aud-fim')?.value||'',
+    objetivo:document.getElementById('aud-obj')?.value||'',
+    escopo:document.getElementById('aud-escopo')?.value||'',
+    equipe:document.getElementById('aud-equipe')?.value||'',
+    criterios:document.getElementById('aud-crit')?.value||'',
+    metodologia:document.getElementById('aud-metod')?.value||''
+  });
+  fbAutoSave('salvar');toast('Planejamento salvo!','var(--teal)');
+}
+function adicionarQuestaoAuditoria(){
+  const p=curProc;if(!p)return;
+  if(!p.auditoria)p.auditoria={};
+  if(!p.auditoria.questoes)p.auditoria.questoes=[];
+  const q={
+    questao:document.getElementById('aud-q-texto')?.value||'',
+    criterio:document.getElementById('aud-q-crit')?.value||'',
+    responsavel:document.getElementById('aud-q-resp')?.value||'',
+    resposta:'',criada_em:now()
+  };
+  if(!q.questao){toast('Informe a questão','var(--red)');return;}
+  p.auditoria.questoes.push(q);
+  fbAutoSave('salvar');toast('Questão adicionada!','var(--teal)');
+  rDetalhe();
+}
+function adicionarAchadoAuditoria(){
+  const p=curProc;if(!p)return;
+  if(!p.auditoria)p.auditoria={};
+  if(!p.auditoria.achados_list)p.auditoria.achados_list=[];
+  const a={
+    titulo:document.getElementById('aud-a-titulo')?.value||'',
+    tipo:document.getElementById('aud-a-tipo')?.value||'Não conformidade',
+    descricao:document.getElementById('aud-a-desc')?.value||'',
+    evidencia:document.getElementById('aud-a-evid')?.value||'',
+    criterio:document.getElementById('aud-a-crit')?.value||'',
+    data:now()
+  };
+  if(!a.titulo){toast('Informe o título','var(--red)');return;}
+  p.auditoria.achados_list.push(a);
+  push(p,'auditoria','EP','Achado registrado: '+a.titulo+' ('+a.tipo+')');
+  fbAutoSave('salvar');toast('Achado registrado!','var(--teal)');
+  rDetalhe();
+}
+function adicionarAcaoAuditoria(){
+  const p=curProc;if(!p)return;
+  if(!p.auditoria)p.auditoria={};
+  if(!p.auditoria.acoes_list)p.auditoria.acoes_list=[];
+  const a={
+    acao:document.getElementById('aud-ac-acao')?.value||'',
+    responsavel:document.getElementById('aud-ac-resp')?.value||'',
+    prazo:document.getElementById('aud-ac-prazo')?.value||'',
+    status:document.getElementById('aud-ac-status')?.value||'Pendente',
+    achado:document.getElementById('aud-ac-achado')?.value||'',
+    criada_em:now()
+  };
+  if(!a.acao){toast('Informe a ação','var(--red)');return;}
+  p.auditoria.acoes_list.push(a);
+  fbAutoSave('salvar');toast('Ação incluída!','var(--teal)');
+  rDetalhe();
+}
+function salvarRelatorioAuditoria(concluir){
+  const p=curProc;if(!p)return;
+  if(!p.auditoria)p.auditoria={};
+  Object.assign(p.auditoria,{
+    conformidade:document.getElementById('aud-conf')?.value||'',
+    conclusao:document.getElementById('aud-conc')?.value||'',
+    recomendacoes:document.getElementById('aud-rec')?.value||'',
+    trilha:document.getElementById('aud-trilha')?.value||'',
+    data:now(),
+    concluida:concluir
+  });
+  if(concluir)push(p,'auditoria','EP','Auditoria concluída. Conformidade: '+p.auditoria.conformidade);
+  fbAutoSave('salvar');toast(concluir?'Auditoria concluída!':'Relatório salvo!','var(--teal)');
+  if(concluir){updCounts();rDetalhe();}
 }
 function visPopPreview(){
   const p=curProc;
@@ -4821,7 +5023,6 @@ function confirmarImportPOP(){
     prio:'Normal',
     etapa:'publicacao', // inicia já na etapa de publicação
     mapeado:true,
-    prazos:{},
     ent:{dt_inicio:agora,dt_prev:'',equipe:'',prob:[],prev_ops:[],analise:'',mat:0,quest_resp:{}},
     mod:{asIs:'',toBe:'',etapas_proc:etapasTexto.split('\n').filter(Boolean).map((d,i)=>({id:i+1,desc:d,resp:atores,ent:'',sai:'',dur:'',sist:'',doc:''}))},
     form:{faq:'',links:'',forms:'',pop_data:{area,objetivo,atores,atividades:etapasTexto}},
