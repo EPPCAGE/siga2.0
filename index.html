@@ -1530,10 +1530,6 @@ function loadLogos(){
 }
 
 function aplicarPermissoes(){
-  // Logo controls — only EP can upload logos
-  const logoActions = document.getElementById('logo-ep-actions');
-  if(logoActions) logoActions.style.display = isEP() ? 'flex' : 'none';
-
   // Processos page: novo processo button
   const btnNovo = document.getElementById('btn-novo-proc');
   if(btnNovo) btnNovo.innerHTML = isEP()
@@ -1592,21 +1588,33 @@ function rDash(){
     '<div class="stat cr"><div class="stat-n">'+processos.filter(p=>p.prio==='Critica').length+'</div><div class="stat-l">Prioridade crítica</div></div>';
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
+  document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
+  const pend=processos.filter(p=>['valid_dono','aprovacao','complement','apresentacao'].includes(p.etapa));
+  document.getElementById('dash-pend').innerHTML=buildPendentesHTML(pend);
+  const ma=melhorias.filter(m=>m.status!=='Concluida').slice(0,4);
+  document.getElementById('dash-melh').innerHTML=buildMelhoriasHTML(ma);
+}
+function filtEtapaGo(etId){filtFaseAtual='';document.querySelectorAll('#fase-chips .chip').forEach((c,i)=>c.classList.toggle('on',i===0));go('processos',document.getElementById('nb-proc'));}
+
+function buildPipelineHTML(cnt){
   const faseMap={Entendimento:'pip-e',Modelagem:'pip-m',Formalizacao:'pip-f',Operacao:'pip-o',Auditoria:'pip-a'};
   const faseTitle={Entendimento:'Entendimento',Modelagem:'Modelagem',Formalizacao:'Formalização',Operacao:'Operação',Auditoria:'Auditoria'};
-  document.getElementById('dash-pipe').innerHTML=FASES.map(f=>`
+  return FASES.map(f=>`
     <div class="pip-phase"><div class="pip-phase-hd ${faseMap[f]}">${faseTitle[f]}</div>
     <div class="pip-steps">${ETAPAS.filter(e=>e.fase===f).map(e=>`
       <div class="pip-step ${faseMap[f]} ${cnt[e.id]>0?'has':''}" onclick="filtEtapaGo('${e.id}')">
         <div class="pip-dot"></div>${e.lb}${cnt[e.id]>0?' <strong style="margin-left:auto">'+cnt[e.id]+'</strong>':''}
       </div>`).join('')}
     </div></div>`).join('');
-  const pend=processos.filter(p=>['valid_dono','aprovacao','complement','apresentacao'].includes(p.etapa));
-  document.getElementById('dash-pend').innerHTML=pend.length?pend.map(p=>`<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:7px"><div><div class="prc-t">${esc(p.nome)}</div><div class="prc-m">${esc(p.dono)}</div></div><div>${eBadge(p.etapa)}</div></div>`).join(''):'<div class="ib ibg">Nenhuma aprovação pendente.</div>';
-  const ma=melhorias.filter(m=>m.status!=='Concluida').slice(0,4);
-  document.getElementById('dash-melh').innerHTML=ma.length?ma.map(m=>`<div class="prc" onclick="go('melhorias',document.getElementById('nb-melh'))" style="margin-bottom:7px"><div><div class="prc-t">${esc(m.titulo)}</div><div class="prc-m"><strong>${esc(m.pnome)}</strong> · ${esc(m.resp)}</div></div><div>${mBadge(m.status)}</div></div>`).join(''):'<div class="ib ibg">Nenhuma melhoria pendente.</div>';
 }
-function filtEtapaGo(etId){filtFaseAtual='';document.querySelectorAll('#fase-chips .chip').forEach((c,i)=>c.classList.toggle('on',i===0));go('processos',document.getElementById('nb-proc'));}
+function buildPendentesHTML(pend){
+  if(!pend.length) return '<div class="ib ibg">Nenhuma aprovação pendente.</div>';
+  return pend.map(p=>`<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:7px"><div><div class="prc-t">${esc(p.nome)}</div><div class="prc-m">${esc(p.dono)}</div></div><div>${eBadge(p.etapa)}</div></div>`).join('');
+}
+function buildMelhoriasHTML(ma){
+  if(!ma.length) return '<div class="ib ibg">Nenhuma melhoria pendente.</div>';
+  return ma.map(m=>`<div class="prc" onclick="go('melhorias',document.getElementById('nb-melh'))" style="margin-bottom:7px"><div><div class="prc-t">${esc(m.titulo)}</div><div class="prc-m"><strong>${esc(m.pnome)}</strong> · ${esc(m.resp)}</div></div><div>${mBadge(m.status)}</div></div>`).join('');
+}
 
 // ═══════════════════════════════════════════
 // LISTA DE PROCESSOS
@@ -2432,51 +2440,34 @@ function salvarRetroativo(etId){
   fbAutoSave('retroativo');
   updCounts();
 }
-function rAcao(p){
-  const role=usuarioLogado?.perfil||'ep';
-  const ac=ACOES[p.etapa];
-  if(!ac){document.getElementById('tab-acao').innerHTML='<div class="ib ibsl">Etapa não configurada.</div>';return;}
-  if(role==='dono'){
-    const etObj=ETAPAS.find(e=>e.id===p.etapa);
-    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
-    if(minhaTarefa){
-      document.getElementById('tab-acao').innerHTML=`
-        <div class="ib ibt" style="margin-bottom:1rem">O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</div>
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.7rem;flex-wrap:wrap;gap:8px">
-            <div><div class="card-t" style="margin-bottom:2px">${ac.titulo}</div>
-            <div style="font-size:12px;color:var(--ink3)">${ac.sub}</div></div>
-            <span class="badge bsl">${ac.role}</span>
-          </div>
-          ${ac.form(p)}
-        </div>`;
-    } else {
-      document.getElementById('tab-acao').innerHTML=`
-        <div class="card">
-          <div class="ib iba" style="margin-bottom:1rem">
-            Esta etapa — <strong>${ac.titulo}</strong> — está sendo conduzida pelo EP.
-            Não há nenhuma ação necessária da sua parte neste momento.
-          </div>
-          <div style="font-size:13px;color:var(--ink2)">${ac.sub}</div>
-        </div>`;
-    }
-    return;
-  }
-  document.getElementById('tab-acao').innerHTML=`<div class="card">
+function buildAcaoCardHTML(ac, p, extraNote){
+  return `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.7rem;flex-wrap:wrap;gap:8px">
       <div><div class="card-t" style="margin-bottom:2px">${ac.titulo}</div>
       <div style="font-size:12px;color:var(--ink3)">${ac.sub}</div></div>
       <span class="badge bsl">${ac.role}</span>
     </div>
     ${ac.form(p)}
-    ${role!==ac.rk?'<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>'+ac.role+'</strong>. Troque o perfil para interagir.</div>':''}
+    ${extraNote||''}
   </div>`;
-  if(p.etapa==='esboco'){
-    setTimeout(()=>{initBpmnMod('asis',p);},120);
+}
+function rAcao(p){
+  const role=usuarioLogado?.perfil||'ep';
+  const ac=ACOES[p.etapa];
+  const el=document.getElementById('tab-acao');
+  if(!ac){el.innerHTML='<div class="ib ibsl">Etapa não configurada.</div>';return;}
+  if(role==='dono'){
+    const etObj=ETAPAS.find(e=>e.id===p.etapa);
+    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
+    el.innerHTML=minhaTarefa
+      ?`<div class="ib ibt" style="margin-bottom:1rem">O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</div>${buildAcaoCardHTML(ac,p,'')}`
+      :`<div class="card"><div class="ib iba" style="margin-bottom:1rem">Esta etapa — <strong>${ac.titulo}</strong> — está sendo conduzida pelo EP. Não há nenhuma ação necessária da sua parte neste momento.</div><div style="font-size:13px;color:var(--ink2)">${ac.sub}</div></div>`;
+    return;
   }
-  if(p.etapa==='det_etapas'){
-    setTimeout(atualizarMermaid,300);
-  }
+  const roleNote=role!==ac.rk?`<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>${ac.role}</strong>. Troque o perfil para interagir.</div>`:'';
+  el.innerHTML=buildAcaoCardHTML(ac,p,roleNote);
+  if(p.etapa==='esboco') setTimeout(()=>{initBpmnMod('asis',p);},120);
+  if(p.etapa==='det_etapas') setTimeout(atualizarMermaid,300);
 }
 
 // ═══════════════════════════════════════════
@@ -4769,110 +4760,80 @@ function indFiltPpe(val, el){
 }
 
 let _indCharts = [];
-function rIndGraficos(){
-  const el = document.getElementById('ind-graficos-c');
-  if(!el) return;
-  // Destroy previous charts
-  _indCharts.forEach(c=>{ try{ c.destroy(); }catch(e){} });
-  _indCharts = [];
-
-  if(!kpis.length){
-    el.innerHTML = '<div class="ib ibsl">Nenhum indicador cadastrado.</div>';
-    return;
-  }
-
-  // Group kpis by nome+codigo to build time series
+function kpiGrupoCardHTML(key, items){
+  const nome = items[0].nome;
+  const polaridade = items[0].polaridade||'Maior é melhor';
+  const area = items[0].area||'';
+  return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:3px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
+    <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:.75rem">${esc(nome)}</div>
+    <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
+  </div>`;
+}
+function kpiBarColor(r, m, polaridade){
+  if(!m) return 'rgba(96,165,250,0.7)';
+  const pct = polaridade==='Menor é melhor' ? (r>0?m/r:0) : r/m;
+  return pct>=1 ? 'rgba(34,197,94,0.75)' : pct>=0.8 ? 'rgba(251,191,36,0.75)' : 'rgba(239,68,68,0.75)';
+}
+function kpiApplyMetaFallback(items){
+  const semMeta = items.filter(i=>!i.meta||i.meta===0);
+  if(!semMeta.length) return;
+  const ultimos = items.slice(-12).map(i=>parseFloat(i.realizado)||0);
+  const media = ultimos.length ? ultimos.reduce((a,b)=>a+b,0)/ultimos.length : 0;
+  semMeta.forEach(i=>{ if(!i._metaFallback) i._metaFallback = Math.round(media*10)/10; });
+}
+function kpiGroupByKey(){
   const grupos = {};
   kpis.forEach(k=>{
     const key = (k.codigo||k.nome||'').trim() || k.nome;
     if(!grupos[key]) grupos[key] = [];
     grupos[key].push(k);
   });
-
-  // Sort each group by periodo
   Object.values(grupos).forEach(g => g.sort((a,b)=>(a.periodo||'').localeCompare(b.periodo||'')));
-
-  el.innerHTML = Object.entries(grupos).map(([key, items])=>{
-    const nome = items[0].nome;
-    const unidade = items[0].unidade||'';
-    const polaridade = items[0].polaridade||'Maior é melhor';
-    const area = items[0].area||'';
-
-    // Compute meta fallback: average of last 12 realizado values
-    const semMeta = items.filter(i=>!i.meta||i.meta===0);
-    if(semMeta.length){
-      const ultimos = items.slice(-12).map(i=>parseFloat(i.realizado)||0);
-      const media = ultimos.length ? ultimos.reduce((a,b)=>a+b,0)/ultimos.length : 0;
-      semMeta.forEach(i=>{ if(!i._metaFallback) i._metaFallback = Math.round(media*10)/10; });
+  return grupos;
+}
+function createKpiChart(key, items){
+  const canvas = document.getElementById('chart-kpi-'+key.replace(/\W/g,'_'));
+  if(!canvas) return;
+  const polaridade = items[0].polaridade||'Maior é melhor';
+  const unidade = items[0].unidade||'';
+  const realizados = items.map(i=>parseFloat(i.realizado)||0);
+  const metas = items.map(i=>{ const m=parseFloat(i.meta)||0; return m>0?m:(i._metaFallback||null); });
+  const hasHistoricFallback = metas.some((m,i)=>m!==null&&items[i]?._metaFallback);
+  const metaLabel = 'Meta'+(unidade?' ('+unidade+')':(hasHistoricFallback?'  (média histórica)':''));
+  const chart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: items.map(i=>i.periodo||'?'),
+      datasets: [
+        { label:'Realizado'+(unidade?' ('+unidade+')':''), data:realizados, borderRadius:4, order:2,
+          backgroundColor: realizados.map((r,i)=>kpiBarColor(r,metas[i],polaridade)) },
+        { label:metaLabel, data:metas, type:'line', order:1,
+          borderColor:'rgba(99,102,241,0.9)', backgroundColor:'transparent',
+          borderWidth:2, borderDash:[5,4], pointRadius:3 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend:{ position:'bottom', labels:{ font:{size:11} } },
+        tooltip:{ callbacks:{ label: ctx=>ctx.dataset.label+': '+ctx.parsed.y+(unidade?' '+unidade:'') } }
+      },
+      scales: { y:{beginAtZero:false,ticks:{font:{size:10}}}, x:{ticks:{font:{size:10}}} }
     }
-
-    return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:3px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
-      <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:.75rem">${esc(nome)}</div>
-      <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
-    </div>`;
-  }).join('');
-
-  // Render charts after DOM update
-  setTimeout(()=>{
-    Object.entries(grupos).forEach(([key, items])=>{
-      const canvasId = 'chart-kpi-'+key.replace(/\W/g,'_');
-      const canvas = document.getElementById(canvasId);
-      if(!canvas) return;
-      const polaridade = items[0].polaridade||'Maior é melhor';
-      const unidade = items[0].unidade||'';
-      const labels = items.map(i=>i.periodo||'?');
-      const realizados = items.map(i=>parseFloat(i.realizado)||0);
-      const metas = items.map(i=>{
-        const m = parseFloat(i.meta)||0;
-        return m > 0 ? m : (i._metaFallback||null);
-      });
-      const chart = new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Realizado'+(unidade?' ('+unidade+')':''),
-              data: realizados,
-              backgroundColor: items.map((_,i)=>{
-                const m = metas[i]; const r = realizados[i];
-                if(!m) return 'rgba(96,165,250,0.7)';
-                const pct = polaridade==='Menor é melhor' ? (r>0?m/r:0) : r/m;
-                return pct>=1 ? 'rgba(34,197,94,0.75)' : pct>=0.8 ? 'rgba(251,191,36,0.75)' : 'rgba(239,68,68,0.75)';
-              }),
-              borderRadius: 4,
-              order: 2,
-            },
-            {
-              label: 'Meta'+(unidade?' ('+unidade+')':(metas.some(m=>m!==null&&items[metas.indexOf(m)]?._metaFallback)?'  (média histórica)':'')),
-              data: metas,
-              type: 'line',
-              borderColor: 'rgba(99,102,241,0.9)',
-              backgroundColor: 'transparent',
-              borderWidth: 2,
-              borderDash: [5,4],
-              pointRadius: 3,
-              order: 1,
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { font: { size: 11 } } },
-            tooltip: { callbacks: { label: ctx => ctx.dataset.label+': '+ctx.parsed.y+(unidade?' '+unidade:'') } }
-          },
-          scales: {
-            y: { beginAtZero: false, ticks: { font: { size: 10 } } },
-            x: { ticks: { font: { size: 10 } } }
-          }
-        }
-      });
-      _indCharts.push(chart);
-    });
-  }, 50);
+  });
+  _indCharts.push(chart);
+}
+function rIndGraficos(){
+  const el = document.getElementById('ind-graficos-c');
+  if(!el) return;
+  _indCharts.forEach(c=>{ try{ c.destroy(); }catch(e){} });
+  _indCharts = [];
+  if(!kpis.length){ el.innerHTML='<div class="ib ibsl">Nenhum indicador cadastrado.</div>'; return; }
+  const grupos = kpiGroupByKey();
+  Object.values(grupos).forEach(kpiApplyMetaFallback);
+  el.innerHTML = Object.entries(grupos).map(([key,items])=>kpiGrupoCardHTML(key,items)).join('');
+  setTimeout(()=>{ Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
 }
 
 function kpiCard(k){
