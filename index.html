@@ -665,7 +665,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="ph">
     <div>
       <div class="ph-t">PAT — Plano Anual de Trabalho</div>
-      <div class="ph-s">Planejamento, execução e acompanhamento de atividades do Escritório de Processos</div>
+      <div class="ph-s">Planejamento, execução e acompanhamento de atividades do EPP</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <select class="fi" id="plano-ano-sel" onchange="rPlano()" style="width:90px"></select>
@@ -821,7 +821,7 @@ Acesse o sistema para realizar a ação:
 {{link}}
 
 ---
-Este é um e-mail automático do Escritório de Processos — CAGE/Sefaz-RS.
+Este é um e-mail automático do EPP — CAGE/Sefaz-RS.
 Não responda este e-mail.</pre>
       </div>
       <div>
@@ -913,10 +913,9 @@ Não responda este e-mail.</pre>
   <div class="fbar"><span class="fbar-l">Perfil</span>
     <div class="chips" id="usr-chips">
       <span class="chip on" onclick="filtUsr('',this)">Todos</span>
-      <span class="chip" onclick="filtUsr('ep',this)">EP</span>
-      <span class="chip" onclick="filtUsr('dono',this)">Dono</span>
+      <span class="chip" onclick="filtUsr('ep',this)">EPP</span>
+      <span class="chip" onclick="filtUsr('dono',this)">Executor</span>
       <span class="chip" onclick="filtUsr('gestor',this)">Gestor</span>
-      <span class="chip" onclick="filtUsr('patrocinador',this)">Patrocinador</span>
     </div>
     <input class="srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
   </div>
@@ -937,10 +936,9 @@ Não responda este e-mail.</pre>
       <div class="fg"><label class="fl">E-mail<span>*</span></label><input class="fi" id="usr-email" type="email"></div>
       <div class="fg"><label class="fl">Perfil<span>*</span></label>
         <select class="fi" id="usr-perfil" onchange="onUsrPerfilChg()">
-          <option value="ep">Escritório de Processos</option>
-          <option value="dono">Dono de processo</option>
+          <option value="ep">EPP</option>
+          <option value="dono">Executor de Processo</option>
           <option value="gestor">Gestor / Adjunto</option>
-          <option value="patrocinador">Patrocinador</option>
         </select>
       </div>
 
@@ -975,14 +973,13 @@ Não responda este e-mail.</pre>
 // ═══════════════════════════════════════════
 // DADOS CENTRAIS
 // ═══════════════════════════════════════════
-const PERFIL_LABELS = {ep:'Escritório de Processos',dono:'Dono de processo',gestor:'Gestor / Adjunto',patrocinador:'Patrocinador'};
-const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',patrocinador:'#5A2FA0'};
+const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto'};
+const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00'};
 
 let USUARIOS = [
   {email:'ep@sefaz.rs.gov.br',nome:'Equipe EP',perfil:'ep',iniciais:'EP'},
   {email:'felipe.tourinho@sefaz.rs.gov.br',nome:'Felipe Tourinho',perfil:'ep',iniciais:'FT'},
   {email:'amilcar.rosa@sefaz.rs.gov.br',nome:'Amilcar da Rosa',perfil:'dono',iniciais:'AR',processos_vinculados:['s1','s2','s3']},
-  {email:'andrea.buhl@sefaz.rs.gov.br',nome:'Andrea Buhl',perfil:'patrocinador',iniciais:'AB'},
   {email:'adjunto@sefaz.rs.gov.br',nome:'Adjunto CAGE',perfil:'gestor',iniciais:'AD'},
   {email:'carlos.mendes@sefaz.rs.gov.br',nome:'Carlos Mendes',perfil:'dono',iniciais:'CM',processos_vinculados:['s4','s5','s6']},
   {email:'fernanda.lima@sefaz.rs.gov.br',nome:'Fernanda Lima',perfil:'dono',iniciais:'FL',processos_vinculados:['s7','s8','s9']},
@@ -1057,7 +1054,7 @@ const ETAPAS = [
   {id:'aprovacao',lb:'Aprov. dono',fase:'Formalizacao',cor:'pip-f',resp:'dono'},
   {id:'pop',lb:'Construção POP',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'complement',lb:'Complement. dono',fase:'Formalizacao',cor:'pip-f',resp:'dono'},
-  {id:'apresentacao',lb:'Aprov. patrocinador',fase:'Formalizacao',cor:'pip-f',resp:'patrocinador'},
+  {id:'apresentacao',lb:'Aprov. gestor',fase:'Formalizacao',cor:'pip-f',resp:'gestor'},
   {id:'publicacao',lb:'Publicação',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   // Operação
   {id:'acompanha',lb:'Acompanhamento',fase:'Operacao',cor:'pip-o',resp:'ep'},
@@ -1172,7 +1169,7 @@ function doLogin(){
   if(!email){mostrarErrLogin('Informe seu e-mail.');return;}
   const user = USUARIOS.find(u=>u.email===email);
   if(!user){
-    mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao Escritório de Processos.');
+    mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');
     return;
   }
   usuarioLogado=user;
@@ -1364,7 +1361,6 @@ function getTarefasUsr(){
     if(p==='ep')return etObj.resp==='ep';
     if(p==='dono')return etObj.resp==='dono'&&proc.dono===usuarioLogado.nome;
     if(p==='gestor')return etObj.resp==='gestor';
-    if(p==='patrocinador')return etObj.resp==='patrocinador';
     return false;
   });
 }
@@ -1465,7 +1461,7 @@ function rFila(){
   if(!usuarioLogado)return;
   const tarefas=getTarefasUsr();
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
-  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',mapeamento:'Registrar volumetria, equipe e prazos',analise_asis:'Elaborar análise completa do AS IS',esboco:'Elaborar esboço AS IS / TO BE com BPMN',det_etapas:'Detalhar etapas extraídas do fluxo',valid_dono:'Validar modelagem do processo',desenho_final:'Finalizar desenho do processo',aprovacao:'Aprovar processo para construção do POP',pop:'Construir POP no padrão CAGE',complement:'Complementar POP (FAQ, formulários)',apresentacao:'Apresentar ao patrocinador',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',monitora:'Monitorar indicadores de desempenho',auditoria:'Conduzir auditoria do processo'};
+  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',mapeamento:'Registrar volumetria, equipe e prazos',analise_asis:'Elaborar análise completa do AS IS',esboco:'Elaborar esboço AS IS / TO BE com BPMN',det_etapas:'Detalhar etapas extraídas do fluxo',valid_dono:'Validar modelagem do processo',desenho_final:'Finalizar desenho do processo',aprovacao:'Aprovar processo para construção do POP',pop:'Construir POP no padrão CAGE',complement:'Complementar POP (FAQ, formulários)',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',monitora:'Monitorar indicadores de desempenho',auditoria:'Conduzir auditoria do processo'};
   const el=document.getElementById('fila-content');
   if(!tarefas.length){el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>';return;}
   const crit=tarefas.filter(t=>t.prio==='Critica');
@@ -1817,7 +1813,7 @@ function sugerirDono(){
   if(match && !emailEl.value) emailEl.value=match.email;
 }
 function criarProcesso(){
-  if(!isEP()){alert('Apenas o Escritório de Processos pode abrir novos mapeamentos.');return;}
+  if(!isEP()){alert('Apenas o EPP pode abrir novos mapeamentos.');return;}
   const mid=document.getElementById('novo-macro').value;
   const sid=document.getElementById('novo-proc-sel').value;
   const resp_ep=document.getElementById('novo-resp-ep').value;
@@ -1836,7 +1832,7 @@ function criarProcesso(){
   const p={
     id:nextProcId++,arq_id:sid,nome:ap.nome,macro:m.nome,area:ap.area,dono:donoNome,dono_email:donoEmail,
     interessados:(document.getElementById('novo-interessados')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean),
-    pat:USUARIOS.find(u=>u.perfil==='patrocinador')?.nome||'',
+    pat:USUARIOS.find(u=>u.perfil==='gestor')?.nome||'',
     resp_ep,prio,produto,objetivo:objetivo||ap.objetivo,
     ent:{dt_inicio:new Date().toISOString().slice(0,10),dt_prev:'',dt_efetiva:'',equipe:resp_ep+', '+donoNome,t_total:'',t_sem_fila:'',
       prob:[],mat:0,quest_resp:{},vol:{exec:'',tempo:'',custo:'',sazon:''},riscos:[],
@@ -2008,7 +2004,8 @@ const ACOES = {
       <button class="btn" style="font-size:12px" onclick="iaGerarRiscos()">✦ Gerar riscos com IA</button>
       <span id="risco-ia-status" style="font-size:11px;color:var(--ink3)"></span>
     </div>
-    <div id="risco-list" style="margin-bottom:.8rem">${rRiscoList(p.ent.riscos)}</div>
+    <div id="risco-list" style="margin-bottom:.5rem">${rRiscoList(p.ent.riscos)}</div>
+    <div id="risco-matrix">${rRiscoMatriz(p.ent.riscos)}</div>
     <div class="g3">
       <input class="fi" id="rd" placeholder="Descrição do risco">
       <select class="fi" id="rp"><option value="">Probabilidade</option><option>Baixa</option><option>Media</option><option>Alta</option></select>
@@ -2165,8 +2162,8 @@ const ACOES = {
     <div class="fg"><label class="fl">Observações ou correções ao POP</label><textarea class="fi" id="aobs" style="min-height:60px" placeholder="Aponte qualquer ajuste necessário no documento..."></textarea></div>
     <div class="btn-row"><button class="btn btn-g" onclick="salvarComplementacaoDono()">Enviar complementação →</button></div>`},
 
-  apresentacao:{titulo:'Aprovação pelo Patrocinador',sub:'Aprovação de alta gestão antes da publicação. Apresentação executiva gerada por IA.',role:'Patrocinador',rk:'patrocinador',
-    form:p=>`<div class="ib iba">Aprovação final antes da publicação oficial. Gere a apresentação executiva com IA e compartilhe com o patrocinador.</div>
+  apresentacao:{titulo:'Aprovação pelo Gestor / Adjunto',sub:'Aprovação de alta gestão antes da publicação. Apresentação executiva gerada por IA.',role:'Gestor / Adjunto',rk:'gestor',
+    form:p=>`<div class="ib iba">Aprovação final antes da publicação oficial. Gere a apresentação executiva com IA e compartilhe com o gestor responsável.</div>
     <div style="background:var(--bg2);border-radius:8px;padding:1rem;margin-bottom:1rem;border:1px solid var(--bdr)">
       <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.4rem">📊 Apresentação executiva (PowerPoint)</div>
       <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">A IA irá montar uma apresentação .pptx com base em todo o conteúdo do mapeamento.</div>
@@ -2177,9 +2174,9 @@ const ACOES = {
       <div class="fg"><label class="fl">Data da reunião de apresentação</label><input class="fi" id="adt" type="date"></div>
       <div class="fg"><label class="fl">Participantes</label><input class="fi" id="apart" placeholder="Nomes dos presentes"></div>
     </div>
-    <div class="fg"><label class="fl">Decisão / encaminhamentos do patrocinador</label><textarea class="fi" id="aobs" style="min-height:70px" placeholder="Decisão do patrocinador..."></textarea></div>
+    <div class="fg"><label class="fl">Decisão / encaminhamentos do gestor</label><textarea class="fi" id="aobs" style="min-height:70px" placeholder="Decisão do gestor..."></textarea></div>
     <div class="btn-row">
-      <button class="btn btn-a" onclick="reprovar('complement','Patrocinador','Patrocinador solicitou revisão')">Solicitar revisão</button>
+      <button class="btn btn-a" onclick="reprovar('complement','Gestor','Gestor solicitou revisão')">Solicitar revisão</button>
       <button class="btn btn-g" onclick="salvarApresentacao()">Autorizar publicação ✓</button>
     </div>`},
 
@@ -2574,7 +2571,7 @@ async function iaGerarRiscos(){
         adicionados++;
       }
     });
-    document.getElementById('risco-list').innerHTML=rRiscoList(p.ent.riscos);
+    atualizarRiscoUI();
     if(statusEl)statusEl.textContent=adicionados+' riscos adicionados pela IA';
   } else {
     if(statusEl)statusEl.textContent='Erro ao gerar riscos.';
@@ -2695,8 +2692,8 @@ function salvarApresentacao(){
   const obs=document.getElementById('aobs')?.value||'';
   const p=curProc;
   if(!p.form)p.form={pop_ok:false,pop:null,apresent:''};
-  p.form.apresent='Aprovado pelo patrocinador em '+now()+(obs?'. '+obs:'');
-  av('apresentacao','Patrocinador','Aprovado pelo patrocinador para publicação');
+  p.form.apresent='Aprovado pelo gestor em '+now()+(obs?'. '+obs:'');
+  av('apresentacao','Gestor','Aprovado pelo gestor para publicação');
 }
 
 // ── GERAÇÃO DE APRESENTAÇÃO PPT COM IA ──
@@ -2764,7 +2761,7 @@ async function montarPPT(dados, p){
   sl.background={color:C1};
   sl.addShape(pptx.ShapeType.rect,{x:0,y:3.5,w:'100%',h:0.08,fill:{color:C2}});
   sl.addText(dados.titulo_geral||p.nome,{x:0.8,y:1.2,w:10,h:1.2,fontSize:28,bold:true,color:CW,fontFace:'Calibri'});
-  sl.addText(dados.subtitulo||'Escritório de Processos — CAGE/Sefaz-RS',{x:0.8,y:2.6,w:10,h:0.5,fontSize:14,color:'A8C4D4',fontFace:'Calibri'});
+  sl.addText(dados.subtitulo||'EPP — CAGE/Sefaz-RS',{x:0.8,y:2.6,w:10,h:0.5,fontSize:14,color:'A8C4D4',fontFace:'Calibri'});
   sl.addText('Processo: '+p.nome+' | Área: '+(p.area||'—')+' | '+now(),{x:0.8,y:4.2,w:11,h:0.4,fontSize:11,color:'8A9BB0',fontFace:'Calibri'});
 
   // ── SLIDES de conteúdo ──
@@ -2794,7 +2791,7 @@ async function montarPPT(dados, p){
   sl.background={color:C1};
   sl.addShape(pptx.ShapeType.rect,{x:0,y:2.6,w:'100%',h:0.08,fill:{color:C2}});
   sl.addText('Obrigado!',{x:0,y:1.2,w:'100%',h:1,fontSize:36,bold:true,color:CW,align:'center',fontFace:'Calibri'});
-  sl.addText('Escritório de Processos — CAGE/Sefaz-RS',{x:0,y:3,w:'100%',h:0.5,fontSize:14,color:'A8C4D4',align:'center',fontFace:'Calibri'});
+  sl.addText('EPP — CAGE/Sefaz-RS',{x:0,y:3,w:'100%',h:0.5,fontSize:14,color:'A8C4D4',align:'center',fontFace:'Calibri'});
 
   const nomeArq='Apresentacao_'+p.nome.replace(/[^a-zA-Z0-9]/g,'_').slice(0,40)+'_'+now().replace(/\//g,'-');
   await pptx.writeFile({fileName:nomeArq+'.pptx'});
@@ -3562,7 +3559,7 @@ function rForm(p){
   document.getElementById('tab-form').innerHTML=`<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--rl);overflow:hidden">
     <div style="background:var(--ink);color:#fff;padding:1.2rem 1.5rem">
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:.8rem">
-        <span style="background:rgba(255,255,255,.1);border-radius:5px;padding:3px 9px;font-family:var(--fh);font-size:11px">Escritório de Processos</span>
+        <span style="background:rgba(255,255,255,.1);border-radius:5px;padding:3px 9px;font-family:var(--fh);font-size:11px">EPP</span>
         <span style="background:var(--blue);border-radius:5px;padding:3px 9px;font-size:11px;font-weight:600">CAGE</span>
       </div>
       <div style="font-family:var(--fh);font-size:15px;font-weight:600">${pd.area||p.area} / ${pd.mac||p.macro}</div>
@@ -3705,6 +3702,57 @@ function sstab(id,el){
 // ═══════════════════════════════════════════
 // RISCOS
 // ═══════════════════════════════════════════
+const RISCO_MATRIZ_COR = {
+  'Alta|Baixo':   {bg:'#fef9c3',bd:'#ca8a04'},
+  'Alta|Medio':   {bg:'#fed7aa',bd:'#ea580c'},
+  'Alta|Alto':    {bg:'#fecaca',bd:'#dc2626'},
+  'Alta|Critico': {bg:'#f87171',bd:'#b91c1c'},
+  'Media|Baixo':  {bg:'#dcfce7',bd:'#16a34a'},
+  'Media|Medio':  {bg:'#fef9c3',bd:'#ca8a04'},
+  'Media|Alto':   {bg:'#fed7aa',bd:'#ea580c'},
+  'Media|Critico':{bg:'#fecaca',bd:'#dc2626'},
+  'Baixa|Baixo':  {bg:'#dcfce7',bd:'#16a34a'},
+  'Baixa|Medio':  {bg:'#dcfce7',bd:'#16a34a'},
+  'Baixa|Alto':   {bg:'#fef9c3',bd:'#ca8a04'},
+  'Baixa|Critico':{bg:'#fed7aa',bd:'#ea580c'},
+};
+function rRiscoMatriz(rs){
+  if(!rs||!rs.length) return '';
+  const probs=['Alta','Media','Baixa'];
+  const imps=['Baixo','Medio','Alto','Critico'];
+  const thS='padding:5px 6px;font-size:10px;font-weight:700;color:var(--ink3);text-align:center';
+  const rows=probs.map(prob=>{
+    const cells=imps.map(imp=>{
+      const cor=RISCO_MATRIZ_COR[`${prob}|${imp}`]||{bg:'var(--bg2)',bd:'var(--bdr)'};
+      const items=rs.filter(r=>r.prob===prob&&r.imp===imp)
+        .map(r=>`<div style="font-size:10px;background:rgba(0,0,0,.08);border-radius:3px;padding:2px 5px;margin-top:3px;line-height:1.3;word-break:break-word">${esc(r.desc)}</div>`).join('');
+      return `<td style="padding:5px;vertical-align:top;background:${cor.bg};border:1px solid ${cor.bd};min-width:70px">${items||'<span style="font-size:10px;color:rgba(0,0,0,.2)">—</span>'}</td>`;
+    }).join('');
+    return `<tr><td style="padding:4px 8px;font-size:10px;font-weight:700;color:var(--ink3);text-align:right;white-space:nowrap;border:1px solid var(--bdr);background:var(--bg2)">${prob}</td>${cells}</tr>`;
+  }).join('');
+  const legenda=[['#dcfce7','#16a34a','Baixo'],['#fef9c3','#ca8a04','Moderado'],['#fed7aa','#ea580c','Alto'],['#fecaca','#dc2626','Crítico']]
+    .map(([bg,bd,lb])=>`<div style="display:flex;align-items:center;gap:4px"><div style="width:11px;height:11px;background:${bg};border:1px solid ${bd};border-radius:2px"></div><span style="font-size:10px;color:var(--ink3)">${lb}</span></div>`).join('');
+  return `<div style="margin-top:1rem">
+    <div class="sec-lbl" style="margin-bottom:.5rem">Mapa de calor</div>
+    <div style="overflow-x:auto">
+      <table style="border-collapse:collapse;width:100%">
+        <thead><tr>
+          <th style="${thS};width:70px;text-align:right">Prob./Imp.</th>
+          ${imps.map(i=>`<th style="${thS}">${i}</th>`).join('')}
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">${legenda}</div>
+    </div>
+  </div>`;
+}
+function atualizarRiscoUI(){
+  const rs=curProc?.ent?.riscos;
+  const el=document.getElementById('risco-list');
+  const em=document.getElementById('risco-matrix');
+  if(el) el.innerHTML=rRiscoList(rs);
+  if(em) em.innerHTML=rRiscoMatriz(rs);
+}
 function rRiscoList(rs){
   if(!rs||!rs.length)return '<div style="font-size:12px;color:var(--ink4);padding:4px 0">Nenhum risco adicionado.</div>';
   return rs.map((r,i)=>`<div class="ri-item"><span>${r.desc}</span>${pbBadge(r.prob)}${ibBadge(r.imp)}<button class="ri-del" onclick="remR(${i})">×</button></div>`).join('');
@@ -3715,9 +3763,9 @@ function addRisco(){
   if(!curProc.ent.riscos)curProc.ent.riscos=[];
   curProc.ent.riscos.push({desc,prob,imp});
   document.getElementById('rd').value='';document.getElementById('rp').value='';document.getElementById('ri').value='';
-  document.getElementById('risco-list').innerHTML=rRiscoList(curProc.ent.riscos);
+  atualizarRiscoUI();
 }
-function remR(i){if(!curProc?.ent?.riscos)return;curProc.ent.riscos.splice(i,1);document.getElementById('risco-list').innerHTML=rRiscoList(curProc.ent.riscos);}
+function remR(i){if(!curProc?.ent?.riscos)return;curProc.ent.riscos.splice(i,1);atualizarRiscoUI();}
 
 // ═══════════════════════════════════════════
 // ARQUITETURA DE PROCESSOS
@@ -4796,7 +4844,7 @@ function kpiCard(k){
 }
 
 function abrirNovoKpi(preselArea){
-  if(!isEP()){alert('Ação restrita ao Escritório de Processos.');return;}
+  if(!isEP()){alert('Ação restrita ao EPP.');return;}
   const modal = document.getElementById('novo-kpi-modal');
   if(!modal) return;
   document.getElementById('kpi-modal-titulo').textContent = 'Novo indicador';
@@ -4979,7 +5027,7 @@ function rPub(){
 }
 
 function abrirModalPub(){
-  if(!isEP()){alert('Ação restrita ao Escritório de Processos.');return;}
+  if(!isEP()){alert('Ação restrita ao EPP.');return;}
   document.getElementById('pub-modal-titulo').textContent = 'Nova publicação';
   document.getElementById('pub-edit-id').value = '';
   document.getElementById('pub-del-btn').style.display = 'none';
@@ -5068,7 +5116,7 @@ function filtUsr(p, el){
 }
 
 function renderAdmin(){
-  if(!isEP()){document.getElementById('usr-tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:1rem">Acesso restrito ao Escritório de Processos.</td></tr>';return;}
+  if(!isEP()){document.getElementById('usr-tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:1rem">Acesso restrito ao EPP.</td></tr>';return;}
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
     (!filtUsrPerfil||u.perfil===filtUsrPerfil) &&
@@ -5076,8 +5124,8 @@ function renderAdmin(){
   );
   const tbody = document.getElementById('usr-tbody');
   if(!tbody) return;
-  const cors = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',patrocinador:'#5A2FA0'};
-  const pBadge = p=>`<span class="badge ${{ep:'bb',dono:'bt',gestor:'ba',patrocinador:'bp'}[p]||'bgr'}">${PERFIL_LABELS[p]||p}</span>`;
+  const cors = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00'};
+  const pBadge = p=>`<span class="badge ${{ep:'bb',dono:'bt',gestor:'ba'}[p]||'bgr'}">${PERFIL_LABELS[p]||p}</span>`;
   tbody.innerHTML = lista.map(u=>{
     const idx = USUARIOS.indexOf(u);
     const isMe = usuarioLogado?.email===u.email;
