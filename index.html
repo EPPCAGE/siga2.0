@@ -19,9 +19,9 @@
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
   // ── PREENCHA AQUI APÓS CRIAR O PROJETO FIREBASE
-  // IMPORTANT: Do not commit real keys. Replace these placeholders at deploy-time.
+  // IMPORTANT: Do not commit real keys. Load from config.local.js or environment
   const FIREBASE_CONFIG = {
-    apiKey:            "__FIREBASE_API_KEY__",
+    apiKey:            (window.CONFIG?.FIREBASE_API_KEY || "__FIREBASE_API_KEY__"),
     authDomain:        "gesproc2.firebaseapp.com",
     projectId:         "gesproc2",
     storageBucket:     "gesproc2.firebasestorage.app",
@@ -4420,8 +4420,8 @@ document.getElementById('login-screen').style.display='flex';
 // ═══════════════════════════════════════════
 
 // URL da Firebase Function (preencher após deploy)
-// NOTE: replace with real URL via environment/runtime configuration; do not commit secrets.
-const AI_FUNCTION_URL = '__AI_FUNCTION_URL__';
+// NOTE: Load from config.local.js or localStorage for local development
+const AI_FUNCTION_URL = (window.CONFIG?.AI_FUNCTION_URL || '__AI_FUNCTION_URL__');
 
 async function chamarIA(mode, payload, targetEl){
   if(!targetEl) return null;

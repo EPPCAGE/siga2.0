@@ -7,3 +7,5 @@ functions/node_modules/
 firebase-debug.log
 firebase-debug.*.log
 .DS_Store
+config.local.js
+*.local.js
