@@ -2154,16 +2154,30 @@ const ACOES = {
     form:p=>{
       const a=p.ent.analise||{};
       const bpmnOk=!!(p.mod?.bpmnAsIs||p.mod?.asIs);
+      // ── Derivar valores automaticamente das etapas anteriores ──
+      const etapas=p.mod?.etapas_proc||[];
+      const qtdAtivDeriv=etapas.filter(e=>!e.tipo||e.tipo==='Atividade').length;
+      const qtdDecDeriv=etapas.filter(e=>e.tipo==='Decisao').length;
+      const fmtH=v=>(v!=null&&v!=='')?v+' h':'';
+      const tCicloVal=a.t_ciclo_medio||(p.ent.t_ciclo!=null?fmtH(p.ent.t_ciclo):'');
+      const tEsperaVal=a.t_espera_medio||(p.ent.t_gaveta!=null?fmtH(p.ent.t_gaveta):'');
+      const qtdAtivVal=a.qtd_atividades||qtdAtivDeriv||'';
+      const qtdDecVal=a.qtd_decisoes||qtdDecDeriv||'';
+      const badge=(src)=>`<span style="font-size:9px;font-weight:600;color:var(--teal);background:var(--teal-l);border-radius:4px;padding:1px 5px;margin-left:5px">← ${src}</span>`;
+      const autoTCiclo=!a.t_ciclo_medio&&p.ent.t_ciclo!=null;
+      const autoTEsp=!a.t_espera_medio&&p.ent.t_gaveta!=null;
+      const autoAtiv=!a.qtd_atividades&&qtdAtivDeriv>0;
+      const autoDec=!a.qtd_decisoes&&qtdDecDeriv>0;
       return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN e etapas mapeadas.</div>
         ${bpmnOk?'':'<div class="ib ibr">⚠ Mapeamento BPMN ainda não realizado. A análise será limitada.</div>'}
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem">Dados quantitativos do processo</div>
         <div class="g2">
-          <div class="fg"><label class="fl">Tempo médio de ciclo (lead time)</label><input class="fi" id="an-tciclo" value="${a.t_ciclo_medio||''}" placeholder="Ex: 15 dias úteis"></div>
-          <div class="fg"><label class="fl">Tempo médio de espera/fila</label><input class="fi" id="an-tespera" value="${a.t_espera_medio||''}" placeholder="Ex: 8 dias úteis"></div>
+          <div class="fg"><label class="fl">Tempo médio de ciclo (lead time)${autoTCiclo?badge('Volumetria'):''}</label><input class="fi" id="an-tciclo" value="${esc(tCicloVal)}" placeholder="Ex: 15 dias úteis"></div>
+          <div class="fg"><label class="fl">Tempo médio de espera/fila${autoTEsp?badge('Volumetria'):''}</label><input class="fi" id="an-tespera" value="${esc(tEsperaVal)}" placeholder="Ex: 8 dias úteis"></div>
         </div>
         <div class="g2">
-          <div class="fg"><label class="fl">Qtd. de atividades</label><input class="fi" id="an-ativ" type="number" value="${a.qtd_atividades||''}"></div>
-          <div class="fg"><label class="fl">Qtd. de decisões/gateways</label><input class="fi" id="an-dec" type="number" value="${a.qtd_decisoes||''}"></div>
+          <div class="fg"><label class="fl">Qtd. de atividades${autoAtiv?badge('Etapas detalhadas'):''}</label><input class="fi" id="an-ativ" type="number" value="${qtdAtivVal}"></div>
+          <div class="fg"><label class="fl">Qtd. de decisões/gateways${autoDec?badge('Etapas detalhadas'):''}</label><input class="fi" id="an-dec" type="number" value="${qtdDecVal}"></div>
         </div>
         <button class="btn" onclick="salvarDadosQuantitativos()" style="margin-bottom:1rem">Salvar dados quantitativos</button>
         <div style="border-top:1px solid var(--bdr);padding-top:1rem;margin-top:.5rem">
