@@ -2316,21 +2316,10 @@ const ACOES = {
       const autoTEsp=!a.t_espera_medio&&p.ent.t_gaveta!=null;
       const autoAtiv=!a.qtd_atividades&&qtdAtivDeriv>0;
       const autoDec=!a.qtd_decisoes&&qtdDecDeriv>0;
-      return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN e etapas mapeadas.</div>
+      return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN, etapas mapeadas e dados do processo.</div>
         ${bpmnOk?'':'<div class="ib ibr">⚠ Mapeamento BPMN ainda não realizado. A análise será limitada.</div>'}
-        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem">Dados quantitativos do processo</div>
-        <div class="g2">
-          <div class="fg"><label class="fl">Tempo médio de ciclo (lead time)${autoTCiclo?badge('Volumetria'):''}</label><input class="fi" id="an-tciclo" value="${esc(tCicloVal)}" placeholder="Ex: 15 dias úteis"></div>
-          <div class="fg"><label class="fl">Tempo médio de espera/fila${autoTEsp?badge('Volumetria'):''}</label><input class="fi" id="an-tespera" value="${esc(tEsperaVal)}" placeholder="Ex: 8 dias úteis"></div>
-        </div>
-        <div class="g2">
-          <div class="fg"><label class="fl">Qtd. de atividades${autoAtiv?badge('Etapas detalhadas'):''}</label><input class="fi" id="an-ativ" type="number" value="${qtdAtivVal}"></div>
-          <div class="fg"><label class="fl">Qtd. de decisões/gateways${autoDec?badge('Etapas detalhadas'):''}</label><input class="fi" id="an-dec" type="number" value="${qtdDecVal}"></div>
-        </div>
-        <button class="btn" onclick="salvarDadosQuantitativos()" style="margin-bottom:1rem">Salvar dados quantitativos</button>
-        <div style="border-top:1px solid var(--bdr);padding-top:1rem;margin-top:.5rem">
-          <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
-          <div id="ia-analise-result">${a.ia_resultado?`<div class="ai-result">
+        <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
+        <div id="ia-analise-result">${a.ia_resultado?`<div class="ai-result">
             ${a.ia_resultado.resumo?`<div class="ai-result-lbl">Resumo</div><p>${esc(a.ia_resultado.resumo)}</p>`:''}
             ${a.ia_resultado.gargalos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Gargalos</div><ul>${a.ia_resultado.gargalos.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>`:''}
             ${a.ia_resultado.retrabalhos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Retrabalhos</div><ul>${a.ia_resultado.retrabalhos.map(r=>`<li>${esc(r)}</li>`).join('')}</ul>`:''}
@@ -2340,9 +2329,10 @@ const ACOES = {
             ${a.ia_resultado.solucoes_problemas?.length?`<div class="ai-result-lbl" style="margin-top:.8rem;color:var(--teal)">💡 Soluções para problemas levantados</div><ul>${a.ia_resultado.solucoes_problemas.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:''}
             ${a.ia_resultado.mitigacoes_riscos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem;color:var(--amber)">🛡 Propostas de mitigação de riscos</div><ul>${a.ia_resultado.mitigacoes_riscos.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:''}
           </div>`:'<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>'}</div>
-          <button class="btn btn-t" onclick="gerarAnaliseIA()" style="margin-top:.8rem">✦ Gerar análise com IA</button>
-        </div>
-        <div class="btn-row" style="margin-top:1rem">
+        <div class="btn-row" style="margin-top:.8rem">
+          ${a.ia_resultado
+            ? `<button class="btn btn-t" onclick="gerarAnaliseIA()" title="Sobrescreve a análise atual com uma nova geração">🔄 Regenerar análise com IA</button>`
+            : `<button class="btn btn-t" onclick="gerarAnaliseIA()">✦ Gerar análise com IA</button>`}
           <button class="btn btn-p" onclick="salvarAnalise()">Concluir análise →</button>
         </div>`;
     }},
@@ -3056,11 +3046,18 @@ async function gerarAnaliseIA(){
   if(!p.ent.analise)p.ent.analise={};
   const el=document.getElementById('ia-analise-result');
   if(!el)return;
+  const a=p.ent.analise;
   const etapas=(p.mod?.etapas_proc||[]).map((e,i)=>`${i+1}. ${e.nome||e.desc||''} | Resp: ${e.resp||''} | Tipo: ${e.tipo||''}`).join('\n');
   const problemas=(p.ent?.prob||[]).filter(Boolean);
   const riscos=(p.ent?.riscos||[]).map(r=>`${r.descricao||r.desc||''} (probabilidade: ${r.probabilidade||'—'}, impacto: ${r.impacto||'—'})`).filter(s=>s.trim()!=='(probabilidade: —, impacto: —)');
   const payloadExtra=`${problemas.length?'\n\nProblemas/dores levantados na reunião de entendimento:\n'+problemas.map((p,i)=>`${i+1}. ${p}`).join('\n'):''}${riscos.length?'\n\nRiscos identificados na etapa de identificação de riscos:\n'+riscos.map((r,i)=>`${i+1}. ${r}`).join('\n'):''}${(problemas.length||riscos.length)?'\n\nAlém dos campos padrão (resumo, gargalos, retrabalhos, gaps, oportunidades, complexidade), inclua obrigatoriamente no JSON:\n- "solucoes_problemas": array de strings com uma sugestão de solução concreta para cada problema listado acima (mesma ordem e quantidade)\n- "mitigacoes_riscos": array de strings com uma proposta de mitigação concreta para cada risco listado acima (mesma ordem e quantidade)':''}`;
-  const payload=`Processo: ${p.nome}\nMacro: ${p.macro} | Área: ${p.area}\nObjetivo: ${p.objetivo||''}\nVolumetria: ${JSON.stringify(p.ent?.vol||{})}\nTempo de ciclo: ${p.ent?.analise?.t_ciclo_medio||'não informado'}\nTempo de espera: ${p.ent?.analise?.t_espera_medio||'não informado'}\nQtd atividades: ${p.ent?.analise?.qtd_atividades||0}\nQtd decisões: ${p.ent?.analise?.qtd_decisoes||0}${etapas?'\nEtapas do processo:\n'+etapas:''}${p.mod?.asIs?'\nDescrição AS IS:\n'+p.mod.asIs.substring(0,2000):''}${p.mod?.toBe?'\nDescrição TO BE:\n'+p.mod.toBe.substring(0,1000):''}${payloadExtra}`;
+  // Usa valores derivados da volumetria/etapas quando não há dados salvos explicitamente
+  const etapasProc=p.mod?.etapas_proc||[];
+  const tCiclo=a.t_ciclo_medio||(p.ent.t_ciclo!=null?p.ent.t_ciclo+' h':'não informado');
+  const tEspera=a.t_espera_medio||(p.ent.t_gaveta!=null?p.ent.t_gaveta+' h':'não informado');
+  const qtdAtiv=a.qtd_atividades||etapasProc.filter(e=>!e.tipo||e.tipo==='Atividade').length||0;
+  const qtdDec=a.qtd_decisoes||etapasProc.filter(e=>e.tipo==='Decisao').length||0;
+  const payload=`Processo: ${p.nome}\nMacro: ${p.macro} | Área: ${p.area}\nObjetivo: ${p.objetivo||''}\nVolumetria: ${JSON.stringify(p.ent?.vol||{})}\nTempo de ciclo: ${tCiclo}\nTempo de espera: ${tEspera}\nQtd atividades: ${qtdAtiv}\nQtd decisões: ${qtdDec}${etapas?'\nEtapas do processo:\n'+etapas:''}${p.mod?.asIs?'\nDescrição AS IS:\n'+p.mod.asIs.substring(0,2000):''}${p.mod?.toBe?'\nDescrição TO BE:\n'+p.mod.toBe.substring(0,1000):''}${payloadExtra}`;
   const result=await chamarIA('analisar_bpmn',payload,el);
   if(result){
     try{
