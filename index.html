@@ -2157,15 +2157,15 @@ function epManterItem(el){
 
 const ACOES = {
   abertura:{titulo:'Abrir processo',sub:'Confirmar dados iniciais e vincular equipe.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibt">Confirme os dados importados da arquitetura e defina a equipe do trabalho.</div>
+    form:p=>{const dtPrev=p.ent.dt_prev||_addDias(p.ent.dt_inicio,90);return`<div class="ib ibt">Confirme os dados importados da arquitetura e defina a equipe do trabalho.</div>
     <div class="g3">
       <div class="fg"><label class="fl">Data de início</label><input class="fi" id="a-ini" type="date" value="${p.ent.dt_inicio||''}" oninput="calcPrevAbr()"></div>
-      <div class="fg"><label class="fl">Previsão de entrega <small style="font-weight:400;color:var(--ink3)">(90 dias após início)</small></label><input class="fi" id="a-prev" type="date" value="${p.ent.dt_prev||''}" readonly style="background:var(--bg2);color:var(--ink3)"></div>
+      <div class="fg"><label class="fl">Previsão de entrega <small style="font-weight:400;color:var(--ink3)">(90 dias após início)</small></label><input class="fi" id="a-prev" type="date" value="${dtPrev}" readonly style="background:var(--bg2);color:var(--ink3)"></div>
       <div class="fg"><label class="fl">Produto da demanda</label><input class="fi" value="${esc(p.produto)}" readonly></div>
     </div>
     <div class="fg"><label class="fl">Equipe de trabalho</label><input class="fi" id="a-equipe" value="${esc(p.ent.equipe||'')}" placeholder="Nomes dos membros envolvidos"></div>
     <div class="fg"><label class="fl">Objetivo do trabalho</label><textarea class="fi" id="a-obj" style="min-height:60px">${esc(p.objetivo||'')}</textarea></div>
-    <div class="btn-row"><button class="btn btn-t" onclick="salvarAbertura()">Confirmar e agendar reunião de entendimento →</button></div>`},
+    <div class="btn-row"><button class="btn btn-t" onclick="salvarAbertura()">Confirmar e agendar reunião de entendimento →</button></div>`}},
 
   questionario:{titulo:'Questionário de maturidade',sub:'Responder as 15 afirmações sobre o estado atual do processo.',role:'Dono do processo',rk:'dono',
     form:p=>{
@@ -2826,12 +2826,17 @@ function rAcao(p){
 // ═══════════════════════════════════════════
 // FUNÇÕES DE SALVAR POR ETAPA
 // ═══════════════════════════════════════════
+function _addDias(dateStr,dias){
+  if(!dateStr)return'';
+  const [y,m,d]=dateStr.split('-').map(Number);
+  const dt=new Date(y,m-1,d+dias);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
 function calcPrevAbr(){
   const ini=document.getElementById('a-ini')?.value;
   const prev=document.getElementById('a-prev');
   if(!ini||!prev)return;
-  const d=new Date(ini);d.setDate(d.getDate()+90);
-  prev.value=d.toISOString().split('T')[0];
+  prev.value=_addDias(ini,90);
 }
 function calcGaveta(){
   const ciclo=parseFloat(document.getElementById('r-tciclo')?.value)||0;
