@@ -4129,7 +4129,7 @@ function rEnt(p){
   </div>`:''}`;
 }
 
-function rMod(p){
+async function rMod(p){
   document.getElementById('tab-mod').innerHTML=`
   <div class="tabs" style="margin-bottom:1rem">
     <div class="tab on" onclick="sModTab('vm-asis',this)">AS IS</div>
@@ -4141,7 +4141,7 @@ function rMod(p){
       <div class="card-t">Descrição AS IS</div>
       ${p.mod.asIs?`<div style="font-size:13px;color:var(--ink2);white-space:pre-wrap">${p.mod.asIs}</div>`:'<div class="ib iba">Não preenchido.</div>'}
     </div>
-    ${bpmnEditorHTML('asis',p.mod.bpmnAsIs)}
+    <div id="vm-asis-fluxo">${p.arq_id?'<div style="text-align:center;padding:1.5rem;color:var(--ink3)"><div class="spin" style="margin:0 auto .5rem"></div>Carregando fluxo Bizagi...</div>':bpmnEditorHTML('asis',p.mod.bpmnAsIs)}</div>
   </div>
   <div id="vm-tobe" class="tab-p" style="display:none">
     <div class="card" style="margin-bottom:.8rem">
@@ -4155,8 +4155,27 @@ function rMod(p){
       ${(p.mod.etapas_proc||[]).length?renderEtapasProc(p.mod.etapas_proc):'<div class="ib iba">Nenhuma etapa detalhada ainda.</div>'}
     </div>
   </div>`;
-  // Auto-mount asis bpmn
-  setTimeout(()=>initBpmnMod('asis',p),80);
+  if(p.arq_id){
+    const base64=await loadFluxoImg(p.arq_id);
+    const el=document.getElementById('vm-asis-fluxo');
+    if(!el) return;
+    if(base64){
+      el.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:.8rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+          <span style="font-size:12px;font-weight:600;color:var(--ink2)">🗺 Fluxo Bizagi</span>
+          <button class="btn" onclick="verFluxoBizagi('${p.arq_id}',event)">⤢ Tela cheia</button>
+        </div>
+        <img src="${base64}" style="max-width:100%;border-radius:6px;border:1px solid var(--bdr);cursor:zoom-in" onclick="verFluxoBizagi('${p.arq_id}',event)">
+      </div>`;
+      p._hasBizagi=true;
+    } else {
+      el.innerHTML=bpmnEditorHTML('asis',p.mod.bpmnAsIs);
+      p._hasBizagi=false;
+      setTimeout(()=>initBpmnMod('asis',p),80);
+    }
+  } else {
+    setTimeout(()=>initBpmnMod('asis',p),80);
+  }
   setTimeout(()=>{ injectIaBpmn('asis'); injectIaBpmn('tobe'); }, 200);
 }
 function sModTab(id,el){
@@ -4164,7 +4183,7 @@ function sModTab(id,el){
   el.classList.add('on');
   ['vm-asis','vm-tobe','vm-etapas','sm-asis','sm-tobe'].forEach(s=>{const e=document.getElementById(s);if(e)e.style.display=s===id?'block':'none';});
   if(id==='vm-tobe'||id==='sm-tobe'){setTimeout(()=>initBpmnMod('tobe',curProc),80);}
-  if(id==='vm-asis'||id==='sm-asis'){setTimeout(()=>initBpmnMod('asis',curProc),80);}
+  if(id==='vm-asis'||id==='sm-asis'){if(!curProc?._hasBizagi)setTimeout(()=>initBpmnMod('asis',curProc),80);}
 }
 function rForm(p){
   const pd=p.form?.pop;
