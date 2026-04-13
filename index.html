@@ -1495,7 +1495,11 @@ function getTarefasUsr(){
     const et=proc.etapa,etObj=ETAPAS.find(e=>e.id===et);
     if(!etObj)return false;
     if(p==='ep')return etObj.resp==='ep';
-    if(p==='dono')return etObj.resp==='dono'&&proc.dono===usuarioLogado.nome;
+    if(p==='dono'){
+      const isDonoProc=proc.dono===usuarioLogado.nome;
+      const isVinc=(usuarioLogado.processos_vinculados||[]).includes(proc.arq_id);
+      return etObj.resp==='dono'&&(isDonoProc||isVinc);
+    }
     if(p==='gestor')return etObj.resp==='gestor';
     return false;
   });
@@ -2131,8 +2135,25 @@ function popupConclusaoDono(msg){
   setTimeout(()=>{if(ov.parentNode)ov.remove();},10000);
 }
 function avDono(etAtu,role,acao,prazoEl){
+  registrarRespondidoPor(etAtu);
   av(etAtu,role,acao,prazoEl);
   setTimeout(()=>popupConclusaoDono('Obrigado! Sua validação foi registrada e o EP foi notificado para continuar o processo.'),200);
+}
+
+// ── Bloqueio de múltiplas respostas (first-response-wins) ──
+function registrarRespondidoPor(etapa){
+  const p=curProc; if(!p||!usuarioLogado) return;
+  if(!p.ent.respondido_por_etapa) p.ent.respondido_por_etapa={};
+  if(!p.ent.respondido_por_etapa[etapa]){
+    p.ent.respondido_por_etapa[etapa]={nome:usuarioLogado.nome,email:usuarioLogado.email||'',dt:now()};
+    fbAutoSave('respondidoPor');
+  }
+}
+function jaFoiRespondido(etapa){
+  const jr=curProc?.ent?.respondido_por_etapa?.[etapa];
+  if(!jr) return false;
+  if(jr.nome===usuarioLogado?.nome) return false;
+  return jr; // retorna o objeto {nome, email, dt}
 }
 function reprovarDono(voltaEt,role,acao){
   reprovar(voltaEt,role,acao);
@@ -2166,6 +2187,8 @@ function dfbToggle(idx,val){
 }
 function aprovarDetValidAsis(){
   const p=curProc;
+  const jr=jaFoiRespondido(p.etapa);
+  if(jr){toast('⚠ Tarefa já respondida por '+jr.nome+'. Não é possível enviar novamente.');return;}
   if(!p.ent.analise)p.ent.analise={};
   const dt=document.getElementById('va-dt')?.value||'';
   const part=document.getElementById('va-part')?.value||'';
@@ -2196,6 +2219,8 @@ function salvarMelhorias(){
 }
 function aprovarDetValidTobe(){
   const p=curProc;
+  const jr=jaFoiRespondido(p.etapa);
+  if(jr){toast('⚠ Tarefa já respondida por '+jr.nome+'. Não é possível enviar novamente.');return;}
   if(!p.mod)p.mod={};
   const dt=document.getElementById('vtb-dt')?.value||'';
   const part=document.getElementById('vtb-part')?.value||'';
@@ -2893,7 +2918,9 @@ function rAcao(p){
   if(!ac){el.innerHTML='<div class="ib ibsl">Etapa não configurada.</div>';return;}
   if(role==='dono'){
     const etObj=ETAPAS.find(e=>e.id===p.etapa);
-    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
+    const isDonoProc=p.dono===usuarioLogado.nome;
+    const isVinc=(usuarioLogado.processos_vinculados||[]).includes(p.arq_id);
+    const minhaTarefa=etObj?.resp==='dono'&&(isDonoProc||isVinc);
     const prazoBanner=(()=>{
       if(!p.prazo_dono) return '';
       const hoje=new Date().toISOString().split('T')[0];
@@ -2904,6 +2931,20 @@ function rAcao(p){
       const label=atrasado?` <span style="font-size:11px;font-weight:700;color:var(--red)">(ATRASADO)</span>`:diff<=3?` <span style="font-size:11px;color:var(--amber)">(${diff} dia(s))</span>`:'';
       return `<span style="font-size:12px;font-weight:600;color:${cor}">📅 Prazo: ${pzFmt}${label}</span>`;
     })();
+    if(minhaTarefa){
+      const jr=jaFoiRespondido(p.etapa);
+      if(jr){
+        const dtFmt=jr.dt?jr.dt.replace('T',' ').substring(0,16):'';
+        el.innerHTML=`<div class="card"><div class="ib" style="background:var(--amber-l,#fef3c7);border:1.5px solid var(--amber,#f59e0b);border-radius:8px;padding:1rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.6rem">
+          <span style="font-size:1.4rem">🔒</span>
+          <div>
+            <div style="font-weight:700;font-size:14px;color:var(--amber,#b45309);margin-bottom:.25rem">Esta tarefa já foi respondida</div>
+            <div style="font-size:13px;color:var(--ink2)"><strong>${jr.nome}</strong> já enviou a resposta desta etapa${dtFmt?' em '+dtFmt:''}. A tarefa está concluída e o EP foi notificado.</div>
+          </div>
+        </div></div>`;
+        return;
+      }
+    }
     el.innerHTML=minhaTarefa
       ?`<div class="ib ibt" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</span>${prazoBanner}</div>${buildAcaoCardHTML(ac,p,'')}`
       :`<div class="card"><div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>Esta etapa — <strong>${ac.titulo}</strong> — aguarda ação de <strong>${p.dono||'dono'}</strong>.</span>${prazoBanner}</div><div style="font-size:13px;color:var(--ink2)">${ac.sub}</div></div>`;
@@ -2956,7 +2997,10 @@ function setLikert(qid,val,btn){
   btn.classList.add('on');
 }
 function salvarQuestionario(){
-  const p=curProc;const resp=p.ent.quest_resp||{};
+  const p=curProc;
+  const jr=jaFoiRespondido(p.etapa);
+  if(jr){toast('⚠ Tarefa já respondida por '+jr.nome+'. Não é possível enviar novamente.');return;}
+  const resp=p.ent.quest_resp||{};
   const respondidas=Object.keys(resp).length;
   if(respondidas<15&&!confirm(`Apenas ${respondidas}/15 afirmações respondidas. Continuar assim mesmo?`))return;
   const total=Object.values(resp).reduce((a,b)=>a+b,0);
@@ -2967,6 +3011,7 @@ function salvarQuestionario(){
   p.ent.quest_nota=nota;
   if(!p.ent.quest_hist)p.ent.quest_hist=[];
   p.ent.quest_hist.push({dt:now(),nivel,media,respondidas,nota});
+  registrarRespondidoPor('questionario');
   push(p,'questionario','Dono do processo','Questionário respondido — '+respondidas+'/15 perguntas — média '+media+' — nível '+nivel);
   const nx=nextEt('questionario');
   if(nx){p.etapa=nx;push(p,nx,'Sistema','Etapa iniciada');}
@@ -3216,6 +3261,8 @@ function salvarPOP(){
 }
 function salvarComplementacaoDono(){
   const p=curProc;
+  const jr=jaFoiRespondido(p.etapa);
+  if(jr){toast('⚠ Tarefa já respondida por '+jr.nome+'. Não é possível enviar novamente.');return;}
   if(!p.form)p.form={};
   p.form.faq=document.getElementById('afaq')?.value||p.form.faq||'';
   p.form.excecoes=document.getElementById('a-excecoes')?.value||p.form.excecoes||'';
