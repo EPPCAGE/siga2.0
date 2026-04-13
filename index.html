@@ -2541,14 +2541,8 @@ const ACOES = {
     <div class="fg"><label class="fl">Observações ou correções ao POP</label><textarea class="fi" id="aobs" style="min-height:60px" placeholder="Aponte qualquer ajuste necessário no documento..."></textarea></div>
     <div class="btn-row"><button class="btn btn-g" onclick="salvarComplementacaoDono()">Enviar complementação →</button></div>`},
 
-  apresentacao:{titulo:'Aprovação pelo Gestor / Adjunto',sub:'Aprovação de alta gestão antes da publicação. Apresentação executiva gerada por IA.',role:'Gestor / Adjunto',rk:'gestor',
-    form:p=>`<div class="ib iba">Aprovação final antes da publicação oficial. Gere a apresentação executiva com IA e compartilhe com o gestor responsável.</div>
-    <div style="background:var(--bg2);border-radius:8px;padding:1rem;margin-bottom:1rem;border:1px solid var(--bdr)">
-      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.4rem">📊 Apresentação executiva (PowerPoint)</div>
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">A IA irá montar uma apresentação .pptx com base em todo o conteúdo do mapeamento.</div>
-      <button class="btn btn-p" id="btn-gerar-ppt" onclick="gerarApresentacaoPPT()">✨ Gerar apresentação com IA</button>
-      <span id="ppt-status" style="font-size:11px;color:var(--ink3);margin-left:.8rem"></span>
-    </div>
+  apresentacao:{titulo:'Aprovação pelo Gestor / Adjunto',sub:'Aprovação de alta gestão antes da publicação.',role:'Gestor / Adjunto',rk:'gestor',
+    form:p=>`<div class="ib iba">Aprovação final antes da publicação oficial. Compartilhe o conteúdo do mapeamento com o gestor responsável.</div>
     <div class="g2">
       <div class="fg"><label class="fl">Data da reunião de apresentação</label><input class="fi" id="adt" type="date" value="${p.form?.reuniao_apresentacao?.data||''}"></div>
       <div class="fg"><label class="fl">Participantes</label><input class="fi" id="apart" placeholder="Nomes dos presentes" value="${p.form?.reuniao_apresentacao?.participantes||''}"></div>
@@ -2562,6 +2556,12 @@ const ACOES = {
 
   publicacao:{titulo:'Publicar o processo',sub:'Publicar POP no repositório oficial.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibg">Após publicação o processo entra em fase de operação e monitoramento.</div>
+    <div style="background:var(--bg2);border-radius:8px;padding:1rem;margin-bottom:1rem;border:1px solid var(--bdr)">
+      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.4rem">📊 Gerar POP em PowerPoint</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Gera uma apresentação executiva .pptx com IA, contendo SIPOC, fluxos AS IS e TO BE, riscos, soluções, FAQ e indicadores. O logo SIGA aparece em todos os slides.</div>
+      <button class="btn btn-p" id="btn-gerar-pop-ppt" onclick="gerarPOPPPT()">✨ Gerar POP em PPT com IA</button>
+      <span id="pop-ppt-status" style="font-size:11px;color:var(--ink3);margin-left:.8rem"></span>
+    </div>
     <div class="g3">
       <div class="fg"><label class="fl">Link no repositório</label><input class="fi" id="a-link" placeholder="https://..." value="${p.form?.link_pub||''}"></div>
       <div class="fg"><label class="fl">Data de vigência</label><input class="fi" type="date" id="a-vig" value="${p.form?.vig||''}"></div>
@@ -3148,185 +3148,428 @@ function salvarApresentacao(){
   av('apresentacao','Gestor','Aprovado pelo gestor para publicação');
 }
 
-// ── GERAÇÃO DE APRESENTAÇÃO PPT COM IA ──
-async function gerarApresentacaoPPT(){
-  const p=curProc;
-  if(!p){alert('Nenhum processo selecionado.');return;}
-  const btn=document.getElementById('btn-gerar-ppt');
-  const st=document.getElementById('ppt-status');
-  if(btn){btn.disabled=true;btn.textContent='⏳ Gerando...';}
-  if(st) st.innerHTML='<div class="ai-loading"><div class="spin"></div>IA elaborando apresentação personalizada...</div>';
-  try{
-    const a=p.ent?.analise||{};
-    const etapas=(p.mod?.etapas_proc||[]).slice(0,10).map(e=>`${e.seq||''}. ${e.nome}${e.executor?' ('+e.executor+')':''}${e.desc?' — '+e.desc:''}`).join('\n');
-    const riscos=(p.ent?.riscos||[]).map(r=>r.desc||r).filter(Boolean).join('; ');
+// ── GERAÇÃO DE POP EM PPT COM IA (PUBLICAÇÃO) ──
 
-    const ctx=`
-PROCESSO: ${p.nome}
-MACROPROCESSO: ${p.macro||'—'}
-ÁREA: ${p.area||'—'}
-OBJETIVO: ${p.objetivo||'—'}
-DONO: ${p.dono||'—'}
-PRODUTO: ${p.produto||'—'}
-PRIORIDADE: ${p.prio||'—'}
-EQUIPE EP: ${p.ent?.equipe||'—'}
-DATA INÍCIO: ${p.ent?.dt_inicio||'—'}
-NÍVEL DE MATURIDADE: ${p.ent?.mat||'—'}/5
-COMPLEXIDADE: ${a.complexidade||'—'}
-VOLUME (execuções/período): ${p.ent?.vol?.exec||'—'}
-TEMPO DE CICLO MÉDIO: ${p.ent?.vol?.tempo||'—'}
-CUSTO ESTIMADO: ${p.ent?.vol?.custo||'—'}
-GARGALOS IDENTIFICADOS: ${(a.gargalos||[]).join('; ')||'Nenhum registrado'}
-RETRABALHOS: ${(a.retrabalhos||[]).join('; ')||'Nenhum registrado'}
-GAPS: ${(a.gaps||[]).join('; ')||'Nenhum registrado'}
-OPORTUNIDADES DE MELHORIA: ${(a.oportunidades||[]).join('; ')||'Nenhuma registrada'}
-RISCOS: ${riscos||'Nenhum registrado'}
-ETAPAS DO PROCESSO:
-${etapas||'Não detalhadas'}
-AS IS (situação atual): ${p.mod?.asIs||'—'}
-TO BE (situação proposta): ${p.mod?.toBe||'—'}
-`;
+// Cache do logo SIGA em base64
+let _logoB64 = null;
+async function fetchLogoBase64() {
+  if (_logoB64) return _logoB64;
+  try {
+    const resp = await fetch('logo-siga.png');
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return new Promise(res => {
+      const reader = new FileReader();
+      reader.onload = () => { _logoB64 = reader.result; res(reader.result); };
+      reader.onerror = () => res(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
 
-    const prompt=`Você é um consultor sênior de BPM criando uma apresentação executiva para patrocinadores e gestores.
+// Renderiza XML BPMN para PNG (data URI) via BpmnJS
+async function renderBpmnToPng(xml) {
+  if (!xml || typeof BpmnJS === 'undefined') return null;
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:1400px;height:700px;overflow:hidden;';
+    document.body.appendChild(wrap);
+    let viewer;
+    try {
+      viewer = new BpmnJS({ container: wrap });
+      viewer.importXML(xml)
+        .then(() => { viewer.get('canvas').zoom('fit-viewport'); return viewer.saveSVG(); })
+        .then(({ svg }) => {
+          const img = new Image();
+          const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          img.onload = () => {
+            const c = document.createElement('canvas');
+            const sc = 2;
+            c.width = Math.max(img.width, 100) * sc;
+            c.height = Math.max(img.height, 50) * sc;
+            const ctx2d = c.getContext('2d');
+            ctx2d.fillStyle = '#ffffff'; ctx2d.fillRect(0, 0, c.width, c.height);
+            ctx2d.scale(sc, sc); ctx2d.drawImage(img, 0, 0);
+            URL.revokeObjectURL(url);
+            try { viewer.destroy(); } catch(e) {}
+            document.body.removeChild(wrap);
+            resolve(c.toDataURL('image/png'));
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            try { viewer.destroy(); } catch(e) {}
+            document.body.removeChild(wrap);
+            resolve(null);
+          };
+          img.src = url;
+        })
+        .catch(() => {
+          try { viewer.destroy(); } catch(e) {}
+          try { document.body.removeChild(wrap); } catch(e) {}
+          resolve(null);
+        });
+    } catch(e) {
+      if (viewer) try { viewer.destroy(); } catch(e2) {}
+      try { document.body.removeChild(wrap); } catch(e2) {}
+      resolve(null);
+    }
+  });
+}
 
-Com base nos dados reais do processo abaixo, crie uma apresentação PowerPoint inteligente e personalizada.
+async function gerarPOPPPT() {
+  const p = curProc;
+  if (!p) { alert('Nenhum processo selecionado.'); return; }
+  const btn = document.getElementById('btn-gerar-pop-ppt');
+  const st = document.getElementById('pop-ppt-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+  if (st) st.innerHTML = '<div class="ai-loading"><div class="spin"></div>Carregando logo e diagramas...</div>';
+  try {
+    // Carrega logo e renderiza BPMNs em paralelo
+    const [logoB64, bpmnAsisPng, bpmnTobePng] = await Promise.all([
+      fetchLogoBase64(),
+      p.mod?.bpmnAsIs ? renderBpmnToPng(p.mod.bpmnAsIs) : Promise.resolve(null),
+      p.mod?.bpmnToBe ? renderBpmnToPng(p.mod.bpmnToBe) : Promise.resolve(null)
+    ]);
 
-INSTRUÇÕES:
-- Analise os dados disponíveis e escolha os slides mais relevantes para ESTE processo específico
-- Não use slides genéricos — cada slide deve ter conteúdo real extraído dos dados
-- Se um dado estiver ausente (marcado com —), omita esse aspecto ou mencione que será levantado
-- Você pode criar entre 6 e 12 slides conforme necessário
-- Varie os tipos de slide: use bullets, narrativa e dados conforme o conteúdo
-- Escreva em português formal, linguagem executiva
+    // Indicadores vinculados
+    const indsProc = kpis.filter(k => k.pid === p.id);
 
-TIPOS DE SLIDE disponíveis:
-- "bullets": lista de pontos objetivos (use para diagnósticos, achados, recomendações)
-- "narrativa": texto corrido analítico (use para contexto, análise crítica, conclusão)
-- "dados": métricas e indicadores em formato label/valor (use para dados quantitativos)
-- "etapas": sequência numerada de etapas do processo
+    // Maturidade por dimensão
+    const resp = p.ent?.quest_resp || {};
+    const dims = {};
+    QUESTOES.forEach(q => {
+      if (!dims[q.dim]) dims[q.dim] = { sum: 0, cnt: 0 };
+      if (resp[q.id]) { dims[q.dim].sum += resp[q.id]; dims[q.dim].cnt++; }
+    });
+    const dimText = Object.entries(dims).map(([d, v]) => `${d}: ${v.cnt > 0 ? (v.sum / v.cnt).toFixed(1) : '-'}/5`).join('; ');
 
-ESTRUTURA JSON de retorno (retorne APENAS o JSON, sem markdown):
+    const a = p.ent?.analise || {};
+    const riscosText = (p.ent?.riscos || []).map((r, i) => {
+      const d = r.desc || r;
+      const det = [r.prob ? 'Prob: ' + r.prob : '', r.impacto ? 'Impacto: ' + r.impacto : ''].filter(Boolean).join(', ');
+      return `${i + 1}. ${d}${det ? ' (' + det + ')' : ''}`;
+    }).filter(Boolean).join('\n');
+    const probsText = (p.ent?.prob || []).join('\n');
+    const indsText = indsProc.slice(0, 8).map(k => `${k.enunciado || k.indicador}${k.ciclo ? ' (' + k.ciclo + ')' : ''}${k.meta ? ' — meta: ' + k.meta : ''}`).join('\n');
+    const faqText = p.form?.faq || '';
+
+    const ctx = `PROCESSO: ${p.nome}
+MACROPROCESSO: ${p.macro || '—'}
+ÁREA: ${p.area || '—'}
+GESTOR/DONO: ${p.dono || '—'}
+OBJETIVO: ${p.objetivo || '—'}
+PRODUTO DO MAPEAMENTO: ${p.produto || '—'}
+PRIORIDADE: ${p.prio || '—'}
+VOLUME (execuções/período): ${p.ent?.vol?.exec || '—'}
+TEMPO DE CICLO MÉDIO: ${p.ent?.t_ciclo != null ? p.ent.t_ciclo + ' h' : p.ent?.vol?.tempo || '—'}
+TEMPO REAL (LEAD TIME): ${p.ent?.t_real != null ? p.ent.t_real + ' h' : '—'}
+TEMPO DE GAVETA: ${p.ent?.t_gaveta != null ? p.ent.t_gaveta + ' h' : '—'}
+SAZONALIDADE: ${p.ent?.vol?.sazon || '—'}
+MATURIDADE GERAL: ${p.ent?.mat || 0}/5
+MATURIDADE POR EIXO: ${dimText || '—'}
+SIPOC — Fornecedores: ${p.ent?.fornecedores || '—'}
+SIPOC — Entradas: ${p.ent?.entradas || '—'}
+SIPOC — Saídas: ${p.ent?.saidas || '—'}
+SIPOC — Clientes: ${p.ent?.clientes || '—'}
+SIPOC — Atores: ${p.ent?.atores || '—'}
+PROBLEMAS RELATADOS:
+${probsText || 'Nenhum registrado'}
+RISCOS IDENTIFICADOS:
+${riscosText || 'Nenhum registrado'}
+SITUAÇÃO AS IS: ${p.mod?.asIs || '—'}
+SITUAÇÃO TO BE: ${p.mod?.toBe || '—'}
+GARGALOS: ${(a.gargalos || []).join('; ') || '—'}
+GAPS: ${(a.gaps || []).join('; ') || '—'}
+OPORTUNIDADES: ${(a.oportunidades || []).join('; ') || '—'}
+FAQ:
+${faqText || 'Não preenchido'}
+INDICADORES VINCULADOS:
+${indsText || 'Nenhum indicador cadastrado'}`;
+
+    const prompt = `Você é especialista em BPM gerando um POP em PowerPoint para publicação oficial.
+
+Com base nos dados abaixo, gere o conteúdo para uma apresentação com EXATAMENTE 11 slides na ordem indicada.
+Escreva em português formal e executivo. Retorne APENAS o JSON, sem markdown.
+
 {
-  "titulo_geral": "título executivo específico para este processo",
-  "subtitulo": "subtítulo com contexto",
   "slides": [
-    {"titulo": "...", "tipo": "bullets", "bullets": ["ponto 1","ponto 2","..."], "nota": "nota opcional de rodapé"},
-    {"titulo": "...", "tipo": "narrativa", "texto": "parágrafo analítico real sobre este processo..."},
-    {"titulo": "...", "tipo": "dados", "dados": [{"label":"Métrica","valor":"Valor"},{"label":"...","valor":"..."}]},
-    {"titulo": "...", "tipo": "etapas", "bullets": ["1. Etapa — responsável","2. Etapa — responsável"]}
+    {"id":"apresentacao","titulo":"Apresentação do Processo","tipo":"dados",
+      "dados":[{"label":"Macroprocesso","valor":"..."},{"label":"Processo / Subprocesso","valor":"..."},{"label":"Área responsável","valor":"..."},{"label":"Gestor do processo","valor":"..."},{"label":"Prioridade","valor":"..."},{"label":"Produto do mapeamento","valor":"..."}]},
+
+    {"id":"sipoc_volumetria","titulo":"SIPOC, Volumetria e Maturidade","tipo":"sipoc",
+      "sipoc":{"S":"fornecedores reais","I":"entradas reais","P":"nome do processo","O":"saídas reais","C":"clientes reais"},
+      "volumetria":[{"label":"Execuções / período","valor":"..."},{"label":"Tempo de ciclo médio","valor":"..."},{"label":"Lead time (tempo real)","valor":"..."},{"label":"Tempo de gaveta","valor":"..."}],
+      "maturidade":[{"eixo":"Alinhamento estratégico","nota":"X/5"},{"eixo":"Estrutura e padronização","nota":"X/5"},{"eixo":"Papéis e responsabilidades","nota":"X/5"},{"eixo":"Execução e controle","nota":"X/5"},{"eixo":"Automação e tecnologia","nota":"X/5"},{"eixo":"Monitoramento e melhoria","nota":"X/5"}]},
+
+    {"id":"objetivo_problemas","titulo":"Objetivo do Mapeamento e Problemas Relatados","tipo":"objetivo",
+      "objetivo":"parágrafo conciso explicando o objetivo do trabalho de mapeamento e contexto institucional...",
+      "problemas":["problema 1 real","problema 2 real","..."]},
+
+    {"id":"asis","titulo":"Desenho AS IS — Situação Atual","tipo":"bpmn_asis",
+      "resumo":"descrição objetiva da situação atual do processo caso o diagrama não esteja disponível..."},
+
+    {"id":"riscos","titulo":"Riscos Identificados","tipo":"bullets",
+      "bullets":["Risco 1 — probabilidade / impacto","Risco 2 — ..."]},
+
+    {"id":"solucoes","titulo":"Propostas de Soluções","tipo":"solucoes",
+      "itens":[{"problema":"problema ou risco identificado","solucao":"sugestão de mitigação ou solução proposta"}]},
+
+    {"id":"tobe","titulo":"Desenho TO BE — Situação Proposta","tipo":"bpmn_tobe",
+      "resumo":"descrição objetiva da situação proposta caso o diagrama não esteja disponível..."},
+
+    {"id":"comparativo","titulo":"Comparativo AS IS → TO BE","tipo":"bullets",
+      "bullets":["Mudança 1: o que era X, passa a ser Y","Mudança 2: ..."]},
+
+    {"id":"faq","titulo":"Perguntas Frequentes — FAQ","tipo":"faq",
+      "itens":[{"pergunta":"P: pergunta frequente?","resposta":"R: resposta objetiva."}]},
+
+    {"id":"indicadores","titulo":"Indicadores Vinculados ao Processo","tipo":"indicadores",
+      "itens":[{"label":"nome do indicador","valor":"periodicidade — meta se houver"}]},
+
+    {"id":"encerramento","titulo":"Encerramento","tipo":"encerramento",
+      "mensagem":"mensagem executiva de encerramento, reforçando o valor do processo documentado..."}
   ]
 }
 
 DADOS DO PROCESSO:
 ${ctx}`;
 
+    if (st) st.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA elaborando conteúdo do POP...</div>';
     const raw = await chamarIA('gerar_ppt', prompt, st);
-    if(!raw) return;
-    const jsonMatch=raw.match(/\{[\s\S]*\}/);
-    if(!jsonMatch) throw new Error('Resposta da IA não contém JSON válido.');
-    const dados=JSON.parse(jsonMatch[0]);
-    if(st) st.textContent='Montando o arquivo PowerPoint...';
-    await montarPPT(dados, p);
-    if(st) st.textContent='✓ Apresentação gerada e baixada!';
-  } catch(e){
-    console.error('gerarApresentacaoPPT:',e);
-    if(st) st.textContent='⚠ Erro: '+e.message;
+    if (!raw) return;
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Resposta da IA não contém JSON válido.');
+    const iaContent = JSON.parse(jsonMatch[0]);
+
+    if (st) st.textContent = 'Montando arquivo PowerPoint...';
+    await montarPOPPPT(p, iaContent, logoB64, bpmnAsisPng, bpmnTobePng, indsProc);
+    if (st) st.textContent = '✓ POP gerado e baixado com sucesso!';
+  } catch(e) {
+    console.error('gerarPOPPPT:', e);
+    if (st) st.textContent = '⚠ Erro: ' + e.message;
   } finally {
-    if(btn){btn.disabled=false;btn.textContent='✨ Gerar apresentação'}
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Gerar POP em PPT com IA'; }
   }
 }
-async function montarPPT(dados, p){
-  if(typeof PptxGenJS==='undefined') throw new Error('Biblioteca PptxGenJS não carregada.');
-  const pptx=new PptxGenJS();
-  pptx.layout='LAYOUT_WIDE';
-  pptx.author='EP·CAGE';pptx.company='CAGE/Sefaz-RS';pptx.subject=p.nome;
 
-  const C1='1E3A5F';
-  const C2='2E7D8F';
-  const C3='F5F7FA';
-  const CW='FFFFFF';
-  const CG='4A4A4A';
-  const ACCENT=['2E7D8F','1A6674','0D4F5C','3A8A9A','156070','245F7A'];
+async function montarPOPPPT(p, dados, logoB64, bpmnAsisPng, bpmnTobePng, indsProc) {
+  if (typeof PptxGenJS === 'undefined') throw new Error('PptxGenJS não carregada.');
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_WIDE'; // 13.33" × 7.5"
+  pptx.author = 'EP·CAGE'; pptx.company = 'CAGE/Sefaz-RS'; pptx.subject = p.nome;
+
+  const C1='1E3A5F', C2='2E7D8F', C3='F5F7FA', CW='FFFFFF', CG='2E2E2E';
+  const CA='1B5E7B', CL='C8DCE8';
+  const ML_=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
+  const HCOLS=['1E3A5F','1A6674','2C5F8A','1E5E5E','2E4A7A','1A5A6A','243F6A','185A6A'];
+
+  // Rodapé padrão com logo SIGA
+  function addFooter(sl, num) {
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:6.87,w:'100%',h:0.28,fill:{color:'D8E5EF'}});
+    sl.addText(p.nome, {x:0.28,y:6.89,w:9.4,h:0.22,fontSize:7.5,color:'7A8FA0',fontFace:'Calibri'});
+    sl.addText(String(num), {x:12.45,y:6.89,w:0.5,h:0.22,fontSize:7.5,color:'7A8FA0',fontFace:'Calibri',align:'right'});
+    if (logoB64) sl.addImage({data:logoB64, x:10.12,y:6.82,w:1.38,h:0.38});
+  }
+
+  // Cabeçalho padrão
+  function addHeader(sl, titulo, cor) {
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:0,w:'100%',h:1.1,fill:{color:cor||C1}});
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:1.1,w:'100%',h:0.04,fill:{color:C2}});
+    sl.addText(titulo||'', {x:0.45,y:0.17,w:11.3,h:0.78,fontSize:20,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
+  }
 
   // ── CAPA ──
-  let sl=pptx.addSlide();
-  sl.background={color:C1};
-  sl.addShape(pptx.ShapeType.rect,{x:0,y:3.4,w:'100%',h:0.08,fill:{color:C2}});
-  sl.addShape(pptx.ShapeType.rect,{x:0,y:6.6,w:'100%',h:0.9,fill:{color:'152C47'}});
-  sl.addText(dados.titulo_geral||p.nome,{x:0.8,y:1.0,w:10.5,h:1.4,fontSize:30,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
-  sl.addText(dados.subtitulo||'Escritório de Processos — CAGE/Sefaz-RS',{x:0.8,y:2.5,w:10.5,h:0.6,fontSize:14,color:'A8C4D4',fontFace:'Calibri'});
-  sl.addText(`${p.area||''}  |  ${p.dono?'Dono: '+p.dono+'  |  ':''}${now()}`,{x:0.8,y:3.8,w:11,h:0.4,fontSize:11,color:'7A9AB5',fontFace:'Calibri'});
-  sl.addText('EP·CAGE — Gestão de Processos Institucionais',{x:0,y:6.65,w:'100%',h:0.35,fontSize:10,color:'5A7A95',align:'center',fontFace:'Calibri'});
+  {
+    const sl = pptx.addSlide();
+    sl.background = {color:C1};
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:3.35,w:'100%',h:0.07,fill:{color:C2}});
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:6.6,w:'100%',h:0.9,fill:{color:'152C47'}});
+    // Logo SIGA em destaque na capa
+    if (logoB64) sl.addImage({data:logoB64, x:8.85,y:0.32,w:3.6,h:0.98});
+    sl.addText('Procedimento Operacional Padrão', {x:0.8,y:0.85,w:8.0,h:0.44,fontSize:12,color:'7AAFC8',fontFace:'Calibri',italic:true});
+    sl.addText(p.nome, {x:0.8,y:1.25,w:11.7,h:1.55,fontSize:26,bold:true,color:CW,fontFace:'Calibri',valign:'middle',wrap:true});
+    sl.addText(p.macro||'', {x:0.8,y:2.9,w:11.5,h:0.38,fontSize:13,color:'A8C4D4',fontFace:'Calibri'});
+    const info = [p.area?'Área: '+p.area:'', p.dono?'Gestor: '+p.dono:'', now()].filter(Boolean).join('   |   ');
+    sl.addText(info, {x:0.8,y:3.52,w:11.5,h:0.32,fontSize:10.5,color:'7A9AB5',fontFace:'Calibri'});
+    sl.addText('EP·CAGE — Escritório de Processos — CAGE/Sefaz-RS', {x:0,y:6.65,w:'100%',h:0.3,fontSize:10,color:'5A7A95',align:'center',fontFace:'Calibri'});
+  }
 
-  // ── SLIDES DE CONTEÚDO ──
-  (dados.slides||[]).forEach((slide,idx)=>{
-    sl=pptx.addSlide();
-    sl.background={color:C3};
-    const cor=ACCENT[idx%ACCENT.length];
+  const slides = dados.slides || [];
+  for (let idx = 0; idx < slides.length; idx++) {
+    const slide = slides[idx];
+    const tipo = slide.tipo || 'bullets';
+    const cor = HCOLS[idx % HCOLS.length];
+    const sl = pptx.addSlide();
 
-    // Cabeçalho
-    sl.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.15,fill:{color:cor}});
-    sl.addShape(pptx.ShapeType.rect,{x:0,y:1.15,w:'100%',h:0.05,fill:{color:C2}});
-    sl.addText(slide.titulo||'',{x:0.5,y:0.22,w:11,h:0.72,fontSize:20,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
-    sl.addText(String(idx+1)+'/'+dados.slides.length,{x:11.8,y:0.25,w:0.6,h:0.4,fontSize:10,color:'A8C4D4',fontFace:'Calibri',align:'right'});
-    // Rodapé
-    sl.addShape(pptx.ShapeType.rect,{x:0,y:6.85,w:'100%',h:0.3,fill:{color:'E8EDF2'}});
-    sl.addText('EP·CAGE  —  '+p.nome,{x:0.3,y:6.88,w:12,h:0.22,fontSize:8,color:'999999',fontFace:'Calibri'});
-
-    const tipo=slide.tipo||'bullets';
-
-    if(tipo==='narrativa'){
-      sl.addText(slide.texto||'',{x:0.6,y:1.4,w:11.5,h:5.2,fontSize:13,color:CG,fontFace:'Calibri',valign:'top',wrap:true,lineSpacingMultiple:1.4});
-
-    } else if(tipo==='dados'){
-      const itens=slide.dados||[];
-      const cols=itens.length>4?2:1;
-      const perCol=Math.ceil(itens.length/cols);
-      itens.forEach((d,i)=>{
-        const col=Math.floor(i/perCol);
-        const row=i%perCol;
-        const bx=0.6+col*6.2;
-        const by=1.45+row*1.1;
-        sl.addShape(pptx.ShapeType.roundRect,{x:bx,y:by,w:5.6,h:0.9,fill:{color:CW},line:{color:cor,width:1.5},rectRadius:0.08});
-        sl.addText(d.label||'',{x:bx+0.2,y:by+0.05,w:5.2,h:0.35,fontSize:10,color:'888888',fontFace:'Calibri',bold:false});
-        sl.addText(d.valor||'',{x:bx+0.2,y:by+0.38,w:5.2,h:0.45,fontSize:15,color:cor,fontFace:'Calibri',bold:true});
-      });
-
-    } else if(tipo==='etapas'){
-      const etps=slide.bullets||[];
-      etps.slice(0,8).forEach((e,i)=>{
-        const by=1.42+i*0.67;
-        sl.addShape(pptx.ShapeType.ellipse,{x:0.5,y:by+0.06,w:0.42,h:0.42,fill:{color:cor},line:{color:cor}});
-        sl.addText(String(i+1),{x:0.5,y:by+0.06,w:0.42,h:0.42,fontSize:12,bold:true,color:CW,fontFace:'Calibri',align:'center',valign:'middle'});
-        sl.addText(e,{x:1.1,y:by,w:11,h:0.6,fontSize:12,color:CG,fontFace:'Calibri',valign:'middle'});
-      });
-
-    } else { // bullets
-      const bts=slide.bullets||[];
-      bts.slice(0,7).forEach((b,i)=>{
-        const by=1.42+i*0.76;
-        sl.addShape(pptx.ShapeType.rect,{x:0.55,y:by+0.16,w:0.22,h:0.22,fill:{color:cor},line:{color:cor}});
-        sl.addText(b,{x:0.95,y:by,w:11.3,h:0.68,fontSize:13,color:CG,fontFace:'Calibri',valign:'middle',wrap:true});
-      });
+    // ── ENCERRAMENTO ──
+    if (tipo === 'encerramento') {
+      sl.background = {color:C1};
+      sl.addShape(pptx.ShapeType.rect, {x:0,y:2.85,w:'100%',h:0.07,fill:{color:C2}});
+      sl.addShape(pptx.ShapeType.rect, {x:0,y:6.6,w:'100%',h:0.9,fill:{color:'152C47'}});
+      if (logoB64) sl.addImage({data:logoB64, x:8.85,y:0.3,w:3.6,h:0.98});
+      sl.addText('Obrigado.', {x:0,y:0.9,w:'100%',h:0.9,fontSize:40,bold:true,color:CW,align:'center',fontFace:'Calibri'});
+      sl.addText(slide.mensagem||'Processo mapeado e documentado pela EP·CAGE.', {x:0.8,y:3.12,w:11.7,h:0.7,fontSize:13,color:'A8C4D4',align:'center',fontFace:'Calibri',wrap:true});
+      sl.addText(p.nome+' | '+now(), {x:0,y:3.95,w:'100%',h:0.38,fontSize:11,color:'7A9AB5',align:'center',fontFace:'Calibri'});
+      sl.addText('EP·CAGE — Gestão de Processos Institucionais', {x:0,y:6.65,w:'100%',h:0.3,fontSize:10,color:'5A7A95',align:'center',fontFace:'Calibri'});
+      continue;
     }
 
-    // Nota de rodapé opcional
-    if(slide.nota){
-      sl.addText('* '+slide.nota,{x:0.5,y:6.5,w:12,h:0.3,fontSize:9,color:'AAAAAA',fontFace:'Calibri',italic:true});
+    sl.background = {color:C3};
+    addHeader(sl, slide.titulo, cor);
+    addFooter(sl, idx + 1);
+
+    // ── DADOS (caixas métricas) ──
+    if (tipo === 'dados') {
+      const itens = slide.dados || [];
+      const cols = itens.length > 4 ? 2 : 1;
+      const perCol = Math.ceil(itens.length / cols);
+      itens.forEach((d, i) => {
+        const col = Math.floor(i / perCol), row = i % perCol;
+        const bx = 0.4 + col * 6.4, by = 1.22 + row * 1.02;
+        sl.addShape(pptx.ShapeType.roundRect, {x:bx,y:by,w:6.0,h:0.86,fill:{color:CW},line:{color:cor,width:1.5},rectRadius:0.07});
+        sl.addText(d.label||'', {x:bx+0.18,y:by+0.06,w:5.65,h:0.26,fontSize:9.5,color:'888888',fontFace:'Calibri'});
+        sl.addText(d.valor||'', {x:bx+0.18,y:by+0.36,w:5.65,h:0.4,fontSize:13,color:cor,fontFace:'Calibri',bold:true});
+      });
+
+    // ── SIPOC + VOLUMETRIA + MATURIDADE ──
+    } else if (tipo === 'sipoc') {
+      const sipoc = slide.sipoc || {};
+      // Preenche SIPOC com dados reais do processo caso AI não tenha preenchido
+      const sdata = {
+        S: sipoc.S || p.ent?.fornecedores || '—',
+        I: sipoc.I || p.ent?.entradas || '—',
+        P: sipoc.P || p.nome,
+        O: sipoc.O || p.ent?.saidas || '—',
+        C: sipoc.C || p.ent?.clientes || '—'
+      };
+      const skeys=['S','I','P','O','C'];
+      const slabels={S:'Fornecedores',I:'Entradas',P:'Processo',O:'Saídas',C:'Clientes'};
+      const sbg={S:'DBEAFE',I:'DCFCE7',P:'EDE9FE',O:'FEF3C7',C:'FCE7F3'};
+      const stxt={S:'1D4ED8',I:'166534',P:'5B21B6',O:'92400E',C:'9D174D'};
+      const cw=2.45, by0=1.18, bh=2.1;
+      skeys.forEach((k, ki) => {
+        const bx = 0.28 + ki * cw;
+        sl.addShape(pptx.ShapeType.rect, {x:bx,y:by0,w:cw-0.04,h:bh,fill:{color:sbg[k]}});
+        sl.addText(k, {x:bx+0.07,y:by0+0.04,w:0.44,h:0.52,fontSize:20,bold:true,color:stxt[k],fontFace:'Georgia'});
+        sl.addText(slabels[k], {x:bx+0.07,y:by0+0.54,w:cw-0.18,h:0.22,fontSize:8,bold:true,color:stxt[k],fontFace:'Calibri'});
+        sl.addText(sdata[k], {x:bx+0.07,y:by0+0.78,w:cw-0.18,h:bh-0.86,fontSize:9.5,color:'1E293B',fontFace:'Calibri',wrap:true,valign:'top'});
+      });
+      // Volumetria
+      const vols = slide.volumetria || [];
+      sl.addText('Volumetria e Tempos', {x:0.28,y:3.38,w:5,h:0.26,fontSize:9.5,bold:true,color:CA,fontFace:'Calibri'});
+      vols.slice(0, 4).forEach((v, i) => {
+        const bx = 0.28 + i * 3.06;
+        sl.addShape(pptx.ShapeType.roundRect, {x:bx,y:3.67,w:2.96,h:0.74,fill:{color:CW},line:{color:C2,width:1},rectRadius:0.05});
+        sl.addText(v.label||'', {x:bx+0.1,y:3.7,w:2.76,h:0.22,fontSize:8,color:'888888',fontFace:'Calibri'});
+        sl.addText(v.valor||'—', {x:bx+0.1,y:3.92,w:2.76,h:0.36,fontSize:11,bold:true,color:CA,fontFace:'Calibri'});
+      });
+      // Maturidade por eixo
+      const mats = slide.maturidade || [];
+      sl.addText('Maturidade por Eixo', {x:0.28,y:4.52,w:5,h:0.26,fontSize:9.5,bold:true,color:CA,fontFace:'Calibri'});
+      mats.slice(0, 6).forEach((m, i) => {
+        const col = i % 3, row = Math.floor(i / 3);
+        const bx = 0.28 + col * 4.18, by = 4.8 + row * 0.4;
+        sl.addText((m.eixo||''), {x:bx,y:by,w:3.4,h:0.36,fontSize:9.5,color:CG,fontFace:'Calibri'});
+        sl.addShape(pptx.ShapeType.roundRect, {x:bx+3.45,y:by+0.03,w:0.52,h:0.28,fill:{color:cor},rectRadius:0.04});
+        sl.addText(m.nota||'—', {x:bx+3.45,y:by+0.03,w:0.52,h:0.28,fontSize:9,bold:true,color:CW,fontFace:'Calibri',align:'center',valign:'middle'});
+      });
+      // Nota geral
+      const matGeral = p.ent?.mat || 0;
+      sl.addText(`Maturidade Geral: ${matGeral}/5 — ${ML_[matGeral]||''}`, {x:8.5,y:4.52,w:4.2,h:0.26,fontSize:9.5,bold:true,color:cor,fontFace:'Calibri',align:'right'});
+
+    // ── OBJETIVO + PROBLEMAS ──
+    } else if (tipo === 'objetivo') {
+      sl.addText('Objetivo', {x:0.5,y:1.18,w:11.5,h:0.27,fontSize:10.5,bold:true,color:CA,fontFace:'Calibri'});
+      sl.addShape(pptx.ShapeType.rect, {x:0.5,y:1.47,w:12.1,h:1.32,fill:{color:'EEF4FA'},line:{color:CL,width:1}});
+      sl.addText(slide.objetivo||'—', {x:0.7,y:1.51,w:11.72,h:1.24,fontSize:12,color:CG,fontFace:'Calibri',valign:'middle',wrap:true});
+      sl.addText('Problemas Relatados', {x:0.5,y:2.88,w:11.5,h:0.27,fontSize:10.5,bold:true,color:CA,fontFace:'Calibri'});
+      (slide.problemas||[]).slice(0, 6).forEach((pr, i) => {
+        const by = 3.18 + i * 0.59;
+        sl.addShape(pptx.ShapeType.rect, {x:0.5,y:by+0.1,w:0.2,h:0.2,fill:{color:'C0392B'},line:{color:'C0392B'}});
+        sl.addText(pr, {x:0.85,y:by,w:11.52,h:0.54,fontSize:11.5,color:CG,fontFace:'Calibri',valign:'middle',wrap:true});
+      });
+
+    // ── BPMN AS IS ──
+    } else if (tipo === 'bpmn_asis') {
+      if (bpmnAsisPng) {
+        sl.addImage({data:bpmnAsisPng, x:0.22,y:1.17,w:12.9,h:5.56, sizing:{type:'contain',w:12.9,h:5.56}});
+      } else {
+        sl.addText(slide.resumo || p.mod?.asIs || 'Diagrama AS IS não disponível.', {x:0.6,y:1.3,w:11.5,h:5.3,fontSize:12,color:CG,fontFace:'Calibri',valign:'top',wrap:true,lineSpacingMultiple:1.4});
+      }
+
+    // ── BPMN TO BE ──
+    } else if (tipo === 'bpmn_tobe') {
+      if (bpmnTobePng) {
+        sl.addImage({data:bpmnTobePng, x:0.22,y:1.17,w:12.9,h:5.56, sizing:{type:'contain',w:12.9,h:5.56}});
+      } else {
+        sl.addText(slide.resumo || p.mod?.toBe || 'Diagrama TO BE não disponível.', {x:0.6,y:1.3,w:11.5,h:5.3,fontSize:12,color:CG,fontFace:'Calibri',valign:'top',wrap:true,lineSpacingMultiple:1.4});
+      }
+
+    // ── PROPOSTAS DE SOLUÇÕES ──
+    } else if (tipo === 'solucoes') {
+      const itens = slide.itens || [];
+      sl.addShape(pptx.ShapeType.rect, {x:0.3,y:1.15,w:6.0,h:0.36,fill:{color:'B03030'}});
+      sl.addText('Problema / Risco', {x:0.42,y:1.17,w:5.8,h:0.32,fontSize:10.5,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
+      sl.addShape(pptx.ShapeType.rect, {x:6.42,y:1.15,w:6.22,h:0.36,fill:{color:'1A6674'}});
+      sl.addText('Mitigação / Solução', {x:6.54,y:1.17,w:6.0,h:0.32,fontSize:10.5,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
+      itens.slice(0, 6).forEach((item, i) => {
+        const by = 1.55 + i * 0.87, bg = i % 2 === 0 ? 'F2F7FB' : CW;
+        sl.addShape(pptx.ShapeType.rect, {x:0.3,y:by,w:6.0,h:0.82,fill:{color:bg},line:{color:'DDDDDD',width:0.5}});
+        sl.addText(item.problema||'', {x:0.42,y:by+0.05,w:5.78,h:0.72,fontSize:10,color:CG,fontFace:'Calibri',wrap:true,valign:'middle'});
+        sl.addShape(pptx.ShapeType.rect, {x:6.42,y:by,w:6.22,h:0.82,fill:{color:bg},line:{color:'DDDDDD',width:0.5}});
+        sl.addText(item.solucao||'', {x:6.54,y:by+0.05,w:6.0,h:0.72,fontSize:10,color:CG,fontFace:'Calibri',wrap:true,valign:'middle'});
+      });
+
+    // ── FAQ ──
+    } else if (tipo === 'faq') {
+      const itens = slide.itens || [];
+      itens.slice(0, 5).forEach((item, i) => {
+        const by = 1.2 + i * 1.1;
+        sl.addShape(pptx.ShapeType.roundRect, {x:0.35,y:by,w:12.35,h:1.0,fill:{color:'EEF4FA'},line:{color:CL,width:1},rectRadius:0.06});
+        sl.addText(item.pergunta||'', {x:0.55,y:by+0.05,w:12.05,h:0.34,fontSize:11,bold:true,color:CA,fontFace:'Calibri',wrap:true});
+        sl.addText(item.resposta||'', {x:0.55,y:by+0.42,w:12.05,h:0.5,fontSize:10.5,color:CG,fontFace:'Calibri',wrap:true});
+      });
+
+    // ── INDICADORES ──
+    } else if (tipo === 'indicadores') {
+      // Usa indicadores reais do processo; se não houver, usa o que a IA gerou
+      const source = indsProc.length > 0
+        ? indsProc.slice(0, 8).map(k => ({
+            label: k.enunciado || k.indicador || '',
+            valor: [k.ciclo, k.meta ? 'Meta: ' + k.meta : ''].filter(Boolean).join(' | ') || '—'
+          }))
+        : (slide.itens || []).slice(0, 8);
+      if (!source.length) {
+        sl.addText('Nenhum indicador cadastrado para este processo.', {x:0.6,y:2.5,w:11.5,h:1,fontSize:13,color:'888888',fontFace:'Calibri',align:'center'});
+      } else {
+        const cols = source.length > 3 ? 2 : 1, perCol = Math.ceil(source.length / cols);
+        source.forEach((d, i) => {
+          const col = Math.floor(i / perCol), row = i % perCol;
+          const bx = 0.4 + col * 6.45, by = 1.22 + row * 0.94;
+          sl.addShape(pptx.ShapeType.roundRect, {x:bx,y:by,w:6.06,h:0.8,fill:{color:CW},line:{color:cor,width:1.2},rectRadius:0.06});
+          sl.addText(d.label||'', {x:bx+0.15,y:by+0.05,w:5.78,h:0.28,fontSize:9,color:'888888',fontFace:'Calibri',wrap:true});
+          sl.addText(d.valor||'—', {x:bx+0.15,y:by+0.36,w:5.78,h:0.36,fontSize:11,bold:true,color:cor,fontFace:'Calibri'});
+        });
+      }
+
+    // ── BULLETS / NARRATIVA ──
+    } else {
+      const bts = slide.bullets || [];
+      if (slide.texto) {
+        sl.addText(slide.texto, {x:0.55,y:1.22,w:11.5,h:5.4,fontSize:12.5,color:CG,fontFace:'Calibri',valign:'top',wrap:true,lineSpacingMultiple:1.4});
+      } else {
+        bts.slice(0, 7).forEach((b, i) => {
+          const by = 1.22 + i * 0.77;
+          sl.addShape(pptx.ShapeType.rect, {x:0.5,y:by+0.14,w:0.22,h:0.22,fill:{color:cor},line:{color:cor}});
+          sl.addText(b, {x:0.88,y:by,w:11.5,h:0.68,fontSize:12.5,color:CG,fontFace:'Calibri',valign:'middle',wrap:true});
+        });
+      }
     }
-  });
+  }
 
-  // ── ENCERRAMENTO ──
-  sl=pptx.addSlide();
-  sl.background={color:C1};
-  sl.addShape(pptx.ShapeType.rect,{x:0,y:2.8,w:'100%',h:0.08,fill:{color:C2}});
-  sl.addShape(pptx.ShapeType.rect,{x:0,y:6.6,w:'100%',h:0.9,fill:{color:'152C47'}});
-  sl.addText('Obrigado.',{x:0,y:1.2,w:'100%',h:1,fontSize:40,bold:true,color:CW,align:'center',fontFace:'Calibri'});
-  sl.addText('Escritório de Processos — CAGE/Sefaz-RS',{x:0,y:3.2,w:'100%',h:0.5,fontSize:14,color:'A8C4D4',align:'center',fontFace:'Calibri'});
-  sl.addText(p.nome+' | '+now(),{x:0,y:3.9,w:'100%',h:0.4,fontSize:11,color:'7A9AB5',align:'center',fontFace:'Calibri'});
-
-    const nomeArq='POP_PPT_'+p.nome.replace(/[^a-zA-Z0-9]/g,'_').slice(0,38)+'_'+now().replace(/\//g,'-');
-  await pptx.writeFile({fileName:nomeArq+'.pptx'});
+  const nomeArq = 'POP_' + p.nome.replace(/[^a-zA-Z0-9]/g,'_').slice(0,38) + '_' + now().replace(/\//g,'-');
+  await pptx.writeFile({fileName: nomeArq + '.pptx'});
 }
 function salvarAuditoria(concluir){
   salvarRelatorioAuditoria(concluir);
@@ -4219,6 +4462,7 @@ function bpmnEditorHTML(which, existingXml){
       <button class="btn" onclick="bpmnColorize('${which}')" title="Aplicar cores por tipo de elemento">🎨 Colorir</button>
       <button class="btn" onclick="bpmnExport('${which}')">↓ XML</button>
       <button class="btn" onclick="bpmnImport('${which}')">↑ XML</button>
+      <button class="btn" onclick="bpmnExportPNG('${which}')" title="Salvar diagrama como imagem PNG">↓ PNG</button>
       <button class="btn btn-g" onclick="bpmnSave('${which}')">Salvar ${which.toUpperCase()}</button>
     </div>
     <div id="bpmn-${which}-canvas" class="bpmn-canvas">
