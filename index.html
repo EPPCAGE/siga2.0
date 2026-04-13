@@ -1761,7 +1761,9 @@ function renderProcs(){
     if(isDono){
       const isDonoProc=(p.dono===usuarioLogado.nome);
       const isInteressado=(p.interessados||[]).includes(usuarioLogado.email);
-      if(!isDonoProc&&!isInteressado)return false;
+      // Também exibe se o processo está vinculado ao usuário via arq_id (menu Usuários)
+      const isVinculado=(usuarioLogado.processos_vinculados||[]).includes(p.arq_id);
+      if(!isDonoProc&&!isInteressado&&!isVinculado)return false;
     }
     return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch));
   });
@@ -1805,7 +1807,8 @@ function rDetalhe(){
   const p=curProc;
   document.getElementById('det-titulo').textContent=p.nome;
   document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+eBadge(p.etapa);
-  document.getElementById('det-prio').innerHTML=pBadge(p.prio);
+  document.getElementById('det-prio').innerHTML=pBadge(p.prio)
+    +(isEP()?` <button class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Editar dono, interessados e produto" onclick="abrirEditarMetadados()">✎ Editar</button>`:'');
   epRetroEtapa = null;
   const _etapasEfetivas=getEtapas(p);
   const idx=_etapasEfetivas.findIndex(e=>e.id===p.etapa);
@@ -1839,6 +1842,45 @@ function rDetalhe(){
   document.querySelectorAll('.tab-p').forEach((p,i)=>p.classList.toggle('on',i===0));
   rAcao(p);
   setTimeout(injectIaAssistente, 100);
+}
+
+function abrirEditarMetadados(){
+  const p=curProc;if(!p||!isEP())return;
+  const ov=document.createElement('div');
+  ov.id='modal-metadados';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1.2rem">✎ Editar dados do processo</div>
+    <div class="fg"><label class="fl">Dono do processo</label>
+      <input class="fi" id="em-dono" value="${esc(p.dono||'')}" placeholder="Nome do dono"></div>
+    <div class="fg"><label class="fl">E-mail do dono</label>
+      <input class="fi" id="em-dono-email" type="email" value="${esc(p.dono_email||'')}" placeholder="email@sefaz.rs.gov.br"></div>
+    <div class="fg"><label class="fl">Produto do mapeamento</label>
+      <select class="fi" id="em-produto">
+        <option ${p.produto==='AS IS'?'selected':''}>AS IS</option>
+        <option ${p.produto==='TO BE'?'selected':''}>TO BE</option>
+        <option ${p.produto==='AS IS + TO BE'?'selected':''}>AS IS + TO BE</option>
+      </select></div>
+    <div class="fg"><label class="fl">Interessados <small style="font-weight:400;color:var(--ink3)">(um e-mail por linha)</small></label>
+      <textarea class="fi" id="em-inter" style="min-height:80px" placeholder="email1@sefaz.rs.gov.br&#10;email2@sefaz.rs.gov.br">${(p.interessados||[]).join('\n')}</textarea></div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn" onclick="document.getElementById('modal-metadados').remove()">Cancelar</button>
+      <button class="btn btn-p" onclick="salvarMetadados()">Salvar alterações</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function salvarMetadados(){
+  const p=curProc;if(!p)return;
+  p.dono=document.getElementById('em-dono')?.value.trim()||p.dono;
+  p.dono_email=document.getElementById('em-dono-email')?.value.trim()||p.dono_email;
+  p.produto=document.getElementById('em-produto')?.value||p.produto;
+  const inter=(document.getElementById('em-inter')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  p.interessados=inter;
+  document.getElementById('modal-metadados')?.remove();
+  fbAutoSave('editarMetadados');
+  rDetalhe();
+  toast('Dados atualizados!','var(--teal)');
 }
 
 // ═══════════════════════════════════════════
@@ -2358,26 +2400,17 @@ const ACOES = {
       return `<div class="ib ibt" style="margin-bottom:1.2rem">
         <div style="font-weight:600;margin-bottom:.4rem">Suas responsabilidades nesta etapa:</div>
         <ul style="font-size:13px;line-height:1.8;margin:.2rem 0 0 1.2rem;padding:0">
-          <li>Registrar os dados da reunião de alinhamento</li>
           <li>Para cada etapa listada, clicar em <strong>✎ Detalhar</strong> e preencher natureza, modo de execução, executor e descrição</li>
           <li>Revisar o fluxo AS IS desenhado pelo EP e aprovar ou solicitar ajustes</li>
         </ul>
       </div>
 
-      <div class="card-t" style="margin-bottom:.6rem">1. Reunião de alinhamento</div>
-      <div class="g2" style="margin-bottom:.8rem">
-        <div class="fg"><label class="fl">Data da reunião</label><input class="fi" id="va-dt" type="date" value="${rv.data||''}"></div>
-        <div class="fg"><label class="fl">Participantes</label><input class="fi" id="va-part" placeholder="Nomes dos presentes" value="${esc(rv.participantes||'')}"></div>
-      </div>
-      <div class="fg" style="margin-bottom:1rem"><label class="fl">Ata / encaminhamentos</label><textarea class="fi" id="va-ata" style="min-height:70px" placeholder="Registre as decisões e encaminhamentos da reunião...">${esc(rv.ata||'')}</textarea></div>
-
-      <hr>
-      <div class="card-t" style="margin-bottom:.4rem">2. Detalhamento das etapas</div>
+      <div class="card-t" style="margin-bottom:.4rem">Detalhamento das etapas</div>
       <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Expanda cada etapa (✎ Detalhar) e preencha natureza, modo de execução, executor e descrição.</div>
       <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
 
       <hr style="margin:.8rem 0">
-      <div class="card-t" style="margin-bottom:.6rem">3. Fluxo AS IS</div>
+      <div class="card-t" style="margin-bottom:.6rem">Fluxo AS IS</div>
       ${p.mod.asIs?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Descrição do processo</div><div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;line-height:1.7">${esc(p.mod.asIs)}</div></div>`:''}
       ${bpmnEditorHTML('asis',p.mod.bpmnAsIs)}
 
@@ -2940,7 +2973,50 @@ function salvarQuestionario(){
   {const epEmail=getEPEmail(p)||p.resp_ep+(p.resp_ep?.includes('@')?'':'@sefaz.rs.gov.br');enviarNotif(epEmail,p.resp_ep,'Questionário de maturidade respondido. Nível: '+nivel+'/5. Próxima etapa: '+etLb(nx||''),p.nome,'',p.dono);}
   toast('Questionário enviado! Maturidade nível '+nivel);
   rDetalhe();updCounts();
-  if(usuarioLogado?.perfil==='dono') setTimeout(()=>popupConclusaoDono('Seu questionário foi enviado com sucesso! O EP foi notificado e dará continuidade ao mapeamento do processo.'),200);
+  fbAutoSave('questionario');
+  setTimeout(()=>mostrarResultadoMaturidade(p,nivel,media),200);
+}
+function mostrarResultadoMaturidade(p,nivel,media){
+  const resp=p.ent.quest_resp||{};
+  const ML=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
+  // Calcula nota por dimensão
+  const dims={};
+  QUESTOES.forEach(q=>{if(!dims[q.dim])dims[q.dim]={sum:0,cnt:0};if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
+  const corNivel=['','var(--red)','var(--amber)','var(--amber)','var(--teal)','var(--green)'][nivel]||'var(--blue)';
+  const barCols={1:'#ef4444',2:'#f97316',3:'#eab308',4:'#22c55e',5:'#16a34a'};
+  const dimRows=Object.entries(dims).map(([dim,d])=>{
+    const nota=d.cnt>0?(d.sum/d.cnt):0;
+    const pct=Math.round(nota/5*100);
+    const cor=nota<2?'#ef4444':nota<3?'#f97316':nota<4?'#eab308':nota<4.5?'#22c55e':'#16a34a';
+    return `<div style="margin-bottom:.55rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+        <span style="font-size:12px;color:var(--ink2)">${dim}</span>
+        <span style="font-size:12px;font-weight:700;color:${cor}">${nota.toFixed(1)}/5</span>
+      </div>
+      <div style="height:7px;background:var(--bg3);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${cor};border-radius:4px;transition:width .4s"></div>
+      </div>
+    </div>`;
+  }).join('');
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:16px;padding:2rem;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto">
+    <div style="text-align:center;margin-bottom:1.4rem">
+      <div style="font-size:13px;color:var(--ink3);margin-bottom:.3rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Resultado do Questionário de Maturidade</div>
+      <div style="font-size:48px;font-weight:900;color:${corNivel};line-height:1">${nivel}</div>
+      <div style="font-size:22px;font-weight:700;color:${corNivel};margin-bottom:.2rem">${ML[nivel]||''}</div>
+      <div style="font-size:13px;color:var(--ink3)">Média geral: <strong>${media}</strong> · Nível <strong>${nivel}/5</strong></div>
+    </div>
+    <div style="border-top:1px solid var(--bdr);padding-top:1.2rem;margin-bottom:1.4rem">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:.8rem">Nota por eixo</div>
+      ${dimRows}
+    </div>
+    <div style="font-size:12px;color:var(--ink3);background:var(--bg2);border-radius:8px;padding:.8rem;margin-bottom:1.2rem;line-height:1.6">
+      O EP foi notificado e dará continuidade ao mapeamento do processo.
+    </div>
+    <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%;padding:.7rem;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Fechar</button>
+  </div>`;
+  document.body.appendChild(ov);
 }
 function salvarReuniao(){
   const p=curProc;
