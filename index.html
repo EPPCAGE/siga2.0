@@ -4611,24 +4611,26 @@ function bpmnExportPNG(which){
   const m=bpmnModelers[which];
   if(!m||!curProc){alert('Editor BPMN não carregado.');return;}
   m.saveSVG().then(({svg})=>{
+    // Usa data URI base64 em vez de blob URL para evitar canvas tainted
+    const svgUri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
     const img=new Image();
-    const blob=new Blob([svg],{type:'image/svg+xml'});
-    const url=URL.createObjectURL(blob);
     img.onload=()=>{
       const scale=2;
       const canvas=document.createElement('canvas');
-      canvas.width=img.width*scale; canvas.height=img.height*scale;
+      canvas.width=Math.max(img.width,1)*scale;
+      canvas.height=Math.max(img.height,1)*scale;
       const ctx=canvas.getContext('2d');
-      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.scale(scale,scale); ctx.drawImage(img,0,0);
-      URL.revokeObjectURL(url);
+      ctx.fillStyle='#ffffff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.scale(scale,scale);
+      ctx.drawImage(img,0,0);
       const a=document.createElement('a');
       a.href=canvas.toDataURL('image/png');
       a.download=(curProc.nome||'processo').replace(/\s+/g,'_').slice(0,30)+'_'+which+'.png';
       a.click();
     };
-    img.onerror=()=>{URL.revokeObjectURL(url);alert('Erro ao gerar PNG.');};
-    img.src=url;
+    img.onerror=()=>alert('Erro ao renderizar SVG como imagem.');
+    img.src=svgUri;
   }).catch(e=>alert('Erro ao exportar: '+(e.message||e)));
 }
 function vincularDesenhoFinalArq(){
@@ -4636,23 +4638,22 @@ function vincularDesenhoFinalArq(){
   if(!m||!curProc){alert('Editor BPMN não carregado.');return;}
   if(!curProc.arq_id){alert('Este processo não está vinculado a um item da arquitetura. Vincule na tela de arquitetura.');return;}
   m.saveSVG().then(({svg})=>{
+    const svgUri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
     const img=new Image();
-    const blob=new Blob([svg],{type:'image/svg+xml'});
-    const url=URL.createObjectURL(blob);
     img.onload=async()=>{
       const scale=2;
       const canvas=document.createElement('canvas');
-      canvas.width=img.width*scale; canvas.height=img.height*scale;
+      canvas.width=Math.max(img.width,1)*scale;
+      canvas.height=Math.max(img.height,1)*scale;
       const ctx=canvas.getContext('2d');
       ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.scale(scale,scale); ctx.drawImage(img,0,0);
-      URL.revokeObjectURL(url);
       const png=canvas.toDataURL('image/png');
       await saveFluxoImg(curProc.arq_id, png);
       toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
     };
-    img.onerror=()=>{URL.revokeObjectURL(url);alert('Erro ao gerar imagem.');};
-    img.src=url;
+    img.onerror=()=>alert('Erro ao gerar imagem.');
+    img.src=svgUri;
   }).catch(e=>alert('Erro: '+(e.message||e)));
 }
 function salvarDesenhoFinal(){
