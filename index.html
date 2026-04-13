@@ -4488,22 +4488,54 @@ function atualizarRiscoUI(){
 }
 function rRiscoList(rs){
   if(!rs||!rs.length)return '<div style="font-size:12px;color:var(--ink4);padding:4px 0">Nenhum risco adicionado.</div>';
-  const updMatrix=`document.getElementById('risco-matrix').innerHTML=rRiscoMatriz(curProc.ent.riscos)`;
-  return rs.map((r,i)=>`<div class="ri-item">
-    <span style="flex:1">${esc(r.desc)}</span>
-    <select style="font-size:11px;padding:2px 4px;border:1px solid var(--bdr);border-radius:4px;background:var(--surf);color:var(--ink)" onchange="curProc.ent.riscos[${i}].prob=this.value;${updMatrix}">
-      <option value="Baixa" ${r.prob==='Baixa'?'selected':''}>Prob: Baixa</option>
-      <option value="Media" ${r.prob==='Media'?'selected':''}>Prob: Média</option>
-      <option value="Alta"  ${r.prob==='Alta' ?'selected':''}>Prob: Alta</option>
-    </select>
-    <select style="font-size:11px;padding:2px 4px;border:1px solid var(--bdr);border-radius:4px;background:var(--surf);color:var(--ink)" onchange="curProc.ent.riscos[${i}].imp=this.value;${updMatrix}">
-      <option value="Baixo"  ${r.imp==='Baixo' ?'selected':''}>Imp: Baixo</option>
-      <option value="Medio"  ${r.imp==='Medio' ?'selected':''}>Imp: Médio</option>
-      <option value="Alto"   ${r.imp==='Alto'  ?'selected':''}>Imp: Alto</option>
-      <option value="Critico"${r.imp==='Critico'?'selected':''}>Imp: Crítico</option>
-    </select>
-    <button class="ri-del" onclick="remR(${i})">×</button>
-  </div>`).join('');
+  return rs.map((r,i)=>`<div class="ri-item"><span>${esc(r.desc)}</span>${pbBadge(r.prob)}${ibBadge(r.imp)}<button class="btn" style="font-size:11px;padding:2px 8px" onclick="editarRisco(${i})">✎</button><button class="ri-del" onclick="remR(${i})">×</button></div>`).join('');
+}
+function editarRisco(i){
+  const r=curProc.ent.riscos[i];
+  if(!r)return;
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:480px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1.2rem">✎ Editar risco</div>
+    <div class="fg" style="margin-bottom:.8rem">
+      <label class="fl">Descrição do risco</label>
+      <textarea class="fi" id="er-desc" style="min-height:80px">${esc(r.desc)}</textarea>
+    </div>
+    <div class="g2" style="margin-bottom:1.2rem">
+      <div class="fg"><label class="fl">Probabilidade</label>
+        <select class="fi" id="er-prob">
+          <option value="Baixa" ${r.prob==='Baixa'?'selected':''}>Baixa</option>
+          <option value="Media" ${r.prob==='Media'?'selected':''}>Média</option>
+          <option value="Alta"  ${r.prob==='Alta' ?'selected':''}>Alta</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Impacto</label>
+        <select class="fi" id="er-imp">
+          <option value="Baixo"  ${r.imp==='Baixo'  ?'selected':''}>Baixo</option>
+          <option value="Medio"  ${r.imp==='Medio'  ?'selected':''}>Médio</option>
+          <option value="Alto"   ${r.imp==='Alto'   ?'selected':''}>Alto</option>
+          <option value="Critico"${r.imp==='Critico'?'selected':''}>Crítico</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="this.closest('div[style*=fixed]').remove()">Cancelar</button>
+      <button class="btn btn-p" onclick="salvarEdicaoRisco(${i},this)">Salvar →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function salvarEdicaoRisco(i,el){
+  const desc=document.getElementById('er-desc')?.value.trim();
+  const prob=document.getElementById('er-prob')?.value;
+  const imp=document.getElementById('er-imp')?.value;
+  if(!desc){alert('A descrição não pode ficar em branco.');return;}
+  const r=curProc.ent.riscos[i];
+  r.desc=desc;r.prob=prob;r.imp=imp;
+  el.closest('div[style*=fixed]').remove();
+  atualizarRiscoUI();
+  fbAutoSave('editarRisco');
 }
 function addRisco(){
   const desc=document.getElementById('rd')?.value.trim(),prob=document.getElementById('rp')?.value,imp=document.getElementById('ri')?.value;
