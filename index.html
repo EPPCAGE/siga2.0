@@ -7050,7 +7050,17 @@ async function processarArquivoPOP(input){
     const arrayBuffer=await input.files[0].arrayBuffer();
     const result=await mammoth.extractRawText({arrayBuffer});
     const texto=result.value.trim().slice(0,12000);
-    const prompt=`Analise o POP abaixo e retorne APENAS um JSON com: {"nome":"...","area":"...","objetivo":"...","atores":["..."],"etapas":["..."]}\nPOP:\n${texto}`;
+    const prompt=`Analise o POP abaixo e retorne APENAS um JSON válido (sem markdown) com a estrutura:
+{"nome":"...","area":"...","objetivo":"...","atores":["..."],"etapas":[{"nome":"...","tipo":"Atividade|Decisao|Evento"}]}
+
+REGRAS para classificar cada elemento do fluxo:
+- "Atividade": tarefas, execuções, verificações, comunicações, registros (a maioria)
+- "Decisao": gateways, bifurcações, condicionais — frases que começam com "Verificar se", "Caso", "Se sim/não", "Aprovado?", perguntas com "?"
+- "Evento": início do processo, fim/encerramento, espera por prazo ou evento externo
+
+Inclua TODOS os elementos do fluxo, inclusive os gateways/condicionais.
+
+POP:\n${texto}`;
     const rawText = await chamarIA('extrair_pop', prompt, loadEl);
     if(!rawText) throw new Error('Sem resposta da IA.');
     const jsonStr=rawText.trim().replace(/```json?/g,'').replace(/```/g,'').trim();
@@ -7059,7 +7069,11 @@ async function processarArquivoPOP(input){
     document.getElementById('pop-area').value=extracted.area||'';
     document.getElementById('pop-objetivo').value=extracted.objetivo||'';
     document.getElementById('pop-atores').value=(extracted.atores||[]).join('\n');
-    document.getElementById('pop-etapas').value=(extracted.etapas||[]).join('\n');
+    // Encode type in textarea so confirmarImportPOP can recover it
+    const etapasExtraidas=(extracted.etapas||[]);
+    document.getElementById('pop-etapas').value=etapasExtraidas.map(e=>
+      typeof e==='string'?e:`[${e.tipo||'Atividade'}] ${e.nome||e}`
+    ).join('\n');
     loadEl.style.display='none';
     document.getElementById('pop-step1').style.display='none';
     document.getElementById('pop-step2').style.display='block';
@@ -7082,21 +7096,32 @@ function confirmarImportPOP(){
   const etapasTexto=document.getElementById('pop-etapas').value.trim();
   const agora=new Date().toLocaleDateString('pt-BR');
   const novoId=Date.now();
+  // Parse typed etapas: "[Tipo] Nome" prefix encoded by processarArquivoPOP
+  const etapasProc=etapasTexto.split('\n').filter(Boolean).map((d,i)=>{
+    const m=d.match(/^\[(Atividade|Decisao|Evento|Comentario)\]\s*/i);
+    const tipo=m?m[1]:'Atividade';
+    const nome=m?d.slice(m[0].length).trim():d.trim();
+    return {id:'ep'+(novoId+i),seq:i+1,nome,tipo,natureza:'Execucao',modo:'Manual',executor:atores,desc:''};
+  });
+  const ativTexto=etapasProc.map(e=>`${e.seq}. [${e.tipo}] ${e.nome}`).join('\n');
+  const donoNome=arqItem?.gerente||'';
   const novoProc={
     id:novoId,
     arq_id:arqId||null,
     nome,area,objetivo,
     macro:arqItem?.macro||'Importado via POP',
     produto:'POP',
-    dono:arqItem?.gerente||'',
+    dono:donoNome,
     resp_ep:usuarioLogado?.nome||'',
     pat:'',
     prio:'Normal',
     etapa:'publicacao', // inicia já na etapa de publicação
     mapeado:true,
     ent:{dt_inicio:agora,dt_prev:'',equipe:'',prob:[],prev_ops:[],analise:'',mat:0,quest_resp:{}},
-    mod:{asIs:'',toBe:'',etapas_proc:etapasTexto.split('\n').filter(Boolean).map((d,i)=>({id:i+1,desc:d,resp:atores,ent:'',sai:'',dur:'',sist:'',doc:''}))},
-    form:{faq:'',links:'',forms:'',pop_data:{area,objetivo,atores,atividades:etapasTexto}},
+    mod:{asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,obs:'',etapas_proc:etapasProc},
+    form:{faq:'',links:'',forms:'',pop_data:{area,objetivo,atores,atividades:etapasTexto},
+      pop:{area,ger:donoNome,mac:arqItem?.macro||'',obj:objetivo,def:'',ent:'',sai:'',ativ:ativTexto,ind:'',docs:''},
+      pop_ok:true},
     hist:[{acao:'Processo criado via importação de POP Word (IA)',role:'EP',data:agora}],
     auditoria:null
   };
