@@ -2348,11 +2348,18 @@ const ACOES = {
     }},
 
   esboco_asis:{titulo:'Esboço AS IS',sub:'Descrever e desenhar o fluxo atual do processo.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibp">Descreva o processo atual e desenhe no editor BPMN abaixo.</div>
+    form:p=>`<div class="ib ibp">Descreva o processo atual e desenhe no editor BPMN abaixo. Após salvar o BPMN, extraia as etapas — elas serão detalhadas pelo dono na próxima etapa.</div>
     <div class="fg"><label class="fl">Descrição AS IS</label>
       ${!p.mod.asIs && p.ent.atividades_principais ? `<div class="ib" style="margin-bottom:.4rem;font-size:12px">Pré-preenchido com as atividades da reunião de entendimento.</div>` : ''}
       <textarea class="fi" id="e-asis" style="min-height:120px" placeholder="Como o processo funciona hoje...">${p.mod.asIs || p.ent.atividades_principais || ''}</textarea></div>
     ${bpmnEditorHTML('asis', p.mod.bpmnAsIs)}
+    <div style="margin:.8rem 0 .4rem;font-weight:600;font-size:13px">Etapas extraídas do BPMN</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Extraia as etapas para que o dono possa detalhá-las na próxima etapa.</div>
+    <div style="display:flex;gap:8px;margin-bottom:.8rem;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="extrairBpmn()">⚡ Extrair etapas do BPMN</button>
+      <button class="btn" onclick="addEtapaProc()">+ Adicionar manualmente</button>
+    </div>
+    <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
     <div class="btn-row"><button class="btn btn-p" onclick="salvarEsboco()">Encaminhar para detalhamento →</button></div>`},
 
   det_valid_asis:{titulo:'Detalhamento e Validação AS IS',sub:'O dono detalha as etapas do fluxo e valida o desenho AS IS elaborado pelo EP.',role:'Dono do processo',rk:'dono',
@@ -4481,7 +4488,54 @@ function atualizarRiscoUI(){
 }
 function rRiscoList(rs){
   if(!rs||!rs.length)return '<div style="font-size:12px;color:var(--ink4);padding:4px 0">Nenhum risco adicionado.</div>';
-  return rs.map((r,i)=>`<div class="ri-item"><span>${r.desc}</span>${pbBadge(r.prob)}${ibBadge(r.imp)}<button class="ri-del" onclick="remR(${i})">×</button></div>`).join('');
+  return rs.map((r,i)=>`<div class="ri-item"><span>${esc(r.desc)}</span>${pbBadge(r.prob)}${ibBadge(r.imp)}<button class="btn" style="font-size:11px;padding:2px 8px" onclick="editarRisco(${i})">✎</button><button class="ri-del" onclick="remR(${i})">×</button></div>`).join('');
+}
+function editarRisco(i){
+  const r=curProc.ent.riscos[i];
+  if(!r)return;
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:480px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1.2rem">✎ Editar risco</div>
+    <div class="fg" style="margin-bottom:.8rem">
+      <label class="fl">Descrição do risco</label>
+      <textarea class="fi" id="er-desc" style="min-height:80px">${esc(r.desc)}</textarea>
+    </div>
+    <div class="g2" style="margin-bottom:1.2rem">
+      <div class="fg"><label class="fl">Probabilidade</label>
+        <select class="fi" id="er-prob">
+          <option value="Baixa" ${r.prob==='Baixa'?'selected':''}>Baixa</option>
+          <option value="Media" ${r.prob==='Media'?'selected':''}>Média</option>
+          <option value="Alta"  ${r.prob==='Alta' ?'selected':''}>Alta</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Impacto</label>
+        <select class="fi" id="er-imp">
+          <option value="Baixo"  ${r.imp==='Baixo'  ?'selected':''}>Baixo</option>
+          <option value="Medio"  ${r.imp==='Medio'  ?'selected':''}>Médio</option>
+          <option value="Alto"   ${r.imp==='Alto'   ?'selected':''}>Alto</option>
+          <option value="Critico"${r.imp==='Critico'?'selected':''}>Crítico</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="this.closest('div[style*=fixed]').remove()">Cancelar</button>
+      <button class="btn btn-p" onclick="salvarEdicaoRisco(${i},this)">Salvar →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function salvarEdicaoRisco(i,el){
+  const desc=document.getElementById('er-desc')?.value.trim();
+  const prob=document.getElementById('er-prob')?.value;
+  const imp=document.getElementById('er-imp')?.value;
+  if(!desc){alert('A descrição não pode ficar em branco.');return;}
+  const r=curProc.ent.riscos[i];
+  r.desc=desc;r.prob=prob;r.imp=imp;
+  el.closest('div[style*=fixed]').remove();
+  atualizarRiscoUI();
+  fbAutoSave('editarRisco');
 }
 function addRisco(){
   const desc=document.getElementById('rd')?.value.trim(),prob=document.getElementById('rp')?.value,imp=document.getElementById('ri')?.value;
