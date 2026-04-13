@@ -353,8 +353,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <!-- LOGIN -->
 <div id="login-screen" class="login-screen">
   <div class="login-box">
-    <div class="login-logo">SIGA <span style="color:rgba(255,255,255,.45)">2.0</span></div>
-    <div class="login-sub">Sistema Integrado de Gestão Estratégica e Alinhamento</div>
+    <div style="text-align:center;margin-bottom:1.8rem">
+      <img src="logo-siga.png" alt="SIGA" style="width:220px;max-width:100%;background:#fff;border-radius:10px;padding:14px 18px">
+    </div>
     <label class="login-label">E-mail institucional</label>
     <input class="login-input" id="login-email" type="email" placeholder="usuario@sefaz.rs.gov.br" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="login-btn" onclick="doLogin()">Entrar</button>
@@ -375,11 +376,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div class="mob-drawer-backdrop" id="mob-backdrop" onclick="mobToggleDrawer()"></div>
 <div class="shell">
 <aside class="aside">
-  <div class="aside-top" style="display:flex;align-items:flex-start;justify-content:space-between">
-    <div>
-      <div class="brand">SIGA <span>2.0</span></div>
-      <div class="brand-sub">Gestão Estratégica</div>
-    </div>
+  <div class="aside-top" style="display:flex;align-items:center;justify-content:space-between">
+    <img src="logo-siga.png" alt="SIGA" style="width:130px;background:#fff;border-radius:7px;padding:6px 10px">
     <button onclick="mobToggleDrawer()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:20px;cursor:pointer;padding:0;line-height:1;display:none" id="mob-aside-close" aria-label="Fechar menu">×</button>
   </div>
   <div class="nav-sec">Principal</div>
