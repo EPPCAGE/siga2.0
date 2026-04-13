@@ -4555,7 +4555,8 @@ function bpmnSave(which){
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
     if(lbl)lbl.style.display='none';
     push(curProc,curProc.etapa,'EP','Fluxo BPMN '+which.toUpperCase()+' salvo');
-    toast('✓ Fluxo '+which.toUpperCase()+' salvo');
+    fbAutoSave('bpmnSave');
+    toast('✓ Fluxo '+which.toUpperCase()+' salvo no servidor');
   }).catch(err=>alert('Erro ao salvar: '+(err.message||err)));
 }
 function bpmnZ(which,dir){const m=bpmnModelers[which];if(!m)return;try{m.get('zoomScroll').zoom(dir,{x:400,y:240});}catch(e){}}
