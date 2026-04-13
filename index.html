@@ -2199,16 +2199,22 @@ const ACOES = {
     }},
 
   reuniao:{titulo:'Reunião de entendimento',sub:'Levantar SIPOC, volumetria e dores do processo.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibt">Registre as informações levantadas na reunião com o dono do processo e equipe.</div>
+    form:p=>{
+    const ai=findArqItemById(p.arq_id)||{};
+    const fg=(e,a)=>e||a||'';
+    const hint=(e,a)=>!e&&a?'<span style="font-size:10px;font-weight:600;color:var(--teal);margin-left:5px;vertical-align:middle">↙ arquitetura</span>':'';
+    const anyFromArq=(!p.ent.fornecedores&&!!ai.fornecedores)||(!p.ent.clientes&&!!ai.clientes)||(!p.ent.entradas&&!!ai.entradas)||(!p.ent.saidas&&!!ai.entregas)||(!p.ent.atores&&!!ai.atores);
+    return `<div class="ib ibt">Registre as informações levantadas na reunião com o dono do processo e equipe.</div>
     <div class="card-t">SIPOC</div>
+    ${anyFromArq?'<div class="ib ibp" style="font-size:11.5px;margin:.4rem 0">Campos marcados com <strong style="color:var(--teal)">↙ arquitetura</strong> foram pré-preenchidos com dados da arquitetura de processos. Confirme ou ajuste — ao salvar, as alterações são sincronizadas de volta.</div>':''}
     <div class="g2" style="margin-top:.5rem">
-      <div class="fg"><label class="fl">Fornecedores</label><input class="fi" id="r-fornec" value="${esc(p.ent.fornecedores||'')}" placeholder="Quem fornece entradas ao processo?"></div>
-      <div class="fg"><label class="fl">Clientes</label><input class="fi" id="r-clientes" value="${esc(p.ent.clientes||'')}" placeholder="Quem recebe as saídas do processo?"></div>
+      <div class="fg"><label class="fl">Fornecedores${hint(p.ent.fornecedores,ai.fornecedores)}</label><input class="fi" id="r-fornec" value="${esc(fg(p.ent.fornecedores,ai.fornecedores))}" placeholder="Quem fornece entradas ao processo?"></div>
+      <div class="fg"><label class="fl">Clientes${hint(p.ent.clientes,ai.clientes)}</label><input class="fi" id="r-clientes" value="${esc(fg(p.ent.clientes,ai.clientes))}" placeholder="Quem recebe as saídas do processo?"></div>
     </div>
-    <div class="fg"><label class="fl">Entradas</label><textarea class="fi" id="r-entradas" style="min-height:54px" placeholder="Documentos, dados, materiais que chegam ao processo...">${esc(p.ent.entradas||'')}</textarea></div>
+    <div class="fg"><label class="fl">Entradas${hint(p.ent.entradas,ai.entradas)}</label><textarea class="fi" id="r-entradas" style="min-height:54px" placeholder="Documentos, dados, materiais que chegam ao processo...">${esc(fg(p.ent.entradas,ai.entradas))}</textarea></div>
     <div class="fg"><label class="fl">Atividades principais <small style="font-weight:400;color:var(--ink3)">(uma por linha)</small></label><textarea class="fi" id="r-atividades" style="min-height:80px" placeholder="1. Receber demanda&#10;2. Analisar documentação&#10;...">${esc(p.ent.atividades_principais||'')}</textarea></div>
-    <div class="fg"><label class="fl">Saídas</label><textarea class="fi" id="r-saidas" style="min-height:54px" placeholder="Produtos, documentos, resultados gerados...">${esc(p.ent.saidas||'')}</textarea></div>
-    <div class="fg"><label class="fl">Atores</label><input class="fi" id="r-atores" value="${esc(p.ent.atores||'')}" placeholder="Unidades e pessoas que participam do processo"></div>
+    <div class="fg"><label class="fl">Saídas${hint(p.ent.saidas,ai.entregas)}</label><textarea class="fi" id="r-saidas" style="min-height:54px" placeholder="Produtos, documentos, resultados gerados...">${esc(fg(p.ent.saidas,ai.entregas))}</textarea></div>
+    <div class="fg"><label class="fl">Atores${hint(p.ent.atores,ai.atores)}</label><input class="fi" id="r-atores" value="${esc(fg(p.ent.atores,ai.atores))}" placeholder="Unidades e pessoas que participam do processo"></div>
     <hr>
     <div class="card-t">Volumetria e tempos</div>
     <div class="g3" style="margin-top:.5rem">
@@ -2222,7 +2228,7 @@ const ACOES = {
     <hr>
     <div class="card-t">Problemas e dores</div>
     <div class="fg" style="margin-top:.5rem"><label class="fl">Problemas/dores identificados <small style="font-weight:400;color:var(--ink3)">(um por linha)</small></label><textarea class="fi" id="a-prob" style="min-height:80px" placeholder="Descreva os problemas identificados...">${esc((p.ent.prob||[]).join('\n'))}</textarea></div>
-    <div class="btn-row"><button class="btn btn-t" onclick="salvarReuniao()">Registrar reunião e avançar →</button></div>`},
+    <div class="btn-row"><button class="btn btn-t" onclick="salvarReuniao()">Registrar reunião e avançar →</button></div>`;}},
 
   riscos:{titulo:'Identificação de riscos',sub:'Mapear e avaliar riscos operacionais do processo.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibt">Identifique os riscos do processo. Utilize a IA para gerar sugestões ou adicione manualmente.</div>
@@ -4096,6 +4102,19 @@ function rEnt(p){
       ${(e.prob||[]).length?(e.prob||[]).map((pr,i)=>`<div style="display:flex;gap:6px;padding:5px 0;border-bottom:1px solid var(--bdr);font-size:12.5px"><span style="color:var(--red);font-weight:700;flex-shrink:0">${i+1}</span>${pr}</div>`).join(''):'<div class="ib iba">Nenhum problema registrado.</div>'}
     </div>
   </div>
+  ${(e.fornecedores||e.entradas||e.saidas||e.clientes)?`<div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+      <div class="card-t" style="margin-bottom:0">SIPOC</div>
+      <span style="font-size:10px;color:var(--ink3);font-weight:500">Fornecedores → Entradas → Processo → Saídas → Clientes</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;border-radius:10px;overflow:hidden;border:1px solid var(--bdr)">
+      ${[['S','Fornecedores',e.fornecedores,'#dbeafe','#1d4ed8'],['I','Entradas',e.entradas,'#dcfce7','#166534'],['P','Processo',p.nome,'#ede9fe','#5b21b6'],['O','Saídas',e.saidas,'#fef3c7','#92400e'],['C','Clientes',e.clientes,'#fce7f3','#9d174d']].map(([k,lb,v,bg,c])=>`<div style="background:${bg};padding:.75rem .55rem;min-width:0"><div style="font-size:22px;font-weight:900;color:${c};line-height:1;font-family:Georgia,serif">${k}</div><div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${c};margin:.3rem 0 .5rem;opacity:.8">${lb}</div><div style="font-size:11.5px;color:#1e293b;word-break:break-word;white-space:pre-wrap;line-height:1.4">${esc(v||'—')}</div></div>`).join('')}
+    </div>
+    ${e.atores||e.atividades_principais?`<div style="display:flex;gap:.8rem;margin-top:.65rem;flex-wrap:wrap">
+      ${e.atores?`<div style="flex:1;min-width:140px;padding:.45rem .6rem;background:var(--bg2);border-radius:7px;font-size:11.5px"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);display:block;margin-bottom:3px">Atores / participantes</span>${esc(e.atores)}</div>`:''}
+      ${e.atividades_principais?`<div style="flex:2;min-width:180px;padding:.45rem .6rem;background:var(--bg2);border-radius:7px;font-size:11.5px"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);display:block;margin-bottom:3px">Atividades principais</span><div style="white-space:pre-wrap;line-height:1.5">${esc(e.atividades_principais)}</div></div>`:''}
+    </div>`:''}
+  </div>`:''}
   ${e.analise&&(e.analise.gargalos||[]).length?`
   <div class="card"><div class="card-t">Análise AS IS</div>
     <div class="g4" style="margin-bottom:.8rem">
