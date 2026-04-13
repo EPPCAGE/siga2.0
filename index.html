@@ -4006,30 +4006,36 @@ function extrairBpmn(){
   }
   const parser=new DOMParser();
   const xml=parser.parseFromString(p.mod.bpmnAsIs,'text/xml');
+  // Mapa elementId → nome da raia (lane)
+  const laneMap={};
+  xml.querySelectorAll('lane').forEach(lane=>{
+    const nome=lane.getAttribute('name')||'';
+    if(nome) lane.querySelectorAll('flowNodeRef').forEach(ref=>{laneMap[ref.textContent.trim()]=nome;});
+  });
   const elems=[];
   let seq=1;
   // Eventos de início
   xml.querySelectorAll('startEvent').forEach(e=>{
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Início',tipo:'Evento',subtipo_evento:'Início',natureza:null,modo:null,executor:'',desc:'Evento de início do processo',caminhos:[]});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Início',tipo:'Evento',subtipo_evento:'Início',natureza:null,modo:null,executor:laneMap[e.id]||'',desc:'Evento de início do processo',caminhos:[]});
   });
   // Tasks / atividades
   xml.querySelectorAll('task,userTask,serviceTask,sendTask,receiveTask,manualTask,scriptTask').forEach(e=>{
     const tag=e.tagName.toLowerCase();
     const nat=tag==='sendtask'?'Comunicacao':tag==='usertask'?'Execucao':tag==='servicetask'?'Execucao':'Execucao';
     const modo=tag==='servicetask'||tag==='scripttask'?'Automatica':'Manual';
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Atividade '+seq,tipo:'Atividade',subtipo_evento:null,natureza:nat,modo,executor:'',desc:'',caminhos:[]});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Atividade '+seq,tipo:'Atividade',subtipo_evento:null,natureza:nat,modo,executor:laneMap[e.id]||'',desc:'',caminhos:[]});
   });
   // Gateways / decisões
   xml.querySelectorAll('exclusiveGateway,inclusiveGateway,parallelGateway,complexGateway').forEach(e=>{
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Decisão '+seq,tipo:'Decisao',subtipo_evento:null,natureza:null,modo:null,executor:'',desc:'',caminhos:[]});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Decisão '+seq,tipo:'Decisao',subtipo_evento:null,natureza:null,modo:null,executor:laneMap[e.id]||'',desc:'',caminhos:[]});
   });
   // Intermediate events
   xml.querySelectorAll('intermediateThrowEvent,intermediateCatchEvent').forEach(e=>{
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Evento '+seq,tipo:'Evento',subtipo_evento:'Intermediário',natureza:null,modo:null,executor:'',desc:'',caminhos:[]});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Evento '+seq,tipo:'Evento',subtipo_evento:'Intermediário',natureza:null,modo:null,executor:laneMap[e.id]||'',desc:'',caminhos:[]});
   });
   // Eventos de fim
   xml.querySelectorAll('endEvent').forEach(e=>{
-    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Fim',tipo:'Evento',subtipo_evento:'Fim',natureza:null,modo:null,executor:'',desc:'Evento de fim do processo',caminhos:[]});
+    elems.push({id:'ep'+etapasIdC++,seq:seq++,nome:e.getAttribute('name')||'Fim',tipo:'Evento',subtipo_evento:'Fim',natureza:null,modo:null,executor:laneMap[e.id]||'',desc:'Evento de fim do processo',caminhos:[]});
   });
   // Text annotations
   xml.querySelectorAll('textAnnotation').forEach(e=>{
