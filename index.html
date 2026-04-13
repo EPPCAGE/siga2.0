@@ -2851,6 +2851,41 @@ function salvarRetroativo(etId){
       if(prob.length) p.ent.prob=prob;
     },
     riscos:()=>{/* riscos already stored live via addRisco/remR */},
+    esboco_asis:()=>{
+      if(!p.mod)p.mod={};
+      const txt=document.getElementById('e-asis')?.value;
+      if(txt!=null) p.mod.asIs=txt;
+      // BPMN é salvo pelo próprio botão "Salvar" da toolbar do editor
+    },
+    esboco_tobe:()=>{
+      if(!p.mod)p.mod={};
+      const txt=document.getElementById('e-tobe')?.value;
+      if(txt!=null) p.mod.toBe=txt;
+    },
+    det_valid_asis:()=>{
+      // Campos de detalhe de etapas são salvos live via detalharEtapa()
+      // Apenas captura observações textuais se presentes
+      const obs=document.getElementById('aobs')?.value||'';
+      if(obs){if(!p.ent.analise)p.ent.analise={};p.ent.analise.obs_valid_asis=obs;}
+    },
+    det_valid_tobe:()=>{
+      if(!p.mod)p.mod={};
+      const dt=document.getElementById('vtb-dt')?.value||'';
+      const part=document.getElementById('vtb-part')?.value||'';
+      const ata=document.getElementById('vtb-ata')?.value||'';
+      const obs=document.getElementById('vtb-obs')?.value||'';
+      if(dt||part||ata) p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
+      if(obs){if(!p.mod.obs_valid_tobe)p.mod.obs_valid_tobe='';p.mod.obs_valid_tobe=obs;}
+    },
+    apresentacao:()=>{
+      if(!p.form)p.form={};
+      const dt=document.getElementById('adt')?.value||'';
+      const part=document.getElementById('apart')?.value||'';
+      const ata=document.getElementById('apr-ata')?.value||'';
+      if(dt||part||ata) p.form.reuniao_apresentacao={data:dt,participantes:part,ata};
+      const obs=document.getElementById('aobs')?.value||'';
+      if(obs) p.form.obs_apresentacao=obs;
+    },
     questionario:()=>{
       const resp=p.ent.quest_resp||{};
       const vals=Object.values(resp);
@@ -2873,6 +2908,12 @@ function salvarRetroativo(etId){
       p.form.excecoes=document.getElementById('a-excecoes')?.value||p.form.excecoes;
       p.form.contatos=document.getElementById('a-contatos')?.value||p.form.contatos;
       p.form.forms=document.getElementById('aforms')?.value||p.form.forms;
+      const obs=document.getElementById('aobs')?.value||'';
+      if(obs) p.form.obs_complement=obs;
+      const dt=document.getElementById('comp-dt')?.value||'';
+      const part=document.getElementById('comp-part')?.value||'';
+      const ata=document.getElementById('comp-ata')?.value||'';
+      if(dt||part||ata) p.form.reuniao_complement={data:dt,participantes:part,ata};
     },
     pop:()=>{
       p.form=p.form||{};
