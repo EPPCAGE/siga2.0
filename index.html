@@ -2719,7 +2719,7 @@ function rAcaoRetro(){
       <button class="btn btn-p" onclick="salvarRetroativo('${etId}')">Salvar revisão</button>
     </div>`;
   document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
-  if(etId==='esboco') setTimeout(()=>{initBpmnMod('asis',p);},120);
+  if(etId==='esboco'||etId==='valid_dono'||etId==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
 }
 function salvarRetroativo(etId){
   const p=curProc;
