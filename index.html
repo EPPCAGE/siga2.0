@@ -295,7 +295,44 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 .sec-lbl{font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem}
 .ri-item{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:6px 10px;border-radius:7px;border:1px solid var(--bdr);margin-bottom:5px;font-size:12px}
 .ri-del{cursor:pointer;color:var(--ink4);font-size:16px;border:none;background:none;font-family:var(--f);padding:0 4px}.ri-del:hover{color:var(--red)}
-@media(max-width:720px){.shell{grid-template-columns:1fr}.aside{position:static;height:auto}.stats{grid-template-columns:1fr 1fr}.g2,.g3,.g4{grid-template-columns:1fr}.pipeline-phases{grid-template-columns:1fr 1fr}}
+/* ── MOBILE ─── */
+.mob-top-bar{display:none}
+.mob-drawer-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199}
+.mob-drawer-backdrop.on{display:block}
+@media(max-width:720px){
+  .shell{grid-template-columns:1fr}
+  .main-area{max-height:calc(100vh - 48px);overflow-y:auto}
+  .aside{position:fixed;top:0;left:0;height:100vh;width:272px;z-index:200;transform:translateX(-100%);transition:transform .24s cubic-bezier(.4,0,.2,1)}
+  .aside.mob-open{transform:translateX(0)}
+  .mob-top-bar{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem;background:var(--ink);position:sticky;top:0;z-index:50;gap:8px;min-height:48px}
+  .mob-ham{background:none;border:none;color:#fff;cursor:pointer;padding:6px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+  .mob-ham span{display:block;width:22px;height:2px;background:rgba(255,255,255,.85);border-radius:2px;transition:all .2s}
+  .mob-page-title{font-size:13px;font-weight:600;color:rgba(255,255,255,.75);flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .page{padding:0!important}
+  .page>div{padding:.85rem!important}
+  .stats{grid-template-columns:1fr 1fr}
+  .g2,.g3,.g4{grid-template-columns:1fr}
+  .pipeline-phases{grid-template-columns:1fr 1fr}
+  .ph{flex-direction:column;align-items:flex-start;gap:.5rem}
+  .card{padding:.85rem .9rem}
+  .fi,select.fi{font-size:16px!important;min-height:44px}
+  textarea.fi{font-size:16px!important;min-height:80px}
+  .btn{min-height:38px;-webkit-tap-highlight-color:transparent}
+  .btn-row{justify-content:stretch;gap:6px}
+  .btn-row>.btn{flex:1;text-align:center;justify-content:center}
+  #det-tabs{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:2px}
+  #det-tabs .tab{white-space:nowrap;flex-shrink:0}
+  .det-hdr{flex-wrap:wrap;gap:6px;margin-bottom:.7rem}
+  .det-title{font-size:15px;min-width:0}
+  .prog-s{min-width:34px}
+  .prog-l{font-size:8.5px;text-align:center}
+  .bpmn-canvas{height:280px}
+  .bpmn-bar{gap:3px;padding:.4rem .6rem}
+  .bpmn-bar .btn{font-size:10px;padding:3px 7px;min-height:28px}
+  .prc{grid-template-columns:1fr}
+  .prc-r{flex-direction:row;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:5px}
+  .ri-item{grid-template-columns:1fr auto auto auto;font-size:11px}
+}
 @keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .page.on .prc{animation:fu .16s ease both}
 .page.on .prc:nth-child(2){animation-delay:.03s}.page.on .prc:nth-child(3){animation-delay:.06s}
@@ -325,11 +362,25 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </div>
 </div>
 
+<div class="mob-top-bar" id="mob-top-bar">
+  <button class="mob-ham" onclick="mobToggleDrawer()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="mob-page-title" id="mob-page-title">SIGA 2.0</div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <span class="nav-cnt hot" id="mob-fila-cnt" style="display:none">0</span>
+    <div class="user-av" id="mob-user-av" style="width:28px;height:28px;font-size:11px">?</div>
+  </div>
+</div>
+<div class="mob-drawer-backdrop" id="mob-backdrop" onclick="mobToggleDrawer()"></div>
 <div class="shell">
 <aside class="aside">
-  <div class="aside-top">
-    <div class="brand">SIGA <span>2.0</span></div>
-    <div class="brand-sub">Gestão Estratégica</div>
+  <div class="aside-top" style="display:flex;align-items:flex-start;justify-content:space-between">
+    <div>
+      <div class="brand">SIGA <span>2.0</span></div>
+      <div class="brand-sub">Gestão Estratégica</div>
+    </div>
+    <button onclick="mobToggleDrawer()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:20px;cursor:pointer;padding:0;line-height:1;display:none" id="mob-aside-close" aria-label="Fechar menu">×</button>
   </div>
   <div class="nav-sec">Principal</div>
   <button class="nav-btn on" onclick="go('fila',this)" id="nb-fila">
@@ -1225,6 +1276,7 @@ function doLogin(){
   document.getElementById('login-err').style.display='none';
   document.getElementById('login-screen').style.display='none';
   document.getElementById('aside-av').textContent=user.iniciais;
+  const mobAv=document.getElementById('mob-user-av');if(mobAv)mobAv.textContent=user.iniciais;
   document.getElementById('aside-name').textContent=user.nome;
   document.getElementById('aside-role').textContent=PERFIL_LABELS[user.perfil]||user.perfil;
   updCounts();
@@ -1243,6 +1295,27 @@ function go(page,btn){
   document.getElementById('page-'+page).classList.add('on');
   if(btn)btn.classList.add('on');
   ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano,avisos:rAvisos}[page]||function(){})();
+  // Mobile: close drawer, update title
+  if(window.innerWidth<=720){mobClose();}
+  const ttl={fila:'Minhas tarefas',dashboard:'Painel geral',processos:'Processos',arq:'Arquitetura',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Auditoria',publicacoes:'Metodologias',admin:'Usuários',avisos:'Avisos',detalhe:'Processo'};
+  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||'SIGA 2.0';
+}
+function mobToggleDrawer(){
+  const aside=document.querySelector('.aside');
+  const backdrop=document.getElementById('mob-backdrop');
+  const closeBtn=document.getElementById('mob-aside-close');
+  const isOpen=aside.classList.contains('mob-open');
+  aside.classList.toggle('mob-open',!isOpen);
+  if(backdrop)backdrop.classList.toggle('on',!isOpen);
+  if(closeBtn)closeBtn.style.display=isOpen?'none':'block';
+}
+function mobClose(){
+  const aside=document.querySelector('.aside');
+  const backdrop=document.getElementById('mob-backdrop');
+  const closeBtn=document.getElementById('mob-aside-close');
+  aside.classList.remove('mob-open');
+  if(backdrop)backdrop.classList.remove('on');
+  if(closeBtn)closeBtn.style.display='none';
 }
 function stab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -1272,6 +1345,7 @@ function updCounts(){
   document.getElementById('nb-total').textContent=processos.length;
   document.getElementById('nb-pend').textContent=processos.filter(p=>['valid_dono','complement','apresentacao'].includes(p.etapa)).length;
   document.getElementById('nb-fila-cnt').textContent=getTarefasUsr().length;
+  const mobFilaCnt=document.getElementById('mob-fila-cnt');if(mobFilaCnt){const c=getTarefasUsr().length;mobFilaCnt.textContent=c;mobFilaCnt.style.display=c>0?'inline-flex':'none';}
   document.getElementById('nb-notif-cnt').textContent=notifs.filter(n=>!n.lida).length;
   const audCnt=processos.filter(p=>p.etapa==='auditoria'||(p.auditoria?.concluida===true)).length;
   const audEl=document.getElementById('nb-aud-cnt');
