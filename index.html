@@ -4488,7 +4488,22 @@ function atualizarRiscoUI(){
 }
 function rRiscoList(rs){
   if(!rs||!rs.length)return '<div style="font-size:12px;color:var(--ink4);padding:4px 0">Nenhum risco adicionado.</div>';
-  return rs.map((r,i)=>`<div class="ri-item"><span>${r.desc}</span>${pbBadge(r.prob)}${ibBadge(r.imp)}<button class="ri-del" onclick="remR(${i})">×</button></div>`).join('');
+  const updMatrix=`document.getElementById('risco-matrix').innerHTML=rRiscoMatriz(curProc.ent.riscos)`;
+  return rs.map((r,i)=>`<div class="ri-item">
+    <span style="flex:1">${esc(r.desc)}</span>
+    <select style="font-size:11px;padding:2px 4px;border:1px solid var(--bdr);border-radius:4px;background:var(--surf);color:var(--ink)" onchange="curProc.ent.riscos[${i}].prob=this.value;${updMatrix}">
+      <option value="Baixa" ${r.prob==='Baixa'?'selected':''}>Prob: Baixa</option>
+      <option value="Media" ${r.prob==='Media'?'selected':''}>Prob: Média</option>
+      <option value="Alta"  ${r.prob==='Alta' ?'selected':''}>Prob: Alta</option>
+    </select>
+    <select style="font-size:11px;padding:2px 4px;border:1px solid var(--bdr);border-radius:4px;background:var(--surf);color:var(--ink)" onchange="curProc.ent.riscos[${i}].imp=this.value;${updMatrix}">
+      <option value="Baixo"  ${r.imp==='Baixo' ?'selected':''}>Imp: Baixo</option>
+      <option value="Medio"  ${r.imp==='Medio' ?'selected':''}>Imp: Médio</option>
+      <option value="Alto"   ${r.imp==='Alto'  ?'selected':''}>Imp: Alto</option>
+      <option value="Critico"${r.imp==='Critico'?'selected':''}>Imp: Crítico</option>
+    </select>
+    <button class="ri-del" onclick="remR(${i})">×</button>
+  </div>`).join('');
 }
 function addRisco(){
   const desc=document.getElementById('rd')?.value.trim(),prob=document.getElementById('rp')?.value,imp=document.getElementById('ri')?.value;
