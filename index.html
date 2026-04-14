@@ -6832,6 +6832,8 @@ function salvarNovoKpi(){
       const idx = kpis.findIndex(x => x.id === p.id);
       if(idx < 0) return;
       Object.assign(kpis[idx], generalCfg);
+      // Promote gsheets→gsheets_editado so the next sync won't overwrite this manual edit
+      if(kpis[idx].origem === 'gsheets'){ kpis[idx].origem = 'gsheets_editado'; }
       // Apply any period-specific edits made while navigating
       const edits = (globalThis._kpiPeriodEdits||{})[p.id];
       if(edits){
@@ -6861,8 +6863,10 @@ function salvarNovoKpi(){
     const idx = kpis.findIndex(k=>k.id===editIdNum);
     if(idx >= 0){
       const orig = kpis[idx];
+      // Promote gsheets→gsheets_editado so the next sync won't overwrite this manual edit
+      const novaOrigem = orig.origem === 'gsheets' ? 'gsheets_editado' : orig.origem;
       kpis[idx] = {
-        id: editIdNum, origem: orig.origem,
+        id: editIdNum, origem: novaOrigem,
         area, codigo: document.getElementById('nkpi-codigo').value.trim(),
         nome, desc: document.getElementById('nkpi-desc').value.trim(),
         periodicidade: document.getElementById('nkpi-period').value,
@@ -6920,14 +6924,14 @@ function deletarKpi(id){
 }
 
 async function limparKpisImportados(){
-  const importados = kpis.filter(k => k.origem === 'importado' || k.origem === 'gsheets');
+  const importados = kpis.filter(k => k.origem === 'importado' || k.origem === 'gsheets' || k.origem === 'gsheets_editado');
   if(!importados.length){ toast('Nenhum indicador importado encontrado.', 'var(--amber)'); return; }
   if(!confirm(`Remover ${importados.length} indicador(es) importado(s)/sincronizado(s)? Os indicadores manuais serão mantidos.`)) return;
   if(fbReady()){
     const {db,doc,deleteDoc}=fb();
     await Promise.all(importados.map(k => deleteDoc(doc(db,'kpis',String(k.id))).catch(e=>console.warn(e.message))));
   }
-  kpis = kpis.filter(k => k.origem !== 'importado' && k.origem !== 'gsheets');
+  kpis = kpis.filter(k => k.origem !== 'importado' && k.origem !== 'gsheets' && k.origem !== 'gsheets_editado');
   rInd();
   toast(`${importados.length} indicador(es) removido(s).`, 'var(--amber)');
 }
@@ -6994,9 +6998,14 @@ async function sincronizarGSheets(){
       cReal=col(['realizado','realiz']),cAnalise=col(['análise','analise','análisis']),
       cPctReal=col(['% realizado','pct realizado']);
 
-    // Remove previously synced entries from this URL before re-importing
+    // Remove previously unedited GSheets entries; preserve gsheets_editado (manual edits)
     const oldGSheets = kpis.filter(k => k.origem === 'gsheets');
     kpis = kpis.filter(k => k.origem !== 'gsheets');
+    // Build a set of (codigo||nome + "|" + periodo) that already have manual edits
+    const editados = new Set(
+      kpis.filter(k => k.origem === 'gsheets_editado')
+          .map(k => (k.codigo||k.nome||'').trim() + '|' + (k.periodo||'').trim())
+    );
     let added = 0;
     rows.forEach(row => {
       const area   =(cArea   ?row[cArea]   :'').toString().trim();
@@ -7013,6 +7022,9 @@ async function sincronizarGSheets(){
       const analise=(cAnalise?row[cAnalise]:'').toString().trim();
       const pctReal=parseNumBR(cPctReal?row[cPctReal]:0) || (meta>0?Math.round((real/meta)*100):0);
       if(!area && !nome && !enunc) return;
+      // Skip rows that the user has already edited manually
+      const chave = (nome||enunc||'').trim() + '|' + periodo.trim();
+      if(editados.has(chave)) return;
       kpis.push({ id:_kpiIdC++, area, codigo:nome, nome:enunc||nome, desc,
         periodicidade:period, periodo, ciclo, ppe, indice, meta, realizado:real,
         analise, pct_realizado:pctReal, origem:'gsheets' });
