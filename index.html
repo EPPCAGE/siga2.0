@@ -650,46 +650,22 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <button class="btn btn-p" onclick="sincronizarGSheets()" style="font-size:12px;white-space:nowrap">↻ Sincronizar</button>
     <span id="ind-gsheets-status" style="font-size:11px;color:var(--ink3)"></span>
   </div>
-  <div class="tabs" style="margin-bottom:.75rem">
-    <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('ind-tab-lista',this)">Lista</div>
-    <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('ind-tab-graficos',this);rIndGraficos()">Gráficos</div>
+  <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem">
+    <span class="fbar-l">Indicador</span>
+    <select class="fi" id="ind-nome-sel" onchange="rInd()" style="max-width:220px"><option value="">Todos</option></select>
+    <span class="fbar-l">Área</span>
+    <select class="fi" id="ind-area-sel" onchange="rInd()" style="max-width:160px"><option value="">Todas</option></select>
+    <span class="fbar-l">PPE?</span>
+    <select class="fi" id="ind-ppe-sel" onchange="rInd()" style="max-width:90px">
+      <option value="">Todos</option><option>Sim</option><option>Não</option>
+    </select>
+    <span class="fbar-l">Ciclo</span>
+    <select class="fi" id="ind-ciclo-sel" onchange="rInd()" style="max-width:150px"><option value="">Todos</option></select>
+    <span class="fbar-l">Período</span>
+    <select class="fi" id="ind-periodo-sel" onchange="rInd()" style="max-width:140px"><option value="">Todos</option></select>
   </div>
-  <div id="ind-tab-lista" class="tab-p">
-    <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap">
-      <span class="fbar-l">Área</span>
-      <select class="fi" id="ind-area-sel" onchange="rInd()" style="max-width:180px"><option value="">Todas</option></select>
-      <span class="fbar-l">Ciclo</span>
-      <select class="fi" id="ind-ciclo-sel" onchange="rInd()" style="max-width:180px"><option value="">Todos</option></select>
-      <span class="fbar-l">Período</span>
-      <select class="fi" id="ind-periodo-sel" onchange="rInd()" style="max-width:140px"><option value="">Todos</option></select>
-      <span class="fbar-l">Indicador</span>
-      <select class="fi" id="ind-nome-sel" onchange="rInd()" style="max-width:220px"><option value="">Todos</option></select>
-      <span class="fbar-l">PPE?</span>
-      <div class="chips">
-        <button class="chip on" onclick="indFiltPpe('',this)">Todos</button>
-        <button class="chip" onclick="indFiltPpe('Sim',this)">Sim</button>
-        <button class="chip" onclick="indFiltPpe('Não',this)">Não</button>
-      </div>
-    </div>
-    <div id="ind-summary" style="margin-bottom:.8rem"></div>
-    <div id="ind-c"></div>
-  </div>
-  <div id="ind-tab-graficos" class="tab-p" style="display:none">
-    <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem">
-      <select class="fi" id="grfk-srch" onchange="rIndGraficos()" style="max-width:220px"><option value="">Todos os indicadores</option></select>
-      <span class="fbar-l">Área</span>
-      <select class="fi" id="grfk-area" onchange="rIndGraficos()" style="max-width:160px"><option value="">Todas</option></select>
-      <span class="fbar-l">PPE?</span>
-      <select class="fi" id="grfk-ppe" onchange="rIndGraficos()" style="max-width:90px">
-        <option value="">Todos</option><option>Sim</option><option>Não</option>
-      </select>
-      <span class="fbar-l">Ciclo</span>
-      <select class="fi" id="grfk-ciclo" onchange="rIndGraficos()" style="max-width:150px"><option value="">Todos</option></select>
-      <span class="fbar-l">Período</span>
-      <select class="fi" id="grfk-periodo" onchange="rIndGraficos()" style="max-width:140px"><option value="">Todos</option></select>
-    </div>
-    <div id="ind-graficos-c"></div>
-  </div>
+  <div id="ind-summary" style="margin-bottom:.8rem"></div>
+  <div id="ind-c"></div>
 
   <!-- Modal novo/editar KPI -->
   <div id="novo-kpi-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
@@ -697,6 +673,15 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="kpi-modal-titulo">Novo indicador</div>
       <input type="hidden" id="nkpi-edit-idx">
       <input type="hidden" id="nkpi-edit-all-periods" value="0">
+      <!-- Period navigation bar (shown only when editing multi-period indicator) -->
+      <div id="kpi-nav-periodos" style="display:none;margin-bottom:1rem;padding:.4rem .6rem;background:var(--bg2);border-radius:var(--r);align-items:center;gap:6px">
+        <button class="btn" style="padding:2px 9px;font-size:14px;flex-shrink:0" onclick="_kpiNavStep(-1)">←</button>
+        <select class="fi" id="kpi-nav-sel" onchange="_kpiNavGoto()" style="flex:1;font-size:12px"></select>
+        <button class="btn" style="padding:2px 9px;font-size:14px;flex-shrink:0" onclick="_kpiNavStep(1)">→</button>
+        <span id="kpi-nav-info" style="font-size:11px;color:var(--ink3);white-space:nowrap"></span>
+      </div>
+      <!-- General config (applies to all periods) -->
+      <div id="kpi-config-geral-lbl" style="display:none;font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem">Configurações gerais</div>
       <div class="g2">
         <div class="fg"><label class="fl" for="nkpi-area">Área<span>*</span></label><input class="fi" id="nkpi-area" placeholder="Ex: Gabinete"></div>
         <div class="fg"><label class="fl" for="nkpi-codigo">Código / ID</label><input class="fi" id="nkpi-codigo" placeholder="Ex: 171.012"></div>
@@ -707,13 +692,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="fg"><label class="fl" for="nkpi-desc">Descrição</label>
         <textarea class="fi" id="nkpi-desc" style="min-height:55px"></textarea>
       </div>
-      <div class="g3">
+      <div class="g2">
         <div class="fg"><label class="fl" for="nkpi-period">Periodicidade</label>
           <select class="fi" id="nkpi-period">
             <option>Mensal</option><option>Bimestral</option><option>Trimestral</option><option>Semestral</option><option>Anual</option>
           </select>
         </div>
-        <div class="fg"><label class="fl" for="nkpi-periodo">Período</label><input class="fi" id="nkpi-periodo" placeholder="Ex: janeiro/2026"></div>
         <div class="fg"><label class="fl" for="nkpi-ciclo">Ciclo</label><input class="fi" id="nkpi-ciclo" placeholder="Ex: JAN/2026 - DEZ/2026"></div>
       </div>
       <div class="g2">
@@ -740,17 +724,20 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
           </select>
         </div>
       </div>
-      <div class="g3">
-        <div class="fg"><label class="fl" for="nkpi-meta">Meta</label><input class="fi" id="nkpi-meta" type="number" placeholder="80" oninput="calcPctReal()"></div>
-        <div class="fg"><label class="fl" for="nkpi-real">Realizado</label><input class="fi" id="nkpi-real" type="number" placeholder="100" oninput="calcPctReal()"></div>
-        <div class="fg"><label class="fl" for="nkpi-indice">% Índice</label><input class="fi" id="nkpi-indice" type="number" placeholder="80"></div>
-      </div>
       <div class="g2">
+        <div class="fg"><label class="fl" for="nkpi-meta">Meta</label><input class="fi" id="nkpi-meta" type="number" placeholder="80" oninput="calcPctReal()"></div>
         <div class="fg"><label class="fl" for="nkpi-ppe">PPE?</label>
           <select class="fi" id="nkpi-ppe"><option>Não</option><option>Sim</option></select>
         </div>
-        <div class="fg"><label class="fl" for="nkpi-pct-real">Desempenho (calculado)</label><input class="fi" id="nkpi-pct-real" readonly placeholder="Calculado automaticamente"></div>
       </div>
+      <!-- Period-specific values -->
+      <div id="kpi-valores-periodo-lbl" style="display:none;font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem;padding-top:.6rem;border-top:1px solid var(--bdr)">Valores do período</div>
+      <div class="g3">
+        <div class="fg" id="kpi-periodo-field"><label class="fl" for="nkpi-periodo">Período</label><input class="fi" id="nkpi-periodo" placeholder="Ex: jan/2026"></div>
+        <div class="fg"><label class="fl" for="nkpi-real">Realizado</label><input class="fi" id="nkpi-real" type="number" placeholder="100" oninput="calcPctReal()"></div>
+        <div class="fg"><label class="fl" for="nkpi-indice">% Índice</label><input class="fi" id="nkpi-indice" type="number" placeholder="80"></div>
+      </div>
+      <div class="fg"><label class="fl" for="nkpi-pct-real">Desempenho (calculado)</label><input class="fi" id="nkpi-pct-real" readonly placeholder="Calculado automaticamente"></div>
       <div class="fg"><label class="fl" for="nkpi-analise">Análise</label>
         <textarea class="fi" id="nkpi-analise" style="min-height:70px" placeholder="Comentário sobre o resultado..."></textarea>
       </div>
@@ -6422,29 +6409,43 @@ function rInd(){
   if(gsUrlInput && !gsUrlInput.value){
     try{ gsUrlInput.value = localStorage.getItem('epcage_gsheets_url') || ''; }catch(_e){}
   }
+
+  // Destroy previous charts
+  _indCharts.forEach(c=>{ try{ c.destroy(); }catch(e){} });
+  _indCharts = [];
+
   populateIndFilters();
   const area   = document.getElementById('ind-area-sel')?.value   || '';
   const ciclo  = document.getElementById('ind-ciclo-sel')?.value  || '';
   const period = document.getElementById('ind-periodo-sel')?.value || '';
   const nome   = document.getElementById('ind-nome-sel')?.value   || '';
+  const ppe    = document.getElementById('ind-ppe-sel')?.value    || '';
 
   const lista = kpis.filter(k=>
     (!area   || k.area   === area)   &&
     (!ciclo  || k.ciclo  === ciclo)  &&
     (!period || k.periodo === period) &&
     (!nome   || k.nome   === nome)   &&
-    (!_indPpeFiltro || k.ppe === _indPpeFiltro)
+    (!ppe    || k.ppe    === ppe)
   );
+
+  const grupos = kpiGroupByKey(lista);
+  const nGrupos = Object.keys(grupos).length;
 
   // Summary
   const sumEl = document.getElementById('ind-summary');
   if(sumEl && lista.length){
-    const ating = lista.filter(k => k.meta > 0 && k.pct_realizado >= 100).length;
-    const abaixo = lista.filter(k => k.meta > 0 && k.pct_realizado < k.meta).length;
+    const ating = Object.values(grupos).filter(items => {
+      const last = items[items.length-1];
+      const pol = items[0].polaridade||'Maior é melhor';
+      if(!(last.meta>0)) return false;
+      const pct = pol==='Menor é melhor' ? (last.realizado>0?(last.meta/last.realizado)*100:0) : (last.realizado/last.meta)*100;
+      return pct >= 100;
+    }).length;
     sumEl.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:12px;color:var(--ink3)">${lista.length} indicador${lista.length!==1?'es':''}</span>
+      <span style="font-size:12px;color:var(--ink3)">${nGrupos} indicador${nGrupos!==1?'es':''}</span>
       <span class="badge bg">${ating} atingindo meta</span>
-      ${abaixo > 0 ? `<span class="badge br">${abaixo} abaixo da meta</span>` : ''}
+      ${nGrupos-ating > 0 ? `<span class="badge br">${nGrupos-ating} abaixo da meta</span>` : ''}
     </div>`;
   } else if(sumEl){ sumEl.innerHTML = ''; }
 
@@ -6455,60 +6456,51 @@ function rInd(){
     return;
   }
 
-  // Group by area
-  const g = {};
-  lista.forEach(k=>{ if(!g[k.area]) g[k.area]=[]; g[k.area].push(k); });
-
-  el.innerHTML = Object.entries(g).map(([area, inds])=>`
-    <div style="margin-bottom:1.4rem">
-      <div style="font-family:var(--fh);font-size:14px;font-weight:600;margin-bottom:.7rem;padding:.5rem .8rem;background:var(--ink);color:#fff;border-radius:var(--r);display:flex;justify-content:space-between;align-items:center">
-        <span>${area}</span>
-        <span style="font-size:11px;font-weight:400;opacity:.5">${inds.length} indicador${inds.length!==1?'es':''}</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px">${inds.map(k=>kpiCard(k)).join('')}</div>
-    </div>`).join('');
+  Object.values(grupos).forEach(kpiApplyMetaFallback);
+  el.innerHTML = Object.entries(grupos).map(([key,items])=>kpiGrupoCardHTML(key,items)).join('');
+  setTimeout(()=>{ Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
   setTimeout(injectIaIndicadores, 100);
 }
 
-function indFiltPpe(val, el){
-  _indPpeFiltro = val;
-  document.querySelectorAll('#page-indicadores .chips .chip').forEach(c=>c.classList.remove('on'));
-  if(el) el.classList.add('on');
-  rInd();
-}
+function indFiltPpe(val, el){ rInd(); }
 
 let _indCharts = [];
 function kpiGrupoCardHTML(key, items){
   const nome = items[0].nome;
   const polaridade = items[0].polaridade||'Maior é melhor';
   const area = items[0].area||'';
-  return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
+  const isPpe = items[0].ppe === 'Sim';
+
+  // Border color based on most recent period WITH data (realizado > 0)
+  const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0) > 0);
+  const last = withData.length ? withData[withData.length-1] : null;
+  const hasMeta = last && (last.meta||0) > 0;
+  let borderColor = 'var(--bdr)';
+  if(hasMeta){
+    const pct = polaridade==='Menor é melhor'
+      ? (last.realizado > 0 ? (last.meta/last.realizado)*100 : 0)
+      : (last.realizado/last.meta)*100;
+    borderColor = pct>=100 ? 'var(--green)' : pct>=80 ? 'var(--amber)' : 'var(--red)';
+  }
+
+  // Analysis lines with period label
+  const analises = items.filter(i=>i.analise).map(i=>
+    `<div style="margin-bottom:.3rem"><span style="font-size:10px;font-weight:600;color:var(--ink3)">${esc(i.periodo||'?')}:</span> <span style="font-size:11px;color:var(--ink2);line-height:1.5">${esc(i.analise)}</span></div>`
+  ).join('');
+
+  return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${borderColor};border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;gap:8px;flex-wrap:wrap">
       <div>
-        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}${isPpe?' · <span title="Indicador PPE" style="color:#f59e0b">⭐</span>':''}</div>
         <div style="font-size:14px;font-weight:600;color:var(--ink)">${esc(nome)}</div>
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0">${isEP()?`<button class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button><button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${items[0].id})">×</button>`:''}</div>
     </div>
     <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
+    ${analises?`<div style="margin-top:.5rem;padding:.4rem .6rem;background:var(--bg2);border-radius:5px;border-left:2px solid var(--bdr2)">${analises}</div>`:''}
   </div>`;
 }
-function populateGrfkFilters(){
-  const areaSel  = document.getElementById('grfk-area');
-  const cicloSel = document.getElementById('grfk-ciclo');
-  const periSel  = document.getElementById('grfk-periodo');
-  const nomeSel  = document.getElementById('grfk-srch');
-  if(!areaSel) return;
-  const cur = {area:areaSel.value, ciclo:cicloSel.value, peri:periSel.value, nome:nomeSel?.value||''};
-  const areas   = [...new Set(kpis.map(k=>k.area).filter(Boolean))].sort();
-  const ciclos  = [...new Set(kpis.map(k=>k.ciclo).filter(Boolean))].sort();
-  const periods = [...new Set(kpis.map(k=>k.periodo).filter(Boolean))].sort();
-  const nomes   = [...new Set(kpis.map(k=>k.nome).filter(Boolean))].sort();
-  areaSel.innerHTML  = '<option value="">Todas as áreas</option>'  + areas.map(a=>`<option ${cur.area===a?'selected':''}>${esc(a)}</option>`).join('');
-  cicloSel.innerHTML = '<option value="">Todos os ciclos</option>' + ciclos.map(a=>`<option ${cur.ciclo===a?'selected':''}>${esc(a)}</option>`).join('');
-  periSel.innerHTML  = '<option value="">Todos os períodos</option>' + periods.map(a=>`<option ${cur.peri===a?'selected':''}>${esc(a)}</option>`).join('');
-  if(nomeSel) nomeSel.innerHTML = '<option value="">Todos os indicadores</option>' + nomes.map(n=>`<option ${cur.nome===n?'selected':''}>${esc(n)}</option>`).join('');
-}
+function populateGrfkFilters(){ populateIndFilters(); }
 function kpiBarColor(r, m, polaridade){
   if(!m) return 'rgba(96,165,250,0.7)';
   let pct;
@@ -6555,16 +6547,19 @@ function kpiGroupByKey(list){
 function createKpiChart(key, items){
   const canvas = document.getElementById('chart-kpi-'+key.replace(/\W/g,'_'));
   if(!canvas) return;
+  // Only show periods that have data (realizado > 0)
+  const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0) > 0);
+  if(!withData.length){ canvas.parentElement.style.display='none'; return; }
   const polaridade = items[0].polaridade||'Maior é melhor';
   const unidade = items[0].unidade||'';
-  const realizados = items.map(i=>Number.parseFloat(i.realizado)||0);
-  const metas = items.map(i=>{ const m=Number.parseFloat(i.meta)||0; return m>0?m:(i._metaFallback||null); });
-  const hasHistoricFallback = metas.some((m,i)=>m!==null&&items[i]?._metaFallback);
+  const realizados = withData.map(i=>Number.parseFloat(i.realizado)||0);
+  const metas = withData.map(i=>{ const m=Number.parseFloat(i.meta)||0; return m>0?m:(i._metaFallback||null); });
+  const hasHistoricFallback = metas.some((m,i)=>m!==null&&withData[i]?._metaFallback);
   const metaLabel = 'Meta'+(unidade?' ('+unidade+')':(hasHistoricFallback?'  (média histórica)':''));
   const chart = new Chart(canvas, {
     type: 'bar',
     data: {
-      labels: items.map(i=>i.periodo||'?'),
+      labels: withData.map(i=>i.periodo||'?'),
       datasets: [
         { label:'Realizado'+(unidade?' ('+unidade+')':''), data:realizados, borderRadius:4, order:2,
           backgroundColor: realizados.map((r,i)=>kpiBarColor(r,metas[i],polaridade)) },
@@ -6584,31 +6579,7 @@ function createKpiChart(key, items){
   });
   _indCharts.push(chart);
 }
-function rIndGraficos(){
-  const el = document.getElementById('ind-graficos-c');
-  if(!el) return;
-  _indCharts.forEach(c=>{ try{ c.destroy(); }catch(e){} });
-  _indCharts = [];
-  if(!kpis.length){ el.innerHTML='<div class="ib ibsl">Nenhum indicador cadastrado.</div>'; return; }
-  populateGrfkFilters();
-  const srch   = document.getElementById('grfk-srch')?.value||'';
-  const area   = document.getElementById('grfk-area')?.value||'';
-  const ppe    = document.getElementById('grfk-ppe')?.value||'';
-  const ciclo  = document.getElementById('grfk-ciclo')?.value||'';
-  const period = document.getElementById('grfk-periodo')?.value||'';
-  const filtered = kpis.filter(k=>
-    (!srch   || k.nome   === srch)  &&
-    (!area   || k.area   === area)  &&
-    (!ppe    || k.ppe    === ppe)   &&
-    (!ciclo  || k.ciclo  === ciclo) &&
-    (!period || k.periodo === period)
-  );
-  if(!filtered.length){ el.innerHTML='<div class="ib iba">Nenhum indicador encontrado com os filtros selecionados.</div>'; return; }
-  const grupos = kpiGroupByKey(filtered);
-  Object.values(grupos).forEach(kpiApplyMetaFallback);
-  el.innerHTML = Object.entries(grupos).map(([key,items])=>kpiGrupoCardHTML(key,items)).join('');
-  setTimeout(()=>{ Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
-}
+function rIndGraficos(){ rInd(); }
 
 function kpiCard(k){
   const polaridade = k.polaridade || 'Maior é melhor';
@@ -6703,8 +6674,76 @@ function abrirNovoKpi(preselArea){
   document.getElementById('nkpi-edit-idx').value = '';
   document.getElementById('nkpi-edit-all-periods').value = '0';
   document.getElementById('kpi-del-btn').style.display = 'none';
+  globalThis._kpiPeriodos = [];
+  globalThis._kpiPeriodoIdx = 0;
+  globalThis._kpiPeriodEdits = {};
+  const navBar = document.getElementById('kpi-nav-periodos');
+  const cfgLbl = document.getElementById('kpi-config-geral-lbl');
+  const valLbl = document.getElementById('kpi-valores-periodo-lbl');
+  if(navBar) navBar.style.display = 'none';
+  if(cfgLbl) cfgLbl.style.display = 'none';
+  if(valLbl) valLbl.style.display = 'none';
   _kpiFormSetFields({area: preselArea||'', periodicidade:'Mensal', ppe:'Não', polaridade:'Maior é melhor'});
   modal.style.display = 'flex';
+}
+
+function _kpiNavUpdateSelector(){
+  const sel = document.getElementById('kpi-nav-sel');
+  const info = document.getElementById('kpi-nav-info');
+  if(!sel) return;
+  sel.innerHTML = (globalThis._kpiPeriodos||[]).map((k,i) =>
+    `<option value="${i}"${i===globalThis._kpiPeriodoIdx?' selected':''}>${esc(k.periodo||'?')}</option>`
+  ).join('');
+  if(info) info.textContent = `${(globalThis._kpiPeriodoIdx||0)+1} / ${(globalThis._kpiPeriodos||[]).length}`;
+}
+
+function _kpiNavFlushCurrent(){
+  if(!(globalThis._kpiPeriodos||[]).length) return;
+  const k = globalThis._kpiPeriodos[globalThis._kpiPeriodoIdx];
+  if(!k) return;
+  if(!globalThis._kpiPeriodEdits) globalThis._kpiPeriodEdits = {};
+  globalThis._kpiPeriodEdits[k.id] = {
+    periodo:   document.getElementById('nkpi-periodo')?.value.trim()  || '',
+    realizado: Number.parseFloat(document.getElementById('nkpi-real')?.value)    || 0,
+    indice:    Number.parseFloat(document.getElementById('nkpi-indice')?.value)  || 0,
+    analise:   document.getElementById('nkpi-analise')?.value.trim()  || '',
+  };
+}
+
+function _kpiNavLoadCurrent(){
+  const periodos = globalThis._kpiPeriodos||[];
+  const k = periodos[globalThis._kpiPeriodoIdx];
+  if(!k) return;
+  document.getElementById('nkpi-edit-idx').value = k.id;
+  const edits = (globalThis._kpiPeriodEdits||{})[k.id];
+  const fv = (id,v) => { const el=document.getElementById(id); if(el) el.value=v; };
+  fv('nkpi-periodo',  edits ? edits.periodo   : (k.periodo   || ''));
+  fv('nkpi-real',     edits ? edits.realizado  : (k.realizado || ''));
+  fv('nkpi-indice',   edits ? edits.indice     : (k.indice    || ''));
+  fv('nkpi-analise',  edits ? edits.analise    : (k.analise   || ''));
+  calcPctReal();
+  _kpiNavUpdateSelector();
+}
+
+function _kpiNavGoto(){
+  const sel = document.getElementById('kpi-nav-sel');
+  if(!sel) return;
+  const newIdx = Number.parseInt(sel.value)||0;
+  if(newIdx === globalThis._kpiPeriodoIdx) return;
+  _kpiNavFlushCurrent();
+  globalThis._kpiPeriodoIdx = newIdx;
+  _kpiNavLoadCurrent();
+}
+
+function _kpiNavStep(dir){
+  const periodos = globalThis._kpiPeriodos||[];
+  const newIdx = (globalThis._kpiPeriodoIdx||0) + dir;
+  if(newIdx < 0 || newIdx >= periodos.length) return;
+  _kpiNavFlushCurrent();
+  globalThis._kpiPeriodoIdx = newIdx;
+  const sel = document.getElementById('kpi-nav-sel');
+  if(sel) sel.value = newIdx;
+  _kpiNavLoadCurrent();
 }
 
 function calcPctReal(){
@@ -6729,100 +6768,133 @@ function editKpi(id){
   document.getElementById('nkpi-edit-all-periods').value = '0';
   document.getElementById('kpi-del-btn').style.display = 'inline-flex';
 
-  // Check if there are multiple periods for this indicator (same codigo)
-  const sameCodigo = kpis.filter(x => x.codigo === k.codigo && x.codigo);
-  if(sameCodigo.length > 1){
-    const periodoText = sameCodigo.map(x => x.periodo || '?').join(', ');
-    const choice = confirm(`Este indicador existe em ${sameCodigo.length} períodos: ${periodoText}\n\nDeseja editar configurações para TODOS os períodos?\n\n[OK] = Todos os períodos\n[Cancelar] = Apenas este período`);
-    if(choice){
-      document.getElementById('nkpi-edit-all-periods').value = '1';
-    }
-  }
+  // Group all periods for this indicator
+  const groupKey = k.codigo || k.nome;
+  const samePeriods = kpis
+    .filter(x => (x.codigo || x.nome) === groupKey)
+    .slice()
+    .sort((a,b) => periodoToNum(a.periodo) - periodoToNum(b.periodo));
 
+  globalThis._kpiPeriodos    = samePeriods;
+  globalThis._kpiPeriodoIdx  = Math.max(0, samePeriods.findIndex(x=>x.id===id));
+  globalThis._kpiPeriodEdits = {};
+
+  const isMulti = samePeriods.length > 1;
+  const navBar = document.getElementById('kpi-nav-periodos');
+  const cfgLbl = document.getElementById('kpi-config-geral-lbl');
+  const valLbl = document.getElementById('kpi-valores-periodo-lbl');
+  if(navBar) navBar.style.display = isMulti ? 'flex' : 'none';
+  if(cfgLbl) cfgLbl.style.display = isMulti ? ''    : 'none';
+  if(valLbl) valLbl.style.display = isMulti ? ''    : 'none';
+
+  // Load general config fields from the current period's KPI
   _kpiFormSetFields(k);
+  // Populate period nav if multi
+  if(isMulti) _kpiNavUpdateSelector();
   modal.style.display = 'flex';
 }
 
 function salvarNovoKpi(){
-  const area    = document.getElementById('nkpi-area').value.trim();
-  const nome    = document.getElementById('nkpi-nome').value.trim();
+  const area = document.getElementById('nkpi-area').value.trim();
+  const nome = document.getElementById('nkpi-nome').value.trim();
   if(!area || !nome){ alert('Informe Área e Enunciado do indicador.'); return; }
 
-  const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)   || 0;
-  const real      = Number.parseFloat(document.getElementById('nkpi-real').value)   || 0;
-  const polaridade = document.getElementById('nkpi-polaridade').value;
-  let pct;
-  if(polaridade === 'Menor é melhor'){
-    pct = real > 0 ? Math.round((meta/real)*100) : 0;
-  } else {
-    pct = meta > 0 ? Math.round((real/meta)*100) : 0;
-  }
-
-  const obj = {
-    id: null,
-    area,
-    codigo:   document.getElementById('nkpi-codigo').value.trim(),
-    nome,
-    desc:     document.getElementById('nkpi-desc').value.trim(),
-    periodicidade: document.getElementById('nkpi-period').value,
-    periodo:  document.getElementById('nkpi-periodo').value.trim(),
-    ciclo:    document.getElementById('nkpi-ciclo').value.trim(),
-    ppe:      document.getElementById('nkpi-ppe').value,
-    indice:   Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
-    unidade:  document.getElementById('nkpi-unidade').value.trim(),
-    polaridade,
-    meta, realizado: real, analise: document.getElementById('nkpi-analise').value.trim(),
-    pct_realizado: pct,
-  };
-
   const editId = document.getElementById('nkpi-edit-idx').value;
-  const editAllPeriods = document.getElementById('nkpi-edit-all-periods').value === '1';
+  const periodos = globalThis._kpiPeriodos||[];
 
-  if(editId){
-    const editingKpi = kpis.find(k=>k.id===Number.parseInt(editId));
-    if(editingKpi){
-      const editIdNum = Number.parseInt(editId);
-      if(editAllPeriods && editingKpi.codigo){
-        // Update all KPIs with same codigo (all periods)
-        kpis.forEach(k=>{
-          if(k.codigo === editingKpi.codigo){
-            // Update configuration fields that apply to all periods
-            k.area = obj.area;
-            k.nome = obj.nome;
-            k.desc = obj.desc;
-            k.indice = obj.indice;
-            k.unidade = obj.unidade;
-            k.polaridade = obj.polaridade;
-            k.ciclo = obj.ciclo;
-            k.ppe = obj.ppe;
-            k.meta = obj.meta;
-            k.analise = obj.analise;
-            // Recalculate pct_realizado for this period
-            if(k.polaridade === 'Menor é melhor'){
-              k.pct_realizado = k.realizado > 0 ? Math.round((k.meta/k.realizado)*100) : 0;
-            } else {
-              k.pct_realizado = k.meta > 0 ? Math.round((k.realizado/k.meta)*100) : 0;
-            }
-          }
-        });
-      } else {
-        // Update only this specific period
-        const idx = kpis.findIndex(k=>k.id===editIdNum);
-        if(idx >= 0){ obj.id = editIdNum; kpis[idx] = obj; }
+  if(editId && periodos.length > 1){
+    // Multi-period edit: flush current period values first
+    _kpiNavFlushCurrent();
+
+    // General config fields (applied to all periods in the group)
+    const generalCfg = {
+      area,
+      codigo:       document.getElementById('nkpi-codigo').value.trim(),
+      nome,
+      desc:         document.getElementById('nkpi-desc').value.trim(),
+      periodicidade: document.getElementById('nkpi-period').value,
+      ciclo:        document.getElementById('nkpi-ciclo').value.trim(),
+      unidade:      document.getElementById('nkpi-unidade').value.trim(),
+      polaridade:   document.getElementById('nkpi-polaridade').value,
+      meta:         Number.parseFloat(document.getElementById('nkpi-meta').value) || 0,
+      ppe:          document.getElementById('nkpi-ppe').value,
+    };
+
+    periodos.forEach(p => {
+      const idx = kpis.findIndex(x => x.id === p.id);
+      if(idx < 0) return;
+      Object.assign(kpis[idx], generalCfg);
+      // Apply any period-specific edits made while navigating
+      const edits = (globalThis._kpiPeriodEdits||{})[p.id];
+      if(edits){
+        kpis[idx].periodo   = edits.periodo;
+        kpis[idx].realizado = edits.realizado;
+        kpis[idx].indice    = edits.indice;
+        kpis[idx].analise   = edits.analise;
       }
+      // Recalculate pct_realizado
+      const pol  = kpis[idx].polaridade;
+      const meta = kpis[idx].meta;
+      const real = kpis[idx].realizado;
+      kpis[idx].pct_realizado = pol === 'Menor é melhor'
+        ? (real > 0 ? Math.round((meta/real)*100) : 0)
+        : (meta > 0 ? Math.round((real/meta)*100) : 0);
+    });
+
+  } else if(editId){
+    // Single-period edit
+    const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)  || 0;
+    const real      = Number.parseFloat(document.getElementById('nkpi-real').value)  || 0;
+    const polaridade = document.getElementById('nkpi-polaridade').value;
+    const pct = polaridade === 'Menor é melhor'
+      ? (real > 0 ? Math.round((meta/real)*100) : 0)
+      : (meta > 0 ? Math.round((real/meta)*100) : 0);
+    const editIdNum = Number.parseInt(editId);
+    const idx = kpis.findIndex(k=>k.id===editIdNum);
+    if(idx >= 0){
+      const orig = kpis[idx];
+      kpis[idx] = {
+        id: editIdNum, origem: orig.origem,
+        area, codigo: document.getElementById('nkpi-codigo').value.trim(),
+        nome, desc: document.getElementById('nkpi-desc').value.trim(),
+        periodicidade: document.getElementById('nkpi-period').value,
+        periodo: document.getElementById('nkpi-periodo').value.trim(),
+        ciclo: document.getElementById('nkpi-ciclo').value.trim(),
+        ppe: document.getElementById('nkpi-ppe').value,
+        indice: Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
+        unidade: document.getElementById('nkpi-unidade').value.trim(),
+        polaridade, meta, realizado: real,
+        analise: document.getElementById('nkpi-analise').value.trim(),
+        pct_realizado: pct,
+      };
     }
   } else {
-    obj.id = _kpiIdC++;
-    obj.origem = 'manual';
-    kpis.push(obj);
+    // New KPI
+    const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)  || 0;
+    const real      = Number.parseFloat(document.getElementById('nkpi-real').value)  || 0;
+    const polaridade = document.getElementById('nkpi-polaridade').value;
+    const pct = polaridade === 'Menor é melhor'
+      ? (real > 0 ? Math.round((meta/real)*100) : 0)
+      : (meta > 0 ? Math.round((real/meta)*100) : 0);
+    kpis.push({
+      id: _kpiIdC++, origem: 'manual',
+      area, codigo: document.getElementById('nkpi-codigo').value.trim(),
+      nome, desc: document.getElementById('nkpi-desc').value.trim(),
+      periodicidade: document.getElementById('nkpi-period').value,
+      periodo: document.getElementById('nkpi-periodo').value.trim(),
+      ciclo: document.getElementById('nkpi-ciclo').value.trim(),
+      ppe: document.getElementById('nkpi-ppe').value,
+      indice: Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
+      unidade: document.getElementById('nkpi-unidade').value.trim(),
+      polaridade, meta, realizado: real,
+      analise: document.getElementById('nkpi-analise').value.trim(),
+      pct_realizado: pct,
+    });
   }
+
   document.getElementById('novo-kpi-modal').style.display = 'none';
   fbAutoSave('salvarKpi');
   rInd();
-  // Also update graphics tab if it's active
-  if(document.getElementById('ind-tab-graficos').classList.contains('on')){
-    rIndGraficos();
-  }
   toast('Indicador salvo');
 }
 
