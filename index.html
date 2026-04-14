@@ -1590,13 +1590,13 @@ function _rNotifItemHTML(n){
 function rNotif(){
   const cfgCard = document.getElementById('ejs-config-card');
   if(cfgCard) cfgCard.style.display = isEP() ? 'block' : 'none';
-  if(isEP()) _rNotifPreencherEmailJS();
+  if(isEP()){_rNotifPreencherEmailJS();}
   const el=document.getElementById('notif-log');
-  if(!el)return;
+  if(!el){return;}
   el.innerHTML=notifs.length
     ? notifs.map(_rNotifItemHTML).join('')
     : '<div style="font-size:12px;color:var(--ink3)">Nenhuma notificação.</div>';
-  if(isEP()) setTimeout(injectAiConfigField, 100);
+  if(isEP()){setTimeout(injectAiConfigField, 100);}
 }
 function marcarLida(id){const n=notifs.find(x=>x.id===id);if(n)n.lida=true;updCounts();rNotif();}
 function limparNotifs(){notifs=notifs.filter(n=>!n.lida);updCounts();rNotif();}
@@ -1928,7 +1928,7 @@ function excluirMapeamento(id){
 function abrirProc(id){
   curProc=processos.find(p=>p.id===id);
   // Keep etapasIdC ahead of any existing etapa IDs in this process
-  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>parseInt(String(e.id||'').replace('ep',''))||0);
+  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replace('ep',''))||0);
   if(nums.length) etapasIdC=Math.max(etapasIdC,...nums)+1;
   rDetalhe();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -1951,7 +1951,8 @@ function rDetalhe(){
     const stageCls=past?'dn':cur?'da':'';
     const clickable=epUser&&!cur;
     const tip=past?`Ver etapa: ${e.lb}`:`Visualizar: ${e.lb}`;
-    return `<div class="prog-s ${stageCls}" ${clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="${tip}"`:''}">
+    const clickAttrs=clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="${tip}"`:'';
+    return `<div class="prog-s ${stageCls}" ${clickAttrs}>
       <div class="prog-d ${stageCls}">${past?'✓':(i+1)}</div>
       <div class="prog-l ${cur?'da':''}">${e.lb}</div>
     </div>`;
@@ -2040,16 +2041,16 @@ function filtrarProcArq(){
   // Build flat list of mappable units:
   // - if process has subprocessos → list each subprocesso (process itself is just a grouper)
   // - if process has NO subprocessos → list the process itself
-  const jaAbertos=processos.map(p=>p.arq_id);
+  const jaAbertos=new Set(processos.map(p=>p.arq_id));
   const opcoes=[];
   m.processos.forEach(p=>{
     if(p.subprocessos&&p.subprocessos.length>0){
       // subprocessos are the mappable units
       p.subprocessos.forEach(s=>{
-        if(!jaAbertos.includes(s.id))
+        if(!jaAbertos.has(s.id))
           opcoes.push({id:s.id,label:p.nome+' › '+s.nome,parentId:p.id,isSub:true});
       });
-    } else if(!jaAbertos.includes(p.id)) {
+    } else if(!jaAbertos.has(p.id)) {
       // process itself is mappable
       opcoes.push({id:p.id,label:p.nome,parentId:null,isSub:false});
     }
