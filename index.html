@@ -6274,7 +6274,12 @@ function populateGrfkFilters(){
 }
 function kpiBarColor(r, m, polaridade){
   if(!m) return 'rgba(96,165,250,0.7)';
-  const pct = polaridade==='Menor é melhor' ? (r>0?m/r:0) : r/m;
+  let pct;
+  if(polaridade==='Menor é melhor'){
+    pct = r > 0 ? m/r : 0;
+  } else {
+    pct = r/m;
+  }
   return pct>=1 ? 'rgba(34,197,94,0.75)' : pct>=0.8 ? 'rgba(251,191,36,0.75)' : 'rgba(239,68,68,0.75)';
 }
 function kpiApplyMetaFallback(items){
@@ -6361,9 +6366,11 @@ function kpiCard(k){
 
   let pct = null, color, status, barW;
   if(hasMeta){
-    pct = polaridade === 'Menor é melhor'
-      ? (k.realizado > 0 ? Math.round((k.meta/k.realizado)*100) : (k.pct_realizado || 0))
-      : Math.round((k.realizado/k.meta)*100);
+    if(polaridade === 'Menor é melhor'){
+      pct = k.realizado > 0 ? Math.round((k.meta/k.realizado)*100) : (k.pct_realizado || 0);
+    } else {
+      pct = Math.round((k.realizado/k.meta)*100);
+    }
     const ok   = pct >= 100;
     const warn = pct >= 80 && pct < 100;
     color  = ok ? 'var(--green)' : warn ? 'var(--amber)' : 'var(--red)';
@@ -6479,9 +6486,12 @@ function salvarNovoKpi(){
   const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)   || 0;
   const real      = Number.parseFloat(document.getElementById('nkpi-real').value)   || 0;
   const polaridade = document.getElementById('nkpi-polaridade').value;
-  const pct = polaridade === 'Menor é melhor'
-    ? (real > 0 ? Math.round((meta/real)*100) : 0)
-    : (meta > 0 ? Math.round((real/meta)*100) : 0);
+  let pct;
+  if(polaridade === 'Menor é melhor'){
+    pct = real > 0 ? Math.round((meta/real)*100) : 0;
+  } else {
+    pct = meta > 0 ? Math.round((real/meta)*100) : 0;
+  }
 
   const obj = {
     id: null,
@@ -7109,6 +7119,9 @@ function planoCardHTML(at){
   const diasRest = at.prazo && st!=='concluida'
     ? Math.ceil((new Date(at.prazo)-new Date(hoje))/86400000) : null;
   const prazoProximo = diasRest!==null && diasRest>=0 && diasRest<=7;
+  const prazoText  = diasRest===0 ? 'Vence hoje' : diasRest+'d restantes';
+  const prazoColor = st==='em_atraso' ? '#ef4444' : 'var(--ink3)';
+  const prazoWarn  = st==='em_atraso' ? ' ⚠' : '';
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${cfg.cor};border-radius:var(--r);padding:.9rem 1rem;box-shadow:var(--sh)">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
@@ -7117,7 +7130,7 @@ function planoCardHTML(at){
           <span style="font-size:10px;color:${prioC.cor};padding:2px 7px;border-radius:10px;background:rgba(0,0,0,.04)">${prioC.lb}</span>
           ${at.categoria?`<span style="font-size:10px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px">${esc(PLANO_CAT_LB[at.categoria]||at.categoria)}</span>`:''}
           ${at.vinculo_nome?`<span style="font-size:10px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px">🔗 ${esc(at.vinculo_nome)}</span>`:''}
-          ${prazoProximo?`<span style="font-size:10px;color:#f59e0b;background:rgba(245,158,11,.1);padding:2px 7px;border-radius:10px">⏰ ${diasRest===0?'Vence hoje':diasRest+'d restantes'}</span>`:''}
+          ${prazoProximo?`<span style="font-size:10px;color:#f59e0b;background:rgba(245,158,11,.1);padding:2px 7px;border-radius:10px">⏰ ${prazoText}</span>`:''}
         </div>
         <div style="font-weight:600;font-size:13px;color:var(--ink);word-break:break-word">${esc(at.nome)}</div>
         ${at.descricao?`<div style="font-size:12px;color:var(--ink2);margin-top:2px">${esc(at.descricao)}</div>`:''}
@@ -7130,7 +7143,7 @@ function planoCardHTML(at){
     </div>
     <div style="display:flex;gap:12px;align-items:center;margin-top:.6rem;flex-wrap:wrap">
       ${at.responsavel?`<span style="font-size:11px;color:var(--ink3)">👤 ${esc(at.responsavel)}</span>`:''}
-      ${at.prazo?`<span style="font-size:11px;color:${st==='em_atraso'?'#ef4444':'var(--ink3)'}">📅 ${at.prazo}${st==='em_atraso'?' ⚠':''}</span>`:''}
+      ${at.prazo?`<span style="font-size:11px;color:${prazoColor}">📅 ${at.prazo}${prazoWarn}</span>`:''}
       ${at.qt_prevista?`<span style="font-size:11px;color:var(--ink3)">📊 ${at.qt_realizada||0}/${at.qt_prevista} (${pct}%)</span>`:''}
     </div>
     ${at.qt_prevista?`<div style="margin-top:7px">
@@ -7152,8 +7165,9 @@ function fecharPlanoModal(){
 }
 
 function planoVinculoOptsHTML(tipo, selId){
-  if(tipo==='mapeamento')
+  if(tipo==='mapeamento'){
     return processos.map(p=>`<option value="${p.id}" ${selId==p.id?'selected':''}>${esc(p.nome)}</option>`).join('');
+  }
   if(tipo==='auditoria'){
     const src = processos.filter(p=>p.auditoria||p.aud?.length);
     return (src.length?src:processos).map(p=>`<option value="${p.id}" ${selId==p.id?'selected':''}>Aud: ${esc(p.nome)}</option>`).join('');
@@ -7167,6 +7181,14 @@ function abrirPlanoModal(idOrObj){
   document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
   const vTipo = at?.vinculo_tipo||'';
   const vId   = at?.vinculo_id||'';
+  const trOpts = ['Anual','T1','T2','T3','T4'].map(t=>{
+    const sel = (at?.trimestre||'Anual')===t ? 'selected' : '';
+    return `<option value="${t}" ${sel}>${t}</option>`;
+  }).join('');
+  const catOpts = Object.entries(PLANO_CAT_LB).map(([v,l])=>{
+    const sel = at?.categoria===v ? 'selected' : '';
+    return `<option value="${v}" ${sel}>${l}</option>`;
+  }).join('');
   document.getElementById('plano-modal-body').innerHTML = `
     <input type="hidden" id="pm-id" value="${at?.id||''}">
     <input type="hidden" id="pm-ano" value="${at?.ano||planoAno()}">
@@ -7190,7 +7212,7 @@ function abrirPlanoModal(idOrObj){
       <div>
         <div class="fl">Trimestre</div>
         <select class="fi" id="pm-tri">
-          ${['Anual','T1','T2','T3','T4'].map(t=>`<option value="${t}" ${(at?.trimestre||'Anual')===t?'selected':''}>${t}</option>`).join('')}
+          ${trOpts}
         </select>
       </div>
       <div>
@@ -7214,7 +7236,7 @@ function abrirPlanoModal(idOrObj){
         <div class="fl">Categoria</div>
         <select class="fi" id="pm-cat">
           <option value="">Selecione...</option>
-          ${Object.entries(PLANO_CAT_LB).map(([v,l])=>`<option value="${v}" ${at?.categoria===v?'selected':''}>${l}</option>`).join('')}
+          ${catOpts}
         </select>
       </div>
       <div>
@@ -7469,8 +7491,13 @@ function rCarrosselAvisos(){
 
   function render(){
     const a = ativos[idx];
+    const dotSpans = ativos.map((_,i)=>{
+      const w  = i===idx ? 18 : 6;
+      const bg = i===idx ? 'var(--blue)' : 'var(--blue-b)';
+      return `<span style="width:${w}px;height:6px;border-radius:99px;background:${bg};transition:width .2s"></span>`;
+    }).join('');
     const dots = ativos.length > 1
-      ? `<div style="display:flex;gap:5px;align-items:center">${ativos.map((_,i)=>`<span style="width:${i===idx?18:6}px;height:6px;border-radius:99px;background:${i===idx?'var(--blue)':'var(--blue-b)'};transition:width .2s"></span>`).join('')}</div>`
+      ? `<div style="display:flex;gap:5px;align-items:center">${dotSpans}</div>`
       : '';
     const nav = ativos.length > 1
       ? `<button onclick="window._avPrev()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">‹</button>
@@ -7717,7 +7744,7 @@ document.getElementById('login-screen').style.display='flex';
   }
 
   // Load from Firebase
-  const loaded = await fbLoad();
+  await fbLoad();
 
   // Fall back to localStorage for EmailJS if Firebase didn't have it
   if(!ejsConfig.pubkey){
@@ -7750,9 +7777,9 @@ document.getElementById('login-screen').style.display='flex';
           signOut(auth).catch(()=>{});
           mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');
         }
-      } else {
+      } else if(usuarioLogado){
         // Sem sessão ativa — garante tela de login
-        if(usuarioLogado){ doLogout(); }
+        doLogout();
       }
     });
   } else {
