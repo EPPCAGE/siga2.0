@@ -696,6 +696,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
       <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="kpi-modal-titulo">Novo indicador</div>
       <input type="hidden" id="nkpi-edit-idx">
+      <input type="hidden" id="nkpi-edit-all-periods" value="0">
       <div class="g2">
         <div class="fg"><label class="fl" for="nkpi-area">Área<span>*</span></label><input class="fi" id="nkpi-area" placeholder="Ex: Gabinete"></div>
         <div class="fg"><label class="fl" for="nkpi-codigo">Código / ID</label><input class="fi" id="nkpi-codigo" placeholder="Ex: 171.012"></div>
@@ -6700,6 +6701,7 @@ function abrirNovoKpi(preselArea){
   if(!modal) return;
   document.getElementById('kpi-modal-titulo').textContent = 'Novo indicador';
   document.getElementById('nkpi-edit-idx').value = '';
+  document.getElementById('nkpi-edit-all-periods').value = '0';
   document.getElementById('kpi-del-btn').style.display = 'none';
   _kpiFormSetFields({area: preselArea||'', periodicidade:'Mensal', ppe:'Não', polaridade:'Maior é melhor'});
   modal.style.display = 'flex';
@@ -6724,7 +6726,19 @@ function editKpi(id){
   const modal = document.getElementById('novo-kpi-modal');
   document.getElementById('kpi-modal-titulo').textContent = 'Editar indicador';
   document.getElementById('nkpi-edit-idx').value = id;
+  document.getElementById('nkpi-edit-all-periods').value = '0';
   document.getElementById('kpi-del-btn').style.display = 'inline-flex';
+
+  // Check if there are multiple periods for this indicator (same codigo)
+  const sameCodigo = kpis.filter(x => x.codigo === k.codigo && x.codigo);
+  if(sameCodigo.length > 1){
+    const periodoText = sameCodigo.map(x => x.periodo || '?').join(', ');
+    const choice = confirm(`Este indicador existe em ${sameCodigo.length} períodos: ${periodoText}\n\nDeseja editar configurações para TODOS os períodos?\n\n[OK] = Todos os períodos\n[Cancelar] = Apenas este período`);
+    if(choice){
+      document.getElementById('nkpi-edit-all-periods').value = '1';
+    }
+  }
+
   _kpiFormSetFields(k);
   modal.style.display = 'flex';
 }
@@ -6762,9 +6776,41 @@ function salvarNovoKpi(){
   };
 
   const editId = document.getElementById('nkpi-edit-idx').value;
+  const editAllPeriods = document.getElementById('nkpi-edit-all-periods').value === '1';
+
   if(editId){
-    const idx = kpis.findIndex(k=>k.id===Number.parseInt(editId));
-    if(idx >= 0){ obj.id = Number.parseInt(editId); kpis[idx] = obj; }
+    const editingKpi = kpis.find(k=>k.id===Number.parseInt(editId));
+    if(editingKpi){
+      const editIdNum = Number.parseInt(editId);
+      if(editAllPeriods && editingKpi.codigo){
+        // Update all KPIs with same codigo (all periods)
+        kpis.forEach(k=>{
+          if(k.codigo === editingKpi.codigo){
+            // Update configuration fields that apply to all periods
+            k.area = obj.area;
+            k.nome = obj.nome;
+            k.desc = obj.desc;
+            k.indice = obj.indice;
+            k.unidade = obj.unidade;
+            k.polaridade = obj.polaridade;
+            k.ciclo = obj.ciclo;
+            k.ppe = obj.ppe;
+            k.meta = obj.meta;
+            k.analise = obj.analise;
+            // Recalculate pct_realizado for this period
+            if(k.polaridade === 'Menor é melhor'){
+              k.pct_realizado = k.realizado > 0 ? Math.round((k.meta/k.realizado)*100) : 0;
+            } else {
+              k.pct_realizado = k.meta > 0 ? Math.round((k.realizado/k.meta)*100) : 0;
+            }
+          }
+        });
+      } else {
+        // Update only this specific period
+        const idx = kpis.findIndex(k=>k.id===editIdNum);
+        if(idx >= 0){ obj.id = editIdNum; kpis[idx] = obj; }
+      }
+    }
   } else {
     obj.id = _kpiIdC++;
     obj.origem = 'manual';
