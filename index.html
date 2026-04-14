@@ -1237,7 +1237,7 @@ function safeUrl(url){
   try {
     const parsed = new URL(url);
     if(parsed.protocol === 'https:' || parsed.protocol === 'http:') return url;
-  } catch(e){}
+  } catch(_e){ console.warn('safeUrl: invalid URL', _e); }
   return '';
 }
 
@@ -1345,7 +1345,7 @@ async function doLogin(){
     }
   } else {
     // Fallback sem Firebase (modo local)
-    try{localStorage.setItem('siga_user',user.email);}catch(e){}
+    try{localStorage.setItem('siga_user',user.email);}catch(_e){console.warn('localStorage unavailable',_e);}
     _aplicarUsuario(user);
   }
 }
@@ -1388,7 +1388,7 @@ async function solicitarAcesso(){
   if(!email){showErr('Informe seu e-mail institucional.');return;}
   const dominio = email.split('@')[1]||'';
   if(!DOMINIOS_PERMITIDOS.includes(dominio)){showErr('Use um e-mail institucional válido ('+DOMINIOS_PERMITIDOS.join(' ou ')+').');return;}
-  if(USUARIOS.find(u=>u.email===email)){showErr('Este e-mail já possui acesso ao sistema.');return;}
+  if(USUARIOS.some(u=>u.email===email)){showErr('Este e-mail já possui acesso ao sistema.');return;}
   if(!fbReady()){showErr('Firebase não configurado.');return;}
   try {
     const {db, doc, setDoc} = fb();
@@ -1407,7 +1407,7 @@ async function doLogout(){
     await signOut(auth).catch(()=>{});
   }
   usuarioLogado=null;
-  try{localStorage.removeItem('siga_user');}catch(e){}
+  try{localStorage.removeItem('siga_user');}catch(_e){console.warn('localStorage unavailable',_e);}
   document.getElementById('login-screen').style.display='flex';
 }
 
@@ -1484,16 +1484,16 @@ function salvarEmailJS(){
   ejsConfig.service = document.getElementById('ejs-service').value.trim();
   ejsConfig.template = document.getElementById('ejs-template').value.trim();
   ejsConfig.pubkey = document.getElementById('ejs-pubkey').value.trim();
-  try { localStorage.setItem('epcage_ejs', JSON.stringify(ejsConfig)); } catch(e){}
+  try { localStorage.setItem('epcage_ejs', JSON.stringify(ejsConfig)); } catch(_e){ console.warn('localStorage unavailable', _e); }
   const status = document.getElementById('emailjs-status');
   if(ejsConfig.service && ejsConfig.template && ejsConfig.pubkey){
-    if(typeof emailjs !== 'undefined'){
+    if(typeof emailjs === 'undefined'){
+      status.textContent = '⚠ Biblioteca EmailJS não carregada. Verifique a conexão com a internet.';
+      status.className = 'ib iba';
+    } else {
       emailjs.init({publicKey: ejsConfig.pubkey});
       status.textContent = '✓ EmailJS configurado — envio real de e-mails ativado.';
       status.className = 'ib ibg';
-    } else {
-      status.textContent = '⚠ Biblioteca EmailJS não carregada. Verifique a conexão com a internet.';
-      status.className = 'ib iba';
     }
   } else {
     status.textContent = 'Preencha os três campos para ativar o envio real.';
@@ -1560,7 +1560,7 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
       toast('⚠ Falha ao enviar e-mail: '+msg,'var(--red)');
     });
   } else {
-    const motivo = !ejsConfig.pubkey ? 'EmailJS não configurado' : 'Biblioteca não carregada';
+    const motivo = ejsConfig.pubkey ? 'Biblioteca não carregada' : 'EmailJS não configurado';
     console.warn('enviarNotif: e-mail não enviado —',motivo,'— para_email:',para_email);
   }
 }
@@ -1583,7 +1583,7 @@ function _rNotifItemHTML(n){
       <div style="flex:1">
         <div style="font-weight:500">${esc(n.acao)}</div>
         <div style="color:var(--ink3)">Para: ${esc(n.para)} · Processo: ${esc(n.proc_nome)} · Prazo: ${esc(n.prazo||'—')} · ${esc(n.data)}</div>
-        ${!n.lida?'<button class="btn" style="font-size:10px;padding:2px 7px;margin-top:3px" onclick="marcarLida('+n.id+')">Marcar como lida</button>':''}
+        ${n.lida?'':'<button class="btn" style="font-size:10px;padding:2px 7px;margin-top:3px" onclick="marcarLida('+n.id+')">Marcar como lida</button>'}
       </div>
     </div>`;
 }
@@ -1694,7 +1694,7 @@ function rAuditoria(){
     if(filtAudMode==='concluida') return p.auditoria?.concluida===true;
     return p.etapa==='auditoria'||p.auditoria?.concluida===true;
   });
-  document.getElementById('aud-sub').textContent=lista.length+' processo'+(lista.length!==1?'s':'');
+  document.getElementById('aud-sub').textContent=lista.length+' processo'+(lista.length===1?'':'s');
   if(!lista.length){el.innerHTML='<div class="ib ibg">Nenhum processo encontrado para este filtro.</div>';return;}
   el.innerHTML=lista.map(p=>{
     const aud=p.auditoria||{};
@@ -1745,7 +1745,7 @@ function rMeusProc(){
   if(!minhas.length){ panel.style.display='none'; return; }
 
   panel.style.display='block';
-  cntEl.textContent = minhas.length + ' processo' + (minhas.length!==1?'s':'');
+  cntEl.textContent = minhas.length + ' processo' + (minhas.length===1?'':'s');
 
   const ML_ = ['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
   listEl.innerHTML = minhas.map(u=>{
@@ -2505,8 +2505,6 @@ const ACOES = {
       const bpmnOk=!!(p.mod?.bpmnAsIs||p.mod?.asIs);
       // ── Derivar valores automaticamente das etapas anteriores ──
       const etapas=p.mod?.etapas_proc||[];
-      const qtdAtivDeriv=etapas.filter(e=>!e.tipo||e.tipo==='Atividade').length;
-      const qtdDecDeriv=etapas.filter(e=>e.tipo==='Decisao').length;
       function _iaSection(lbl,items,style){
         if(!items?.length)return'';
         const liHtml=items.map(i=>'<li>'+esc(i)+'</li>').join('');
@@ -2932,7 +2930,6 @@ function rAcaoRetro(){
   const p=curProc,etId=epRetroEtapa;
   const ac=ACOES[etId];
   if(!ac)return;
-  const idxRetro=etIdx(etId),idxAtual=etIdx(p.etapa);
   document.getElementById('tab-acao').innerHTML=`
     <div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-size:13px">👁 <strong>Visualizando:</strong> ${ac.titulo}</span>
@@ -3082,7 +3079,7 @@ function salvarRetroativo(etId){
       });
       // Preserva feedback existente e mescla com o atual
       const existing=p.ent.analise.feedback_dono||{};
-      Object.keys(fb).forEach(t=>{existing[t]={...(existing[t]||{}),...fb[t]};});
+      Object.keys(fb).forEach(t=>{existing[t]={...existing[t],...fb[t]};});
       p.ent.analise.feedback_dono=existing;
     },
   };
@@ -3109,7 +3106,7 @@ function _rAcaoPrazoBanner(p){
   if(!p.prazo_dono) return '';
   const hoje=new Date().toISOString().split('T')[0];
   const atrasado=p.prazo_dono<hoje;
-  const diff=Math.ceil((new Date(p.prazo_dono)-new Date())/(1000*60*60*24));
+  const diff=Math.ceil((new Date(p.prazo_dono)-Date.now())/(1000*60*60*24));
   const pzFmt=p.prazo_dono.split('-').reverse().join('/');
   const cor=atrasado?'var(--red)':diff<=3?'var(--amber)':'var(--ink2)';
   const label=atrasado
@@ -3157,7 +3154,7 @@ function rAcao(p){
   const ac=ACOES[p.etapa];
   if(!ac){el.innerHTML='<div class="ib ibsl">Etapa não configurada.</div>';return;}
   if(role==='dono'){ _rAcaoHandleDono(el,ac,p); return; }
-  const roleNote=role!==ac.rk?`<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>${ac.role}</strong>. Troque o perfil para interagir.</div>`:'';
+  const roleNote=role===ac.rk?'':`<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>${ac.role}</strong>. Troque o perfil para interagir.</div>`;
   el.innerHTML=buildAcaoCardHTML(ac,p,roleNote);
   _rAcaoInitBpmn(p, false);
 }
@@ -3407,8 +3404,8 @@ async function gerarAnaliseIA(){
   const etapas=(p.mod?.etapas_proc||[]).map((e,i)=>`${i+1}. ${e.nome||e.desc||''} | Resp: ${e.resp||''} | Tipo: ${e.tipo||''}`).join('\n');
   const payloadExtra=_gerarAnaliseIAPayloadExtra(p);
   const etapasProc=p.mod?.etapas_proc||[];
-  const tCiclo=a.t_ciclo_medio||(p.ent.t_ciclo!=null?p.ent.t_ciclo+' h':'não informado');
-  const tEspera=a.t_espera_medio||(p.ent.t_gaveta!=null?p.ent.t_gaveta+' h':'não informado');
+  const tCiclo=a.t_ciclo_medio||(p.ent.t_ciclo==null?'não informado':p.ent.t_ciclo+' h');
+  const tEspera=a.t_espera_medio||(p.ent.t_gaveta==null?'não informado':p.ent.t_gaveta+' h');
   const qtdAtiv=a.qtd_atividades||etapasProc.filter(e=>!e.tipo||e.tipo==='Atividade').length||0;
   const qtdDec=a.qtd_decisoes||etapasProc.filter(e=>e.tipo==='Decisao').length||0;
   const payload=`Processo: ${p.nome}\nMacro: ${p.macro} | Área: ${p.area}\nObjetivo: ${p.objetivo||''}\nVolumetria: ${JSON.stringify(p.ent?.vol||{})}\nTempo de ciclo: ${tCiclo}\nTempo de espera: ${tEspera}\nQtd atividades: ${qtdAtiv}\nQtd decisões: ${qtdDec}${etapas?'\nEtapas do processo:\n'+etapas:''}${p.mod?.asIs?'\nDescrição AS IS:\n'+p.mod.asIs.substring(0,2000):''}${p.mod?.toBe?'\nDescrição TO BE:\n'+p.mod.toBe.substring(0,1000):''}${payloadExtra}`;
@@ -3548,26 +3545,27 @@ async function renderBpmnToPng(xml) {
             ctx2d.fillStyle = '#ffffff'; ctx2d.fillRect(0, 0, c.width, c.height);
             ctx2d.scale(sc, sc); ctx2d.drawImage(img, 0, 0);
             URL.revokeObjectURL(url);
-            try { viewer.destroy(); } catch(e) {}
+            try { viewer.destroy(); } catch(_e) { console.warn('BPMN viewer cleanup:', _e); }
             wrap.remove();
             resolve(c.toDataURL('image/png'));
           };
           img.onerror = () => {
             URL.revokeObjectURL(url);
-            try { viewer.destroy(); } catch(e) {}
+            try { viewer.destroy(); } catch(_e) { console.warn('BPMN viewer cleanup:', _e); }
             wrap.remove();
             resolve(null);
           };
           img.src = url;
         })
         .catch(() => {
-          try { viewer.destroy(); } catch(e) {}
-          try { wrap.remove(); } catch(e) {}
+          try { viewer.destroy(); } catch(_e) { console.warn('BPMN viewer cleanup:', _e); }
+          try { wrap.remove(); } catch(_e) { console.warn('BPMN wrap cleanup:', _e); }
           resolve(null);
         });
-    } catch(e) {
-      if (viewer) try { viewer.destroy(); } catch(e2) {}
-      try { wrap.remove(); } catch(e2) {}
+    } catch(_e) {
+      console.warn('BPMN render error:', _e);
+      if (viewer) try { viewer.destroy(); } catch(error_) { console.warn('BPMN viewer cleanup:', error_); }
+      try { wrap.remove(); } catch(error_) { console.warn('BPMN wrap cleanup:', error_); }
       resolve(null);
     }
   });
@@ -3661,9 +3659,9 @@ OBJETIVO: ${p.objetivo || '—'}
 PRODUTO DO MAPEAMENTO: ${p.produto || '—'}
 PRIORIDADE: ${p.prio || '—'}
 VOLUME (execuções/período): ${p.ent?.vol?.exec || '—'}
-TEMPO DE CICLO MÉDIO: ${p.ent?.t_ciclo != null ? p.ent.t_ciclo + ' h' : p.ent?.vol?.tempo || '—'}
-TEMPO REAL (LEAD TIME): ${p.ent?.t_real != null ? p.ent.t_real + ' h' : '—'}
-TEMPO DE GAVETA: ${p.ent?.t_gaveta != null ? p.ent.t_gaveta + ' h' : '—'}
+TEMPO DE CICLO MÉDIO: ${p.ent?.t_ciclo == null ? p.ent?.vol?.tempo || '—' : p.ent.t_ciclo + ' h'}
+TEMPO REAL (LEAD TIME): ${p.ent?.t_real == null ? '—' : p.ent.t_real + ' h'}
+TEMPO DE GAVETA: ${p.ent?.t_gaveta == null ? '—' : p.ent.t_gaveta + ' h'}
 SAZONALIDADE: ${p.ent?.vol?.sazon || '—'}
 MATURIDADE GERAL: ${p.ent?.mat || 0}/5
 MATURIDADE POR EIXO: ${dimText || '—'}
@@ -4137,10 +4135,10 @@ function toggleAudPicker(){
   const picker = document.getElementById('aud-picker');
   const form = document.getElementById('aud-form');
   if(!picker||!form) return;
-  const showing = picker.style.display !== 'none';
-  picker.style.display = showing ? 'none' : '';
-  if(showing){
-    // switching to custom: clear fields
+  if(picker.style.display === 'none'){
+    picker.style.display = '';
+  } else {
+    picker.style.display = 'none';
     document.getElementById('aud-a-titulo').value='';
     document.getElementById('aud-a-desc').value='';
     document.getElementById('aud-a-crit').value='';
@@ -4222,8 +4220,8 @@ function popAtivCards(p){
   return flat.map((e,i)=>{
     const d=det[i]||{};
     const tipo=d.tipo||e.tipo||'Atividade';
-    const desc=d.desc!==undefined?d.desc:(e.desc||e.nome||'');
-    const resp=d.resp!==undefined?d.resp:(e.resp||'');
+    const desc=d.desc===undefined?(e.desc||e.nome||''):d.desc;
+    const resp=d.resp===undefined?(e.resp||''):d.resp;
     const prox=d.prox||'';
     return `<div style="border:1px solid var(--bdr);border-left:3px solid var(--blue);border-radius:var(--r);padding:.7rem .9rem;margin-bottom:.6rem;background:var(--surf)">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
@@ -7790,7 +7788,7 @@ document.getElementById('login-screen').style.display='flex';
         const user = USUARIOS.find(u=>u.email===savedEmail);
         if(user) _aplicarUsuario(user);
       }
-    } catch(e){}
+    } catch(_e){ console.warn('localStorage unavailable', _e); }
   }
 
   updCounts();
@@ -8067,7 +8065,7 @@ function injectAiConfigField(){
 function salvarAiUrl(){
   const url = document.getElementById('ai-fn-url')?.value.trim();
   if(!url){ alert('Informe a URL.'); return; }
-  try { localStorage.setItem('epcage_ai_url', url); } catch(e){}
+  try { localStorage.setItem('epcage_ai_url', url); } catch(_e){ console.warn('localStorage unavailable', _e); }
   // Patch the constant at runtime
   globalThis._aiUrl = url;
   toast('URL da IA salva');
@@ -8079,7 +8077,7 @@ function salvarAiUrl(){
   try {
     const saved = localStorage.getItem('epcage_ai_url');
     if(saved) globalThis._aiUrl = saved;
-  } catch(e){}
+  } catch(_e){ console.warn('localStorage unavailable', _e); }
 })();
 
 // ═══════════════════════════════════════════
