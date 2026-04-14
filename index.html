@@ -6488,6 +6488,7 @@ function kpiGrupoCardHTML(key, items){
         <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
         <div style="font-size:14px;font-weight:600;color:var(--ink)">${esc(nome)}</div>
       </div>
+      <div style="display:flex;gap:5px;flex-shrink:0">${isEP()?`<button class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button><button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${items[0].id})">×</button>`:''}</div>
     </div>
     <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
   </div>`;
