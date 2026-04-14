@@ -16,7 +16,7 @@
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-<!-- Config: loaded synchronously so window.CONFIG is available immediately -->
+<!-- Config: loaded synchronously so globalThis.CONFIG is available immediately -->
 <script src="config.deploy.js" onerror="console.info('config.deploy.js not found')"></script>
 <script src="config.local.js" onerror="console.info('config.local.js not found')"></script>
 <!-- Firebase -->
@@ -28,7 +28,7 @@
   // ── PREENCHA AQUI APÓS CRIAR O PROJETO FIREBASE
   // IMPORTANT: Do not commit real keys. Load from config.local.js or environment
   const FIREBASE_CONFIG = {
-    apiKey:            (window.CONFIG?.FIREBASE_API_KEY || "__FIREBASE_API_KEY__"),
+    apiKey:            (globalThis.CONFIG?.FIREBASE_API_KEY || "__FIREBASE_API_KEY__"),
     authDomain:        "gesproc2.firebaseapp.com",
     projectId:         "gesproc2",
     storageBucket:     "gesproc2.firebasestorage.app",
@@ -36,8 +36,8 @@
     appId:             "1:814449532770:web:ca5d5b073e2daa78a8163b"
   };
 
-  window._fbReady = false;
-  window._fb = {};
+  globalThis._fbReady = false;
+  globalThis._fb = {};
 
   // Only init if config is filled
   if(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== ''){
@@ -45,8 +45,8 @@
       const app = initializeApp(FIREBASE_CONFIG);
       const db  = getFirestore(app);
       const auth = getAuth(app);
-      window._fb = { db, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, auth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged };
-      window._fbReady = true;
+      globalThis._fb = { db, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, auth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged };
+      globalThis._fbReady = true;
       console.info('Firebase conectado');
     } catch(e) {
       console.warn('Firebase init error:', e.message);
@@ -797,9 +797,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <button class="btn btn-p" onclick="abrirModalNovaAuditoria()">+ Nova auditoria</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:1rem">
-    <span class="chip on" id="aud-chip-and" onclick="filtAuditoria('andamento',this)">Em andamento</span>
-    <span class="chip" id="aud-chip-conc" onclick="filtAuditoria('concluida',this)">Concluídas</span>
-    <span class="chip" id="aud-chip-all" onclick="filtAuditoria('todos',this)">Todos</span>
+    <span class="chip on" id="aud-chip-and" role="button" tabindex="0" onclick="filtAuditoria('andamento',this)" onkeydown="if(event.key==='Enter'||event.key===' ')filtAuditoria('andamento',this)">Em andamento</span>
+    <span class="chip" id="aud-chip-conc" role="button" tabindex="0" onclick="filtAuditoria('concluida',this)" onkeydown="if(event.key==='Enter'||event.key===' ')filtAuditoria('concluida',this)">Concluídas</span>
+    <span class="chip" id="aud-chip-all" role="button" tabindex="0" onclick="filtAuditoria('todos',this)" onkeydown="if(event.key==='Enter'||event.key===' ')filtAuditoria('todos',this)">Todos</span>
   </div>
   <div id="aud-list"></div>
 </div></div>
@@ -1225,11 +1225,11 @@ const LIKERT = ['Nunca','Raramente','Às vezes','Frequentemente','Sempre'];
 // HTML-escape user-supplied content before inserting into innerHTML
 function esc(s){
   return String(s ?? '')
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#39;');
 }
 // Allow only http/https URLs; return empty string for anything else (blocks javascript: etc.)
 function safeUrl(url){
@@ -1421,7 +1421,7 @@ function go(page,btn){
   if(btn)btn.classList.add('on');
   ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano,avisos:rAvisos}[page]||function(){})();
   // Mobile: close drawer, update title
-  if(window.innerWidth<=720){mobClose();}
+  if(globalThis.innerWidth<=720){mobClose();}
   const ttl={fila:'Minhas tarefas',dashboard:'Painel geral',processos:'Processos',arq:'Arquitetura',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Auditoria',publicacoes:'Metodologias',admin:'Usuários',avisos:'Avisos',detalhe:'Processo'};
   const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||'SIGA 2.0';
 }
@@ -2224,13 +2224,13 @@ function perguntarNotifDono(etapaProxId){
     </div>
   </div>`;
   document.body.appendChild(ov);
-  window._prazoDonoOv=ov;
+  globalThis._prazoDonoOv=ov;
 }
 function salvarPrazoDono(etapaProxId, notificar){
   const prazo=document.getElementById('prazo-dono-inp')?.value;
   if(!prazo){toast('Informe o prazo antes de continuar.','var(--red)');return;}
   if(curProc) curProc.prazo_dono=prazo;
-  if(window._prazoDonoOv){window._prazoDonoOv.remove();window._prazoDonoOv=null;}
+  if(globalThis._prazoDonoOv){globalThis._prazoDonoOv.remove();globalThis._prazoDonoOv=null;}
   fbAutoSave('prazo_dono');
   if(notificar) confirmarNotifDono(etapaProxId);
   else toast('Prazo registrado para '+etLb(etapaProxId),'var(--teal)');
@@ -2292,9 +2292,9 @@ function reprovarDono(voltaEt,role,acao){
 
 // ─── FEEDBACK DO DONO (valid_dono) ───────────────────────────────────────────
 function dfbRow(tipo,texto,emoji){
-  const idx=window._dfbItems.length;
-  window._dfbItems.push({tipo,texto});
-  const fb=window._dfb[tipo]?.[texto];
+  const idx=globalThis._dfbItems.length;
+  globalThis._dfbItems.push({tipo,texto});
+  const fb=globalThis._dfb[tipo]?.[texto];
   const confirmed=fb==='confirmado',discarded=fb==='descartado';
   return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr)" id="dfb-row-${idx}">
     <span id="dfb-txt-${idx}" style="flex:1;font-size:12.5px;color:var(--ink)${discarded?';text-decoration:line-through;opacity:.5':''}">${emoji} ${esc(texto)}</span>
@@ -2309,10 +2309,10 @@ function _dfbStyleBtn(btn, active, colorOn, bgOn){
   btn.style.color       = active ? colorOn : 'var(--ink4)';
 }
 function dfbToggle(idx,val){
-  const {tipo,texto}=window._dfbItems[idx];
-  if(!window._dfb[tipo])window._dfb[tipo]={};
-  window._dfb[tipo][texto]=window._dfb[tipo][texto]===val?null:val;
-  const fb=window._dfb[tipo][texto];
+  const {tipo,texto}=globalThis._dfbItems[idx];
+  if(!globalThis._dfb[tipo])globalThis._dfb[tipo]={};
+  globalThis._dfb[tipo][texto]=globalThis._dfb[tipo][texto]===val?null:val;
+  const fb=globalThis._dfb[tipo][texto];
   const confirmed=fb==='confirmado',discarded=fb==='descartado';
   _dfbStyleBtn(document.getElementById('dfb-c-'+idx), confirmed, 'var(--green)', 'var(--green-l)');
   _dfbStyleBtn(document.getElementById('dfb-d-'+idx), discarded, 'var(--red)',   'var(--red-l)');
@@ -2344,8 +2344,8 @@ function salvarMelhorias(){
   const p=curProc;
   if(!p.ent.analise)p.ent.analise={};
   const fb={};
-  (window._dfbItems||[]).forEach(({tipo,texto})=>{
-    const val=window._dfb?.[tipo]?.[texto];
+  (globalThis._dfbItems||[]).forEach(({tipo,texto})=>{
+    const val=globalThis._dfb?.[tipo]?.[texto];
     if(val){if(!fb[tipo])fb[tipo]={};fb[tipo][texto]=val;}
   });
   p.ent.analise.feedback_dono=fb;
@@ -2626,9 +2626,9 @@ const ACOES = {
       const solucoes=ia.solucoes_problemas||a.solucoes_problemas||[];
       const mitigacoes=ia.mitigacoes_riscos||a.mitigacoes_riscos||[];
       const temAnalise=!!(ia.resumo||gargalos.length||retrabalhos.length||gaps.length||oportunidades.length||solucoes.length||mitigacoes.length);
-      window._dfb={};window._dfbItems=[];
+      globalThis._dfb={};globalThis._dfbItems=[];
       const savedFb=a.feedback_dono||{};
-      Object.keys(savedFb).forEach(t=>{window._dfb[t]={...savedFb[t]};});
+      Object.keys(savedFb).forEach(t=>{globalThis._dfb[t]={...savedFb[t]};});
       function _dfbBlock(cls,label,arr,key,emoji){
         if(!arr.length)return'';
         return '<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat '+cls+'">'+label+' ('+arr.length+')</div>'+arr.map(x=>dfbRow(key,x,emoji)).join('')+'</div>';
@@ -3092,8 +3092,8 @@ function salvarRetroativo(etId){
     melhorias:()=>{
       if(!p.ent.analise) p.ent.analise={};
       const fb={};
-      (window._dfbItems||[]).forEach(({tipo,texto})=>{
-        const val=window._dfb?.[tipo]?.[texto];
+      (globalThis._dfbItems||[]).forEach(({tipo,texto})=>{
+        const val=globalThis._dfb?.[tipo]?.[texto];
         if(val){if(!fb[tipo])fb[tipo]={};fb[tipo][texto]=val;}
       });
       // Preserva feedback existente e mescla com o atual
@@ -3985,7 +3985,7 @@ async function montarPOPPPT(p, dados, logoB64, bpmnAsisPng, bpmnTobePng, indsPro
     }
   }
 
-  const nomeArq = 'POP_' + p.nome.replace(/[^a-zA-Z0-9]/g,'_').slice(0,38) + '_' + now().replace(/\//g,'-');
+  const nomeArq = 'POP_' + p.nome.replaceAll(/[^a-zA-Z0-9]/g,'_').slice(0,38) + '_' + now().replaceAll('/','-');
   await pptx.writeFile({fileName: nomeArq + '.pptx'});
 }
 function salvarAuditoria(concluir){
@@ -4396,7 +4396,7 @@ function renderAcaoGw(camPath,ai,ac,depth){
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.55rem .75rem;margin-bottom:.4rem">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:.35rem">
       <span class="etapa-tipo ${tipoCls(tipo)}" style="font-size:10px">${tipo}</span>
-      <input class="fi" style="flex:1;font-size:12px" placeholder="Nome da ação" value="${(ac.nome||'').replace(/"/g,'&quot;')}"
+      <input class="fi" style="flex:1;font-size:12px" placeholder="Nome da ação" value="${(ac.nome||'').replaceAll('"','&quot;')}"
         oninput="resolveGwPath('${camPath}').acoes[${ai}].nome=this.value">
       <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red);border-color:var(--red-b)"
         onclick="remAcaoGw('${camPath}',${ai});reRenderGw('${rootId}')">×</button>
@@ -4434,7 +4434,7 @@ function renderAcaoGw(camPath,ai,ac,depth){
         </select>
       </div>
       <div class="fg"><label class="fl" style="font-size:10px">Executor</label>
-        <input class="fi" style="font-size:12px" value="${(ac.executor||'').replace(/"/g,'&quot;')}"
+        <input class="fi" style="font-size:12px" value="${(ac.executor||'').replaceAll('"','&quot;')}"
           oninput="resolveGwPath('${camPath}').acoes[${ai}].executor=this.value">
       </div>
     </div>`:''}
@@ -4453,7 +4453,7 @@ function renderCaminhoGw(parentPath,ci,cam,depth){
   return `<div style="border-left:3px solid var(--amber);padding:.5rem .75rem;margin-bottom:.5rem;background:var(--bg2);border-radius:0 6px 6px 0">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:.4rem">
       <input class="fi" style="flex:1;font-size:12px" placeholder="Rótulo do caminho (ex: Sim, Não, Aprovado)"
-        value="${(cam.label||'').replace(/"/g,'&quot;')}"
+        value="${(cam.label||'').replaceAll('"','&quot;')}"
         oninput="resolveGwPath('${parentPath}').caminhos[${ci}].label=this.value">
       <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red);border-color:var(--red-b)"
         onclick="remCaminhoGw('${parentPath}',${ci});reRenderGw('${rootId}')">×</button>
@@ -4493,7 +4493,7 @@ function _renderEtapaAtividadeFields(e, id){
       </select>
     </div>
     <div class="fg"><label class="fl">Executor</label>
-      <input class="fi" value="${(e.executor||'').replace(/"/g,'&quot;')}"
+      <input class="fi" value="${(e.executor||'').replaceAll('"','&quot;')}"
         oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').executor=this.value">
     </div>
   </div>`;
@@ -4513,8 +4513,8 @@ function renderEtapaDetalheConteudo(e){
   const id=e.id;
   return `<div class="g2" style="margin-top:.6rem">
     <div class="fg"><label class="fl">Nome da etapa</label>
-      <input class="fi" value="${(e.nome||'').replace(/"/g,'&quot;')}"
-        oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').nome=this.value;document.querySelector('#ep-${id} .etapa-nome').textContent=this.value;clearTimeout(window._mmT);window._mmT=setTimeout(atualizarMermaid,600)">
+      <input class="fi" value="${(e.nome||'').replaceAll('"','&quot;')}"
+        oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').nome=this.value;document.querySelector('#ep-${id} .etapa-nome').textContent=this.value;clearTimeout(globalThis._mmT);globalThis._mmT=setTimeout(atualizarMermaid,600)">
     </div>
     <div class="fg"><label class="fl">Tipo</label>
       <select class="fi" onchange="(function(s){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.tipo=s.value;_e.subtipo_evento=null;const _b=document.querySelector('#ep-${id} .etapa-tipo');_b.className='etapa-tipo '+tipoCls(s.value,null);_b.textContent=s.value;reRenderEtapaDetalhe('${id}')})(this)">
@@ -4603,7 +4603,7 @@ let _mermaidCode = '';
 
 function etapasToMermaid(etapas){
   if(!etapas||!etapas.length) return '';
-  const safe = s => (s||'sem nome').replace(/["'<>&[\]{}()]/g,' ').replace(/\s+/g,' ').trim().slice(0,45);
+  const safe = s => (s||'sem nome').replaceAll(/["'<>&[\]{}()]/g,' ').replaceAll(/\s+/g,' ').trim().slice(0,45);
   let lines = ['flowchart TD'];
   let nodeId = 0;
   const getId = () => 'N'+(nodeId++);
@@ -5105,7 +5105,7 @@ function salvarReuniaoAvulsa(){
     };
     if(paths[tipo]) paths[tipo]();
   }
-  push(p,'','EP','Reunião registrada: '+tipo.replace(/_/g,' ')+' — '+data);
+  push(p,'','EP','Reunião registrada: '+tipo.replaceAll('_',' ')+' — '+data);
   fbSaveAll();
   toast('Reunião registrada!','var(--teal)');
   rReun(p);
@@ -7038,8 +7038,8 @@ function deletarUsr(){
 // ═══════════════════════════════════════════
 
 // Helper: wait for Firebase module to be ready (loaded async)
-function fbReady(){ return window._fbReady === true; }
-function fb(){ return window._fb; }
+function fbReady(){ return globalThis._fbReady === true; }
+function fb(){ return globalThis._fb; }
 
 // ── SAVE ──────────────────────────────────
 // Each collection stores one document per logical "table"
@@ -7602,7 +7602,7 @@ function rCarrosselAvisos(){
   const ativos = AVISOS.filter(a => a.ativo && a.perfis && (a.perfis.includes('todos') || a.perfis.includes(perfil)));
   if(!ativos.length){ el.style.display='none'; el.innerHTML=''; return; }
 
-  if(window._avTimer){ clearInterval(window._avTimer); window._avTimer=null; }
+  if(globalThis._avTimer){ clearInterval(globalThis._avTimer); globalThis._avTimer=null; }
   let idx = 0;
 
   function render(){
@@ -7616,8 +7616,8 @@ function rCarrosselAvisos(){
       ? `<div style="display:flex;gap:5px;align-items:center">${dotSpans}</div>`
       : '';
     const nav = ativos.length > 1
-      ? `<button onclick="window._avPrev()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">‹</button>
-         <button onclick="window._avNext()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">›</button>`
+      ? `<button onclick="globalThis._avPrev()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">‹</button>
+         <button onclick="globalThis._avNext()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">›</button>`
       : '';
     el.innerHTML = `
       <div style="position:relative;background:var(--blue-l);border:1px solid var(--blue-b);border-radius:var(--rl);padding:1rem ${ativos.length>1?'2.8rem':'1.2rem'} 1rem 1.2rem;margin-bottom:1.2rem">
@@ -7635,11 +7635,11 @@ function rCarrosselAvisos(){
       </div>`;
   }
 
-  window._avNext = ()=>{ idx=(idx+1)%ativos.length; render(); };
-  window._avPrev = ()=>{ idx=(idx-1+ativos.length)%ativos.length; render(); };
+  globalThis._avNext = ()=>{ idx=(idx+1)%ativos.length; render(); };
+  globalThis._avPrev = ()=>{ idx=(idx-1+ativos.length)%ativos.length; render(); };
   el.style.display = '';
   render();
-  if(ativos.length > 1) window._avTimer = setInterval(window._avNext, 6000);
+  if(ativos.length > 1) globalThis._avTimer = setInterval(globalThis._avNext, 6000);
 }
 
 function updAvisosCnt(){
@@ -7742,8 +7742,8 @@ async function excluirAvisoModal(){
 function fbAutoSave(label){
   if(!fbReady()) return;
   // Debounce: wait 1.5s after last change before saving
-  clearTimeout(window._fbSaveTimer);
-  window._fbSaveTimer = setTimeout(()=>{
+  clearTimeout(globalThis._fbSaveTimer);
+  globalThis._fbSaveTimer = setTimeout(()=>{
     fbSaveAll();
   }, 1500);
 }
@@ -7854,7 +7854,7 @@ document.getElementById('login-screen').style.display='flex';
 
   // Wait up to 3s for Firebase module to init (it's loaded async as ES module)
   let waited = 0;
-  while(!window._fbReady && window._fbReady !== false && waited < 30){
+  while(!globalThis._fbReady && globalThis._fbReady !== false && waited < 30){
     await new Promise(r=>setTimeout(r,100));
     waited++;
   }
@@ -7920,7 +7920,7 @@ document.getElementById('login-screen').style.display='flex';
 
 // URL da Firebase Function (preencher após deploy)
 // NOTE: Load from config.local.js or localStorage for local development
-const AI_FUNCTION_URL = (window.CONFIG?.AI_FUNCTION_URL || '__AI_FUNCTION_URL__');
+const AI_FUNCTION_URL = (globalThis.CONFIG?.AI_FUNCTION_URL || '__AI_FUNCTION_URL__');
 
 async function chamarIA(mode, payload, targetEl){
   const url = localStorage.getItem('epcage_ai_url') || AI_FUNCTION_URL;
@@ -8185,7 +8185,7 @@ function salvarAiUrl(){
   if(!url){ alert('Informe a URL.'); return; }
   try { localStorage.setItem('epcage_ai_url', url); } catch(e){}
   // Patch the constant at runtime
-  window._aiUrl = url;
+  globalThis._aiUrl = url;
   toast('URL da IA salva');
 }
 
@@ -8194,7 +8194,7 @@ function salvarAiUrl(){
 (function(){
   try {
     const saved = localStorage.getItem('epcage_ai_url');
-    if(saved) window._aiUrl = saved;
+    if(saved) globalThis._aiUrl = saved;
   } catch(e){}
 })();
 
@@ -8350,7 +8350,7 @@ function confirmarImportPOP(){
 
     <div id="pop-step1">
       <div class="fg" style="margin-bottom:1rem">
-        <label class="fl">Arquivo Word (.docx)</label>
+        <label class="fl" for="pop-file-input">Arquivo Word (.docx)</label>
         <input type="file" id="pop-file-input" accept=".docx" class="fi" onchange="processarArquivoPOP(this)">
       </div>
       <div id="pop-loading" style="display:none;text-align:center;padding:2rem;color:var(--ink3)">
@@ -8362,18 +8362,18 @@ function confirmarImportPOP(){
     <div id="pop-step2" style="display:none">
       <div class="ib ibt" style="margin-bottom:1rem">Dados extraídos pelo modelo. Revise e ajuste antes de confirmar.</div>
       <div class="g2" style="margin-bottom:.8rem">
-        <div class="fg"><label class="fl">Nome do processo</label><input class="fi" id="pop-nome"></div>
-        <div class="fg"><label class="fl">Área / Unidade</label><input class="fi" id="pop-area"></div>
+        <div class="fg"><label class="fl" for="pop-nome">Nome do processo</label><input class="fi" id="pop-nome"></div>
+        <div class="fg"><label class="fl" for="pop-area">Área / Unidade</label><input class="fi" id="pop-area"></div>
       </div>
-      <div class="fg" style="margin-bottom:.8rem"><label class="fl">Objetivo</label><textarea class="fi" id="pop-objetivo" style="min-height:60px"></textarea></div>
-      <div class="fg" style="margin-bottom:.8rem"><label class="fl">Atores / Responsáveis</label><textarea class="fi" id="pop-atores" style="min-height:60px" placeholder="Um por linha"></textarea></div>
-      <div class="fg" style="margin-bottom:.8rem"><label class="fl">Etapas do processo</label><textarea class="fi" id="pop-etapas" style="min-height:100px" placeholder="Uma por linha"></textarea></div>
+      <div class="fg" style="margin-bottom:.8rem"><label class="fl" for="pop-objetivo">Objetivo</label><textarea class="fi" id="pop-objetivo" style="min-height:60px"></textarea></div>
+      <div class="fg" style="margin-bottom:.8rem"><label class="fl" for="pop-atores">Atores / Responsáveis</label><textarea class="fi" id="pop-atores" style="min-height:60px" placeholder="Um por linha"></textarea></div>
+      <div class="fg" style="margin-bottom:.8rem"><label class="fl" for="pop-etapas">Etapas do processo</label><textarea class="fi" id="pop-etapas" style="min-height:100px" placeholder="Uma por linha"></textarea></div>
       <div class="fg" style="margin-bottom:.8rem">
-        <label class="fl">Vincular à arquitetura (processo já cadastrado)</label>
+        <label class="fl" for="pop-arq-sel">Vincular à arquitetura (processo já cadastrado)</label>
         <select class="fi" id="pop-arq-sel"><option value="">— Selecione —</option></select>
       </div>
       <div class="fg" style="margin-bottom:1rem">
-        <label class="fl">Imagem do fluxo Bizagi (opcional — PNG, JPG, máx. 3 MB)</label>
+        <label class="fl" for="pop-fluxo-img">Imagem do fluxo Bizagi (opcional — PNG, JPG, máx. 3 MB)</label>
         <input type="file" id="pop-fluxo-img" accept="image/*" class="fi" onchange="previewFluxoImg(this)">
         <div id="pop-fluxo-preview" style="display:none;margin-top:.5rem;text-align:center">
           <img id="pop-fluxo-img-prev" style="max-width:100%;max-height:200px;border-radius:6px;border:1px solid var(--bdr)">
