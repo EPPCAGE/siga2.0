@@ -4295,7 +4295,7 @@ function renderAcaoGw(camPath,ai,ac,depth){
       </div>
       ${tipo==='Evento'?`<div class="fg"><label class="fl" style="font-size:10px">Subtipo do evento</label>
         <select class="fi" style="font-size:12px" onchange="resolveGwPath('${camPath}').acoes[${ai}].subtipo_evento=this.value">
-          <option value="" ${!ac.subtipo_evento?'selected':''}>Selecione...</option>
+          <option value="" ${ac.subtipo_evento?'':'selected'}>Selecione...</option>
           <option ${ac.subtipo_evento==='Início'?'selected':''}>Início</option>
           <option ${ac.subtipo_evento==='Intermediário'?'selected':''}>Intermediário</option>
           <option ${ac.subtipo_evento==='Fim'?'selected':''}>Fim</option>
@@ -4384,7 +4384,7 @@ function _renderEtapaEventoFields(e, id){
   if(e.tipo !== 'Evento') return '';
   return `<div class="fg" style="margin-top:.4rem"><label class="fl">Subtipo do evento</label>
     <select class="fi" onchange="(function(s){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.subtipo_evento=s.value||null;const _b=document.querySelector('#ep-${id} .etapa-tipo');if(_b){_b.className='etapa-tipo '+tipoCls('Evento',s.value||null);_b.textContent='Evento'+(_e.subtipo_evento?' · '+_e.subtipo_evento:'');}})(this)">
-      <option value="" ${!e.subtipo_evento?'selected':''}>Selecione...</option>
+      <option value="" ${e.subtipo_evento?'':'selected'}>Selecione...</option>
       <option ${e.subtipo_evento==='Início'?'selected':''}>Início</option>
       <option ${e.subtipo_evento==='Intermediário'?'selected':''}>Intermediário</option>
       <option ${e.subtipo_evento==='Fim'?'selected':''}>Fim</option>
