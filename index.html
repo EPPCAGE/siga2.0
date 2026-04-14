@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.emailjs.com https://*.a.run.app; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.emailjs.com https://*.a.run.app https://docs.google.com https://api.allorigins.win; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'">
 <title>SIGA 2.0 — Sistema Integrado de Gestão Estratégica e Alinhamento</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css">
@@ -86,11 +86,11 @@ body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;l
 .brand-sub{font-size:10px;color:rgba(255,255,255,.3);margin-top:3px;letter-spacing:.07em;text-transform:uppercase}
 .nav-sec{padding:.8rem 1.1rem .2rem;font-size:9px;font-weight:600;color:rgba(255,255,255,.22);letter-spacing:.12em;text-transform:uppercase}
 .nav-btn{display:flex;align-items:center;gap:8px;padding:.48rem 1.1rem;cursor:pointer;font-size:12.5px;color:rgba(255,255,255,.48);transition:all .14s;border:none;background:none;width:100%;text-align:left;font-family:var(--f);border-left:2px solid transparent}
-.nav-btn:hover{color:rgba(255,255,255,.92);background:rgba(255,255,255,.05)}
-.nav-btn.on{color:#fff;background:rgba(255,255,255,.1);border-left-color:#5B8EF0}
+.nav-btn:hover{color:#ededee;background:#272738}
+.nav-btn.on{color:#fff;background:#333343;border-left-color:#5B8EF0}
 .nav-btn svg{flex-shrink:0;opacity:.6;width:15px;height:15px}
 .nav-btn.on svg{opacity:1}
-.nav-cnt{margin-left:auto;font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.78);min-width:18px;text-align:center}
+.nav-cnt{margin-left:auto;font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:#333343;color:#cdcdd1;min-width:18px;text-align:center}
 .nav-cnt.hot{background:rgba(120,65,0,.7);color:#FBBF24}
 .aside-foot{margin-top:auto;padding:.9rem 1.1rem;border-top:1px solid rgba(255,255,255,.07)}
 .user-chip{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:8px}
@@ -105,7 +105,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;l
 .login-logo{font-family:var(--fh);font-size:28px;font-weight:700;color:#fff;margin-bottom:4px}
 .login-sub{font-size:12px;color:rgba(255,255,255,.35);margin-bottom:2rem;letter-spacing:.06em;text-transform:uppercase}
 .login-label{font-size:11px;font-weight:600;color:rgba(255,255,255,.4);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
-.login-input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);font-size:13px;color:#fff;background:rgba(255,255,255,.08);font-family:var(--f);transition:border-color .12s}
+.login-input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.25);font-size:13px;color:#fff;background:#2e2e3f;font-family:var(--f);transition:border-color .12s}
 .login-input:focus{outline:none;border-color:rgba(91,142,240,.7)}
 .login-btn{width:100%;padding:10px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--fh);margin-top:1rem;transition:background .12s}
 .login-btn:hover{background:#1248A8}
@@ -184,7 +184,7 @@ select.fi{cursor:pointer}
 .fbar{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--rl);padding:.75rem 1rem;margin-bottom:.9rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:var(--sh)}
 .fbar-l{font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0}
 .chips{display:flex;gap:5px;flex-wrap:wrap;flex:1}
-.chip{padding:3px 9px;border-radius:99px;border:1px solid var(--bdr2);font-size:11px;font-weight:500;color:var(--ink3);cursor:pointer;background:var(--surf);transition:all .11s;white-space:nowrap}
+.chip{padding:3px 9px;border-radius:99px;border:1px solid var(--bdr2);font-size:11px;font-weight:500;color:var(--ink3);cursor:pointer;background:var(--surf);transition:all .11s;white-space:nowrap;font-family:inherit;display:inline-flex;align-items:center}
 .chip:hover{border-color:var(--blue-b);color:var(--blue)}.chip.on{background:var(--blue-l);border-color:var(--blue-b);color:var(--blue)}
 .srch{padding:5px 9px;border-radius:6px;border:1px solid var(--bdr2);font-size:12px;color:var(--ink);background:var(--surf);font-family:var(--f);min-width:150px}
 .srch:focus{outline:none;border-color:var(--blue)}
@@ -299,7 +299,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 .ri-del{cursor:pointer;color:var(--ink4);font-size:16px;border:none;background:none;font-family:var(--f);padding:0 4px}.ri-del:hover{color:var(--red)}
 /* ── MOBILE ─── */
 .mob-top-bar{display:none}
-.mob-drawer-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199}
+.mob-drawer-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;padding:0;border:none;cursor:pointer;width:100%}
 .mob-drawer-backdrop.on{display:block}
 @media(max-width:720px){
   .shell{grid-template-columns:1fr}
@@ -409,7 +409,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div class="user-av" id="mob-user-av" style="width:28px;height:28px;font-size:11px">?</div>
   </div>
 </div>
-<div class="mob-drawer-backdrop" id="mob-backdrop" role="button" tabindex="0" aria-label="Fechar menu" onclick="mobToggleDrawer()" onkeydown="if(event.key==='Enter'||event.key===' '||event.key==='Escape'){event.preventDefault();mobToggleDrawer()}"></div>
+<button class="mob-drawer-backdrop" id="mob-backdrop" tabindex="0" aria-label="Fechar menu" onclick="mobToggleDrawer()" onkeydown="if(event.key==='Escape'){event.preventDefault();mobToggleDrawer()}"></button>
 <div class="shell">
 <aside class="aside">
   <div class="aside-top" style="display:flex;align-items:center;justify-content:space-between">
@@ -500,12 +500,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="fbar">
     <span class="fbar-l">Fase</span>
     <div class="chips" id="fase-chips">
-      <span class="chip on" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtFase('',this)">Todos</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtFase('Entendimento',this)">Entendimento</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtFase('Modelagem',this)">Modelagem</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtFase('Formalizacao',this)">Formalização</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtFase('Operacao',this)">Operação</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtFase('Auditoria',this)">Auditoria</span>
+      <button class="chip on" onclick="filtFase('',this)">Todos</button>
+      <button class="chip" onclick="filtFase('Entendimento',this)">Entendimento</button>
+      <button class="chip" onclick="filtFase('Modelagem',this)">Modelagem</button>
+      <button class="chip" onclick="filtFase('Formalizacao',this)">Formalização</button>
+      <button class="chip" onclick="filtFase('Operacao',this)">Operação</button>
+      <button class="chip" onclick="filtFase('Auditoria',this)">Auditoria</button>
     </div>
     <input class="srch" id="srch-p" placeholder="Buscar..." oninput="renderProcs()">
   </div>
@@ -666,9 +666,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <select class="fi" id="ind-nome-sel" onchange="rInd()" style="max-width:220px"><option value="">Todos</option></select>
       <span class="fbar-l">PPE?</span>
       <div class="chips">
-        <span class="chip on" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="indFiltPpe('',this)">Todos</span>
-        <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="indFiltPpe('Sim',this)">Sim</span>
-        <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="indFiltPpe('Não',this)">Não</span>
+        <button class="chip on" onclick="indFiltPpe('',this)">Todos</button>
+        <button class="chip" onclick="indFiltPpe('Sim',this)">Sim</button>
+        <button class="chip" onclick="indFiltPpe('Não',this)">Não</button>
       </div>
     </div>
     <div id="ind-summary" style="margin-bottom:.8rem"></div>
@@ -823,9 +823,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <button class="btn btn-p" onclick="abrirModalNovaAuditoria()">+ Nova auditoria</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:1rem">
-    <span class="chip on" id="aud-chip-and" role="button" tabindex="0" onclick="filtAuditoria('andamento',this)" onkeydown="if(event.key==='Enter'||event.key===' ')filtAuditoria('andamento',this)">Em andamento</span>
-    <span class="chip" id="aud-chip-conc" role="button" tabindex="0" onclick="filtAuditoria('concluida',this)" onkeydown="if(event.key==='Enter'||event.key===' ')filtAuditoria('concluida',this)">Concluídas</span>
-    <span class="chip" id="aud-chip-all" role="button" tabindex="0" onclick="filtAuditoria('todos',this)" onkeydown="if(event.key==='Enter'||event.key===' ')filtAuditoria('todos',this)">Todos</span>
+    <button class="chip on" id="aud-chip-and" onclick="filtAuditoria('andamento',this)">Em andamento</button>
+    <button class="chip" id="aud-chip-conc" onclick="filtAuditoria('concluida',this)">Concluídas</button>
+    <button class="chip" id="aud-chip-all" onclick="filtAuditoria('todos',this)">Todos</button>
   </div>
   <div id="aud-list"></div>
 </div></div>
@@ -962,12 +962,12 @@ Não responda este e-mail.</pre>
   <div class="fbar" style="margin-bottom:1.25rem">
     <span class="fbar-l">Categoria</span>
     <div class="chips" id="pub-chips">
-      <span class="chip on" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtPub('',this)">Todas</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtPub('Manual',this)">Manual</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtPub('Drop',this)">Drop</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtPub('Metodologia',this)">Metodologia</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtPub('Formulário',this)">Formulário</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtPub('Outro',this)">Outro</span>
+      <button class="chip on" onclick="filtPub('',this)">Todas</button>
+      <button class="chip" onclick="filtPub('Manual',this)">Manual</button>
+      <button class="chip" onclick="filtPub('Drop',this)">Drop</button>
+      <button class="chip" onclick="filtPub('Metodologia',this)">Metodologia</button>
+      <button class="chip" onclick="filtPub('Formulário',this)">Formulário</button>
+      <button class="chip" onclick="filtPub('Outro',this)">Outro</button>
     </div>
   </div>
 
@@ -1012,10 +1012,10 @@ Não responda este e-mail.</pre>
   <button class="btn btn-p" onclick="abrirModalUsr(null)">+ Novo usuário</button></div>
   <div class="fbar"><span class="fbar-l">Perfil</span>
     <div class="chips" id="usr-chips">
-      <span class="chip on" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtUsr('',this)">Todos</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtUsr('ep',this)">EPP</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtUsr('dono',this)">Executor</span>
-      <span class="chip" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="filtUsr('gestor',this)">Gestor</span>
+      <button class="chip on" onclick="filtUsr('',this)">Todos</button>
+      <button class="chip" onclick="filtUsr('ep',this)">EPP</button>
+      <button class="chip" onclick="filtUsr('dono',this)">Executor</button>
+      <button class="chip" onclick="filtUsr('gestor',this)">Gestor</button>
     </div>
     <input class="srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
   </div>
@@ -2156,8 +2156,9 @@ function filtrarProcArq(){
     if(p.subprocessos&&p.subprocessos.length>0){
       // subprocessos are the mappable units
       p.subprocessos.forEach(s=>{
-        if(!jaAbertos.has(s.id))
+        if(!jaAbertos.has(s.id)){
           opcoes.push({id:s.id,label:p.nome+' › '+s.nome,parentId:p.id,isSub:true});
+        }
       });
     } else if(!jaAbertos.has(p.id)) {
       // process itself is mappable
@@ -5327,18 +5328,19 @@ function bpmnColorize(which){
     const reg=m.get('elementRegistry');
     reg.getAll().forEach(el=>{
       const t=el.type||'';
-      if(t.includes('StartEvent'))
+      if(t.includes('StartEvent')){
         modeling.setColor(el,{fill:'#D1FAE5',stroke:'#059669'});
-      else if(t.includes('EndEvent'))
+      } else if(t.includes('EndEvent')){
         modeling.setColor(el,{fill:'#FEE2E2',stroke:'#DC2626'});
-      else if(t.includes('Gateway'))
+      } else if(t.includes('Gateway')){
         modeling.setColor(el,{fill:'#FEF3C7',stroke:'#D97706'});
-      else if(t==='bpmn:Task'||t.includes('Activity'))
+      } else if(t==='bpmn:Task'||t.includes('Activity')){
         modeling.setColor(el,{fill:'#DBEAFE',stroke:'#2563EB'});
-      else if(t==='bpmn:SubProcess')
+      } else if(t==='bpmn:SubProcess'){
         modeling.setColor(el,{fill:'#EDE9FE',stroke:'#7C3AED'});
-      else if(t==='bpmn:Participant'||t==='bpmn:Lane')
+      } else if(t==='bpmn:Participant'||t==='bpmn:Lane'){
         modeling.setColor(el,{fill:'#F0F9FF',stroke:'#0EA5E9'});
+      }
     });
     bpmnDirty[which]=true;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
@@ -6823,7 +6825,13 @@ async function sincronizarGSheets(){
 
   if(statusEl) statusEl.textContent = '⏳ Sincronizando...';
   try{
-    const resp = await fetch(url);
+    // Try direct fetch first, fallback to CORS proxy if blocked
+    let resp = await fetch(url).catch(() => null);
+    if(!resp){
+      // CORS blocked — use proxy
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+      resp = await fetch(proxyUrl);
+    }
     if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const csvText = await resp.text();
     const wb = XLSX.read(csvText, {type:'string', cellDates:true});
