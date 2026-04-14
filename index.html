@@ -2749,8 +2749,9 @@ const ACOES = {
       const fb=p.ent?.analise?.feedback_dono||{};
       const override=p.ent?.analise?.ep_override||[];
       const descartados=Object.entries(fb).flatMap(([,items])=>Object.entries(items).filter(([,v])=>v==='descartado').map(([txt])=>txt)).filter(d=>!override.includes(d));
+      const renderDescartados=descartados.length?`<div class="ib" style="background:#fef3c7;border-color:#d97706;margin-bottom:.8rem"><strong>Itens descartados pelo dono (${descartados.length}):</strong> ${descartados.map(d=>`<span style="font-size:11px;background:var(--red-l);color:var(--red);border-radius:4px;padding:1px 6px;margin:2px">${esc(d)}</span>`).join('')}<div style="font-size:11px;color:var(--ink3);margin-top:4px">Considere estes pontos ao finalizar o desenho.</div></div>`:'<div class="ib ibg" style="margin-bottom:.8rem">Nenhum item descartado pelo dono. O fluxo validado está pronto para ajustes finais.</div>';
       return `
-      ${descartados.length?`<div class="ib" style="background:#fef3c7;border-color:#d97706;margin-bottom:.8rem"><strong>Itens descartados pelo dono (${descartados.length}):</strong> ${descartados.map(d=>`<span style="font-size:11px;background:var(--red-l);color:var(--red);border-radius:4px;padding:1px 6px;margin:2px">${esc(d)}</span>`).join('')}<div style="font-size:11px;color:var(--ink3);margin-top:4px">Considere estes pontos ao finalizar o desenho.</div></div>`:'<div class="ib ibg" style="margin-bottom:.8rem">Nenhum item descartado pelo dono. O fluxo validado está pronto para ajustes finais.</div>'}
+      ${renderDescartados}
       <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:.5rem">AS IS — Fluxo validado pelo dono</div>
       ${bpmnEditorHTML('asis',p.mod?.bpmnAsIs)}
       <div style="margin-top:.8rem">
@@ -4942,7 +4943,6 @@ function rEnt(p){
   const e=p.ent;
   const resp=e.quest_resp||{};
   const respondidas=Object.keys(resp).length;
-  const total=Object.values(resp).reduce((a,b)=>a+b,0);
   // Maturidade por dimensão
   const dims={};
   QUESTOES.forEach(q=>{
@@ -4992,24 +4992,26 @@ function rEnt(p){
     </div>`:''}
   </div>`:''}
   ${e.analise&&(e.analise.gargalos||[]).length?`
-  <div class="card"><div class="card-t">Análise AS IS</div>
+  const renderAnaliseItems=(items,tipo,icon,className)=>items.length?`<div class="analise-item"><div class="analise-cat ${className}">${tipo} (${items.length})</div>${items.map(item=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">${icon} ${typeof item==='string'?item:item.desc||item}</div>`).join('')}</div>`:'';
+  const analiseCard=`<div class="card"><div class="card-t">Análise AS IS</div>
     <div class="g4" style="margin-bottom:.8rem">
       ${[['Complexidade',e.analise.complexidade||'—'],['Ciclo médio',e.analise.t_ciclo_medio||'—'],['Espera/fila',e.analise.t_espera_medio||'—'],['Atividades',e.analise.qtd_atividades||0]].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
     </div>
-    ${(e.analise.gargalos||[]).length?`<div class="analise-item"><div class="analise-cat analise-gar">Gargalos (${e.analise.gargalos.length})</div>${e.analise.gargalos.map(g=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">⚠ ${g}</div>`).join('')}</div>`:''}
-    ${(e.analise.retrabalhos||[]).length?`<div class="analise-item"><div class="analise-cat analise-ret">Retrabalhos (${e.analise.retrabalhos.length})</div>${e.analise.retrabalhos.map(r=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">↩ ${r}</div>`).join('')}</div>`:''}
-    ${(e.analise.gaps||[]).length?`<div class="analise-item"><div class="analise-cat analise-gap">Pontos cegos (${e.analise.gaps.length})</div>${e.analise.gaps.map(g=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">○ ${g}</div>`).join('')}</div>`:''}
-    ${(e.analise.oportunidades||[]).length?`<div class="analise-item"><div class="analise-cat analise-oport">Oportunidades (${e.analise.oportunidades.length})</div>${e.analise.oportunidades.map(o=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">✦ ${o}</div>`).join('')}</div>`:''}
-  </div>`:''}
+    ${renderAnaliseItems(e.analise.gargalos||[],'Gargalos','⚠','analise-gar')}
+    ${renderAnaliseItems(e.analise.retrabalhos||[],'Retrabalhos','↩','analise-ret')}
+    ${renderAnaliseItems(e.analise.gaps||[],'Pontos cegos','○','analise-gap')}
+    ${renderAnaliseItems(e.analise.oportunidades||[],'Oportunidades','✦','analise-oport')}
+  </div>`;
+  htmlContent+=analiseCard
   ${isEP()&&e.analise?.feedback_dono&&Object.keys(e.analise.feedback_dono).length?`
   <div class="card" style="margin-top:.8rem;margin-bottom:1rem">
     <div class="card-t">Revisão do Dono — Feedback da validação</div>
     <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Itens avaliados pelo dono durante a validação. O EPP pode manter itens descartados.</div>
     ${renderFeedbackEP(e.analise)}
   </div>`:''}
-  ${(e.riscos||[]).length?`<div class="card"><div class="card-t">Riscos (${e.riscos.length})</div>
+  ${((riscos)=>riscos.length?`<div class="card"><div class="card-t">Riscos (${riscos.length})</div>
     <table class="pop-tbl"><thead><tr><th>Risco</th><th>Prob.</th><th>Impacto</th></tr></thead>
-    <tbody>${(e.riscos||[]).map(r=>`<tr><td>${r.desc}</td><td>${pbBadge(r.prob)}</td><td>${ibBadge(r.imp)}</td></tr>`).join('')}</tbody></table>
+    <tbody>${riscos.map(r=>`<tr><td>${r.desc}</td><td>${pbBadge(r.prob)}</td><td>${ibBadge(r.imp)}</td></tr>`).join('')}</tbody></table>`:'')(e.riscos||[])
   </div>`:''}`;
 }
 
@@ -5106,7 +5108,9 @@ function rMon(p){
   document.getElementById('tab-mon').innerHTML=inds.length?`<div class="g3" style="gap:10px">${inds.map(d=>kpiCard(d)).join('')}</div>${audHTML}`:`<div class="ib ibb">Nenhum indicador importado. <button class="btn btn-p" style="font-size:12px;padding:4px 10px;margin-left:8px" onclick="go('indicadores',document.getElementById('nb-ind'))">Ir para indicadores →</button></div>${audHTML}`;
 }
 function rHist(p){
-  document.getElementById('tab-hist').innerHTML=`<div class="card"><div class="card-t">Histórico completo</div><div class="tl">${[...p.hist].reverse().map((h,i)=>`<div class="tl-i"><div class="tl-d ${i===0?'da':'dn'}">${i===0?'●':'✓'}</div><div><div class="tl-t">${h.acao}</div><div class="tl-m">${h.role} · ${h.data}</div></div></div>`).join('')}</div></div>`;
+  const histItems=(...args)=>`<div class="tl-i"><div class="tl-d ${args.index}">${args.icon}</div><div><div class="tl-t">${args.acao}</div><div class="tl-m">${args.role} · ${args.data}</div></div></div>`;
+  const histHtml=[...p.hist].reverse().map((h,i)=>{ const icon=i===0?'●':'✓'; const dClass=i===0?'da':'dn'; return `<div class="tl-i"><div class="tl-d ${dClass}">${icon}</div><div><div class="tl-t">${h.acao}</div><div class="tl-m">${h.role} · ${h.data}</div></div></div>`}).join('');
+  document.getElementById('tab-hist').innerHTML=`<div class="card"><div class="card-t">Histórico completo</div><div class="tl">${histHtml}</div></div>`;
 }
 
 function rReun(p){
@@ -5131,13 +5135,13 @@ function rReun(p){
 
   const fixas=TIPOS_REUN.map(t=>regCard(t.dados, t.label)).filter(Boolean).join('');
 
-  const acompHtml=acomp.length?`
-    <div style="font-weight:600;font-size:13px;margin:1rem 0 .6rem">Reuniões de acompanhamento</div>
-    ${acomp.map(r=>`
-      <div class="card" style="margin-bottom:.6rem">
+  const acompCard=(r)=>`<div class="card" style="margin-bottom:.6rem">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
           <div class="card-t" style="margin-bottom:0">Acompanhamento — ${esc(r.data||'')}</div>
-          <span class="badge ${r.conformidade==='Conforme'?'bbt':r.conformidade?.includes('Parcial')?'bba':'bbr'}">${esc(r.conformidade||'')}</span>
+          <span class="badge ${r.conformidade==='Conforme'?'bbt':r.conformidade?.includes('Parcial')?'bba':'bbr'}">${esc(r.conformidade||'')}</span>`;
+  const acompHtml=acomp.length?`
+    <div style="font-weight:600;font-size:13px;margin:1rem 0 .6rem">Reuniões de acompanhamento</div>
+    ${acomp.map(acompCard).join('')}`
         </div>
         ${r.participantes?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem">👥 ${esc(r.participantes)}</div>`:''}
         ${r.pauta?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem"><strong>Pauta:</strong> ${esc(r.pauta)}</div>`:''}
@@ -5680,10 +5684,8 @@ function rArq(){
             results.push({item:s, macroNome:m.nome, procNome:p.nome, macroId:m.id, procId:p.id, isSub:true});
           }
         });
-      } else {
-        if(itemMatchesFilters(p, m.nome, f)){
-          results.push({item:p, macroNome:m.nome, procNome:null, macroId:m.id, procId:p.id, isSub:false});
-        }
+      } else if(itemMatchesFilters(p, m.nome, f)){
+        results.push({item:p, macroNome:m.nome, procNome:null, macroId:m.id, procId:p.id, isSub:false});
       }
     });
   });
