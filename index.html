@@ -3565,25 +3565,25 @@ async function renderBpmnToPng(xml) {
             ctx2d.scale(sc, sc); ctx2d.drawImage(img, 0, 0);
             URL.revokeObjectURL(url);
             try { viewer.destroy(); } catch(e) {}
-            document.body.removeChild(wrap);
+            wrap.remove();
             resolve(c.toDataURL('image/png'));
           };
           img.onerror = () => {
             URL.revokeObjectURL(url);
             try { viewer.destroy(); } catch(e) {}
-            document.body.removeChild(wrap);
+            wrap.remove();
             resolve(null);
           };
           img.src = url;
         })
         .catch(() => {
           try { viewer.destroy(); } catch(e) {}
-          try { document.body.removeChild(wrap); } catch(e) {}
+          try { wrap.remove(); } catch(e) {}
           resolve(null);
         });
     } catch(e) {
       if (viewer) try { viewer.destroy(); } catch(e2) {}
-      try { document.body.removeChild(wrap); } catch(e2) {}
+      try { wrap.remove(); } catch(e2) {}
       resolve(null);
     }
   });
@@ -4464,8 +4464,7 @@ function renderCaminhoGw(parentPath,ci,cam,depth){
   </div>`;
 }
 
-function renderGatewaySection(path,depth){
-  depth=depth||0;
+function renderGatewaySection(path,depth=0){
   const obj=resolveGwPath(path);
   if(!obj)return '';
   if(!obj.caminhos)obj.caminhos=[];
@@ -4604,7 +4603,7 @@ let _mermaidCode = '';
 
 function etapasToMermaid(etapas){
   if(!etapas||!etapas.length) return '';
-  const safe = s => (s||'sem nome').replace(/["'<>&\[\]{}()]/g,' ').replace(/\s+/g,' ').trim().slice(0,45);
+  const safe = s => (s||'sem nome').replace(/["'<>&[\]{}()]/g,' ').replace(/\s+/g,' ').trim().slice(0,45);
   let lines = ['flowchart TD'];
   let nodeId = 0;
   const getId = () => 'N'+(nodeId++);
@@ -4773,8 +4772,8 @@ function extrairBpmn(){
   });
 
   // Monta mapa de todos os flow nodes pelo id
-  const TASK_TAGS=['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask'];
-  const GW_TAGS=['exclusivegateway','inclusivegateway','parallelgateway','complexgateway'];
+  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
+  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
   const nodeInfo={};
   xml.querySelectorAll([
     'startEvent','endEvent','intermediateThrowEvent','intermediateCatchEvent',
@@ -4786,8 +4785,8 @@ function extrairBpmn(){
     if(tag==='startevent'){tipo='Evento';subtipo='Início';desc='Evento de início do processo';}
     else if(tag==='endevent'){tipo='Evento';subtipo='Fim';desc='Evento de fim do processo';}
     else if(tag==='intermediatethrowevent'||tag==='intermediatecatchevent'){tipo='Evento';subtipo='Intermediário';}
-    else if(GW_TAGS.includes(tag)){tipo='Decisao';}
-    else if(TASK_TAGS.includes(tag)){
+    else if(GW_TAGS.has(tag)){tipo='Decisao';}
+    else if(TASK_TAGS.has(tag)){
       tipo='Atividade';
       natureza=tag==='sendtask'?'Comunicacao':'Execucao';
       modo=tag==='servicetask'||tag==='scripttask'?'Automatica':'Manual';
