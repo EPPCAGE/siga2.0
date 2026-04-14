@@ -367,6 +367,17 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <a href="#" onclick="doEsqueciSenha();return false;" style="font-size:12px;color:rgba(255,255,255,.4);text-decoration:none;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.7)'" onmouseout="this.style.color='rgba(255,255,255,.4)'">Primeiro acesso ou esqueci minha senha</a>
     </div>
     <div class="login-err" id="login-err" style="display:none"></div>
+    <div style="text-align:center;margin-top:.75rem">
+      <a href="#" onclick="document.getElementById('reg-form').style.display=document.getElementById('reg-form').style.display==='none'?'block':'none';return false;" style="font-size:12px;color:rgba(255,255,255,.4);text-decoration:none;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.7)'" onmouseout="this.style.color='rgba(255,255,255,.4)'">Não tem acesso? Solicitar acesso</a>
+    </div>
+    <div id="reg-form" style="display:none;margin-top:.9rem;border-top:1px solid rgba(255,255,255,.12);padding-top:.9rem">
+      <label class="login-label">Nome completo</label>
+      <input class="login-input" id="reg-nome" type="text" placeholder="Seu nome completo">
+      <label class="login-label" style="margin-top:.7rem">E-mail institucional</label>
+      <input class="login-input" id="reg-email" type="email" placeholder="usuario@sefaz.rs.gov.br">
+      <button class="login-btn" style="margin-top:.7rem;background:rgba(255,255,255,.15)" onclick="solicitarAcesso()">Enviar solicitação</button>
+      <div id="reg-msg" style="display:none;font-size:12px;text-align:center;margin-top:.5rem;color:#A0F2C4"></div>
+    </div>
   </div>
 </div>
 
@@ -1240,6 +1251,8 @@ let _pubIdC = 1;
 let plano = [];
 let _planoIdC = 1;
 
+let solicitacoes = [];
+
 let notifs = [];
 let ejsConfig = {service:'',template:'',pubkey:''};
 let AVISOS = [];
@@ -1363,6 +1376,28 @@ function mostrarErrLogin(msg){
   e.style.color='#F2A0A0';
   e.textContent=msg;
   e.style.display='block';
+}
+
+async function solicitarAcesso(){
+  const nome = (document.getElementById('reg-nome')?.value||'').trim();
+  const email = (document.getElementById('reg-email')?.value||'').trim().toLowerCase();
+  const msgEl = document.getElementById('reg-msg');
+  const showErr = m => { if(msgEl){msgEl.style.color='#F2A0A0';msgEl.textContent=m;msgEl.style.display='block';} };
+  if(!nome){showErr('Informe seu nome completo.');return;}
+  if(!email){showErr('Informe seu e-mail institucional.');return;}
+  const dominio = email.split('@')[1]||'';
+  if(!DOMINIOS_PERMITIDOS.includes(dominio)){showErr('Use um e-mail institucional válido ('+DOMINIOS_PERMITIDOS.join(' ou ')+').');return;}
+  if(USUARIOS.find(u=>u.email===email)){showErr('Este e-mail já possui acesso ao sistema.');return;}
+  if(!fbReady()){showErr('Firebase não configurado.');return;}
+  try {
+    const {db, doc, setDoc} = fb();
+    await setDoc(doc(db,'solicitacoes',email),{email, nome, status:'pendente', solicitado_em: now()});
+    if(msgEl){msgEl.style.color='#A0F2C4';msgEl.textContent='Solicitação enviada! Aguarde a aprovação do EPP.';msgEl.style.display='block';}
+    document.getElementById('reg-nome').value='';
+    document.getElementById('reg-email').value='';
+  } catch(e){
+    showErr('Erro ao enviar solicitação: '+e.message);
+  }
 }
 
 async function doLogout(){
@@ -1773,7 +1808,22 @@ function aplicarPermissoes(){
 
   // Admin nav — only EP
   const nbAdmin = document.getElementById('nb-admin');
-  if(nbAdmin) nbAdmin.style.display = isEP() ? '' : 'none';
+  if(nbAdmin){
+    nbAdmin.style.display = isEP() ? '' : 'none';
+    const pendCount = solicitacoes.filter(s=>s.status==='pendente').length;
+    let badgeEl = nbAdmin.querySelector('.sol-badge');
+    if(pendCount>0 && isEP()){
+      if(!badgeEl){
+        badgeEl = document.createElement('span');
+        badgeEl.className = 'nav-cnt hot sol-badge';
+        nbAdmin.appendChild(badgeEl);
+      }
+      badgeEl.textContent = pendCount;
+      badgeEl.style.display = '';
+    } else if(badgeEl){
+      badgeEl.style.display = 'none';
+    }
+  }
   // Auditoria nav — only EP
   const nbAud = document.getElementById('nb-aud');
   if(nbAud) nbAud.style.display = isEP() ? '' : 'none';
@@ -6598,6 +6648,40 @@ function filtUsr(p, el){
 
 function renderAdmin(){
   if(!isEP()){document.getElementById('usr-tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:1rem">Acesso restrito ao EPP.</td></tr>';return;}
+
+  // Pending access requests
+  const pendentes = solicitacoes.filter(s=>s.status==='pendente');
+  let solSec = document.getElementById('sol-acesso-sec');
+  if(!solSec){
+    solSec = document.createElement('div');
+    solSec.id = 'sol-acesso-sec';
+    const tbl = document.getElementById('usr-tbody');
+    if(tbl) tbl.closest('table')?.parentElement?.insertBefore(solSec, tbl.closest('table'));
+  }
+  if(pendentes.length){
+    solSec.innerHTML = `<div class="card" style="margin-bottom:1.2rem;border-left:3px solid var(--red)">
+      <div style="font-weight:600;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem">
+        Solicitações de acesso pendentes
+        <span class="badge" style="background:var(--red);color:#fff">${pendentes.length}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        ${pendentes.map(s=>`<tr style="border-bottom:1px solid var(--bg3)">
+          <td style="padding:6px 8px;font-weight:500">${s.nome}</td>
+          <td style="padding:6px 8px;color:var(--ink3)">${s.email}</td>
+          <td style="padding:6px 8px;color:var(--ink4);font-size:11px">${s.solicitado_em?new Date(s.solicitado_em).toLocaleDateString('pt-BR'):''}</td>
+          <td style="padding:6px 8px;white-space:nowrap">
+            <button class="btn btn-p" style="font-size:11px;padding:3px 8px;margin-right:4px" onclick="aprovarSolicitacao('${s.email}')">Aprovar</button>
+            <button class="btn" style="font-size:11px;padding:3px 8px;background:var(--red-l);color:var(--red)" onclick="rejeitarSolicitacao('${s.email}')">Rejeitar</button>
+          </td>
+        </tr>`).join('')}
+      </table>
+    </div>`;
+    solSec.style.display = '';
+  } else {
+    solSec.innerHTML = '';
+    solSec.style.display = 'none';
+  }
+
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
     (!filtUsrPerfil||u.perfil===filtUsrPerfil) &&
@@ -6627,6 +6711,44 @@ function renderAdmin(){
       <td><button class="btn" style="font-size:11px;padding:3px 8px" onclick="abrirModalUsr(${idx})">Editar</button></td>
     </tr>`;
   }).join('');
+}
+
+async function aprovarSolicitacao(email){
+  const sol = solicitacoes.find(s=>s.email===email);
+  if(!sol) return;
+  const nome = sol.nome||'';
+  const palavras = nome.trim().split(/\s+/).filter(Boolean);
+  const iniciais = (palavras.length>=2 ? palavras[0][0]+palavras[palavras.length-1][0] : (palavras[0]||'?').slice(0,2)).toUpperCase();
+  USUARIOS.push({email, nome, perfil:'dono', iniciais, processos_vinculados:[]});
+  if(!fbReady()){toast('Firebase não configurado.','red');return;}
+  try {
+    const {db, doc, setDoc, auth, sendPasswordResetEmail} = fb();
+    await setDoc(doc(db,'solicitacoes',email),{...sol, status:'aprovado'});
+    solicitacoes = solicitacoes.map(s=>s.email===email?{...s,status:'aprovado'}:s);
+    await fbSaveAll();
+    try { await sendPasswordResetEmail(auth, email); } catch(e2){ console.warn('sendPasswordResetEmail:', e2.message); }
+    toast('Usuário aprovado! Link de acesso enviado para o e-mail.','green');
+    renderAdmin();
+    aplicarPermissoes();
+  } catch(e){
+    USUARIOS.pop();
+    toast('Erro ao aprovar: '+e.message,'red');
+  }
+}
+
+async function rejeitarSolicitacao(email){
+  if(!fbReady()){toast('Firebase não configurado.','red');return;}
+  try {
+    const {db, doc, setDoc} = fb();
+    const sol = solicitacoes.find(s=>s.email===email)||{email, status:'rejeitado'};
+    await setDoc(doc(db,'solicitacoes',email),{...sol, status:'rejeitado'});
+    solicitacoes = solicitacoes.filter(s=>s.email!==email);
+    toast('Solicitação rejeitada.','red');
+    renderAdmin();
+    aplicarPermissoes();
+  } catch(e){
+    toast('Erro ao rejeitar: '+e.message,'red');
+  }
 }
 
 function onUsrPerfilChg(){
@@ -7225,6 +7347,13 @@ async function fbLoad(){
       plano = [];
       planoSnap.forEach(d => plano.push(d.data()));
       _planoIdC = Math.max(...plano.map(a=>a.id), 0) + 1;
+    }
+
+    // solicitacoes de acesso
+    const solSnap = await getDocs(collection(db,'solicitacoes'));
+    if(!solSnap.empty){
+      solicitacoes = [];
+      solSnap.forEach(d => solicitacoes.push(d.data()));
     }
 
     // publicacoes
