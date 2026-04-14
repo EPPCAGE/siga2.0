@@ -7071,10 +7071,15 @@ function salvarAtividade(){
   toast(id?'Atividade atualizada':'Atividade criada');
 }
 
-function deletarAtividade(id){
+async function deletarAtividade(id){
   if(!confirm('Excluir esta atividade do plano?')) return;
   plano = plano.filter(a=>a.id!==id);
-  fbSaveAll();
+  if(fbReady()){
+    try {
+      const {db, doc, deleteDoc} = fb();
+      await deleteDoc(doc(db,'plano',String(id)));
+    } catch(e){ console.warn('deletarAtividade error:', e.message); }
+  }
   rPlano();
   toast('Atividade excluída','var(--amber)');
 }
