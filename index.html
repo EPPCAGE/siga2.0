@@ -6482,16 +6482,12 @@ function kpiGrupoCardHTML(key, items){
   const nome = items[0].nome;
   const polaridade = items[0].polaridade||'Maior é melhor';
   const area = items[0].area||'';
-  const editBtns = items.length === 1
-    ? `<button class="btn" style="font-size:11px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button>`
-    : `<div style="display:flex;gap:4px;flex-wrap:wrap">${items.map(i=>`<button class="btn" style="font-size:10px;padding:1px 6px" onclick="editKpi(${i.id})" title="Editar período ${esc(i.periodo||'?')}">${esc(i.periodo||'?')}</button>`).join('')}</div>`;
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;gap:8px;flex-wrap:wrap">
       <div>
         <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}</div>
         <div style="font-size:14px;font-weight:600;color:var(--ink)">${esc(nome)}</div>
       </div>
-      <div style="flex-shrink:0">${isEP()?editBtns:''}</div>
     </div>
     <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
   </div>`;
