@@ -6772,7 +6772,12 @@ function salvarNovoKpi(){
   }
   document.getElementById('novo-kpi-modal').style.display = 'none';
   fbAutoSave('salvarKpi');
-  rInd(); toast('Indicador salvo');
+  rInd();
+  // Also update graphics tab if it's active
+  if(document.getElementById('ind-tab-graficos').classList.contains('on')){
+    rIndGraficos();
+  }
+  toast('Indicador salvo');
 }
 
 function deletarKpi(id){
