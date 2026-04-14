@@ -1224,7 +1224,7 @@ function etLb(id){return ETAPAS.find(e=>e.id===id)?.lb||id;}
 function nextEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.id===id);return i>=0&&i<et.length-1?et[i+1].id:null;}
 function fBadge(etId){const f=etFase(etId);return '<span class="badge '+(FASE_COR[f]||'bgr')+'">'+f+'</span>';}
 function eBadge(etId){return '<span class="badge '+(EBADGE[etId]||'bgr')+'">'+etLb(etId)+'</span>';}
-function _pBadgeCls(p){if(p==='Critica')return 'br';if(p==='Alta')return 'ba';return 'bgr';}
+function _pBadgeCls(p){if(p==='Critica'){return 'br';}if(p==='Alta'){return 'ba';}return 'bgr';}
 function pBadge(p){return '<span class="badge '+_pBadgeCls(p)+'">'+p+'</span>';}
 
 // QUESTIONÁRIO DE MATURIDADE — 15 perguntas, 6 dimensões
@@ -1469,7 +1469,7 @@ function _enviarSenhaAcesso(email, nome, senha){
       processo: 'EP·CAGE — Acesso liberado',
       acao: 'Seu acesso ao sistema EP·CAGE foi aprovado.\n\nSua senha temporária: ' + senha + '\n\nAcesse o sistema e altere sua senha no primeiro login.',
       prazo: 'Alterar a senha no primeiro acesso',
-      link: globalThis.CONFIG?.AI_FUNCTION_URL ? 'https://eppcage.github.io/siga2.0/' : 'https://eppcage.github.io/siga2.0/',
+      link: 'https://eppcage.github.io/siga2.0/',
     }).then(()=>console.info('Senha temporária enviada para', email))
       .catch(err=>console.warn('EmailJS erro ao enviar senha:', err?.text||err?.message));
   } else {
@@ -1707,7 +1707,7 @@ function rNotif(){
     : '<div style="font-size:12px;color:var(--ink3)">Nenhuma notificação.</div>';
   if(isEP()){setTimeout(injectAiConfigField, 100);}
 }
-function marcarLida(id){const n=notifs.find(x=>x.id===id);if(n)n.lida=true;updCounts();rNotif();}
+function marcarLida(id){const n=notifs.find(x=>x.id===id);if(n){n.lida=true;}updCounts();rNotif();}
 function limparNotifs(){notifs=notifs.filter(n=>!n.lida);updCounts();rNotif();}
 
 // ═══════════════════════════════════════════
@@ -2456,7 +2456,7 @@ function salvarMelhorias(){
   const fb={};
   (globalThis._dfbItems||[]).forEach(({tipo,texto})=>{
     const val=globalThis._dfb?.[tipo]?.[texto];
-    if(val){if(!fb[tipo])fb[tipo]={};fb[tipo][texto]=val;}
+    if(val){if(!fb[tipo]){fb[tipo]={};} fb[tipo][texto]=val;}
   });
   p.ent.analise.feedback_dono=fb;
   av('melhorias','EP','Melhorias e mitigações revisadas pelo EP');
@@ -2614,7 +2614,6 @@ const ACOES = {
       const a=p.ent.analise||{};
       const bpmnOk=!!(p.mod?.bpmnAsIs||p.mod?.asIs);
       // ── Derivar valores automaticamente das etapas anteriores ──
-      const etapas=p.mod?.etapas_proc||[];
       function _iaSection(lbl,items,style){
         if(!items?.length)return'';
         const liHtml=items.map(i=>'<li>'+esc(i)+'</li>').join('');
@@ -2913,7 +2912,7 @@ const ACOES = {
           <div style="color:var(--ink3);margin-top:.2rem">${a.descricao}</div>
           ${a.evidencia?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Evidência: ${a.evidencia}</div>`:''}
         </div>`).join(''):'';
-      function _acaoBadgeCls(s){if(s==='Concluída')return'bg';if(s==='Em andamento')return'ba';return'bt';}
+      function _acaoBadgeCls(s){if(s==='Concluída'){return'bg';}if(s==='Em andamento'){return'ba';}return'bt';}
       const acoesHtml=acoes.length?acoes.map((a,i)=>`
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -3096,8 +3095,8 @@ function salvarRetroativo(etId){
       if(!p.ent.vol)p.ent.vol={};
       p.ent.vol.exec=document.getElementById('r-exec')?.value||p.ent.vol.exec;
       const tc=Number.parseFloat(document.getElementById('r-tciclo')?.value);const tr=Number.parseFloat(document.getElementById('r-treal')?.value);
-      if(!Number.isNaN(tc))p.ent.t_ciclo=tc;if(!Number.isNaN(tr))p.ent.t_real=tr;
-      if(p.ent.t_ciclo!=null&&p.ent.t_real!=null)p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
+      if(!Number.isNaN(tc)){p.ent.t_ciclo=tc;}if(!Number.isNaN(tr)){p.ent.t_real=tr;}
+      if(p.ent.t_ciclo!=null&&p.ent.t_real!=null){p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);}
       const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
       if(prob.length){p.ent.prob=prob;}
     },
@@ -3117,7 +3116,7 @@ function salvarRetroativo(etId){
       // Campos de detalhe de etapas são salvos live via detalharEtapa()
       // Apenas captura observações textuais se presentes
       const obs=document.getElementById('aobs')?.value||'';
-      if(obs){if(!p.ent.analise)p.ent.analise={};p.ent.analise.obs_valid_asis=obs;}
+      if(obs){if(!p.ent.analise){p.ent.analise={};} p.ent.analise.obs_valid_asis=obs;}
     },
     det_valid_tobe:()=>{
       if(!p.mod)p.mod={};
@@ -3126,7 +3125,7 @@ function salvarRetroativo(etId){
       const ata=document.getElementById('vtb-ata')?.value||'';
       const obs=document.getElementById('vtb-obs')?.value||'';
       if(dt||part||ata){p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};}
-      if(obs){if(!p.mod.obs_valid_tobe)p.mod.obs_valid_tobe='';p.mod.obs_valid_tobe=obs;}
+      if(obs){if(!p.mod.obs_valid_tobe){p.mod.obs_valid_tobe='';} p.mod.obs_valid_tobe=obs;}
     },
     apresentacao:()=>{
       if(!p.form)p.form={};
@@ -3201,7 +3200,7 @@ function salvarRetroativo(etId){
       const fb={};
       (globalThis._dfbItems||[]).forEach(({tipo,texto})=>{
         const val=globalThis._dfb?.[tipo]?.[texto];
-        if(val){if(!fb[tipo])fb[tipo]={};fb[tipo][texto]=val;}
+        if(val){if(!fb[tipo]){fb[tipo]={};} fb[tipo][texto]=val;}
       });
       // Preserva feedback existente e mescla com o atual
       const existing=p.ent.analise.feedback_dono||{};
@@ -3357,7 +3356,7 @@ function mostrarResultadoMaturidade(p,nivel,media){
   const ML=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
   // Calcula nota por dimensão
   const dims={};
-  QUESTOES.forEach(q=>{if(!dims[q.dim])dims[q.dim]={sum:0,cnt:0};if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
+  QUESTOES.forEach(q=>{if(!dims[q.dim]){dims[q.dim]={sum:0,cnt:0};} if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
   const corNivel=['','var(--red)','var(--amber)','var(--amber)','var(--teal)','var(--green)'][nivel]||'var(--blue)';
   const dimRows=Object.entries(dims).map(([dim,d])=>{
     const nota=d.cnt>0?(d.sum/d.cnt):0;
@@ -3718,7 +3717,7 @@ async function gerarFAQIA(){
       toast('FAQ gerado! Revise e edite conforme necessário.','var(--teal)');
     }
   } catch(e){ toast('Erro ao gerar FAQ: '+e.message,'var(--red)'); }
-  finally{ if(btn) btn.disabled=false; if(st) st.textContent=''; }
+  finally{ if(btn){btn.disabled=false;} if(st){st.textContent='';} }
 }
 
 async function gerarPOPPPT() {
@@ -4425,7 +4424,7 @@ function visPopPreview(){
 function gerarAtivPop(etapas){
   if(!etapas||!etapas.length)return '';
   const grupos={};
-  etapas.forEach(e=>{if(!grupos[e.executor])grupos[e.executor]=[];grupos[e.executor].push(e);});
+  etapas.forEach(e=>{if(!grupos[e.executor]){grupos[e.executor]=[];} grupos[e.executor].push(e);});
   return Object.entries(grupos).map(([exec,ets])=>exec+'\n'+ets.map(e=>'- '+e.nome+(e.desc?' ('+e.desc+')':'')).join('\n')).join('\n\n');
 }
 function popAtivCards(p){
@@ -4906,7 +4905,7 @@ function extrairBpmn(){
   const outgoing={};
   xml.querySelectorAll('sequenceFlow').forEach(sf=>{
     const src=sf.getAttribute('sourceRef'), tgt=sf.getAttribute('targetRef');
-    if(src&&tgt){if(!outgoing[src])outgoing[src]=[];outgoing[src].push(tgt);}
+    if(src&&tgt){if(!outgoing[src]){outgoing[src]=[];} outgoing[src].push(tgt);}
   });
 
   // BFS a partir dos eventos de início, respeitando a ordem dos sequenceFlows
@@ -5205,11 +5204,11 @@ function salvarReuniaoAvulsa(){
   } else {
     // Salva no local correto baseado no tipo
     const paths={
-      reuniao_entendimento:()=>{if(!p.ent)p.ent={};p.ent.reuniao_entendimento=obj;},
-      reuniao_valid_asis:()=>{if(!p.ent.analise)p.ent.analise={};p.ent.analise.reuniao_valid_asis=obj;},
-      reuniao_valid_tobe:()=>{if(!p.mod)p.mod={};p.mod.reuniao_valid_tobe=obj;},
-      reuniao_complement:()=>{if(!p.form)p.form={};p.form.reuniao_complement=obj;},
-      reuniao_apresentacao:()=>{if(!p.form)p.form={};p.form.reuniao_apresentacao=obj;},
+      reuniao_entendimento:()=>{if(!p.ent){p.ent={};} p.ent.reuniao_entendimento=obj;},
+      reuniao_valid_asis:()=>{if(!p.ent.analise){p.ent.analise={};} p.ent.analise.reuniao_valid_asis=obj;},
+      reuniao_valid_tobe:()=>{if(!p.mod){p.mod={};} p.mod.reuniao_valid_tobe=obj;},
+      reuniao_complement:()=>{if(!p.form){p.form={};} p.form.reuniao_complement=obj;},
+      reuniao_apresentacao:()=>{if(!p.form){p.form={};} p.form.reuniao_apresentacao=obj;},
     };
     if(paths[tipo]) paths[tipo]();
   }
@@ -5295,11 +5294,11 @@ function bpmnSave(which){
     toast('✓ Fluxo '+which.toUpperCase()+' salvo no servidor');
   }).catch(err=>alert('Erro ao salvar: '+(err.message||err)));
 }
-function bpmnZ(which,dir){const m=bpmnModelers[which];if(!m)return;try{m.get('zoomScroll').zoom(dir,{x:400,y:240});}catch(e){}}
-function bpmnFit(which){const m=bpmnModelers[which];if(!m)return;try{m.get('canvas').zoom('fit-viewport');}catch(e){}}
-function bpmnUndo(which){const m=bpmnModelers[which];if(!m)return;try{m.get('commandStack').undo();}catch(e){}}
+function bpmnZ(which,dir){const m=bpmnModelers[which];if(!m){return;}try{m.get('zoomScroll').zoom(dir,{x:400,y:240});}catch(e){}}
+function bpmnFit(which){const m=bpmnModelers[which];if(!m){return;}try{m.get('canvas').zoom('fit-viewport');}catch(e){}}
+function bpmnUndo(which){const m=bpmnModelers[which];if(!m){return;}try{m.get('commandStack').undo();}catch(e){}}
 function bpmnExport(which){
-  const m=bpmnModelers[which];if(!m||!curProc)return;
+  const m=bpmnModelers[which];if(!m||!curProc){return;}
   m.saveXML({format:true}).then(({xml})=>{
     const b=new Blob([xml],{type:'text/xml'});const a=document.createElement('a');
     a.href=URL.createObjectURL(b);a.download=curProc.nome.replace(/\s+/g,'_').slice(0,30)+'_'+which+'.bpmn';a.click();
@@ -5568,7 +5567,7 @@ function addRisco(){
   document.getElementById('rd').value='';document.getElementById('rp').value='';document.getElementById('ri').value='';
   atualizarRiscoUI();
 }
-function remR(i){if(!curProc?.ent?.riscos)return;curProc.ent.riscos.splice(i,1);atualizarRiscoUI();}
+function remR(i){if(!curProc?.ent?.riscos){return;} curProc.ent.riscos.splice(i,1);atualizarRiscoUI();}
 
 // ═══════════════════════════════════════════
 // ARQUITETURA DE PROCESSOS
@@ -5982,11 +5981,11 @@ function salvarModalMeta(){
 
 function toggleEl(id,chvId){
   const el=document.getElementById(id),chv=document.getElementById(chvId);
-  if(!el)return;const open=el.style.display!=='none';
+  if(!el){return;}const open=el.style.display!=='none';
   el.style.display=open?'none':'block';
-  if(chv)chv.classList.toggle('open',!open);
+  if(chv){chv.classList.toggle('open',!open);}
 }
-function novoMacro(){if(!isEP()){alert('Ação restrita ao EP.');return;}const n=prompt('Nome do macroprocesso:');if(!n)return;ARQUITETURA.push({id:'m'+arqIdC++,nome:n,processos:[]});rArq();}
+function novoMacro(){if(!isEP()){alert('Ação restrita ao EP.');return;}const n=prompt('Nome do macroprocesso:');if(!n){return;}ARQUITETURA.push({id:'m'+arqIdC++,nome:n,processos:[]});rArq();}
 
 function removerMacro(mid){
   if(!isEP()){alert('Ação restrita ao EP.');return;}
@@ -6031,11 +6030,11 @@ function removerProcArq(mid, pid){
   rArq();
   toast('Processo removido','var(--amber)');
 }
-function editMacro(mid){const m=ARQUITETURA.find(x=>x.id===mid);if(!m)return;const n=prompt('Nome:',m.nome);if(n){m.nome=n;rArq();}}
+function editMacro(mid){const m=ARQUITETURA.find(x=>x.id===mid);if(!m){return;}const n=prompt('Nome:',m.nome);if(n){m.nome=n;rArq();}}
 function novoProcArq(mid){
   if(!isEP()){alert('Ação restrita ao EP.');return;}
-  const m=ARQUITETURA.find(x=>x.id===mid);if(!m)return;
-  const n=prompt('Nome do processo:');if(!n)return;
+  const m=ARQUITETURA.find(x=>x.id===mid);if(!m){return;}
+  const n=prompt('Nome do processo:');if(!n){return;}
   const area=prompt('Área responsável:')||'';
   const ger=prompt('Gerente do processo:')||'';
   const obj=prompt('Objetivo do processo:')||'';
