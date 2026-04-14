@@ -1,1 +1,30 @@
-{"functions":{"source":"functions","runtime":"nodejs20"}}
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "functions/**",
+      "node_modules/**",
+      ".github/**",
+      "config.local.js",
+      "package.json",
+      "package-lock.json",
+      "sonar-project.properties",
+      "README.md",
+      "SETUP_LOCAL.md",
+      "index.js"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
+
