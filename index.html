@@ -2049,10 +2049,9 @@ function filtrarProcArq(){
         if(!jaAbertos.includes(s.id))
           opcoes.push({id:s.id,label:p.nome+' › '+s.nome,parentId:p.id,isSub:true});
       });
-    } else {
+    } else if(!jaAbertos.includes(p.id)) {
       // process itself is mappable
-      if(!jaAbertos.includes(p.id))
-        opcoes.push({id:p.id,label:p.nome,parentId:null,isSub:false});
+      opcoes.push({id:p.id,label:p.nome,parentId:null,isSub:false});
     }
   });
   if(!opcoes.length){
@@ -2327,7 +2326,7 @@ function aprovarDetValidAsis(){
   const dt=document.getElementById('va-dt')?.value||'';
   const part=document.getElementById('va-part')?.value||'';
   const ata=document.getElementById('va-ata')?.value||'';
-  if(dt||part||ata) p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};
+  if(dt||part||ata){p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};}
   avDono('det_valid_asis','Dono do processo','Detalhamento e validação AS IS concluídos pelo dono',null);
 }
 function reprovarDetValidAsis(){
@@ -2337,7 +2336,7 @@ function reprovarDetValidAsis(){
   const part=document.getElementById('va-part')?.value||'';
   const ata=document.getElementById('va-ata')?.value||'';
   const obs=document.getElementById('aobs')?.value||'';
-  if(dt||part||ata) p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};
+  if(dt||part||ata){p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};}
   reprovarDono('esboco_asis','Dono','Dono solicitou ajustes no AS IS'+(obs?' — '+obs:''));
 }
 function salvarMelhorias(){
@@ -2507,16 +2506,6 @@ const ACOES = {
       const etapas=p.mod?.etapas_proc||[];
       const qtdAtivDeriv=etapas.filter(e=>!e.tipo||e.tipo==='Atividade').length;
       const qtdDecDeriv=etapas.filter(e=>e.tipo==='Decisao').length;
-      const fmtH=v=>(v!=null&&v!=='')?v+' h':'';
-      const tCicloVal=a.t_ciclo_medio||(p.ent.t_ciclo!=null?fmtH(p.ent.t_ciclo):'');
-      const tEsperaVal=a.t_espera_medio||(p.ent.t_gaveta!=null?fmtH(p.ent.t_gaveta):'');
-      const qtdAtivVal=a.qtd_atividades||qtdAtivDeriv||'';
-      const qtdDecVal=a.qtd_decisoes||qtdDecDeriv||'';
-      const badge=(src)=>`<span style="font-size:9px;font-weight:600;color:var(--teal);background:var(--teal-l);border-radius:4px;padding:1px 5px;margin-left:5px">← ${src}</span>`;
-      const autoTCiclo=!a.t_ciclo_medio&&p.ent.t_ciclo!=null;
-      const autoTEsp=!a.t_espera_medio&&p.ent.t_gaveta!=null;
-      const autoAtiv=!a.qtd_atividades&&qtdAtivDeriv>0;
-      const autoDec=!a.qtd_decisoes&&qtdDecDeriv>0;
       return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN, etapas mapeadas e dados do processo.</div>
         ${bpmnOk?'':'<div class="ib ibr">⚠ Mapeamento BPMN ainda não realizado. A análise será limitada.</div>'}
         <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
@@ -2555,7 +2544,6 @@ const ACOES = {
 
   det_valid_asis:{titulo:'Detalhamento e Validação AS IS',sub:'O dono detalha as etapas do fluxo e valida o desenho AS IS elaborado pelo EP.',role:'Dono do processo',rk:'dono',
     form:p=>{
-      const rv=p.ent.analise?.reuniao_valid_asis||{};
       return `<div class="ib ibt" style="margin-bottom:1.2rem">
         <div style="font-weight:600;margin-bottom:.4rem">Suas responsabilidades nesta etapa:</div>
         <ul style="font-size:13px;line-height:1.8;margin:.2rem 0 0 1.2rem;padding:0">
@@ -2930,7 +2918,6 @@ function rAcaoRetro(){
   const ac=ACOES[etId];
   if(!ac)return;
   const idxRetro=etIdx(etId),idxAtual=etIdx(p.etapa);
-  const isPast=idxRetro<idxAtual;
   document.getElementById('tab-acao').innerHTML=`
     <div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-size:13px">👁 <strong>Visualizando:</strong> ${ac.titulo}</span>
@@ -2974,7 +2961,7 @@ function salvarRetroativo(etId){
       if(!isNaN(tc))p.ent.t_ciclo=tc;if(!isNaN(tr))p.ent.t_real=tr;
       if(p.ent.t_ciclo!=null&&p.ent.t_real!=null)p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
       const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-      if(prob.length) p.ent.prob=prob;
+      if(prob.length){p.ent.prob=prob;}
     },
     riscos:()=>{/* riscos already stored live via addRisco/remR */},
     esboco_asis:()=>{
@@ -3000,7 +2987,7 @@ function salvarRetroativo(etId){
       const part=document.getElementById('vtb-part')?.value||'';
       const ata=document.getElementById('vtb-ata')?.value||'';
       const obs=document.getElementById('vtb-obs')?.value||'';
-      if(dt||part||ata) p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
+      if(dt||part||ata){p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};}
       if(obs){if(!p.mod.obs_valid_tobe)p.mod.obs_valid_tobe='';p.mod.obs_valid_tobe=obs;}
     },
     apresentacao:()=>{
@@ -3008,7 +2995,7 @@ function salvarRetroativo(etId){
       const dt=document.getElementById('adt')?.value||'';
       const part=document.getElementById('apart')?.value||'';
       const ata=document.getElementById('apr-ata')?.value||'';
-      if(dt||part||ata) p.form.reuniao_apresentacao={data:dt,participantes:part,ata};
+      if(dt||part||ata){p.form.reuniao_apresentacao={data:dt,participantes:part,ata};}
       const obs=document.getElementById('aobs')?.value||'';
       if(obs) p.form.obs_apresentacao=obs;
     },
@@ -3084,7 +3071,7 @@ function salvarRetroativo(etId){
       p.ent.analise.feedback_dono=existing;
     },
   };
-  if(saves[etId]) saves[etId]();
+  if(saves[etId]){saves[etId]();}
   push(p,etId,'EP','Dados revisados retroativamente pelo EP');
   epRetroEtapa=null;
   toast('Revisão salva.','var(--blue)');
@@ -3234,7 +3221,6 @@ function mostrarResultadoMaturidade(p,nivel,media){
   const dims={};
   QUESTOES.forEach(q=>{if(!dims[q.dim])dims[q.dim]={sum:0,cnt:0};if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
   const corNivel=['','var(--red)','var(--amber)','var(--amber)','var(--teal)','var(--green)'][nivel]||'var(--blue)';
-  const barCols={1:'#ef4444',2:'#f97316',3:'#eab308',4:'#22c55e',5:'#16a34a'};
   const dimRows=Object.entries(dims).map(([dim,d])=>{
     const nota=d.cnt>0?(d.sum/d.cnt):0;
     const pct=Math.round(nota/5*100);
@@ -3309,8 +3295,8 @@ async function iaGerarRiscos(){
     });
     atualizarRiscoUI();
     if(statusEl)statusEl.textContent=adicionados+' riscos adicionados pela IA';
-  } else {
-    if(statusEl)statusEl.textContent='Erro ao gerar riscos.';
+  } else if(statusEl) {
+    statusEl.textContent='Erro ao gerar riscos.';
   }
 }
 function salvarRiscos(){
