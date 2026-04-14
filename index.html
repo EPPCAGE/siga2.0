@@ -2507,19 +2507,26 @@ const ACOES = {
       const etapas=p.mod?.etapas_proc||[];
       const qtdAtivDeriv=etapas.filter(e=>!e.tipo||e.tipo==='Atividade').length;
       const qtdDecDeriv=etapas.filter(e=>e.tipo==='Decisao').length;
+      function _iaSection(lbl,items,style){
+        if(!items?.length)return'';
+        const liHtml=items.map(i=>'<li>'+esc(i)+'</li>').join('');
+        return '<div class="ai-result-lbl" style="margin-top:.8rem'+( style?';'+style:'')+'">'+lbl+'</div><ul>'+liHtml+'</ul>';
+      }
+      const iaHtml=a.ia_resultado?('<div class="ai-result">'
+        +(a.ia_resultado.resumo?'<div class="ai-result-lbl">Resumo</div><p>'+esc(a.ia_resultado.resumo)+'</p>':'')
+        +_iaSection('Gargalos',a.ia_resultado.gargalos)
+        +_iaSection('Retrabalhos',a.ia_resultado.retrabalhos)
+        +_iaSection('Gaps de controle',a.ia_resultado.gaps)
+        +_iaSection('Oportunidades',a.ia_resultado.oportunidades)
+        +(a.ia_resultado.complexidade?'<div class="ai-result-lbl" style="margin-top:.8rem">Complexidade</div><p>'+esc(a.ia_resultado.complexidade)+'</p>':'')
+        +_iaSection('💡 Soluções para problemas levantados',a.ia_resultado.solucoes_problemas,'color:var(--teal)')
+        +_iaSection('🛡 Propostas de mitigação de riscos',a.ia_resultado.mitigacoes_riscos,'color:var(--amber)')
+        +'</div>')
+        :'<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>';
       return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN, etapas mapeadas e dados do processo.</div>
         ${bpmnOk?'':'<div class="ib ibr">⚠ Mapeamento BPMN ainda não realizado. A análise será limitada.</div>'}
         <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
-        <div id="ia-analise-result">${a.ia_resultado?`<div class="ai-result">
-            ${a.ia_resultado.resumo?`<div class="ai-result-lbl">Resumo</div><p>${esc(a.ia_resultado.resumo)}</p>`:''}
-            ${a.ia_resultado.gargalos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Gargalos</div><ul>${a.ia_resultado.gargalos.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>`:''}
-            ${a.ia_resultado.retrabalhos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Retrabalhos</div><ul>${a.ia_resultado.retrabalhos.map(r=>`<li>${esc(r)}</li>`).join('')}</ul>`:''}
-            ${a.ia_resultado.gaps?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Gaps de controle</div><ul>${a.ia_resultado.gaps.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>`:''}
-            ${a.ia_resultado.oportunidades?.length?`<div class="ai-result-lbl" style="margin-top:.8rem">Oportunidades</div><ul>${a.ia_resultado.oportunidades.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>`:''}
-            ${a.ia_resultado.complexidade?`<div class="ai-result-lbl" style="margin-top:.8rem">Complexidade</div><p>${esc(a.ia_resultado.complexidade)}</p>`:''}
-            ${a.ia_resultado.solucoes_problemas?.length?`<div class="ai-result-lbl" style="margin-top:.8rem;color:var(--teal)">💡 Soluções para problemas levantados</div><ul>${a.ia_resultado.solucoes_problemas.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:''}
-            ${a.ia_resultado.mitigacoes_riscos?.length?`<div class="ai-result-lbl" style="margin-top:.8rem;color:var(--amber)">🛡 Propostas de mitigação de riscos</div><ul>${a.ia_resultado.mitigacoes_riscos.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:''}
-          </div>`:'<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>'}</div>
+        <div id="ia-analise-result">${iaHtml}</div>
         <div class="btn-row" style="margin-top:.8rem">
           ${a.ia_resultado
             ? `<button class="btn btn-t" onclick="confirmarRegenerarAnalise()" title="Sobrescreve a análise atual com uma nova geração">🔄 Regenerar análise com IA</button>`
@@ -2622,16 +2629,22 @@ const ACOES = {
       window._dfb={};window._dfbItems=[];
       const savedFb=a.feedback_dono||{};
       Object.keys(savedFb).forEach(t=>{window._dfb[t]={...savedFb[t]};});
+      function _dfbBlock(cls,label,arr,key,emoji){
+        if(!arr.length)return'';
+        return '<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat '+cls+'">'+label+' ('+arr.length+')</div>'+arr.map(x=>dfbRow(key,x,emoji)).join('')+'</div>';
+      }
+      const resumoHtml=ia.resumo?'<div class="card" style="margin-bottom:.8rem"><div class="card-t">Resumo da análise</div><div style="font-size:13px;color:var(--ink2);line-height:1.7">'+esc(ia.resumo)+'</div></div>':'';
+      const analiseHtml=temAnalise
+        ?(resumoHtml
+          +_dfbBlock('analise-gar','Gargalos',gargalos,'gargalos','⚠')
+          +_dfbBlock('analise-ret','Retrabalhos',retrabalhos,'retrabalhos','↩')
+          +_dfbBlock('analise-gap','Pontos cegos',gaps,'gaps','○')
+          +_dfbBlock('analise-oport','Oportunidades',oportunidades,'oportunidades','✦')
+          +'<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--teal-l);color:var(--teal)">Soluções propostas ('+solucoes.length+')</div>'+solucoes.map(s=>dfbRow('solucoes_problemas',s,'💡')).join('')+'</div>'
+          +'<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--amber-l);color:var(--amber)">Mitigações de riscos ('+mitigacoes.length+')</div>'+mitigacoes.map(m=>dfbRow('mitigacoes_riscos',m,'🛡')).join('')+'</div>')
+        :'<div class="ib iba">Análise inteligente ainda não gerada. Execute a etapa de Análise inteligente antes.</div>';
       return `<div class="ib ibp" style="margin-bottom:1.2rem">Com base na análise inteligente e nos riscos identificados, confirme (✓) os itens que serão trabalhados como melhorias ou descarte (✗) os que não se aplicam.</div>
-      ${temAnalise?`
-        ${ia.resumo?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Resumo da análise</div><div style="font-size:13px;color:var(--ink2);line-height:1.7">${esc(ia.resumo)}</div></div>`:''}
-        ${gargalos.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-gar">Gargalos (${gargalos.length})</div>${gargalos.map(g=>dfbRow('gargalos',g,'⚠')).join('')}</div>`:''}
-        ${retrabalhos.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-ret">Retrabalhos (${retrabalhos.length})</div>${retrabalhos.map(r=>dfbRow('retrabalhos',r,'↩')).join('')}</div>`:''}
-        ${gaps.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-gap">Pontos cegos (${gaps.length})</div>${gaps.map(g=>dfbRow('gaps',g,'○')).join('')}</div>`:''}
-        ${oportunidades.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat analise-oport">Oportunidades (${oportunidades.length})</div>${oportunidades.map(o=>dfbRow('oportunidades',o,'✦')).join('')}</div>`:''}
-        ${solucoes.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--teal-l);color:var(--teal)">Soluções propostas (${solucoes.length})</div>${solucoes.map(s=>dfbRow('solucoes_problemas',s,'💡')).join('')}</div>`:''}
-        ${mitigacoes.length?`<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--amber-l);color:var(--amber)">Mitigações de riscos (${mitigacoes.length})</div>${mitigacoes.map(m=>dfbRow('mitigacoes_riscos',m,'🛡')).join('')}</div>`:''}
-      `:`<div class="ib iba">Análise inteligente ainda não gerada. Execute a etapa de Análise inteligente antes.</div>`}
+      ${analiseHtml}
       <div class="btn-row"><button class="btn btn-p" onclick="salvarMelhorias()">Concluir revisão de melhorias →</button></div>`;
     }},
 
@@ -2785,13 +2798,14 @@ const ACOES = {
           <div style="color:var(--ink3);margin-top:.2rem">${a.descricao}</div>
           ${a.evidencia?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Evidência: ${a.evidencia}</div>`:''}
         </div>`).join(''):'';
+      function _acaoBadgeCls(s){if(s==='Concluída')return'bg';if(s==='Em andamento')return'ba';return'bt';}
       const acoesHtml=acoes.length?acoes.map((a,i)=>`
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <strong>${a.acao}</strong>
             <span style="font-size:11px;color:var(--ink3)">${a.responsavel} · ${a.prazo}</span>
           </div>
-          <span class="badge ${a.status==='Concluída'?'bg':a.status==='Em andamento'?'ba':'bt'}">${a.status}</span>
+          <span class="badge ${_acaoBadgeCls(a.status)}">${a.status}</span>
         </div>`).join(''):'';
       return `<div class="tabs" style="margin-bottom:1rem">
         <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud1',this)">Planejamento</div>
@@ -2958,8 +2972,8 @@ function salvarRetroativo(etId){
       p.ent.atores=document.getElementById('r-atores')?.value||p.ent.atores;
       if(!p.ent.vol)p.ent.vol={};
       p.ent.vol.exec=document.getElementById('r-exec')?.value||p.ent.vol.exec;
-      const tc=parseFloat(document.getElementById('r-tciclo')?.value);const tr=parseFloat(document.getElementById('r-treal')?.value);
-      if(!isNaN(tc))p.ent.t_ciclo=tc;if(!isNaN(tr))p.ent.t_real=tr;
+      const tc=Number.parseFloat(document.getElementById('r-tciclo')?.value);const tr=Number.parseFloat(document.getElementById('r-treal')?.value);
+      if(!Number.isNaN(tc))p.ent.t_ciclo=tc;if(!Number.isNaN(tr))p.ent.t_real=tr;
       if(p.ent.t_ciclo!=null&&p.ent.t_real!=null)p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
       const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
       if(prob.length){p.ent.prob=prob;}
@@ -3164,8 +3178,8 @@ function calcPrevAbr(){
   prev.value=_addDias(ini,90);
 }
 function calcGaveta(){
-  const ciclo=parseFloat(document.getElementById('r-tciclo')?.value)||0;
-  const real=parseFloat(document.getElementById('r-treal')?.value)||0;
+  const ciclo=Number.parseFloat(document.getElementById('r-tciclo')?.value)||0;
+  const real=Number.parseFloat(document.getElementById('r-treal')?.value)||0;
   const gav=document.getElementById('r-tgaveta');
   if(gav&&(ciclo||real)) gav.value=(real-ciclo).toFixed(1)+' horas';
 }
@@ -3199,7 +3213,7 @@ function salvarQuestionario(){
   if(respondidas<15&&!confirm(`Apenas ${respondidas}/15 afirmações respondidas. Continuar assim mesmo?`))return;
   const total=Object.values(resp).reduce((a,b)=>a+b,0);
   const media=respondidas>0?(total/respondidas).toFixed(1):0;
-  const nivel=_calcNivelMaturidade(parseFloat(media));
+  const nivel=_calcNivelMaturidade(Number.parseFloat(media));
   p.ent.mat=nivel;
   const nota=document.getElementById('quest-nota')?.value||'';
   p.ent.quest_nota=nota;
@@ -3266,8 +3280,8 @@ function salvarReuniao(){
   p.ent.atores=document.getElementById('r-atores')?.value||'';
   if(!p.ent.vol)p.ent.vol={};
   p.ent.vol.exec=document.getElementById('r-exec')?.value||'';
-  p.ent.t_ciclo=parseFloat(document.getElementById('r-tciclo')?.value)||null;
-  p.ent.t_real=parseFloat(document.getElementById('r-treal')?.value)||null;
+  p.ent.t_ciclo=Number.parseFloat(document.getElementById('r-tciclo')?.value)||null;
+  p.ent.t_real=Number.parseFloat(document.getElementById('r-treal')?.value)||null;
   if(p.ent.t_ciclo!=null&&p.ent.t_real!=null) p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
   const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.ent.prob=prob;
@@ -3351,8 +3365,8 @@ function salvarDadosQuantitativos(){
   const a=p.ent.analise;
   a.t_ciclo_medio=document.getElementById('an-tciclo')?.value||'';
   a.t_espera_medio=document.getElementById('an-tespera')?.value||'';
-  a.qtd_atividades=parseInt(document.getElementById('an-ativ')?.value)||0;
-  a.qtd_decisoes=parseInt(document.getElementById('an-dec')?.value)||0;
+  a.qtd_atividades=Number.parseInt(document.getElementById('an-ativ')?.value)||0;
+  a.qtd_decisoes=Number.parseInt(document.getElementById('an-dec')?.value)||0;
   fbAutoSave('salvar');toast('Dados salvos!','var(--teal)');
 }
 function confirmarRegenerarAnalise(){
@@ -4004,11 +4018,16 @@ function renderRelatorioAuditoria(json, conf, p, aud){
   const obs  = (aud.achados_list||[]).filter(a=>a.tipo==='Observação'||a.tipo==='Ponto de melhoria').length;
   const confOk = conf==='Conforme';
   const confWarn = conf==='Conforme com ressalvas';
-  const confColor = confOk?'#16a34a':confWarn?'#d97706':'#dc2626';
-  const confBg    = confOk?'#dcfce7':confWarn?'#fef3c7':'#fee2e2';
+  let confColor,confBg;
+  if(confOk){confColor='#16a34a';confBg='#dcfce7';}
+  else if(confWarn){confColor='#d97706';confBg='#fef3c7';}
+  else{confColor='#dc2626';confBg='#fee2e2';}
 
   const achadosHtml = (aud.achados_list||[]).map(a=>{
-    const c = a.tipo==='Não conformidade'?'#dc2626':a.tipo==='Conformidade'?'#16a34a':'#d97706';
+    let c;
+    if(a.tipo==='Não conformidade')c='#dc2626';
+    else if(a.tipo==='Conformidade')c='#16a34a';
+    else c='#d97706';
     return `<div style="border-left:3px solid ${c};padding:.5rem .75rem;margin-bottom:.4rem;background:var(--surf2);border-radius:0 6px 6px 0">
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:2px">
         <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:${c}22;color:${c}">${esc(a.tipo)}</span>
@@ -4247,8 +4266,8 @@ function resolveGwPath(path){
   if(!obj)return null;
   for(let i=1;i<parts.length;i++){
     const p=parts[i];
-    if(p[0]==='c')obj=obj.caminhos?.[parseInt(p.slice(1))];
-    else if(p[0]==='a')obj=obj.acoes?.[parseInt(p.slice(1))];
+    if(p[0]==='c')obj=obj.caminhos?.[Number.parseInt(p.slice(1))];
+    else if(p[0]==='a')obj=obj.acoes?.[Number.parseInt(p.slice(1))];
     if(obj==null)return null;
   }
   return obj;
@@ -6119,11 +6138,11 @@ function importarIndicadores(input){
         const periodo = fmtPeriodo(cPeriodo ? row[cPeriodo] : '');
         const ciclo   = (cCiclo   ? row[cCiclo]   : '').toString().trim();
         const ppe     = (cPPE     ? row[cPPE]     : 'Não').toString().trim();
-        const indice  = parseFloat((cIndice  ? row[cIndice]  : 0).toString().replace(',','.')) || 0;
-        const meta    = parseFloat((cMeta    ? row[cMeta]    : 0).toString().replace(',','.')) || 0;
-        const real    = parseFloat((cReal    ? row[cReal]    : 0).toString().replace(',','.')) || 0;
+        const indice  = Number.parseFloat((cIndice  ? row[cIndice]  : 0).toString().replace(',','.')) || 0;
+        const meta    = Number.parseFloat((cMeta    ? row[cMeta]    : 0).toString().replace(',','.')) || 0;
+        const real    = Number.parseFloat((cReal    ? row[cReal]    : 0).toString().replace(',','.')) || 0;
         const analise = (cAnalise  ? row[cAnalise]  : '').toString().trim();
-        const pctReal = parseFloat((cPctReal ? row[cPctReal] : 0).toString().replace(',','.')) || (meta > 0 ? Math.round((real/meta)*100) : 0);
+        const pctReal = Number.parseFloat((cPctReal ? row[cPctReal] : 0).toString().replace(',','.')) || (meta > 0 ? Math.round((real/meta)*100) : 0);
 
         if(!area && !nome && !enunc) return; // skip empty rows
 
@@ -6262,7 +6281,7 @@ function kpiBarColor(r, m, polaridade){
 function kpiApplyMetaFallback(items){
   const semMeta = items.filter(i=>!i.meta||i.meta===0);
   if(!semMeta.length) return;
-  const ultimos = items.slice(-12).map(i=>parseFloat(i.realizado)||0);
+  const ultimos = items.slice(-12).map(i=>Number.parseFloat(i.realizado)||0);
   const media = ultimos.length ? ultimos.reduce((a,b)=>a+b,0)/ultimos.length : 0;
   semMeta.forEach(i=>{ if(!i._metaFallback) i._metaFallback = Math.round(media*10)/10; });
 }
@@ -6282,8 +6301,8 @@ function createKpiChart(key, items){
   if(!canvas) return;
   const polaridade = items[0].polaridade||'Maior é melhor';
   const unidade = items[0].unidade||'';
-  const realizados = items.map(i=>parseFloat(i.realizado)||0);
-  const metas = items.map(i=>{ const m=parseFloat(i.meta)||0; return m>0?m:(i._metaFallback||null); });
+  const realizados = items.map(i=>Number.parseFloat(i.realizado)||0);
+  const metas = items.map(i=>{ const m=Number.parseFloat(i.meta)||0; return m>0?m:(i._metaFallback||null); });
   const hasHistoricFallback = metas.some((m,i)=>m!==null&&items[i]?._metaFallback);
   const metaLabel = 'Meta'+(unidade?' ('+unidade+')':(hasHistoricFallback?'  (média histórica)':''));
   const chart = new Chart(canvas, {
@@ -6430,8 +6449,8 @@ function abrirNovoKpi(preselArea){
 }
 
 function calcPctReal(){
-  const meta = parseFloat(document.getElementById('nkpi-meta').value) || 0;
-  const real = parseFloat(document.getElementById('nkpi-real').value) || 0;
+  const meta = Number.parseFloat(document.getElementById('nkpi-meta').value) || 0;
+  const real = Number.parseFloat(document.getElementById('nkpi-real').value) || 0;
   const pol  = document.getElementById('nkpi-polaridade').value;
   let pct = '';
   if(pol === 'Menor é melhor'){
@@ -6458,8 +6477,8 @@ function salvarNovoKpi(){
   const nome    = document.getElementById('nkpi-nome').value.trim();
   if(!area || !nome){ alert('Informe Área e Enunciado do indicador.'); return; }
 
-  const meta      = parseFloat(document.getElementById('nkpi-meta').value)   || 0;
-  const real      = parseFloat(document.getElementById('nkpi-real').value)   || 0;
+  const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)   || 0;
+  const real      = Number.parseFloat(document.getElementById('nkpi-real').value)   || 0;
   const polaridade = document.getElementById('nkpi-polaridade').value;
   const pct = polaridade === 'Menor é melhor'
     ? (real > 0 ? Math.round((meta/real)*100) : 0)
@@ -6475,7 +6494,7 @@ function salvarNovoKpi(){
     periodo:  document.getElementById('nkpi-periodo').value.trim(),
     ciclo:    document.getElementById('nkpi-ciclo').value.trim(),
     ppe:      document.getElementById('nkpi-ppe').value,
-    indice:   parseFloat(document.getElementById('nkpi-indice').value) || 0,
+    indice:   Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
     unidade:  document.getElementById('nkpi-unidade').value.trim(),
     polaridade,
     meta, realizado: real, analise: document.getElementById('nkpi-analise').value.trim(),
@@ -6484,8 +6503,8 @@ function salvarNovoKpi(){
 
   const editId = document.getElementById('nkpi-edit-idx').value;
   if(editId){
-    const idx = kpis.findIndex(k=>k.id===parseInt(editId));
-    if(idx >= 0){ obj.id = parseInt(editId); kpis[idx] = obj; }
+    const idx = kpis.findIndex(k=>k.id===Number.parseInt(editId));
+    if(idx >= 0){ obj.id = Number.parseInt(editId); kpis[idx] = obj; }
   } else {
     obj.id = _kpiIdC++;
     obj.origem = 'manual';
@@ -6497,7 +6516,7 @@ function salvarNovoKpi(){
 }
 
 function deletarKpi(id){
-  const delId = id || parseInt(document.getElementById('nkpi-edit-idx').value);
+  const delId = id || Number.parseInt(document.getElementById('nkpi-edit-idx').value);
   if(!delId) return;
   if(!confirm('Remover este indicador?')) return;
   kpis = kpis.filter(k=>k.id !== delId);
@@ -6622,8 +6641,8 @@ function salvarPub(){
   };
   const editId = document.getElementById('pub-edit-id').value;
   if(editId){
-    const idx = publicacoes.findIndex(p=>p.id===parseInt(editId));
-    if(idx>=0){ obj.id=parseInt(editId); publicacoes[idx]=obj; }
+    const idx = publicacoes.findIndex(p=>p.id===Number.parseInt(editId));
+    if(idx>=0){ obj.id=Number.parseInt(editId); publicacoes[idx]=obj; }
   } else {
     obj.id = _pubIdC++;
     publicacoes.push(obj);
@@ -6635,7 +6654,7 @@ function salvarPub(){
 }
 
 function deletarPub(id){
-  const delId = id || parseInt(document.getElementById('pub-edit-id').value);
+  const delId = id || Number.parseInt(document.getElementById('pub-edit-id').value);
   if(!delId) return;
   if(!confirm('Remover esta publicação?')) return;
   publicacoes = publicacoes.filter(p=>p.id!==delId);
@@ -6861,7 +6880,7 @@ function salvarUsr(){
     if(USUARIOS.find(u=>u.email===email)){ alert('E-mail já cadastrado.'); return; }
     USUARIOS.push({email, nome, perfil, iniciais:ini, processos_vinculados:vinculos});
   } else {
-    const idx = parseInt(idxStr);
+    const idx = Number.parseInt(idxStr);
     if(USUARIOS.find((u,i)=>u.email===email&&i!==idx)){ alert('E-mail já usado por outro usuário.'); return; }
     USUARIOS[idx] = {...USUARIOS[idx], email, nome, perfil, iniciais:ini, processos_vinculados:vinculos};
     if(usuarioLogado?.email===email){
@@ -6877,7 +6896,7 @@ function salvarUsr(){
 }
 
 function deletarUsr(){
-  const idx = parseInt(document.getElementById('usr-idx').value);
+  const idx = Number.parseInt(document.getElementById('usr-idx').value);
   const u = USUARIOS[idx]; if(!u) return;
   if(usuarioLogado?.email===u.email){ alert('Não é possível remover o usuário logado.'); return; }
   if(!confirm('Remover "'+u.nome+'"?')) return;
@@ -6930,7 +6949,7 @@ const PLANO_PRIO_CFG = {
 const PLANO_CAT_LB = {auditoria:'Auditoria',mapeamento:'Mapeamento',normativa:'Normativa',capacitacao:'Capacitação',governanca:'Governança',outro:'Outro'};
 
 function planoAno(){
-  return parseInt(document.getElementById('plano-ano-sel')?.value)||new Date().getFullYear();
+  return Number.parseInt(document.getElementById('plano-ano-sel')?.value)||new Date().getFullYear();
 }
 
 const PLANO_FIM_TRI = {T1:'-03-31',T2:'-06-30',T3:'-09-30',T4:'-12-31',Anual:'-12-31'};
@@ -6958,7 +6977,7 @@ function planoPopulateAnoSel(){
   if(!sel) return;
   const curY = new Date().getFullYear();
   const anos = [...new Set([curY, curY-1, curY+1, ...plano.map(a=>a.ano)])].sort((a,b)=>b-a);
-  const cur  = parseInt(sel.value)||curY;
+  const cur  = Number.parseInt(sel.value)||curY;
   sel.innerHTML = anos.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
 }
 
@@ -7249,14 +7268,14 @@ function planoAtualizarVinculo(){
 function salvarAtividade(){
   const nome = document.getElementById('pm-nome')?.value.trim();
   if(!nome){alert('Informe o nome da atividade.');return;}
-  const id    = parseInt(document.getElementById('pm-id')?.value)||0;
-  const ano   = parseInt(document.getElementById('pm-ano')?.value)||planoAno();
+  const id    = Number.parseInt(document.getElementById('pm-id')?.value)||0;
+  const ano   = Number.parseInt(document.getElementById('pm-ano')?.value)||planoAno();
   const vTipo = document.getElementById('pm-vint')?.value||'';
   const vSel  = document.getElementById('pm-vinid');
-  const vId   = vTipo&&vSel?.value ? parseInt(vSel.value)||null : null;
+  const vId   = vTipo&&vSel?.value ? Number.parseInt(vSel.value)||null : null;
   const vNome = vId ? (vSel.options[vSel.selectedIndex]?.text||'').replace(/^Aud:\s*/,'') : '';
-  const qtPrev= parseFloat(document.getElementById('pm-qtprev')?.value)||0;
-  const qtReal= parseFloat(document.getElementById('pm-qtreal')?.value)||0;
+  const qtPrev= Number.parseFloat(document.getElementById('pm-qtprev')?.value)||0;
+  const qtReal= Number.parseFloat(document.getElementById('pm-qtreal')?.value)||0;
   const antigo= plano.find(a=>a.id===id);
   const at = {
     id: id||_planoIdC++,
@@ -7349,7 +7368,7 @@ async function fbLoad(){
       processos.sort((a,b) => a.id - b.id);
       nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
       // Sync etapasIdC so new etapa IDs never collide with existing ones
-      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>parseInt(String(e.id||'').replace('ep',''))||0));
+      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replace('ep',''))||0));
       if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
     }
 
