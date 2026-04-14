@@ -2493,6 +2493,11 @@ function renderFeedbackEP(analise){
   });
   return total?html:'<div class="ib iba">Nenhum item avaliado pelo dono.</div>';
 }
+function _dfbBlock(cls,label,arr,key,emoji){
+  if(!arr.length)return'';
+  return '<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat '+cls+'">'+label+' ('+arr.length+')</div>'+arr.map(x=>dfbRow(key,x,emoji)).join('')+'</div>';
+}
+function _acaoBadgeCls(s){if(s==='Concluída'){return'bg';}if(s==='Em andamento'){return'ba';}return'bt';}
 function epManterItem(el){
   const p=curProc,texto=el.dataset.txt;
   if(!p.ent.analise.ep_override)p.ent.analise.ep_override=[];
@@ -2724,10 +2729,6 @@ const ACOES = {
       globalThis._dfb={};globalThis._dfbItems=[];
       const savedFb=a.feedback_dono||{};
       Object.keys(savedFb).forEach(t=>{globalThis._dfb[t]={...savedFb[t]};});
-      function _dfbBlock(cls,label,arr,key,emoji){
-        if(!arr.length)return'';
-        return '<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat '+cls+'">'+label+' ('+arr.length+')</div>'+arr.map(x=>dfbRow(key,x,emoji)).join('')+'</div>';
-      }
       const resumoHtml=ia.resumo?'<div class="card" style="margin-bottom:.8rem"><div class="card-t">Resumo da análise</div><div style="font-size:13px;color:var(--ink2);line-height:1.7">'+esc(ia.resumo)+'</div></div>':'';
       const analiseHtml=temAnalise
         ?(resumoHtml
@@ -2900,7 +2901,6 @@ const ACOES = {
           <div style="color:var(--ink3);margin-top:.2rem">${a.descricao}</div>
           ${a.evidencia?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Evidência: ${a.evidencia}</div>`:''}
         </div>`).join(''):'';
-      function _acaoBadgeCls(s){if(s==='Concluída'){return'bg';}if(s==='Em andamento'){return'ba';}return'bt';}
       const acoesHtml=acoes.length?acoes.map((a,i)=>`
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -4943,7 +4943,6 @@ function rEnt(p){
   const resp=e.quest_resp||{};
   const respondidas=Object.keys(resp).length;
   const total=Object.values(resp).reduce((a,b)=>a+b,0);
-  const media=respondidas>0?(total/respondidas).toFixed(1):0;
   // Maturidade por dimensão
   const dims={};
   QUESTOES.forEach(q=>{
@@ -5979,13 +5978,6 @@ function removerMacro(mid){
   if(!isEP()){alert('Ação restrita ao EP.');return;}
   const m=ARQUITETURA.find(x=>x.id===mid);
   if(!m)return;
-  const totalProcs = m.processos.length;
-  const totalSubs  = m.processos.reduce((a,p)=>a+(p.subprocessos||[]).length,0);
-  const mapeados   = m.processos.reduce((a,p)=>{
-    const hasSubs = p.subprocessos&&p.subprocessos.length>0;
-    if(hasSubs) return a + p.subprocessos.filter(s=>s.proc_id).length;
-    return a + (p.proc_id?1:0);
-  },0);
   const aviso = 'Apagar macroprocesso "' + m.nome + '"? Esta acao nao pode ser desfeita.';
   if(!confirm(aviso))return;
   // Break links in processos[]
@@ -6005,9 +5997,6 @@ function removerProcArq(mid, pid){
   const p=m?.processos.find(x=>x.id===pid);
   if(!p)return;
   const hasSubs = p.subprocessos&&p.subprocessos.length>0;
-  const mapeado = hasSubs
-    ? p.subprocessos.some(s=>s.proc_id)
-    : !!p.proc_id;
   const aviso = 'Apagar processo "' + p.nome + '"? Esta acao nao pode ser desfeita.';
   if(!confirm(aviso))return;
   // Break links
@@ -6293,6 +6282,16 @@ function isMeuProcesso(arq_id){
 let _kpiIdC = 1;
 let _indPpeFiltro = '';
 
+function fmtPeriodo(v){
+  if(!v) return '';
+  if(v instanceof Date) return v.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
+  if(typeof v === 'number' && v > 0){
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return d.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
+  }
+  return v.toString().trim();
+}
+
 // Parses numbers from Brazilian-locale spreadsheets (comma as decimal separator,
 // dot as thousands separator). Also strips % suffix and handles already-numeric values.
 function parseNumBR(v){
@@ -6321,16 +6320,6 @@ function importarIndicadores(input){
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
 
-      // Convert Excel date serial numbers or Date objects to readable strings
-      function fmtPeriodo(v){
-        if(!v) return '';
-        if(v instanceof Date) return v.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
-        if(typeof v === 'number' && v > 0){
-          const d = new Date(Math.round((v - 25569) * 86400 * 1000));
-          return d.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
-        }
-        return v.toString().trim();
-      }
       if(!rows.length){ alert('Planilha vazia.'); return; }
 
       // Fuzzy column matcher — strips emojis/icons and normalizes
@@ -6557,7 +6546,7 @@ function kpiGroupByKey(list){
   const grupos = {};
   source.forEach(k=>{
     const key = (k.codigo||k.nome||'').trim() || k.nome;
-    if(!grupos[key]) grupos[key] = [];
+    if(!grupos[key]){ grupos[key] = []; }
     grupos[key].push(k);
   });
   Object.values(grupos).forEach(g => g.sort((a,b)=>periodoToNum(a.periodo)-periodoToNum(b.periodo)));
@@ -6809,7 +6798,7 @@ function editKpi(id){
   // Load general config fields from the current period's KPI
   _kpiFormSetFields(k);
   // Populate period nav if multi
-  if(isMulti) _kpiNavUpdateSelector();
+  if(isMulti){ _kpiNavUpdateSelector(); }
   modal.style.display = 'flex';
 }
 
@@ -6952,7 +6941,7 @@ async function sincronizarGSheets(){
   const urlInput = document.getElementById('ind-gsheets-url');
   const statusEl = document.getElementById('ind-gsheets-status');
   let url = (urlInput?.value||'').trim();
-  if(!url){ if(statusEl) statusEl.textContent = '⚠ Informe a URL da planilha publicada.'; return; }
+  if(!url){ if(statusEl){ statusEl.textContent = '⚠ Informe a URL da planilha publicada.'; } return; }
 
   // Normalise to CSV export: accept both /pub?output=csv and /export?format=csv formats
   if(url.includes('/pub?') || url.includes('pub?output')){
@@ -6991,17 +6980,8 @@ async function sincronizarGSheets(){
     const wb = XLSX.read(csvText, {type:'string', raw:true});
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true});
-    if(!rows.length){ if(statusEl) statusEl.textContent = '⚠ Planilha vazia.'; return; }
+    if(!rows.length){ if(statusEl){ statusEl.textContent = '⚠ Planilha vazia.'; } return; }
 
-    function fmtPeriodo(v){
-      if(!v) return '';
-      if(v instanceof Date) return v.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
-      if(typeof v === 'number' && v > 0){
-        const d = new Date(Math.round((v - 25569) * 86400 * 1000));
-        return d.toLocaleDateString('pt-BR',{month:'short',year:'numeric'});
-      }
-      return v.toString().trim();
-    }
     function norm(s){ return s.toString().replace(/[^\w\s]/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
     const keys = Object.keys(rows[0]);
     function col(variants){ for(const v of variants){ const f=keys.find(k=>norm(k).includes(norm(v))); if(f) return f; } return null; }
@@ -7559,7 +7539,7 @@ function rPlano(){
   }
   const ORDEM = ['Anual','T1','T2','T3','T4'];
   const grupos = {};
-  lista.forEach(a=>{ const k=a.trimestre||'Anual'; if(!grupos[k])grupos[k]=[]; grupos[k].push(a); });
+  lista.forEach(a=>{ const k=a.trimestre||'Anual'; if(!grupos[k]){ grupos[k]=[]; } grupos[k].push(a); });
   const statusOrd = {em_atraso:0,em_execucao:1,planejado:2,concluida:3};
   el.innerHTML = ORDEM.filter(k=>grupos[k]).map(tri=>{
     const items = grupos[tri].sort((a,b)=>(statusOrd[planoStatusEfetivo(a)]??2)-(statusOrd[planoStatusEfetivo(b)]??2));
