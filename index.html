@@ -23,6 +23,7 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
   // ── PREENCHA AQUI APÓS CRIAR O PROJETO FIREBASE
   // IMPORTANT: Do not commit real keys. Load from config.local.js or environment
@@ -43,7 +44,8 @@
     try {
       const app = initializeApp(FIREBASE_CONFIG);
       const db  = getFirestore(app);
-      window._fb = { db, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc };
+      const auth = getAuth(app);
+      window._fb = { db, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, auth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged };
       window._fbReady = true;
       console.info('Firebase conectado');
     } catch(e) {
@@ -358,7 +360,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <label class="login-label">E-mail institucional</label>
     <input class="login-input" id="login-email" type="email" placeholder="usuario@sefaz.rs.gov.br" onkeydown="if(event.key==='Enter')doLogin()">
+    <label class="login-label" style="margin-top:.9rem">Senha</label>
+    <input class="login-input" id="login-senha" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div style="text-align:center;margin-top:.75rem">
+      <a href="#" onclick="doEsqueciSenha();return false;" style="font-size:12px;color:rgba(255,255,255,.4);text-decoration:none;transition:color .12s" onmouseover="this.style.color='rgba(255,255,255,.7)'" onmouseout="this.style.color='rgba(255,255,255,.4)'">Primeiro acesso ou esqueci minha senha</a>
+    </div>
     <div class="login-err" id="login-err" style="display:none"></div>
   </div>
 </div>
@@ -1286,16 +1293,83 @@ function _aplicarUsuario(user){
   aplicarPermissoes();
   go('fila',document.getElementById('nb-fila'));
 }
-function doLogin(){
+const DOMINIOS_PERMITIDOS = ['sefaz.rs.gov.br','cage.rs.gov.br'];
+
+async function doLogin(){
   const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const senha = document.getElementById('login-senha').value;
   if(!email){mostrarErrLogin('Informe seu e-mail.');return;}
+  if(!senha){mostrarErrLogin('Informe sua senha.');return;}
+
+  // Valida domínio
+  const dominio = email.split('@')[1]||'';
+  if(!DOMINIOS_PERMITIDOS.includes(dominio)){
+    mostrarErrLogin('Acesso restrito a e-mails institucionais.');return;
+  }
+
+  // Valida se está na lista de usuários autorizados
   const user = USUARIOS.find(u=>u.email===email);
   if(!user){mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');return;}
-  try{localStorage.setItem('siga_user',user.email);}catch(e){}
-  _aplicarUsuario(user);
+
+  // Autentica via Firebase Auth
+  if(fbReady()){
+    const btn = document.querySelector('.login-btn');
+    btn.textContent = 'Entrando…'; btn.disabled = true;
+    try {
+      const {auth, signInWithEmailAndPassword} = fb();
+      await signInWithEmailAndPassword(auth, email, senha);
+      // onAuthStateChanged vai aplicar o usuário
+    } catch(e){
+      btn.textContent = 'Entrar'; btn.disabled = false;
+      const msgs = {
+        'auth/wrong-password':'Senha incorreta.',
+        'auth/user-not-found':'Usuário não encontrado. Use "Primeiro acesso" para criar sua senha.',
+        'auth/invalid-credential':'E-mail ou senha incorretos.',
+        'auth/too-many-requests':'Muitas tentativas. Tente novamente em alguns minutos.',
+      };
+      mostrarErrLogin(msgs[e.code]||'Erro ao entrar: '+e.message);
+    }
+  } else {
+    // Fallback sem Firebase (modo local)
+    try{localStorage.setItem('siga_user',user.email);}catch(e){}
+    _aplicarUsuario(user);
+  }
 }
-function mostrarErrLogin(msg){const e=document.getElementById('login-err');e.textContent=msg;e.style.display='block';}
-function doLogout(){
+
+async function doEsqueciSenha(){
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  if(!email){mostrarErrLogin('Informe seu e-mail acima antes de continuar.');return;}
+  const dominio = email.split('@')[1]||'';
+  if(!DOMINIOS_PERMITIDOS.includes(dominio)){
+    mostrarErrLogin('Informe um e-mail institucional válido.');return;
+  }
+  const user = USUARIOS.find(u=>u.email===email);
+  if(!user){mostrarErrLogin('E-mail não autorizado. Solicite cadastro ao EPP.');return;}
+  if(!fbReady()){mostrarErrLogin('Firebase não configurado.');return;}
+  try {
+    const {auth, sendPasswordResetEmail} = fb();
+    await sendPasswordResetEmail(auth, email);
+    const e = document.getElementById('login-err');
+    e.style.color='#86efac';
+    e.textContent='Link enviado para '+email+'. Verifique sua caixa de entrada.';
+    e.style.display='block';
+  } catch(err){
+    mostrarErrLogin('Erro ao enviar e-mail: '+err.message);
+  }
+}
+
+function mostrarErrLogin(msg){
+  const e=document.getElementById('login-err');
+  e.style.color='#F2A0A0';
+  e.textContent=msg;
+  e.style.display='block';
+}
+
+async function doLogout(){
+  if(fbReady()){
+    const {auth, signOut} = fb();
+    await signOut(auth).catch(()=>{});
+  }
   usuarioLogado=null;
   try{localStorage.removeItem('siga_user');}catch(e){}
   document.getElementById('login-screen').style.display='flex';
@@ -6576,9 +6650,9 @@ function abrirModalUsr(idx){
     document.getElementById('usr-modal-t').textContent = 'Novo usuário';
     document.getElementById('usr-idx').value = '';
     ['usr-nome','usr-ini','usr-email'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('usr-perfil').value = 'ep';
+    document.getElementById('usr-perfil').value = 'dono';
     document.getElementById('usr-vinculos-list').innerHTML = '';
-    document.getElementById('usr-proc-section').style.display = 'none';
+    document.getElementById('usr-proc-section').style.display = 'block';
     delBtn.style.display = 'none';
   } else {
     const u = USUARIOS[idx];
@@ -7495,13 +7569,35 @@ document.getElementById('login-screen').style.display='flex';
   if(loadMsg) loadMsg.remove();
 
   // Restaurar sessão após reload
-  try {
-    const savedEmail = localStorage.getItem('siga_user');
-    if(savedEmail){
-      const user = USUARIOS.find(u=>u.email===savedEmail);
-      if(user) _aplicarUsuario(user);
-    }
-  } catch(e){}
+  if(fbReady()){
+    const {auth, onAuthStateChanged} = fb();
+    onAuthStateChanged(auth, firebaseUser => {
+      const btn = document.querySelector('.login-btn');
+      if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
+      if(firebaseUser){
+        const user = USUARIOS.find(u=>u.email===firebaseUser.email);
+        if(user){ _aplicarUsuario(user); }
+        else {
+          // Usuário autenticado no Firebase mas não na lista — desloga
+          const {signOut} = fb();
+          signOut(auth).catch(()=>{});
+          mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');
+        }
+      } else {
+        // Sem sessão ativa — garante tela de login
+        if(usuarioLogado){ doLogout(); }
+      }
+    });
+  } else {
+    // Fallback modo local
+    try {
+      const savedEmail = localStorage.getItem('siga_user');
+      if(savedEmail){
+        const user = USUARIOS.find(u=>u.email===savedEmail);
+        if(user) _aplicarUsuario(user);
+      }
+    } catch(e){}
+  }
 
   updCounts();
   fbStatusBadge();
