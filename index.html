@@ -1492,7 +1492,7 @@ async function doLogin(){
     }
   } else {
     // Fallback sem Firebase (modo local)
-    try{localStorage.setItem('siga_user',user.email);}catch(_e){console.warn('localStorage unavailable',_e);}
+    lsSet('siga_user', user.email);
     _aplicarUsuario(user);
   }
 }
@@ -1636,7 +1636,7 @@ async function doLogout(){
     await signOut(auth).catch(()=>{});
   }
   usuarioLogado=null;
-  try{localStorage.removeItem('siga_user');}catch(_e){console.warn('localStorage unavailable',_e);}
+  lsRemove('siga_user');
   const epToggle=document.getElementById('ep-toggle-wrap');if(epToggle)epToggle.style.display='none';
   document.getElementById('login-screen').style.display='flex';
 }
@@ -1737,7 +1737,7 @@ function salvarEmailJS(){
   ejsConfig.service = document.getElementById('ejs-service').value.trim();
   ejsConfig.template = document.getElementById('ejs-template').value.trim();
   ejsConfig.pubkey = document.getElementById('ejs-pubkey').value.trim();
-  try { localStorage.setItem('epcage_ejs', JSON.stringify(ejsConfig)); } catch(_e){ console.warn('localStorage unavailable', _e); }
+  lsSet('epcage_ejs', JSON.stringify(ejsConfig));
   const status = document.getElementById('emailjs-status');
   if(ejsConfig.service && ejsConfig.template && ejsConfig.pubkey){
     if(typeof emailjs === 'undefined'){
@@ -7293,7 +7293,7 @@ function rInd(){
   if(gsheetsSec){ gsheetsSec.style.display = isEP() ? 'flex' : 'none'; }
   const gsUrlInput = document.getElementById('ind-gsheets-url');
   if(gsUrlInput && !gsUrlInput.value){
-    try{ gsUrlInput.value = localStorage.getItem('epcage_gsheets_url') || ''; }catch(_e){}
+    gsUrlInput.value = lsGet('epcage_gsheets_url');
   }
 
   // Destroy previous charts
@@ -7827,7 +7827,7 @@ async function limparKpisImportados(){
 
 function salvarGSheetsUrl(){
   const url = (document.getElementById('ind-gsheets-url')?.value||'').trim();
-  try{ localStorage.setItem('epcage_gsheets_url', url); }catch(_e){ console.warn('localStorage unavailable', _e); }
+  lsSet('epcage_gsheets_url', url);
 }
 
 async function sincronizarGSheets(){
@@ -9258,7 +9258,7 @@ document.getElementById('login-screen').style.display='flex';
   // Fall back to localStorage for EmailJS if Firebase didn't have it
   if(!ejsConfig.pubkey){
     try {
-      const saved = localStorage.getItem('epcage_ejs');
+      const saved = lsGet('epcage_ejs');
       if(saved){
         const cfg = JSON.parse(saved);
         ejsConfig.service  = cfg.service  || '';
@@ -9294,7 +9294,7 @@ document.getElementById('login-screen').style.display='flex';
   } else {
     // Fallback modo local
     try {
-      const savedEmail = localStorage.getItem('siga_user');
+      const savedEmail = lsGet('siga_user');
       if(savedEmail){
         const user = USUARIOS.find(u=>u.email===savedEmail);
         if(user) _aplicarUsuario(user);
@@ -9805,7 +9805,7 @@ function injectAiConfigField(){
 function salvarAiUrl(){
   const url = document.getElementById('ai-fn-url')?.value.trim();
   if(!url){ toast('Informe a URL.','var(--amber)'); return; }
-  try { localStorage.setItem('epcage_ai_url', url); } catch(_e){ console.warn('localStorage unavailable', _e); }
+  lsSet('epcage_ai_url', url);
   // Patch the constant at runtime
   globalThis._aiUrl = url;
   toast('URL da IA salva');
@@ -9814,10 +9814,8 @@ function salvarAiUrl(){
 
 // Restore AI URL from localStorage on boot
 (function(){
-  try {
-    const saved = localStorage.getItem('epcage_ai_url');
-    if(saved) globalThis._aiUrl = saved;
-  } catch(_e){ console.warn('localStorage unavailable', _e); }
+  const saved = lsGet('epcage_ai_url');
+  if(saved) globalThis._aiUrl = saved;
 })();
 
 // ═══════════════════════════════════════════
