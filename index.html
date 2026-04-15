@@ -5943,7 +5943,7 @@ function macroArqHTML(m){
     </div>
     <div class="arq-macro-body" id="arq-body-${m.id}" style="display:none">
       ${m.processos.map(p=>procArqHTML(m.id,p)).join('')}
-      <button class="arq-add-btn" onclick="novoProcArq('${m.id}')">+ Adicionar processo</button>
+      ${isEP()?`<button class="arq-add-btn" onclick="novoProcArq('${m.id}')">+ Adicionar processo</button>`:''}
     </div>
   </div>`;
 }
@@ -5970,8 +5970,8 @@ function _subArqItemHTML(mid, pid, s){
       ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isMapeado(s.id)?'var(--red)':'var(--teal)'}" onclick="toggleMapeadoManual('${s.id}',event)">${isMapeado(s.id)?'Desmarcar':'✓ Mapeado'}</button>`:''}
       ${isCritico(s.id)?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
       ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isCritico(s.id)?'#dc2626':'var(--ink3)'}" onclick="toggleCriticoManual('${s.id}',event)">${isCritico(s.id)?'Desmarcar crítico':'⚠ Crítico'}</button>`:''}
-      <button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
-      <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')">×</button>
+      ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
+      <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')">×</button>`:''}
     </div>
     <div id="arq-ssub-${s.id}" style="display:none;padding:.6rem 1.2rem .8rem 2.2rem;background:var(--surf);border-top:1px dashed var(--bdr)">
       ${metaFieldsReadonly(s)}
@@ -5984,8 +5984,8 @@ function procArqHTML(mid,p){
   const bodyHTML = hasSubs
     ? `<div style="padding:.5rem .8rem .2rem"><div class="ib ibsl" style="font-size:11px;margin-bottom:.5rem">Processo agrupador — os subprocessos abaixo são as unidades mapeáveis individualmente.</div></div>
        ${p.subprocessos.map(s=>_subArqItemHTML(mid,p.id,s)).join('')}
-       <div style="padding:.5rem .8rem"><button class="arq-add-btn" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button></div>`
-    : `<div style="padding:.6rem .9rem .8rem">${metaFieldsReadonly(p)}<button class="arq-add-btn" style="margin-top:4px" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button></div>`;
+       ${isEP()?`<div style="padding:.5rem .8rem"><button class="arq-add-btn" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button></div>`:''}`
+    : `<div style="padding:.6rem .9rem .8rem">${metaFieldsReadonly(p)}${isEP()?`<button class="arq-add-btn" style="margin-top:4px" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button>`:''}</div>`;
   return `<div style="margin-bottom:.5rem">
     <div class="arq-proc-hd" onclick="toggleEl('arq-sub-${p.id}','chvp-${p.id}')">
       <span class="arq-chevron" id="chvp-${p.id}" style="color:var(--ink3)">▶</span>
