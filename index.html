@@ -1516,7 +1516,7 @@ function go(page,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+page).classList.add('on');
   if(btn)btn.classList.add('on');
-  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano,avisos:rAvisos}[page]||function(){})();
+  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano,avisos:rAvisos}[page]||function(){})();
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
   const ttl={fila:'Minhas tarefas',dashboard:'Painel geral',processos:'Processos',arq:'Arquitetura',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Auditoria',publicacoes:'Metodologias',admin:'Usuários',avisos:'Avisos',detalhe:'Processo'};
