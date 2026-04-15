@@ -8101,6 +8101,12 @@ function planoDashAnual(lista){
   const planej  = lista.filter(a=>planoStatusEfetivo(a)==='planejado').length;
   const pct = Math.round(concl/total*100);
   const cor = pct>=75?'#14b8a6':pct>=40?'#f59e0b':'#ef4444';
+  // Métricas de pontualidade
+  const conclLista = lista.filter(a=>planoStatusEfetivo(a)==='concluida'&&a.entrega_status);
+  const emDia      = conclLista.filter(a=>a.entrega_status==='em_dia').length;
+  const comAtraso  = conclLista.filter(a=>a.entrega_status==='com_atraso').length;
+  const pctPontualidade = conclLista.length ? Math.round(emDia/conclLista.length*100) : null;
+  const corPont = pctPontualidade>=80?'#14b8a6':pctPontualidade>=50?'#f59e0b':'#ef4444';
   const dc = (v,l,c,bg)=>`<div style="flex:1;min-width:90px;background:${bg};border:1px solid ${c};border-radius:var(--r);padding:.7rem 1rem"><div style="font-size:22px;font-weight:700;color:${c};line-height:1">${v}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">${l}</div></div>`;
   el.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap;width:100%">
     ${dc(total,'Total atividades','var(--blue)','rgba(59,130,246,.07)')}
@@ -8115,6 +8121,14 @@ function planoDashAnual(lista){
         <div style="width:${pct}%;height:100%;background:${cor};border-radius:3px;transition:width .4s"></div>
       </div>
     </div>
+    ${conclLista.length?`<div style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.7rem 1rem">
+      <div style="font-size:22px;font-weight:700;color:${corPont};line-height:1">${pctPontualidade}%</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Pontualidade nas entregas</div>
+      <div style="font-size:11px;margin-top:5px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="color:#0f766e">✅ ${emDia} em dia</span>
+        <span style="color:#dc2626">⚠ ${comAtraso} com atraso</span>
+      </div>
+    </div>`:''}
   </div>`;
 }
 
@@ -8202,6 +8216,11 @@ function planoCardHTML(at){
     </div>`:''}
     ${at.obs?`<div style="margin-top:6px;font-size:11px;color:var(--ink2);background:var(--bg2);border-radius:4px;padding:4px 8px;border-left:2px solid var(--bdr2)">📝 ${esc(at.obs)}</div>`:''}
     ${at.evidencia&&st==='concluida'?`<div style="margin-top:5px;font-size:11px;color:#14b8a6;background:rgba(20,184,166,.07);border-radius:4px;padding:4px 8px">✅ ${esc(at.evidencia)}</div>`:''}
+    ${st==='concluida'&&at.entrega_status?`<div style="margin-top:5px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;
+      background:${at.entrega_status==='em_dia'?'rgba(20,184,166,.12)':at.entrega_status==='com_atraso'?'rgba(239,68,68,.1)':'var(--bg2)'};
+      color:${at.entrega_status==='em_dia'?'#0f766e':at.entrega_status==='com_atraso'?'#dc2626':'var(--ink3)'}">
+      ${at.entrega_status==='em_dia'?'✅ Entregue em dia':at.entrega_status==='com_atraso'?`⚠ Entregue com ${at.dias_atraso}d de atraso`:'📅 Entregue sem prazo'}
+    </div>`:''}
   </div>`;
 }
 
@@ -8363,7 +8382,32 @@ function salvarAtividade(){
     evidencia:    document.getElementById('pm-evid')?.value.trim()||'',
     dt_criacao:   antigo?.dt_criacao||new Date().toISOString().split('T')[0],
     dt_atualizacao: new Date().toISOString().split('T')[0],
+    // Preserva histórico de entrega (calculado abaixo se estiver concluindo agora)
+    dt_conclusao:   antigo?.dt_conclusao||'',
+    entrega_status: antigo?.entrega_status||'',
+    dias_atraso:    antigo?.dias_atraso??null,
   };
+  // Detectar conclusão: status mudou para concluida agora
+  const eraConcluidaAntes = antigo?.status==='concluida' || (antigo?.qt_prevista>0 && (antigo?.qt_realizada||0)>=antigo?.qt_prevista);
+  const ficouConcluida = at.status==='concluida' || (at.qt_prevista>0 && at.qt_realizada>=at.qt_prevista);
+  if(ficouConcluida && !eraConcluidaAntes){
+    const hoje = new Date().toISOString().split('T')[0];
+    at.dt_conclusao = hoje;
+    if(at.prazo){
+      const diffMs = new Date(hoje) - new Date(at.prazo);
+      const dias   = Math.ceil(diffMs / 86400000); // positivo = atraso, negativo = adiantado
+      at.dias_atraso    = Math.max(0, dias);
+      at.entrega_status = dias <= 0 ? 'em_dia' : 'com_atraso';
+    } else {
+      at.entrega_status = 'sem_prazo';
+      at.dias_atraso    = 0;
+    }
+  } else if(!ficouConcluida){
+    // Reaberta: limpa os selos
+    at.dt_conclusao   = '';
+    at.entrega_status = '';
+    at.dias_atraso    = null;
+  }
   if(id){ const i=plano.findIndex(a=>a.id===id); if(i>=0) plano[i]=at; else plano.push(at); }
   else plano.push(at);
   fecharPlanoModal();
