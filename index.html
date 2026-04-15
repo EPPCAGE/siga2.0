@@ -9379,32 +9379,36 @@ function gerarRelatorioIndPdf(){
   }
 
   // ── Agregador por área ───────────────────────────────────────────────
+  // Métrica: taxa de atingimento = (nº atingiram meta / nº com meta) * 100
+  // Legível e sempre 0-100%; não é distorcida por outliers extremos
   const areaMap = {};
   lista.forEach(k=>{
     const a = k.area||'(sem área)';
-    if(!areaMap[a]) areaMap[a]={total:0,comMeta:0,sumPct:0,destaque:0,critico:0};
+    if(!areaMap[a]) areaMap[a]={total:0,comMeta:0,atingiram:0,destaque:0,critico:0};
     const pct = calcPct(k);
     areaMap[a].total++;
     if(pct!==null){
       areaMap[a].comMeta++;
-      areaMap[a].sumPct += pct;
+      if(pct>=100) areaMap[a].atingiram++;
       if(pct>=130) areaMap[a].destaque++;
       if(pct<50)   areaMap[a].critico++;
     }
   });
   const areaCards = Object.entries(areaMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([nome,d])=>{
-    const avg = d.comMeta ? Math.round(d.sumPct/d.comMeta) : null;
-    const cl  = avg===null?'#6b7280': avg>=100?'#16a34a': avg>=80?'#d97706': avg>=50?'#dc2626':'#991b1b';
-    const bg  = avg===null?'#f3f4f6': avg>=100?'#f0fdf4': avg>=80?'#fffbeb': avg>=50?'#fff5f5':'#fee2e2';
-    const border = avg===null?'#d1d5db': avg>=100?'#4ade80': avg>=80?'#fbbf24': avg>=50?'#f87171':'#ef4444';
+    // taxa 0-100%: quantos indicadores (com meta) atingiram a meta
+    const taxa = d.comMeta ? Math.round((d.atingiram/d.comMeta)*100) : null;
+    const cl     = taxa===null?'#6b7280': taxa>=80?'#16a34a': taxa>=60?'#d97706': taxa>=40?'#dc2626':'#991b1b';
+    const bg     = taxa===null?'#f3f4f6': taxa>=80?'#f0fdf4': taxa>=60?'#fffbeb': taxa>=40?'#fff5f5':'#fee2e2';
+    const border = taxa===null?'#d1d5db': taxa>=80?'#4ade80': taxa>=60?'#fbbf24': taxa>=40?'#f87171':'#ef4444';
     const extras = [
       d.destaque ? `<span style="font-size:10px;color:#065f46">⭐ ${d.destaque} destaque${d.destaque>1?'s':''}</span>` : '',
       d.critico  ? `<span style="font-size:10px;color:#7f1d1d">⚠ ${d.critico} crítico${d.critico>1?'s':''}</span>` : '',
     ].filter(Boolean).join(' ');
     return `<div style="background:${bg};border:1.5px solid ${border};border-radius:8px;padding:10px 14px;min-width:140px;flex:1">
       <div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">${esc(nome)}</div>
-      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${avg!==null?avg+'%':'—'}</div>
-      <div style="font-size:10px;color:#6b7280;margin-top:2px">${d.comMeta} com meta · ${d.total} total</div>
+      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${taxa!==null?taxa+'%':'—'}</div>
+      <div style="font-size:10px;color:#6b7280;margin-top:2px">${d.atingiram} de ${d.comMeta} atingiram a meta</div>
+      <div style="font-size:10px;color:#9ca3af">${d.total} indicador${d.total!==1?'es':''} no total</div>
       ${extras?`<div style="margin-top:4px;display:flex;gap:8px">${extras}</div>`:''}
     </div>`;
   }).join('');
@@ -9434,10 +9438,13 @@ function gerarRelatorioIndPdf(){
   }).join('');
 
   // ── Totalizador rodapé ───────────────────────────────────────────────
-  const comMeta = lista.filter(k=>Number(k.meta)>0);
-  const avgGeral = comMeta.length ? Math.round(comMeta.reduce((s,k)=>s+(calcPct(k)||0),0)/comMeta.length) : null;
-  const destTotal = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p>=130; }).length;
-  const critTotal = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p<50; }).length;
+  // Taxa de atingimento geral (sempre 0-100%, não distorcida por outliers)
+  const comMeta    = lista.filter(k=>Number(k.meta)>0);
+  const atingiramG = comMeta.filter(k=>{ const p=calcPct(k); return p!==null&&p>=100; }).length;
+  const taxaGeral  = comMeta.length ? Math.round((atingiramG/comMeta.length)*100) : null;
+  const destTotal  = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p>=130; }).length;
+  const critTotal  = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p<50; }).length;
+  const taxaCl     = taxaGeral===null?'#6b7280': taxaGeral>=80?'#16a34a': taxaGeral>=60?'#d97706':'#dc2626';
 
   const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
   const w = window.open('','_blank');
@@ -9472,12 +9479,12 @@ function gerarRelatorioIndPdf(){
   <div class="hdr-r">
     <div><strong>Data:</strong> ${dtHoje}</div>
     <div><strong>Total analisados:</strong> ${lista.length}</div>
-    ${avgGeral!==null?`<div><strong>Desempenho médio geral:</strong> <strong style="color:${avgGeral>=100?'#16a34a':avgGeral>=80?'#d97706':'#dc2626'}">${avgGeral}%</strong></div>`:''}
+    ${taxaGeral!==null?`<div><strong>Taxa de atingimento geral:</strong> <strong style="color:${taxaCl}">${atingiramG}/${comMeta.length} (${taxaGeral}%)</strong></div>`:''}
     ${destTotal?`<div style="color:#065f46">⭐ ${destTotal} destaque${destTotal>1?'s':''}</div>`:''}
     ${critTotal?`<div style="color:#7f1d1d">⚠ ${critTotal} crítico${critTotal>1?'s':''}</div>`:''}
   </div>
 </div>
-<div class="sec">Desempenho por área</div>
+<div class="sec">Taxa de atingimento por área</div>
 <div class="area-grid">${areaCards}</div>
 <div class="sec">✦ Análise da Inteligência Artificial</div>
 <div class="ia-box">${esc(_lastIndAnalise).replace(/\n/g,'<br>')}</div>
@@ -9491,9 +9498,9 @@ function gerarRelatorioIndPdf(){
     <th style="text-align:center">Status</th>
   </tr></thead>
   <tbody>${rows}</tbody>
-  ${avgGeral!==null?`<tfoot><tr class="tfoot-row">
-    <td colspan="5">Média geral (indicadores com meta)</td>
-    <td style="text-align:center;font-size:14px;color:${avgGeral>=100?'#16a34a':avgGeral>=80?'#d97706':'#dc2626'}">${avgGeral}%</td>
+  ${taxaGeral!==null?`<tfoot><tr class="tfoot-row">
+    <td colspan="5">Taxa de atingimento geral (indicadores com meta)</td>
+    <td style="text-align:center;font-size:14px;color:${taxaCl}">${atingiramG}/${comMeta.length} — ${taxaGeral}%</td>
     <td></td>
   </tr></tfoot>`:''}
 </table>
