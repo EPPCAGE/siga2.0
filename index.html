@@ -988,6 +988,14 @@ Não responda este e-mail.</pre>
         <div class="fg"><label class="fl" for="pub-resp">Responsável</label><input class="fi" id="pub-resp" placeholder="Ex: EP·CAGE"></div>
       </div>
       <div class="fg"><label class="fl" for="pub-tags">Tags (separadas por vírgula)</label><input class="fi" id="pub-tags" placeholder="Ex: bpmn, mapeamento, tutorial"></div>
+      <div class="fg">
+        <label class="fl">Capa / Thumbnail</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="fi" id="pub-thumb" placeholder="URL da imagem (opcional)" style="flex:1;min-width:180px" oninput="(function(v){const p=document.getElementById('pub-thumb-preview'),i=document.getElementById('pub-thumb-img');if(v){i.src=v;p.style.display='block';}else{p.style.display='none';}})(this.value)">
+          <label class="btn" style="font-size:11px;padding:3px 10px;cursor:pointer;flex-shrink:0">↑ Upload<input type="file" id="pub-thumb-file" accept="image/*" style="display:none" onchange="uploadThumbPub(this)"></label>
+        </div>
+        <div id="pub-thumb-preview" style="margin-top:6px;display:none"><img id="pub-thumb-img" src="" style="height:80px;border-radius:6px;border:1px solid var(--bdr);object-fit:cover"></div>
+      </div>
       <div class="btn-row">
         <button class="btn btn-r" id="pub-del-btn" style="margin-right:auto;display:none" onclick="deletarPub()">Remover</button>
         <button class="btn" onclick="document.getElementById('pub-modal').style.display='none'">Cancelar</button>
@@ -5935,7 +5943,7 @@ function macroArqHTML(m){
     </div>
     <div class="arq-macro-body" id="arq-body-${m.id}" style="display:none">
       ${m.processos.map(p=>procArqHTML(m.id,p)).join('')}
-      <button class="arq-add-btn" onclick="novoProcArq('${m.id}')">+ Adicionar processo</button>
+      ${isEP()?`<button class="arq-add-btn" onclick="novoProcArq('${m.id}')">+ Adicionar processo</button>`:''}
     </div>
   </div>`;
 }
@@ -5962,8 +5970,8 @@ function _subArqItemHTML(mid, pid, s){
       ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isMapeado(s.id)?'var(--red)':'var(--teal)'}" onclick="toggleMapeadoManual('${s.id}',event)">${isMapeado(s.id)?'Desmarcar':'✓ Mapeado'}</button>`:''}
       ${isCritico(s.id)?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
       ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isCritico(s.id)?'#dc2626':'var(--ink3)'}" onclick="toggleCriticoManual('${s.id}',event)">${isCritico(s.id)?'Desmarcar crítico':'⚠ Crítico'}</button>`:''}
-      <button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
-      <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')">×</button>
+      ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
+      <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')">×</button>`:''}
     </div>
     <div id="arq-ssub-${s.id}" style="display:none;padding:.6rem 1.2rem .8rem 2.2rem;background:var(--surf);border-top:1px dashed var(--bdr)">
       ${metaFieldsReadonly(s)}
@@ -5976,8 +5984,8 @@ function procArqHTML(mid,p){
   const bodyHTML = hasSubs
     ? `<div style="padding:.5rem .8rem .2rem"><div class="ib ibsl" style="font-size:11px;margin-bottom:.5rem">Processo agrupador — os subprocessos abaixo são as unidades mapeáveis individualmente.</div></div>
        ${p.subprocessos.map(s=>_subArqItemHTML(mid,p.id,s)).join('')}
-       <div style="padding:.5rem .8rem"><button class="arq-add-btn" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button></div>`
-    : `<div style="padding:.6rem .9rem .8rem">${metaFieldsReadonly(p)}<button class="arq-add-btn" style="margin-top:4px" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button></div>`;
+       ${isEP()?`<div style="padding:.5rem .8rem"><button class="arq-add-btn" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button></div>`:''}`
+    : `<div style="padding:.6rem .9rem .8rem">${metaFieldsReadonly(p)}${isEP()?`<button class="arq-add-btn" style="margin-top:4px" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button>`:''}</div>`;
   return `<div style="margin-bottom:.5rem">
     <div class="arq-proc-hd" onclick="toggleEl('arq-sub-${p.id}','chvp-${p.id}')">
       <span class="arq-chevron" id="chvp-${p.id}" style="color:var(--ink3)">▶</span>
@@ -7244,7 +7252,9 @@ function rPub(){
     lista.map(p=>{
       const cor = catColor[p.categoria]||'var(--ink3)';
       const tags = (p.tags||'').split(',').map(t=>t.trim()).filter(Boolean);
-      return `<div style="background:var(--surf);border:1px solid var(--bdr);border-top:3px solid ${cor};border-radius:var(--r);padding:1rem;box-shadow:var(--sh);display:flex;flex-direction:column;gap:6px">
+      return `<div style="background:var(--surf);border:1px solid var(--bdr);border-top:3px solid ${cor};border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);display:flex;flex-direction:column;gap:0">
+        ${p.thumb_url&&safeUrl(p.thumb_url)?`<div style="width:100%;height:130px;overflow:hidden;background:var(--bg2)"><img src="${esc(safeUrl(p.thumb_url))}" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`:''}
+        <div style="padding:1rem;display:flex;flex-direction:column;gap:6px;flex:1">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
           <div>
             <div style="font-size:10px;font-weight:700;color:${cor};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${esc(p.categoria)}</div>
@@ -7264,6 +7274,7 @@ function rPub(){
             <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarPub(${p.id})">×</button>
           </div>
         </div>
+        </div>
       </div>`;
     }).join('') + '</div>';
 }
@@ -7281,6 +7292,8 @@ function abrirModalPub(){
   document.getElementById('pub-data').value    = new Date().toISOString().slice(0,10);
   document.getElementById('pub-resp').value    = '';
   document.getElementById('pub-tags').value    = '';
+  document.getElementById('pub-thumb').value   = '';
+  document.getElementById('pub-thumb-preview').style.display = 'none';
   document.getElementById('pub-modal').style.display = 'flex';
 }
 
@@ -7298,6 +7311,10 @@ function editarPub(id){
   document.getElementById('pub-data').value     = p.data||'';
   document.getElementById('pub-resp').value     = p.responsavel||'';
   document.getElementById('pub-tags').value     = p.tags||'';
+  document.getElementById('pub-thumb').value    = p.thumb_url||'';
+  const prev = document.getElementById('pub-thumb-preview');
+  const img  = document.getElementById('pub-thumb-img');
+  if(p.thumb_url){ img.src=p.thumb_url; prev.style.display='block'; } else { prev.style.display='none'; }
   document.getElementById('pub-modal').style.display = 'flex';
 }
 
@@ -7314,6 +7331,7 @@ function salvarPub(){
     data:        document.getElementById('pub-data').value,
     responsavel: document.getElementById('pub-resp').value.trim(),
     tags:        document.getElementById('pub-tags').value.trim(),
+    thumb_url:   document.getElementById('pub-thumb').value.trim(),
   };
   const editId = document.getElementById('pub-edit-id').value;
   if(editId){
@@ -7329,6 +7347,25 @@ function salvarPub(){
   toast('Publicação salva');
 }
 
+async function uploadThumbPub(input){
+  const file=input?.files?.[0];if(!file)return;
+  const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
+  if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
+  const path=`publicacoes/thumbs/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+  const ref=storageRef(storage,path);
+  try{
+    toast('Enviando imagem…','var(--blue)');
+    await uploadBytes(ref,file);
+    const url=await getDownloadURL(ref);
+    document.getElementById('pub-thumb').value=url;
+    const img=document.getElementById('pub-thumb-img');
+    img.src=url;
+    document.getElementById('pub-thumb-preview').style.display='block';
+    toast('Imagem enviada!','var(--teal)');
+  }catch(e){
+    toast('Erro ao enviar imagem: '+e.message,'var(--red)');
+  }
+}
 function deletarPub(id){
   const delId = id || Number.parseInt(document.getElementById('pub-edit-id').value);
   if(!delId) return;
@@ -8639,6 +8676,20 @@ async function iaAssistente(){
 }
 
 // ── 4. ANALISAR INDICADORES ───────────────
+// Retorna true se o período é um dos 2 primeiros meses de um trimestre
+// (meses que no SISPLAN ficam com valor zero até o fechamento trimestral).
+function _ehMesNaoFechamento(periodo){
+  if(!periodo) return false;
+  const s = periodo.toString().toLowerCase();
+  // Meses de fechamento: março, junho, setembro, dezembro
+  const fechamento = /^(mar|jun|set|dez|março|junho|setembro|dezembro)/;
+  // Se começar com mês de fechamento → não é mês não-fechamento
+  if(fechamento.test(s.trim())) return false;
+  // Se contiver algum mês → é mês não-fechamento
+  const temMes = /jan|fev|abr|mai|jul|ago|out|nov|janeiro|fevereiro|abril|maio|julho|agosto|outubro|novembro/;
+  return temMes.test(s);
+}
+
 async function iaAnalisarIndicadores(){
   const area   = document.getElementById('ind-area-sel')?.value  || '';
   const ciclo  = document.getElementById('ind-ciclo-sel')?.value || '';
@@ -8652,11 +8703,18 @@ async function iaAnalisarIndicadores(){
   const el  = document.getElementById('ia-ind-result');
   if(btn) btn.disabled = true;
 
-  const payload = lista.map(k=>({
-    area: k.area, nome: k.nome,
-    meta: k.meta, realizado: k.realizado,
-    pct: k.pct_realizado, periodo: k.periodo,
-  }));
+  const payload = {
+    nota_sisplan: 'Indicadores com aguardando_fechamento=true estão nos 2 primeiros meses de um trimestre e possuem realizado=0 porque o SISPLAN registra resultados somente no último mês do trimestre (março, junho, setembro ou dezembro). Esses indicadores NÃO devem ser tratados como resultados ruins ou abaixo da meta.',
+    indicadores: lista.map(k=>{
+      const aguardando = (!k.realizado || k.realizado===0) && _ehMesNaoFechamento(k.periodo);
+      return {
+        area: k.area, nome: k.nome,
+        meta: k.meta, realizado: k.realizado,
+        pct: k.pct_realizado, periodo: k.periodo,
+        ...(aguardando ? {aguardando_fechamento: true} : {}),
+      };
+    }),
+  };
 
   const result = await chamarIA('analisar_indicadores', JSON.stringify(payload), el);
 
