@@ -473,6 +473,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <div class="user-role" id="aside-role">-</div>
       </div>
     </div>
+    <div id="ep-toggle-wrap" style="display:none;margin-bottom:6px">
+      <button id="ep-toggle-btn" onclick="togglePerfilEP()" style="width:100%;font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:6px;border:1.5px solid var(--teal-b);background:var(--teal-l);color:var(--teal);cursor:pointer;transition:all .15s">👤 Simular perfil: Executor de Processo</button>
+    </div>
     <button class="logout-btn" onclick="doLogout()">Sair da conta</button>
   </div>
 </aside>
@@ -1327,10 +1330,54 @@ function _aplicarUsuario(user){
   const mobAv=document.getElementById('mob-user-av');if(mobAv)mobAv.textContent=user.iniciais;
   document.getElementById('aside-name').textContent=user.nome;
   document.getElementById('aside-role').textContent=PERFIL_LABELS[user.perfil]||user.perfil;
+  _aplicarToggleEP(user);
   updCounts();
   aplicarPermissoes();
   go('fila',document.getElementById('nb-fila'));
   if(user.trocar_senha) setTimeout(abrirModalTrocarSenha, 600);
+}
+function _aplicarToggleEP(user){
+  const wrap=document.getElementById('ep-toggle-wrap');
+  if(!wrap) return;
+  // Mostra o toggle apenas para usuários EP (perfil original ep)
+  const perfilOriginal=user._perfil_original||user.perfil;
+  if(perfilOriginal!=='ep'){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  const simulando=user.perfil==='dono';
+  const btn=document.getElementById('ep-toggle-btn');
+  if(simulando){
+    btn.textContent='🔄 Voltar ao perfil EP';
+    btn.style.background='var(--amber-l)'; btn.style.color='var(--amber)'; btn.style.borderColor='var(--amber-b)';
+  } else {
+    btn.textContent='👤 Simular perfil: Executor de Processo';
+    btn.style.background='var(--teal-l)'; btn.style.color='var(--teal)'; btn.style.borderColor='var(--teal-b)';
+  }
+}
+function togglePerfilEP(){
+  if(!usuarioLogado) return;
+  const perfilOriginal=usuarioLogado._perfil_original||usuarioLogado.perfil;
+  if(perfilOriginal!=='ep') return;
+  const simulando=usuarioLogado.perfil==='dono';
+  if(simulando){
+    usuarioLogado.perfil='ep';
+    delete usuarioLogado._perfil_original;
+  } else {
+    usuarioLogado._perfil_original='ep';
+    usuarioLogado.perfil='dono';
+  }
+  document.getElementById('aside-role').textContent=PERFIL_LABELS[usuarioLogado.perfil]||usuarioLogado.perfil;
+  _aplicarToggleEP(usuarioLogado);
+  aplicarPermissoes();
+  updCounts();
+  // Re-renderiza a view atual
+  const pAtivo=document.querySelector('.page.on');
+  if(pAtivo){
+    const id=pAtivo.id.replace('page-','');
+    const nb=document.getElementById('nb-'+id);
+    go(id,nb||null);
+  }
+  const msg=usuarioLogado.perfil==='dono'?'Simulando perfil Executor de Processo':'Voltou ao perfil EP';
+  toast(msg, usuarioLogado.perfil==='dono'?'var(--amber)':'var(--teal)');
 }
 const DOMINIOS_PERMITIDOS = ['sefaz.rs.gov.br','cage.rs.gov.br'];
 
@@ -1515,6 +1562,7 @@ async function doLogout(){
   }
   usuarioLogado=null;
   try{localStorage.removeItem('siga_user');}catch(_e){console.warn('localStorage unavailable',_e);}
+  const epToggle=document.getElementById('ep-toggle-wrap');if(epToggle)epToggle.style.display='none';
   document.getElementById('login-screen').style.display='flex';
 }
 
