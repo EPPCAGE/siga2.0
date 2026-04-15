@@ -1467,7 +1467,7 @@ function _enviarSenhaAcesso(email, nome, senha){
       processo: 'EP·CAGE — Acesso liberado',
       acao: 'Seu acesso ao sistema EP·CAGE foi aprovado.\n\nSua senha temporária: ' + senha + '\n\nAcesse o sistema e altere sua senha no primeiro login.',
       prazo: 'Alterar a senha no primeiro acesso',
-      link: 'https://eppcage.github.io/siga2.0/',
+      link: 'https://sigaepp.web.app/',
     }).then(()=>console.info('Senha temporária enviada para', email))
       .catch(err=>console.warn('EmailJS erro ao enviar senha:', err?.text||err?.message));
   } else {
@@ -1633,7 +1633,7 @@ function testarEmailJS(){
     processo: 'Processo de teste',
     acao: 'Este é um e-mail de teste do sistema EP·CAGE.',
     prazo: 'N/A',
-    link: 'https://eppcage.github.io/gesproc2.0/',
+    link: 'https://sigaepp.web.app/',
   }).then(()=>{
     res.textContent = '✓ E-mail de teste enviado para ' + destEmail;
     res.style.color = 'var(--green)';
