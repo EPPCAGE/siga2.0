@@ -8616,6 +8616,15 @@ async function iaGerarPop(){
   const el  = document.getElementById('ia-pop-result');
   if(btn) btn.disabled = true;
 
+  // Itens confirmados na etapa Melhorias (excluindo descartados)
+  const a = p.ent?.analise || {};
+  const fb = a.feedback_dono || {};
+  function confirmados(tipo){ return Object.entries(fb[tipo]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k); }
+  const hasFeedback = Object.keys(fb).length > 0;
+  const gargalosConf    = hasFeedback ? confirmados('gargalos')         : (a.gargalos||[]);
+  const oportunidadesConf = hasFeedback ? confirmados('oportunidades')  : (a.oportunidades||[]);
+  const solucoesConf    = hasFeedback ? confirmados('solucoes_problemas') : (a.solucoes_problemas||[]);
+
   const payload = {
     nome: p.nome,
     area: p.area,
@@ -8628,6 +8637,9 @@ async function iaGerarPop(){
     })),
     entradas: p.form?.pop?.ent || '',
     saidas: p.form?.pop?.sai || '',
+    ...(gargalosConf.length     ? {gargalos_confirmados: gargalosConf}         : {}),
+    ...(oportunidadesConf.length ? {oportunidades_confirmadas: oportunidadesConf} : {}),
+    ...(solucoesConf.length     ? {solucoes_confirmadas: solucoesConf}          : {}),
   };
 
   const result = await chamarIA('gerar_pop', JSON.stringify(payload), el);
