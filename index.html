@@ -8668,18 +8668,15 @@ async function iaAssistente(){
 }
 
 // ── 4. ANALISAR INDICADORES ───────────────
-// Retorna true se o período é um dos 2 primeiros meses de um trimestre
-// (meses que no SISPLAN ficam com valor zero até o fechamento trimestral).
+// Retorna true somente se o período é o 1º mês de um trimestre
+// (jan, abr, jul, out) — únicos meses em que zero pode significar
+// ausência de preenchimento no SISPLAN. O 2º mês (fev, mai, ago, nov)
+// com zero já é resultado real, pois o 1º mês poderia ter valor acumulado.
 function _ehMesNaoFechamento(periodo){
   if(!periodo) return false;
   const s = periodo.toString().toLowerCase();
-  // Meses de fechamento: março, junho, setembro, dezembro
-  const fechamento = /^(mar|jun|set|dez|março|junho|setembro|dezembro)/;
-  // Se começar com mês de fechamento → não é mês não-fechamento
-  if(fechamento.test(s.trim())) return false;
-  // Se contiver algum mês → é mês não-fechamento
-  const temMes = /jan|fev|abr|mai|jul|ago|out|nov|janeiro|fevereiro|abril|maio|julho|agosto|outubro|novembro/;
-  return temMes.test(s);
+  // Apenas o 1º mês de cada trimestre: janeiro, abril, julho, outubro
+  return /^(jan|abr|jul|out|janeiro|abril|julho|outubro)/.test(s.trim());
 }
 
 async function iaAnalisarIndicadores(){
