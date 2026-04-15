@@ -3457,139 +3457,144 @@ function rAcaoRetro(){
   if(etId==='esboco_asis'||etId==='det_valid_asis'||etId==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
   if(etId==='esboco_tobe'||etId==='det_valid_tobe') setTimeout(()=>initBpmnMod('tobe',p),120);
 }
+
+// ── salvarRetroativo: handlers por etapa (extraídos para manutenibilidade) ──
+function _rsAbertura(p){
+  p.ent.dt_inicio=document.getElementById('a-ini')?.value||p.ent.dt_inicio;
+  p.ent.dt_prev=document.getElementById('a-prev')?.value||p.ent.dt_prev;
+  p.ent.equipe=document.getElementById('a-equipe')?.value||p.ent.equipe;
+  p.objetivo=document.getElementById('a-obj')?.value||p.objetivo;
+}
+function _rsReuniao(p){
+  p.ent.fornecedores=document.getElementById('r-fornec')?.value||p.ent.fornecedores;
+  p.ent.clientes=document.getElementById('r-clientes')?.value||p.ent.clientes;
+  p.ent.entradas=document.getElementById('r-entradas')?.value||p.ent.entradas;
+  p.ent.atividades_principais=document.getElementById('r-atividades')?.value||p.ent.atividades_principais;
+  p.ent.saidas=document.getElementById('r-saidas')?.value||p.ent.saidas;
+  p.ent.atores=document.getElementById('r-atores')?.value||p.ent.atores;
+  if(!p.ent.vol)p.ent.vol={};
+  p.ent.vol.exec=document.getElementById('r-exec')?.value||p.ent.vol.exec;
+  const tc=Number.parseFloat(document.getElementById('r-tciclo')?.value);
+  const tr=Number.parseFloat(document.getElementById('r-treal')?.value);
+  if(!Number.isNaN(tc)){p.ent.t_ciclo=tc;} if(!Number.isNaN(tr)){p.ent.t_real=tr;}
+  if(p.ent.t_ciclo!=null&&p.ent.t_real!=null){p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);}
+  const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  if(prob.length){p.ent.prob=prob;}
+}
+function _rsEsbocaAsis(p){
+  if(!p.mod)p.mod={};
+  const txt=document.getElementById('e-asis')?.value;
+  if(txt!=null) p.mod.asIs=txt;
+}
+function _rsEsbocaTobe(p){
+  if(!p.mod)p.mod={};
+  const txt=document.getElementById('e-tobe')?.value;
+  if(txt!=null) p.mod.toBe=txt;
+}
+function _rsDetValidAsis(p){
+  const obs=document.getElementById('aobs')?.value||'';
+  if(obs){if(!p.ent.analise){p.ent.analise={};} p.ent.analise.obs_valid_asis=obs;}
+}
+function _rsDetValidTobe(p){
+  if(!p.mod)p.mod={};
+  const dt=document.getElementById('vtb-dt')?.value||'';
+  const part=document.getElementById('vtb-part')?.value||'';
+  const ata=document.getElementById('vtb-ata')?.value||'';
+  const obs=document.getElementById('vtb-obs')?.value||'';
+  if(dt||part||ata){p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};}
+  if(obs){if(!p.mod.obs_valid_tobe){p.mod.obs_valid_tobe='';} p.mod.obs_valid_tobe=obs;}
+}
+function _rsApresentacao(p){
+  if(!p.form)p.form={};
+  const dt=document.getElementById('adt')?.value||'';
+  const part=document.getElementById('apart')?.value||'';
+  const ata=document.getElementById('apr-ata')?.value||'';
+  if(dt||part||ata){p.form.reuniao_apresentacao={data:dt,participantes:part,ata};}
+  const obs=document.getElementById('aobs')?.value||'';
+  if(obs) p.form.obs_apresentacao=obs;
+}
+function _rsQuestionario(p){
+  const resp=p.ent.quest_resp||{};
+  const vals=Object.values(resp);
+  const total=vals.reduce((a,b)=>a+b,0);
+  const media=vals.length>0?(total/vals.length).toFixed(1):0;
+  p.ent.mat=media<=1.5?1:media<=2.5?2:media<=3.5?3:media<=4.5?4:5;
+}
+function _rsAnalise(p){
+  p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
+}
+function _rsDesenhoFinal(p){
+  p.form=p.form||{};
+  p.form.link_final=document.getElementById('a-link')?.value||p.form.link_final||'';
+  p.form.ferramenta=document.getElementById('a-ferr')?.value||p.form.ferramenta||'';
+  p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
+}
+function _rsComplement(p){
+  p.form=p.form||{};
+  p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
+  p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
+  p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
+  p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
+  const obs=document.getElementById('aobs')?.value||'';
+  if(obs) p.form.obs_complement=obs;
+  const dt=document.getElementById('comp-dt')?.value||'';
+  const part=document.getElementById('comp-part')?.value||'';
+  const ata=document.getElementById('comp-ata')?.value||'';
+  if(dt||part||ata) p.form.reuniao_complement={data:dt,participantes:part,ata};
+}
+function _rsPOP(p){
+  p.form=p.form||{};
+  const etapas=p.mod?.etapas_proc||[];
+  const ativ_detalhes=Object.assign({},p.form.pop?.ativ_detalhes||{});
+  etapas.forEach((_,i)=>{
+    const descEl=document.getElementById(`pop-at-desc-${i}`);
+    if(!descEl)return;
+    const prev=ativ_detalhes[i]||{};
+    const t=document.getElementById(`pop-at-tipo-${i}`)?.value;
+    const r=document.getElementById(`pop-at-resp-${i}`)?.value;
+    ativ_detalhes[i]={tipo:t||prev.tipo||'Atividade',desc:descEl.value||prev.desc||'',resp:r||prev.resp||''};
+  });
+  const prev=p.form.pop||{};
+  p.form.pop={
+    area:document.getElementById('pp-area')?.value||prev.area||'',
+    ger:document.getElementById('pp-ger')?.value||prev.ger||'',
+    mac:document.getElementById('pp-mac')?.value||prev.mac||'',
+    obj:document.getElementById('pp-obj')?.value||prev.obj||'',
+    def:document.getElementById('pp-def')?.value||prev.def||'',
+    ent:document.getElementById('pp-ent')?.value||prev.ent||'',
+    sai:document.getElementById('pp-sai')?.value||prev.sai||'',
+    docs:document.getElementById('pp-docs')?.value||prev.docs||'',
+    ativ_detalhes,
+  };
+}
+function _rsPublicacao(p){
+  p.form=p.form||{};
+  p.form.pub_link=document.getElementById('pub-link')?.value||p.form.pub_link;
+  p.form.pub_local=document.getElementById('pub-local')?.value||p.form.pub_local;
+}
+function _rsMelhorias(p){
+  if(!p.ent.analise) p.ent.analise={};
+  const fb={};
+  (globalThis._dfbItems||[]).forEach(({tipo,texto})=>{
+    const val=globalThis._dfb?.[tipo]?.[texto];
+    if(val){if(!fb[tipo]){fb[tipo]={};} fb[tipo][texto]=val;}
+  });
+  const existing=p.ent.analise.feedback_dono||{};
+  Object.keys(fb).forEach(t=>{existing[t]={...existing[t],...fb[t]};});
+  p.ent.analise.feedback_dono=existing;
+}
+const _RS_MAP={
+  abertura:_rsAbertura, reuniao:_rsReuniao, riscos:()=>{},
+  esboco_asis:_rsEsbocaAsis, esboco_tobe:_rsEsbocaTobe,
+  det_valid_asis:_rsDetValidAsis, det_valid_tobe:_rsDetValidTobe,
+  apresentacao:_rsApresentacao, questionario:_rsQuestionario,
+  analise:_rsAnalise, desenho_final:_rsDesenhoFinal,
+  complement:_rsComplement, pop:_rsPOP, publicacao:_rsPublicacao,
+  melhorias:_rsMelhorias,
+};
 function salvarRetroativo(etId){
   const p=curProc;
-  const saves={
-    abertura:()=>{
-      p.ent.dt_inicio=document.getElementById('a-ini')?.value||p.ent.dt_inicio;
-      p.ent.dt_prev=document.getElementById('a-prev')?.value||p.ent.dt_prev;
-      p.ent.equipe=document.getElementById('a-equipe')?.value||p.ent.equipe;
-      p.objetivo=document.getElementById('a-obj')?.value||p.objetivo;
-    },
-    reuniao:()=>{
-      p.ent.fornecedores=document.getElementById('r-fornec')?.value||p.ent.fornecedores;
-      p.ent.clientes=document.getElementById('r-clientes')?.value||p.ent.clientes;
-      p.ent.entradas=document.getElementById('r-entradas')?.value||p.ent.entradas;
-      p.ent.atividades_principais=document.getElementById('r-atividades')?.value||p.ent.atividades_principais;
-      p.ent.saidas=document.getElementById('r-saidas')?.value||p.ent.saidas;
-      p.ent.atores=document.getElementById('r-atores')?.value||p.ent.atores;
-      if(!p.ent.vol)p.ent.vol={};
-      p.ent.vol.exec=document.getElementById('r-exec')?.value||p.ent.vol.exec;
-      const tc=Number.parseFloat(document.getElementById('r-tciclo')?.value);const tr=Number.parseFloat(document.getElementById('r-treal')?.value);
-      if(!Number.isNaN(tc)){p.ent.t_ciclo=tc;}if(!Number.isNaN(tr)){p.ent.t_real=tr;}
-      if(p.ent.t_ciclo!=null&&p.ent.t_real!=null){p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);}
-      const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-      if(prob.length){p.ent.prob=prob;}
-    },
-    riscos:()=>{/* riscos already stored live via addRisco/remR */},
-    esboco_asis:()=>{
-      if(!p.mod)p.mod={};
-      const txt=document.getElementById('e-asis')?.value;
-      if(txt!=null) p.mod.asIs=txt;
-      // BPMN é salvo pelo próprio botão "Salvar" da toolbar do editor
-    },
-    esboco_tobe:()=>{
-      if(!p.mod)p.mod={};
-      const txt=document.getElementById('e-tobe')?.value;
-      if(txt!=null) p.mod.toBe=txt;
-    },
-    det_valid_asis:()=>{
-      // Campos de detalhe de etapas são salvos live via detalharEtapa()
-      // Apenas captura observações textuais se presentes
-      const obs=document.getElementById('aobs')?.value||'';
-      if(obs){if(!p.ent.analise){p.ent.analise={};} p.ent.analise.obs_valid_asis=obs;}
-    },
-    det_valid_tobe:()=>{
-      if(!p.mod)p.mod={};
-      const dt=document.getElementById('vtb-dt')?.value||'';
-      const part=document.getElementById('vtb-part')?.value||'';
-      const ata=document.getElementById('vtb-ata')?.value||'';
-      const obs=document.getElementById('vtb-obs')?.value||'';
-      if(dt||part||ata){p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};}
-      if(obs){if(!p.mod.obs_valid_tobe){p.mod.obs_valid_tobe='';} p.mod.obs_valid_tobe=obs;}
-    },
-    apresentacao:()=>{
-      if(!p.form)p.form={};
-      const dt=document.getElementById('adt')?.value||'';
-      const part=document.getElementById('apart')?.value||'';
-      const ata=document.getElementById('apr-ata')?.value||'';
-      if(dt||part||ata){p.form.reuniao_apresentacao={data:dt,participantes:part,ata};}
-      const obs=document.getElementById('aobs')?.value||'';
-      if(obs) p.form.obs_apresentacao=obs;
-    },
-    questionario:()=>{
-      const resp=p.ent.quest_resp||{};
-      const vals=Object.values(resp);
-      const total=vals.reduce((a,b)=>a+b,0);
-      const media=vals.length>0?(total/vals.length).toFixed(1):0;
-      p.ent.mat=media<=1.5?1:media<=2.5?2:media<=3.5?3:media<=4.5?4:5;
-    },
-    analise:()=>{
-      p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
-    },
-    desenho_final:()=>{
-      p.form=p.form||{};
-      p.form.link_final=document.getElementById('a-link')?.value||p.form.link_final||'';
-      p.form.ferramenta=document.getElementById('a-ferr')?.value||p.form.ferramenta||'';
-      p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
-    },
-    complement:()=>{
-      p.form=p.form||{};
-      p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
-      p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
-      p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
-      p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
-      const obs=document.getElementById('aobs')?.value||'';
-      if(obs) p.form.obs_complement=obs;
-      const dt=document.getElementById('comp-dt')?.value||'';
-      const part=document.getElementById('comp-part')?.value||'';
-      const ata=document.getElementById('comp-ata')?.value||'';
-      if(dt||part||ata) p.form.reuniao_complement={data:dt,participantes:part,ata};
-    },
-    pop:()=>{
-      p.form=p.form||{};
-      const etapas=p.mod?.etapas_proc||[];
-      const ativ_detalhes=Object.assign({},p.form.pop?.ativ_detalhes||{});
-      etapas.forEach((_,i)=>{
-        const descEl=document.getElementById(`pop-at-desc-${i}`);
-        if(!descEl)return; // aba Atividades não renderizada, preserva valor anterior
-        const prev=ativ_detalhes[i]||{};
-        const t=document.getElementById(`pop-at-tipo-${i}`)?.value;
-        const r=document.getElementById(`pop-at-resp-${i}`)?.value;
-        ativ_detalhes[i]={tipo:t||prev.tipo||'Atividade',desc:descEl.value||prev.desc||'',resp:r||prev.resp||''};
-      });
-      const prev=p.form.pop||{};
-      p.form.pop={
-        area:document.getElementById('pp-area')?.value||prev.area||'',
-        ger:document.getElementById('pp-ger')?.value||prev.ger||'',
-        mac:document.getElementById('pp-mac')?.value||prev.mac||'',
-        obj:document.getElementById('pp-obj')?.value||prev.obj||'',
-        def:document.getElementById('pp-def')?.value||prev.def||'',
-        ent:document.getElementById('pp-ent')?.value||prev.ent||'',
-        sai:document.getElementById('pp-sai')?.value||prev.sai||'',
-        docs:document.getElementById('pp-docs')?.value||prev.docs||'',
-        ativ_detalhes,
-      };
-    },
-    publicacao:()=>{
-      p.form=p.form||{};
-      p.form.pub_link=document.getElementById('pub-link')?.value||p.form.pub_link;
-      p.form.pub_local=document.getElementById('pub-local')?.value||p.form.pub_local;
-    },
-    melhorias:()=>{
-      if(!p.ent.analise) p.ent.analise={};
-      const fb={};
-      (globalThis._dfbItems||[]).forEach(({tipo,texto})=>{
-        const val=globalThis._dfb?.[tipo]?.[texto];
-        if(val){if(!fb[tipo]){fb[tipo]={};} fb[tipo][texto]=val;}
-      });
-      // Preserva feedback existente e mescla com o atual
-      const existing=p.ent.analise.feedback_dono||{};
-      Object.keys(fb).forEach(t=>{existing[t]={...existing[t],...fb[t]};});
-      p.ent.analise.feedback_dono=existing;
-    },
-  };
-  if(saves[etId]){saves[etId]();}
+  if(_RS_MAP[etId]) _RS_MAP[etId](p);
   push(p,etId,'EP','Dados revisados retroativamente pelo EP');
   epRetroEtapa=null;
   toast('Revisão salva.','var(--blue)');
@@ -4138,6 +4143,93 @@ async function gerarFAQIA(){
   finally{ if(btn){btn.disabled=false;} if(st){st.textContent='';} }
 }
 
+// ── gerarPOPPPT: construtores de strings extraídos para manutenibilidade ──
+function _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText){
+  return `PROCESSO: ${p.nome}
+MACROPROCESSO: ${p.macro || '—'}
+ÁREA: ${p.area || '—'}
+GESTOR/DONO: ${p.dono || '—'}
+OBJETIVO: ${p.objetivo || '—'}
+PRODUTO DO MAPEAMENTO: ${p.produto || '—'}
+PRIORIDADE: ${p.prio || '—'}
+VOLUME (execuções/período): ${p.ent?.vol?.exec || '—'}
+TEMPO DE CICLO MÉDIO: ${p.ent?.t_ciclo == null ? p.ent?.vol?.tempo || '—' : p.ent.t_ciclo + ' h'}
+TEMPO REAL (LEAD TIME): ${p.ent?.t_real == null ? '—' : p.ent.t_real + ' h'}
+TEMPO DE GAVETA: ${p.ent?.t_gaveta == null ? '—' : p.ent.t_gaveta + ' h'}
+SAZONALIDADE: ${p.ent?.vol?.sazon || '—'}
+MATURIDADE GERAL: ${p.ent?.mat || 0}/5
+MATURIDADE POR EIXO: ${dimText || '—'}
+SIPOC — Fornecedores: ${p.ent?.fornecedores || '—'}
+SIPOC — Entradas: ${p.ent?.entradas || '—'}
+SIPOC — Saídas: ${p.ent?.saidas || '—'}
+SIPOC — Clientes: ${p.ent?.clientes || '—'}
+SIPOC — Atores: ${p.ent?.atores || '—'}
+PROBLEMAS RELATADOS:
+${probsText || 'Nenhum registrado'}
+RISCOS IDENTIFICADOS:
+${riscosText || 'Nenhum registrado'}
+SOLUÇÕES DE PROBLEMAS CONFIRMADAS PELA EQUIPE (usar no slide de soluções):
+${solucoesFinal.length ? solucoesFinal.map((s,i)=>`${i+1}. ${s}`).join('\n') : 'Nenhuma confirmada'}
+SITUAÇÃO AS IS: ${p.mod?.asIs || '—'}
+SITUAÇÃO TO BE: ${p.mod?.toBe || '—'}
+GARGALOS CONFIRMADOS: ${gargalosFinal.join('; ') || '—'}
+GAPS CONFIRMADOS: ${gapsFinal.join('; ') || '—'}
+OPORTUNIDADES CONFIRMADAS: ${oportunidadesFinal.join('; ') || '—'}
+FAQ:
+${faqText || 'Não preenchido'}
+INDICADORES VINCULADOS:
+${indsText || 'Nenhum indicador cadastrado'}`;
+}
+function _pptPromptStr(ctx){
+  return `Você é especialista em BPM gerando um POP em PowerPoint para publicação oficial.
+
+Com base nos dados abaixo, gere o conteúdo para uma apresentação com EXATAMENTE 11 slides na ordem indicada.
+Escreva em português formal e executivo. Retorne APENAS o JSON, sem markdown.
+
+{
+  "slides": [
+    {"id":"apresentacao","titulo":"Apresentação do Processo","tipo":"dados",
+      "dados":[{"label":"Macroprocesso","valor":"..."},{"label":"Processo / Subprocesso","valor":"..."},{"label":"Área responsável","valor":"..."},{"label":"Gestor do processo","valor":"..."},{"label":"Prioridade","valor":"..."},{"label":"Produto do mapeamento","valor":"..."}]},
+
+    {"id":"sipoc_volumetria","titulo":"SIPOC, Volumetria e Maturidade","tipo":"sipoc",
+      "sipoc":{"S":"fornecedores reais","I":"entradas reais","P":"nome do processo","O":"saídas reais","C":"clientes reais"},
+      "volumetria":[{"label":"Execuções / período","valor":"..."},{"label":"Tempo de ciclo médio","valor":"..."},{"label":"Lead time (tempo real)","valor":"..."},{"label":"Tempo de gaveta","valor":"..."}],
+      "maturidade":[{"eixo":"Alinhamento estratégico","nota":"X/5"},{"eixo":"Estrutura e padronização","nota":"X/5"},{"eixo":"Papéis e responsabilidades","nota":"X/5"},{"eixo":"Execução e controle","nota":"X/5"},{"eixo":"Automação e tecnologia","nota":"X/5"},{"eixo":"Monitoramento e melhoria","nota":"X/5"}]},
+
+    {"id":"objetivo_problemas","titulo":"Objetivo do Mapeamento e Problemas Relatados","tipo":"objetivo",
+      "objetivo":"parágrafo conciso explicando o objetivo do trabalho de mapeamento e contexto institucional...",
+      "problemas":["problema 1 real","problema 2 real","..."]},
+
+    {"id":"asis","titulo":"Desenho AS IS — Situação Atual","tipo":"bpmn_asis",
+      "resumo":"descrição objetiva da situação atual do processo caso o diagrama não esteja disponível..."},
+
+    {"id":"riscos","titulo":"Riscos Identificados","tipo":"bullets",
+      "bullets":["Risco 1 — probabilidade / impacto","Risco 2 — ..."]},
+
+    {"id":"solucoes","titulo":"Propostas de Soluções","tipo":"solucoes",
+      "itens":[{"problema":"problema ou risco identificado","solucao":"sugestão de mitigação ou solução proposta"}]},
+
+    {"id":"tobe","titulo":"Desenho TO BE — Situação Proposta","tipo":"bpmn_tobe",
+      "resumo":"descrição objetiva da situação proposta caso o diagrama não esteja disponível..."},
+
+    {"id":"comparativo","titulo":"Comparativo AS IS → TO BE","tipo":"bullets",
+      "bullets":["Mudança 1: o que era X, passa a ser Y","Mudança 2: ..."]},
+
+    {"id":"faq","titulo":"Perguntas Frequentes — FAQ","tipo":"faq",
+      "itens":[{"pergunta":"P: pergunta frequente?","resposta":"R: resposta objetiva."}]},
+
+    {"id":"indicadores","titulo":"Indicadores Vinculados ao Processo","tipo":"indicadores",
+      "itens":[{"label":"nome do indicador","valor":"periodicidade — meta se houver"}]},
+
+    {"id":"encerramento","titulo":"Encerramento","tipo":"encerramento",
+      "mensagem":"mensagem executiva de encerramento, reforçando o valor do processo documentado..."}
+  ]
+}
+
+DADOS DO PROCESSO:
+${ctx}`;
+}
+
 async function gerarPOPPPT() {
   const p = curProc;
   if (!p) { toast('Nenhum processo selecionado.','var(--amber)'); return; }
@@ -4192,88 +4284,8 @@ async function gerarPOPPPT() {
     const indsText = indsProc.slice(0, 8).map(k => `${k.enunciado || k.indicador}${k.ciclo ? ' (' + k.ciclo + ')' : ''}${k.meta ? ' — meta: ' + k.meta : ''}`).join('\n');
     const faqText = p.form?.faq || '';
 
-    const ctx = `PROCESSO: ${p.nome}
-MACROPROCESSO: ${p.macro || '—'}
-ÁREA: ${p.area || '—'}
-GESTOR/DONO: ${p.dono || '—'}
-OBJETIVO: ${p.objetivo || '—'}
-PRODUTO DO MAPEAMENTO: ${p.produto || '—'}
-PRIORIDADE: ${p.prio || '—'}
-VOLUME (execuções/período): ${p.ent?.vol?.exec || '—'}
-TEMPO DE CICLO MÉDIO: ${p.ent?.t_ciclo == null ? p.ent?.vol?.tempo || '—' : p.ent.t_ciclo + ' h'}
-TEMPO REAL (LEAD TIME): ${p.ent?.t_real == null ? '—' : p.ent.t_real + ' h'}
-TEMPO DE GAVETA: ${p.ent?.t_gaveta == null ? '—' : p.ent.t_gaveta + ' h'}
-SAZONALIDADE: ${p.ent?.vol?.sazon || '—'}
-MATURIDADE GERAL: ${p.ent?.mat || 0}/5
-MATURIDADE POR EIXO: ${dimText || '—'}
-SIPOC — Fornecedores: ${p.ent?.fornecedores || '—'}
-SIPOC — Entradas: ${p.ent?.entradas || '—'}
-SIPOC — Saídas: ${p.ent?.saidas || '—'}
-SIPOC — Clientes: ${p.ent?.clientes || '—'}
-SIPOC — Atores: ${p.ent?.atores || '—'}
-PROBLEMAS RELATADOS:
-${probsText || 'Nenhum registrado'}
-RISCOS IDENTIFICADOS:
-${riscosText || 'Nenhum registrado'}
-SOLUÇÕES DE PROBLEMAS CONFIRMADAS PELA EQUIPE (usar no slide de soluções):
-${solucoesFinal.length ? solucoesFinal.map((s,i)=>`${i+1}. ${s}`).join('\n') : 'Nenhuma confirmada'}
-SITUAÇÃO AS IS: ${p.mod?.asIs || '—'}
-SITUAÇÃO TO BE: ${p.mod?.toBe || '—'}
-GARGALOS CONFIRMADOS: ${gargalosFinal.join('; ') || '—'}
-GAPS CONFIRMADOS: ${gapsFinal.join('; ') || '—'}
-OPORTUNIDADES CONFIRMADAS: ${oportunidadesFinal.join('; ') || '—'}
-FAQ:
-${faqText || 'Não preenchido'}
-INDICADORES VINCULADOS:
-${indsText || 'Nenhum indicador cadastrado'}`;
-
-    const prompt = `Você é especialista em BPM gerando um POP em PowerPoint para publicação oficial.
-
-Com base nos dados abaixo, gere o conteúdo para uma apresentação com EXATAMENTE 11 slides na ordem indicada.
-Escreva em português formal e executivo. Retorne APENAS o JSON, sem markdown.
-
-{
-  "slides": [
-    {"id":"apresentacao","titulo":"Apresentação do Processo","tipo":"dados",
-      "dados":[{"label":"Macroprocesso","valor":"..."},{"label":"Processo / Subprocesso","valor":"..."},{"label":"Área responsável","valor":"..."},{"label":"Gestor do processo","valor":"..."},{"label":"Prioridade","valor":"..."},{"label":"Produto do mapeamento","valor":"..."}]},
-
-    {"id":"sipoc_volumetria","titulo":"SIPOC, Volumetria e Maturidade","tipo":"sipoc",
-      "sipoc":{"S":"fornecedores reais","I":"entradas reais","P":"nome do processo","O":"saídas reais","C":"clientes reais"},
-      "volumetria":[{"label":"Execuções / período","valor":"..."},{"label":"Tempo de ciclo médio","valor":"..."},{"label":"Lead time (tempo real)","valor":"..."},{"label":"Tempo de gaveta","valor":"..."}],
-      "maturidade":[{"eixo":"Alinhamento estratégico","nota":"X/5"},{"eixo":"Estrutura e padronização","nota":"X/5"},{"eixo":"Papéis e responsabilidades","nota":"X/5"},{"eixo":"Execução e controle","nota":"X/5"},{"eixo":"Automação e tecnologia","nota":"X/5"},{"eixo":"Monitoramento e melhoria","nota":"X/5"}]},
-
-    {"id":"objetivo_problemas","titulo":"Objetivo do Mapeamento e Problemas Relatados","tipo":"objetivo",
-      "objetivo":"parágrafo conciso explicando o objetivo do trabalho de mapeamento e contexto institucional...",
-      "problemas":["problema 1 real","problema 2 real","..."]},
-
-    {"id":"asis","titulo":"Desenho AS IS — Situação Atual","tipo":"bpmn_asis",
-      "resumo":"descrição objetiva da situação atual do processo caso o diagrama não esteja disponível..."},
-
-    {"id":"riscos","titulo":"Riscos Identificados","tipo":"bullets",
-      "bullets":["Risco 1 — probabilidade / impacto","Risco 2 — ..."]},
-
-    {"id":"solucoes","titulo":"Propostas de Soluções","tipo":"solucoes",
-      "itens":[{"problema":"problema ou risco identificado","solucao":"sugestão de mitigação ou solução proposta"}]},
-
-    {"id":"tobe","titulo":"Desenho TO BE — Situação Proposta","tipo":"bpmn_tobe",
-      "resumo":"descrição objetiva da situação proposta caso o diagrama não esteja disponível..."},
-
-    {"id":"comparativo","titulo":"Comparativo AS IS → TO BE","tipo":"bullets",
-      "bullets":["Mudança 1: o que era X, passa a ser Y","Mudança 2: ..."]},
-
-    {"id":"faq","titulo":"Perguntas Frequentes — FAQ","tipo":"faq",
-      "itens":[{"pergunta":"P: pergunta frequente?","resposta":"R: resposta objetiva."}]},
-
-    {"id":"indicadores","titulo":"Indicadores Vinculados ao Processo","tipo":"indicadores",
-      "itens":[{"label":"nome do indicador","valor":"periodicidade — meta se houver"}]},
-
-    {"id":"encerramento","titulo":"Encerramento","tipo":"encerramento",
-      "mensagem":"mensagem executiva de encerramento, reforçando o valor do processo documentado..."}
-  ]
-}
-
-DADOS DO PROCESSO:
-${ctx}`;
+    const ctx = _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText);
+    const prompt = _pptPromptStr(ctx);
 
     if (st) st.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA elaborando conteúdo do POP...</div>';
     const raw = await chamarIA('gerar_ppt', prompt, st);
