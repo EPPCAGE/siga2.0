@@ -2630,7 +2630,6 @@ const ACOES = {
         +_iaSection('Oportunidades',a.ia_resultado.oportunidades)
         +(a.ia_resultado.complexidade?'<div class="ai-result-lbl" style="margin-top:.8rem">Complexidade</div><p>'+esc(a.ia_resultado.complexidade)+'</p>':'')
         +_iaSection('💡 Soluções para problemas levantados',a.ia_resultado.solucoes_problemas,'color:var(--teal)')
-        +_iaSection('🛡 Propostas de mitigação de riscos',a.ia_resultado.mitigacoes_riscos,'color:var(--amber)')
         +'</div>')
         :'<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>';
       return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN, etapas mapeadas e dados do processo.</div>
@@ -2734,8 +2733,7 @@ const ACOES = {
       const gaps=[...new Set([...(a.gaps||[]),...(ia.gaps||[])])];
       const oportunidades=[...new Set([...(a.oportunidades||[]),...(ia.oportunidades||[])])];
       const solucoes=ia.solucoes_problemas||a.solucoes_problemas||[];
-      const mitigacoes=ia.mitigacoes_riscos||a.mitigacoes_riscos||[];
-      const temAnalise=!!(ia.resumo||gargalos.length||retrabalhos.length||gaps.length||oportunidades.length||solucoes.length||mitigacoes.length);
+      const temAnalise=!!(ia.resumo||gargalos.length||retrabalhos.length||gaps.length||oportunidades.length||solucoes.length);
       globalThis._dfb={};globalThis._dfbItems=[];
       const savedFb=a.feedback_dono||{};
       Object.keys(savedFb).forEach(t=>{globalThis._dfb[t]={...savedFb[t]};});
@@ -2746,8 +2744,7 @@ const ACOES = {
           +_dfbBlock('analise-ret','Retrabalhos',retrabalhos,'retrabalhos','↩')
           +_dfbBlock('analise-gap','Pontos cegos',gaps,'gaps','○')
           +_dfbBlock('analise-oport','Oportunidades',oportunidades,'oportunidades','✦')
-          +'<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--teal-l);color:var(--teal)">Soluções propostas ('+solucoes.length+')</div>'+solucoes.map(s=>dfbRow('solucoes_problemas',s,'💡')).join('')+'</div>'
-          +'<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--amber-l);color:var(--amber)">Mitigações de riscos ('+mitigacoes.length+')</div>'+mitigacoes.map(m=>dfbRow('mitigacoes_riscos',m,'🛡')).join('')+'</div>')
+          +'<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--teal-l);color:var(--teal)">Soluções propostas ('+solucoes.length+')</div>'+solucoes.map(s=>dfbRow('solucoes_problemas',s,'💡')).join('')+'</div>')
         :'<div class="ib iba">Análise inteligente ainda não gerada. Execute a etapa de Análise inteligente antes.</div>';
       return `<div class="ib ibp" style="margin-bottom:1.2rem">Com base na análise inteligente e nos riscos identificados, confirme (✓) os itens que serão trabalhados como melhorias ou descarte (✗) os que não se aplicam.</div>
       ${analiseHtml}
@@ -3561,7 +3558,7 @@ function _gerarAnaliseIAPayloadExtra(p){
   if(!problemas.length && !riscos.length) return '';
   const probsStr=problemas.length?'\n\nProblemas/dores levantados na reunião de entendimento:\n'+problemas.map((x,i)=>`${i+1}. ${x}`).join('\n'):'';
   const riscosStr=riscos.length?'\n\nRiscos identificados na etapa de identificação de riscos:\n'+riscos.map((r,i)=>`${i+1}. ${r}`).join('\n'):'';
-  const instrucoes='\n\nAlém dos campos padrão (resumo, gargalos, retrabalhos, gaps, oportunidades, complexidade), inclua obrigatoriamente no JSON:\n- "solucoes_problemas": array de strings com uma sugestão de solução concreta para cada problema listado acima (mesma ordem e quantidade)\n- "mitigacoes_riscos": array de strings com uma proposta de mitigação concreta para cada risco listado acima (mesma ordem e quantidade)';
+  const instrucoes='\n\nAlém dos campos padrão (resumo, gargalos, retrabalhos, gaps, oportunidades, complexidade), inclua obrigatoriamente no JSON:\n- "solucoes_problemas": array de strings, uma solução por problema listado acima, obrigatoriamente no formato "[Problema: <texto exato do problema>] <sugestão de solução concreta>" (mesma ordem e quantidade dos problemas)';
   return probsStr+riscosStr+instrucoes;
 }
 function _gerarAnaliseIASalvarJSON(p, json){
@@ -3572,7 +3569,6 @@ function _gerarAnaliseIASalvarJSON(p, json){
   if(json.oportunidades)p.ent.analise.oportunidades=json.oportunidades;
   if(json.complexidade)p.ent.analise.complexidade=json.complexidade;
   if(json.solucoes_problemas)p.ent.analise.solucoes_problemas=json.solucoes_problemas;
-  if(json.mitigacoes_riscos)p.ent.analise.mitigacoes_riscos=json.mitigacoes_riscos;
   fbAutoSave('salvar');
   rDetalhe();
 }
@@ -3810,7 +3806,6 @@ async function gerarPOPPPT() {
     function confirmados(tipo) {
       return Object.entries(fb[tipo] || {}).filter(([,v]) => v === 'confirmado').map(([k]) => k);
     }
-    const mitigacoesConf  = confirmados('mitigacoes_riscos');
     const solucoesConf    = confirmados('solucoes_problemas');
     const gargalosConf    = confirmados('gargalos');
     const oportunidadesConf = confirmados('oportunidades');
@@ -3820,7 +3815,6 @@ async function gerarPOPPPT() {
     const gargalosFinal    = hasFeedback ? gargalosConf    : (a.gargalos || []);
     const oportunidadesFinal = hasFeedback ? oportunidadesConf : (a.oportunidades || []);
     const gapsFinal        = hasFeedback ? gapsConf        : (a.gaps || []);
-    const mitigacoesFinal  = hasFeedback ? mitigacoesConf  : (a.mitigacoes_riscos || []);
     const solucoesFinal    = hasFeedback ? solucoesConf    : (a.solucoes_problemas || []);
 
     const riscosText = (p.ent?.riscos || []).map((r, i) => {
@@ -3855,8 +3849,6 @@ PROBLEMAS RELATADOS:
 ${probsText || 'Nenhum registrado'}
 RISCOS IDENTIFICADOS:
 ${riscosText || 'Nenhum registrado'}
-MITIGAÇÕES DE RISCOS CONFIRMADAS PELA EQUIPE (usar no slide de soluções):
-${mitigacoesFinal.length ? mitigacoesFinal.map((m,i)=>`${i+1}. ${m}`).join('\n') : 'Nenhuma confirmada'}
 SOLUÇÕES DE PROBLEMAS CONFIRMADAS PELA EQUIPE (usar no slide de soluções):
 ${solucoesFinal.length ? solucoesFinal.map((s,i)=>`${i+1}. ${s}`).join('\n') : 'Nenhuma confirmada'}
 SITUAÇÃO AS IS: ${p.mod?.asIs || '—'}
