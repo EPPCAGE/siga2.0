@@ -3534,10 +3534,10 @@ function salvarRetroativo(etId){
     },
     complement:()=>{
       p.form=p.form||{};
-      p.form.faq=document.getElementById('afaq')?.value||p.form.faq;
-      p.form.excecoes=document.getElementById('a-excecoes')?.value||p.form.excecoes;
-      p.form.contatos=document.getElementById('a-contatos')?.value||p.form.contatos;
-      p.form.forms=document.getElementById('aforms')?.value||p.form.forms;
+      p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
+      p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
+      p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
+      p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
       const obs=document.getElementById('aobs')?.value||'';
       if(obs) p.form.obs_complement=obs;
       const dt=document.getElementById('comp-dt')?.value||'';
