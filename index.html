@@ -24,6 +24,7 @@
   import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
   // ── PREENCHA AQUI APÓS CRIAR O PROJETO FIREBASE
   // IMPORTANT: Do not commit real keys. Load from config.local.js or environment
@@ -45,7 +46,8 @@
       const app = initializeApp(FIREBASE_CONFIG);
       const db  = getFirestore(app);
       const auth = getAuth(app);
-      globalThis._fb = { db, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, initializeApp, deleteApp, getAuth, FIREBASE_CONFIG };
+      const storage = getStorage(app);
+      globalThis._fb = { db, doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, FIREBASE_CONFIG };
       globalThis._fbReady = true;
       console.info('Firebase conectado');
     } catch(e) {
@@ -1516,7 +1518,7 @@ function go(page,btn){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+page).classList.add('on');
   if(btn)btn.classList.add('on');
-  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{populateIndSel();rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano,avisos:rAvisos}[page]||function(){})();
+  ({fila:rFila,dashboard:rDash,processos:renderProcs,arq:rArq,indicadores:()=>{rInd();},notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},admin:renderAdmin,plano:rPlano,avisos:rAvisos}[page]||function(){})();
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
   const ttl={fila:'Minhas tarefas',dashboard:'Painel geral',processos:'Processos',arq:'Arquitetura',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Auditoria',publicacoes:'Metodologias',admin:'Usuários',avisos:'Avisos',detalhe:'Processo'};
@@ -2880,6 +2882,22 @@ const ACOES = {
       const questoes=aud.questoes||[];
       const achados=aud.achados_list||[];
       const acoes=aud.acoes_list||[];
+      const trilha=aud.trilha||[];
+      const trilhaHtml=trilha.length?trilha.map((t,i)=>`
+        <div class="card" style="margin-bottom:.5rem;padding:.7rem .9rem;font-size:13px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:.4rem">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <span class="badge bt" style="font-size:10px">${esc(t.tipo||'')}</span>
+              ${t.data?`<span style="font-size:11px;color:var(--ink3)">${esc(t.data)}</span>`:''}
+              ${t.responsavel?`<span style="font-size:11px;color:var(--ink2)">· ${esc(t.responsavel)}</span>`:''}
+            </div>
+            <button class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red);flex-shrink:0" onclick="excluirProcedimentoAuditoria(${i})">✕</button>
+          </div>
+          ${t.descricao?`<div style="margin-bottom:.3rem"><strong>O que foi feito:</strong> ${esc(t.descricao)}</div>`:''}
+          ${t.objetivo?`<div style="font-size:12px;color:var(--ink3);margin-bottom:.2rem"><strong>Objetivo:</strong> ${esc(t.objetivo)}</div>`:''}
+          ${t.evidencias?`<div style="font-size:12px;color:var(--teal);margin-bottom:.2rem">📎 <strong>Evidências:</strong> ${esc(t.evidencias)}</div>`:''}
+          ${t.conclusoes?`<div style="font-size:12px;color:var(--ink2)">→ <strong>Conclusões parciais:</strong> ${esc(t.conclusoes)}</div>`:''}
+        </div>`).join(''):'';
       const questoesHtml=questoes.length?questoes.map((q,i)=>`
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -2894,12 +2912,24 @@ const ACOES = {
         </div>`).join(''):'';
       const achadosHtml=achados.length?achados.map((a,i)=>`
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
-          <div style="display:flex;justify-content:space-between">
-            <strong>NC${i+1}: ${a.titulo}</strong>
-            <span class="badge ${a.tipo==='Não conformidade'?'br':a.tipo==='Observação'?'ba':'bt'}">${a.tipo}</span>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <strong>NC${i+1}: ${esc(a.titulo)}</strong>
+            <span class="badge ${a.tipo==='Não conformidade'?'br':a.tipo==='Observação'?'ba':'bt'}" style="flex-shrink:0">${a.tipo}</span>
           </div>
-          <div style="color:var(--ink3);margin-top:.2rem">${a.descricao}</div>
-          ${a.evidencia?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Evidência: ${a.evidencia}</div>`:''}
+          <div style="color:var(--ink3);margin-top:.2rem">${esc(a.descricao||'')}</div>
+          ${a.evidencia?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Evidência: ${esc(a.evidencia)}</div>`:''}
+          ${(a.anexos||[]).length?`<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">${(a.anexos||[]).map((x,j)=>`
+            <span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">
+              <a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>
+              <button onclick="removerAnexoAchado(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover">✕</button>
+            </span>`).join('')}</div>`:''}
+          <div id="aud-anexo-form-${i}" style="margin-top:.5rem;display:none;gap:6px;flex-wrap:wrap;align-items:center">
+            <input class="fi" id="aud-link-nome-${i}" placeholder="Nome do documento" style="width:140px;font-size:11px;padding:3px 6px">
+            <input class="fi" id="aud-link-url-${i}" placeholder="https://..." style="flex:1;min-width:160px;font-size:11px;padding:3px 6px">
+            <button class="btn" style="font-size:11px;padding:2px 8px" onclick="adicionarLinkAchado(${i})">+ Link</button>
+            <label class="btn" style="font-size:11px;padding:2px 8px;cursor:pointer">↑ Arquivo<input type="file" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="uploadArquivoAchado(${i},this)"></label>
+          </div>
+          <button class="btn" style="font-size:11px;padding:2px 8px;margin-top:.4rem;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoForm(${i})">📎 Anexar</button>
         </div>`).join(''):'';
       const acoesHtml=acoes.length?acoes.map((a,i)=>`
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
@@ -2912,9 +2942,10 @@ const ACOES = {
       return `<div class="tabs" style="margin-bottom:1rem">
         <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud1',this)">Planejamento</div>
         <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud2',this)">Questões</div>
-        <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud3',this)">Achados</div>
-        <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud4',this)">Ações</div>
-        <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud5',this)">Relatório</div>
+        <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud3',this)">Ações</div>
+        <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud4',this)">Achados</div>
+        <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud5',this)">Plano de Ação</div>
+        <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud6',this)">Relatório</div>
       </div>
       <div id="aud1" class="tab-p">
         <div class="g2">
@@ -2955,6 +2986,35 @@ const ACOES = {
         </div>
       </div>
       <div id="aud3" class="tab-p" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+          <span style="font-size:13px;color:var(--ink3)">${trilha.length} procedimento(s) registrado(s)</span>
+        </div>
+        <div style="margin-bottom:1rem">${trilhaHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhum procedimento registrado. Use o formulário abaixo para registrar reuniões, entrevistas, testes e demais ações de auditoria.</div>'}</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Registrar procedimento de auditoria</div>
+        <div class="g2">
+          <div class="fg"><label class="fl">Tipo de ação</label>
+            <select class="fi" id="aud-tr-tipo">
+              <option>Reunião de abertura</option>
+              <option>Reunião de encerramento</option>
+              <option>Entrevista</option>
+              <option>Teste</option>
+              <option>Pesquisa</option>
+              <option>Análise documental</option>
+              <option>Validação</option>
+              <option>Diligência</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div class="fg"><label class="fl">Data</label><input class="fi" id="aud-tr-data" type="date"></div>
+        </div>
+        <div class="fg"><label class="fl">Responsável</label><input class="fi" id="aud-tr-resp" placeholder="Auditor responsável pelo procedimento"></div>
+        <div class="fg"><label class="fl">O que foi feito</label><textarea class="fi" id="aud-tr-desc" style="min-height:60px" placeholder="Descreva detalhadamente o procedimento realizado..."></textarea></div>
+        <div class="fg"><label class="fl">Objetivo</label><textarea class="fi" id="aud-tr-obj" style="min-height:50px" placeholder="Qual o propósito deste procedimento?"></textarea></div>
+        <div class="fg"><label class="fl">Evidências obtidas</label><textarea class="fi" id="aud-tr-evid" style="min-height:50px" placeholder="Documentos, atas, registros, declarações..."></textarea></div>
+        <div class="fg"><label class="fl">Conclusões parciais</label><textarea class="fi" id="aud-tr-concl" style="min-height:50px" placeholder="Achados ou conclusões preliminares decorrentes deste procedimento..."></textarea></div>
+        <button class="btn btn-p" onclick="adicionarProcedimentoAuditoria()">＋ Registrar procedimento</button>
+      </div>
+      <div id="aud4" class="tab-p" style="display:none">
         <div style="margin-bottom:1rem">${achadosHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhum achado registrado.</div>'}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Registrar achado / não-conformidade</div>
         <!-- Picker: biblioteca de apontamentos padrão -->
@@ -2989,8 +3049,8 @@ const ACOES = {
           <button class="btn" onclick="adicionarAchadoAuditoria()">＋ Registrar achado</button>
         </div>
       </div>
-      <div id="aud4" class="tab-p" style="display:none">
-        <div style="margin-bottom:1rem">${acoesHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhuma ação registrada.</div>'}</div>
+      <div id="aud5" class="tab-p" style="display:none">
+        <div style="margin-bottom:1rem">${acoesHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhuma ação corretiva registrada.</div>'}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Incluir ação corretiva</div>
         <div class="fg"><label class="fl">Ação</label><textarea class="fi" id="aud-ac-acao" style="min-height:60px" placeholder="Descreva a ação corretiva..."></textarea></div>
         <div class="g2">
@@ -3007,7 +3067,7 @@ const ACOES = {
         <div class="fg"><label class="fl">Achado relacionado</label><input class="fi" id="aud-ac-achado" placeholder="NC ou achado ao qual essa ação se refere"></div>
         <button class="btn" onclick="adicionarAcaoAuditoria()">＋ Incluir ação</button>
       </div>
-      <div id="aud5" class="tab-p" style="display:none">
+      <div id="aud6" class="tab-p" style="display:none">
         <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
           <div class="fg" style="flex:1;min-width:180px;margin-bottom:0">
             <label class="fl">Conformidade geral</label>
@@ -4103,6 +4163,7 @@ async function iaGerarRelatorioAuditoria(){
     data_inicio: aud.data_inicio||'', data_fim: aud.data_fim||'',
     conformidade: document.getElementById('aud-conf')?.value || aud.conformidade || '',
     questoes: (aud.questoes||[]).map(q=>({questao:q.questao,criterio:q.criterio})),
+    trilha: (aud.trilha||[]).map(t=>({tipo:t.tipo,data:t.data,responsavel:t.responsavel,descricao:t.descricao,objetivo:t.objetivo,evidencias:t.evidencias,conclusoes:t.conclusoes})),
     achados: (aud.achados_list||[]).map(a=>({tipo:a.tipo,titulo:a.titulo,desc:a.desc,evidencia:a.evidencia,criterio:a.criterio})),
     acoes: (aud.acoes_list||[]).map(a=>({acao:a.acao,responsavel:a.responsavel,prazo:a.prazo,status:a.status})),
   });
@@ -4375,13 +4436,16 @@ function adicionarAchadoAuditoria(){
     descricao:document.getElementById('aud-a-desc')?.value||'',
     evidencia:document.getElementById('aud-a-evid')?.value||'',
     criterio:document.getElementById('aud-a-crit')?.value||'',
-    data:now()
+    data:now(),
+    anexos:[]
   };
   if(!a.titulo){toast('Informe o título','var(--red)');return;}
   p.auditoria.achados_list.push(a);
   push(p,'auditoria','EP','Achado registrado: '+a.titulo+' ('+a.tipo+')');
   fbAutoSave('salvar');toast('Achado registrado!','var(--teal)');
   rDetalhe();
+  const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
+  if(aud4Tab) sstab('aud4',aud4Tab);
 }
 function adicionarAcaoAuditoria(){
   const p=curProc;if(!p)return;
@@ -4399,6 +4463,103 @@ function adicionarAcaoAuditoria(){
   p.auditoria.acoes_list.push(a);
   fbAutoSave('salvar');toast('Ação incluída!','var(--teal)');
   rDetalhe();
+}
+function adicionarProcedimentoAuditoria(){
+  const p=curProc;if(!p)return;
+  if(!p.auditoria)p.auditoria={};
+  if(!p.auditoria.trilha)p.auditoria.trilha=[];
+  const t={
+    tipo:document.getElementById('aud-tr-tipo')?.value||'Outro',
+    data:document.getElementById('aud-tr-data')?.value||'',
+    responsavel:document.getElementById('aud-tr-resp')?.value||'',
+    descricao:document.getElementById('aud-tr-desc')?.value||'',
+    objetivo:document.getElementById('aud-tr-obj')?.value||'',
+    evidencias:document.getElementById('aud-tr-evid')?.value||'',
+    conclusoes:document.getElementById('aud-tr-concl')?.value||'',
+    criado_em:now()
+  };
+  if(!t.descricao){toast('Informe o que foi feito','var(--red)');return;}
+  p.auditoria.trilha.push(t);
+  ['aud-tr-resp','aud-tr-desc','aud-tr-obj','aud-tr-evid','aud-tr-concl'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  fbAutoSave('salvar');
+  toast('Procedimento registrado!','var(--teal)');
+  rDetalhe();
+  const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
+  if(aud3Tab) sstab('aud3',aud3Tab);
+}
+async function excluirProcedimentoAuditoria(idx){
+  const p=curProc;if(!p)return;
+  if(!confirm('Excluir este procedimento?'))return;
+  if(!p.auditoria?.trilha) return;
+  p.auditoria.trilha.splice(idx,1);
+  toast('Procedimento excluído','var(--amber)');
+  rDetalhe();
+  const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
+  if(aud3Tab) sstab('aud3',aud3Tab);
+  await fbSaveAll();
+}
+function toggleAnexoForm(idx){
+  const el=document.getElementById('aud-anexo-form-'+idx);
+  if(!el)return;
+  const open=el.style.display==='flex';
+  el.style.display=open?'none':'flex';
+}
+function adicionarLinkAchado(idx){
+  const p=curProc;if(!p)return;
+  const nome=(document.getElementById('aud-link-nome-'+idx)?.value||'').trim();
+  const url=(document.getElementById('aud-link-url-'+idx)?.value||'').trim();
+  if(!url){toast('Informe a URL do documento','var(--red)');return;}
+  if(!url.startsWith('http')){toast('URL inválida','var(--red)');return;}
+  const achado=p.auditoria?.achados_list?.[idx];
+  if(!achado)return;
+  if(!achado.anexos)achado.anexos=[];
+  achado.anexos.push({tipo:'link',nome:nome||url,url});
+  fbAutoSave('salvar');toast('Link adicionado!','var(--teal)');
+  rDetalhe();
+  const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
+  if(aud4Tab) sstab('aud4',aud4Tab);
+}
+async function uploadArquivoAchado(idx,input){
+  const p=curProc;if(!p)return;
+  const file=input?.files?.[0];if(!file)return;
+  const achado=p.auditoria?.achados_list?.[idx];if(!achado)return;
+  if(!achado.anexos)achado.anexos=[];
+  const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
+  if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
+  const path=`auditoria/${p.id||'sem-id'}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+  const ref=storageRef(storage,path);
+  try{
+    toast('Enviando arquivo…','var(--blue)');
+    await uploadBytes(ref,file);
+    const url=await getDownloadURL(ref);
+    achado.anexos.push({tipo:'arquivo',nome:file.name,url,path});
+    await fbSaveAll();
+    toast('Arquivo enviado!','var(--teal)');
+    rDetalhe();
+    const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
+    if(aud4Tab) sstab('aud4',aud4Tab);
+  }catch(e){
+    console.error('upload erro',e);
+    toast('Erro ao enviar arquivo: '+e.message,'var(--red)');
+  }
+}
+async function removerAnexoAchado(achadoIdx,anexoIdx){
+  const p=curProc;if(!p)return;
+  if(!confirm('Remover este anexo?'))return;
+  const achado=p.auditoria?.achados_list?.[achadoIdx];if(!achado?.anexos)return;
+  const anexo=achado.anexos[anexoIdx];
+  if(anexo?.tipo==='arquivo'&&anexo.path){
+    const {storage,storageRef,deleteObject}=globalThis._fb||{};
+    if(storage&&anexo.path){
+      try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete storage err',e);}
+    }
+  }
+  achado.anexos.splice(anexoIdx,1);
+  toast('Anexo removido','var(--amber)');
+  rDetalhe();
+  const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
+  if(aud4Tab) sstab('aud4',aud4Tab);
+  await fbSaveAll();
 }
 function salvarRelatorioAuditoria(concluir){
   const p=curProc;if(!p)return;
