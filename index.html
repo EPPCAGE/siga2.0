@@ -720,9 +720,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <input type="hidden" id="nkpi-edit-all-periods" value="0">
       <!-- Period navigation bar (shown only when editing multi-period indicator) -->
       <div id="kpi-nav-periodos" style="display:none;margin-bottom:1rem;padding:.4rem .6rem;background:var(--bg2);border-radius:var(--r);align-items:center;gap:6px">
-        <button class="btn" style="padding:2px 9px;font-size:14px;flex-shrink:0" onclick="_kpiNavStep(-1)">←</button>
+        <button class="btn" style="padding:2px 9px;font-size:14px;flex-shrink:0" onclick="_kpiNavStep(-1)" aria-label="Período anterior">←</button>
         <select class="fi" id="kpi-nav-sel" onchange="_kpiNavGoto()" style="flex:1;font-size:12px"></select>
-        <button class="btn" style="padding:2px 9px;font-size:14px;flex-shrink:0" onclick="_kpiNavStep(1)">→</button>
+        <button class="btn" style="padding:2px 9px;font-size:14px;flex-shrink:0" onclick="_kpiNavStep(1)" aria-label="Próximo período">→</button>
         <span id="kpi-nav-info" style="font-size:11px;color:var(--ink3);white-space:nowrap"></span>
       </div>
       <!-- General config (applies to all periods) -->
@@ -843,7 +843,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div style="background:var(--surf);border-radius:var(--rl);max-width:660px;margin:2.5rem auto;padding:1.8rem;position:relative;box-shadow:0 16px 48px rgba(0,0,0,.25)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem">
         <div style="font-family:var(--fh);font-size:15px;font-weight:600" id="plano-modal-title">Nova atividade</div>
-        <button onclick="fecharPlanoModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);line-height:1">×</button>
+        <button onclick="fecharPlanoModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);line-height:1" aria-label="Fechar">×</button>
       </div>
       <div id="plano-modal-body"></div>
     </div>
@@ -1543,7 +1543,7 @@ async function processarPrimeiroAcesso(){
 }
 
 // Mantido como alias para compatibilidade com referências antigas
-function doEsqueciSenha(){ togglePrimeiroAcesso(); }
+// doEsqueciSenha removida (dead code — nunca chamada; uso direto: togglePrimeiroAcesso())
 
 function mostrarErrLogin(msg){
   const e=document.getElementById('login-err');
@@ -3163,7 +3163,7 @@ const ACOES = {
               ${t.data?`<span style="font-size:11px;color:var(--ink3)">${esc(t.data)}</span>`:''}
               ${t.responsavel?`<span style="font-size:11px;color:var(--ink2)">· ${esc(t.responsavel)}</span>`:''}
             </div>
-            <button class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red);flex-shrink:0" onclick="excluirProcedimentoAuditoria(${i})">✕</button>
+            <button class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red);flex-shrink:0" onclick="excluirProcedimentoAuditoria(${i})" aria-label="Remover procedimento">✕</button>
           </div>
           ${t.descricao?`<div style="margin-bottom:.3rem"><strong>O que foi feito:</strong> ${esc(t.descricao)}</div>`:''}
           ${t.objetivo?`<div style="font-size:12px;color:var(--ink3);margin-bottom:.2rem"><strong>Objetivo:</strong> ${esc(t.objetivo)}</div>`:''}
@@ -3178,7 +3178,7 @@ const ACOES = {
             ${q.resposta?`<div style="color:var(--teal);margin-top:.2rem">✓ ${q.resposta}</div>`:'<div style="color:var(--amber);margin-top:.2rem">Aguardando resposta</div>'}</div>
             <div style="display:flex;gap:4px;flex-shrink:0">
               <button class="btn" style="font-size:11px;padding:2px 7px" onclick="editarQuestaoAuditoria(${i})">Editar</button>
-              <button class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirQuestaoAuditoria(${i})">✕</button>
+              <button class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirQuestaoAuditoria(${i})" aria-label="Remover questão">✕</button>
             </div>
           </div>
         </div>`).join(''):'';
@@ -3193,7 +3193,7 @@ const ACOES = {
           ${(a.anexos||[]).length?`<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">${(a.anexos||[]).map((x,j)=>`
             <span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">
               <a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>
-              <button onclick="removerAnexoAchado(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover">✕</button>
+              <button onclick="removerAnexoAchado(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>
             </span>`).join('')}</div>`:''}
           <div id="aud-anexo-form-${i}" style="margin-top:.5rem;display:none;gap:6px;flex-wrap:wrap;align-items:center">
             <input class="fi" id="aud-link-nome-${i}" placeholder="Nome do documento" style="width:140px;font-size:11px;padding:3px 6px">
@@ -5195,7 +5195,7 @@ function renderEtapasProc(etapas){
         <span class="etapa-tipo ${tipoCls(e.tipo,e.subtipo_evento)}">${e.tipo}${e.subtipo_evento?' · '+e.subtipo_evento:''}</span>
         <div class="etapa-nome">${e.nome}</div>
         <button class="btn" style="font-size:11px;padding:3px 8px" onclick="toggleEtapaDetalhe('${e.id}')">✎ Detalhar</button>
-        <button class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red-b)" onclick="remEtapaProc('${e.id}')">×</button>
+        <button class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red-b)" onclick="remEtapaProc('${e.id}')" aria-label="Remover etapa">×</button>
       </div>
       <div id="ed-${e.id}" style="display:none">${renderEtapaDetalheConteudo(e)}</div>
     </div>`).join('');
@@ -5327,10 +5327,7 @@ async function atualizarMermaid(){
   }
 }
 
-function copiarMermaid(){
-  if(!_mermaidCode){ toast('Nenhum fluxo gerado ainda','var(--amber)'); return; }
-  navigator.clipboard.writeText(_mermaidCode).then(()=>toast('Código Mermaid copiado')).catch(()=>toast('Erro ao copiar','var(--red)'));
-}
+// copiarMermaid removida (dead code — botão removido, não há chamador)
 
 function toggleEtapaDetalhe(id){
   const el=document.getElementById('ed-'+id);
@@ -6096,7 +6093,7 @@ function atualizarRiscoUI(){
 }
 function rRiscoList(rs){
   if(!rs||!rs.length)return '<div style="font-size:12px;color:var(--ink4);padding:4px 0">Nenhum risco adicionado.</div>';
-  return rs.map((r,i)=>`<div class="ri-item"><span>${esc(r.desc)}</span>${pbBadge(r.prob)}${ibBadge(r.imp)}<button class="btn" style="font-size:11px;padding:2px 8px" onclick="editarRisco(${i})">✎</button><button class="ri-del" onclick="remR(${i})">×</button></div>`).join('');
+  return rs.map((r,i)=>`<div class="ri-item"><span>${esc(r.desc)}</span>${pbBadge(r.prob)}${ibBadge(r.imp)}<button class="btn" style="font-size:11px;padding:2px 8px" onclick="editarRisco(${i})" aria-label="Editar risco">✎</button><button class="ri-del" onclick="remR(${i})" aria-label="Remover risco">×</button></div>`).join('');
 }
 function editarRisco(i){
   const r=curProc.ent.riscos[i];
@@ -6456,7 +6453,7 @@ function resultCardHTML(r, srch){
         ${item.natureza ? `<span class="badge bgr" style="font-size:10px">${highlight(item.natureza, srch)}</span>` : ''}
         ${proc ? `<span class="badge ${EBADGE[proc.etapa]||'bgr'}" style="font-size:10px">${etLb(proc.etapa)}</span>` : '<span class="badge bgr" style="font-size:10px">Não mapeado</span>'}
         ${proc ? `<button class="btn btn-p" style="font-size:10px;padding:2px 8px" onclick="abrirProc(${proc.id})">Abrir →</button>` : ''}
-        ${isEP() ? `<button class="btn" style="font-size:10px;padding:2px 8px" onclick="editSubArqFull('${r.macroId}','${r.procId}','${item.id}')">✎</button>` : ''}
+        ${isEP() ? `<button class="btn" style="font-size:10px;padding:2px 8px" onclick="editSubArqFull('${r.macroId}','${r.procId}','${item.id}')" aria-label="Editar item">✎</button>` : ''}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px">
@@ -6513,7 +6510,7 @@ function _subArqItemHTML(mid, pid, s){
       ${isCritico(s.id)?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
       ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px;color:${isCritico(s.id)?'#dc2626':'var(--ink3)'}" onclick="toggleCriticoManual('${s.id}',event)">${isCritico(s.id)?'Desmarcar crítico':'⚠ Crítico'}</button>`:''}
       ${isEP()?`<button class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
-      <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')">×</button>`:''}
+      <button class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')" aria-label="Remover subprocesso">×</button>`:''}
     </div>
     <div id="arq-ssub-${s.id}" style="display:none;padding:.6rem 1.2rem .8rem 2.2rem;background:var(--surf);border-top:1px dashed var(--bdr)">
       ${metaFieldsReadonly(s)}
@@ -6745,7 +6742,7 @@ function novoSubArq(mid,pid){
   rArq();
   setTimeout(()=>{toggleEl('arq-body-'+mid,'chv-'+mid);toggleEl('arq-sub-'+pid,'chvp-'+pid);},50);
 }
-function editSubArq(mid,pid,sid){editSubArqFull(mid,pid,sid);}
+// editSubArq removida (dead code — alias sem chamador; use editSubArqFull())
 function remSubArq(mid,pid,sid){
   if(!confirm('Remover subprocesso?'))return;
   const m=ARQUITETURA.find(x=>x.id===mid);const p=m?.processos.find(x=>x.id===pid);if(!p)return;
@@ -7196,7 +7193,7 @@ function rInd(){
   setTimeout(injectIaIndicadores, 100);
 }
 
-function indFiltPpe(val, el){ rInd(); }
+// indFiltPpe removida (dead code — alias sem chamador; use rInd() diretamente)
 
 let _indCharts = [];
 function kpiGrupoCardHTML(key, items){
@@ -7228,13 +7225,13 @@ function kpiGrupoCardHTML(key, items){
         <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}${isPpe?' · <span title="Indicador PPE" style="color:#f59e0b">⭐</span>':''}</div>
         <div style="font-size:14px;font-weight:600;color:var(--ink)">${esc(nome)}</div>
       </div>
-      <div style="display:flex;gap:5px;flex-shrink:0">${isEP()?`<button class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button><button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${items[0].id})">×</button>`:''}</div>
+      <div style="display:flex;gap:5px;flex-shrink:0">${isEP()?`<button class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button><button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${items[0].id})" aria-label="Excluir indicador">×</button>`:''}</div>
     </div>
     <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
     ${analises?`<div style="margin-top:.5rem;padding:.4rem .6rem;background:var(--bg2);border-radius:5px;border-left:2px solid var(--bdr2)">${analises}</div>`:''}
   </div>`;
 }
-function populateGrfkFilters(){ populateIndFilters(); }
+// populateGrfkFilters removida (dead code — alias sem chamador; use populateIndFilters())
 function kpiBarColor(r, m, polaridade){
   if(!m) return 'rgba(96,165,250,0.7)';
   let pct;
@@ -7313,7 +7310,7 @@ function createKpiChart(key, items){
   });
   _indCharts.push(chart);
 }
-function rIndGraficos(){ rInd(); }
+// rIndGraficos removida (dead code — alias sem chamador; use rInd())
 
 function kpiCard(k){
   const polaridade = k.polaridade || 'Maior é melhor';
@@ -7377,7 +7374,7 @@ function kpiCard(k){
     ${k.analise ? `<div style="font-size:11px;color:var(--ink3);line-height:1.5;padding:.4rem .6rem;background:var(--surf2);border-radius:5px;border-left:2px solid ${borderColor}">📝 ${esc(k.analise)}</div>` : ''}
     <div style="display:flex;gap:5px;margin-top:.5rem">
       <button class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${k.id})">✎ Editar</button>
-      <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${k.id})">×</button>
+      <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${k.id})" aria-label="Excluir indicador">×</button>
     </div>
   </div>`;
 }
@@ -7821,8 +7818,8 @@ function rPub(){
           <div style="font-size:10.5px;color:var(--ink3)">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div style="display:flex;gap:5px">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener" class="btn" style="font-size:10px;padding:2px 8px;text-decoration:none">↗ Abrir</a>`:''}
-            <button class="btn" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">✎</button>
-            <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarPub(${p.id})">×</button>
+            <button class="btn" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})" aria-label="Editar publicação">✎</button>
+            <button class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarPub(${p.id})" aria-label="Excluir publicação">×</button>
           </div>
         </div>
         </div>
@@ -8437,9 +8434,9 @@ function planoCardHTML(at){
         ${at.descricao?`<div style="font-size:12px;color:var(--ink2);margin-top:2px">${esc(at.descricao)}</div>`:''}
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
-        <button class="btn" style="font-size:11px;padding:2px 8px" onclick="abrirPlanoModal(${at.id})" title="Editar">✎</button>
-        <button class="btn" style="font-size:11px;padding:2px 8px" onclick="duplicarAtividade(${at.id})" title="Duplicar">⧉</button>
-        <button class="btn" style="font-size:11px;padding:2px 8px;color:var(--red)" onclick="deletarAtividade(${at.id})" title="Excluir">🗑</button>
+        <button class="btn" style="font-size:11px;padding:2px 8px" onclick="abrirPlanoModal(${at.id})" title="Editar" aria-label="Editar atividade">✎</button>
+        <button class="btn" style="font-size:11px;padding:2px 8px" onclick="duplicarAtividade(${at.id})" title="Duplicar" aria-label="Duplicar atividade">⧉</button>
+        <button class="btn" style="font-size:11px;padding:2px 8px;color:var(--red)" onclick="deletarAtividade(${at.id})" title="Excluir" aria-label="Excluir atividade">🗑</button>
       </div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;margin-top:.6rem;flex-wrap:wrap">
