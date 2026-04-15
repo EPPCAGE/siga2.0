@@ -9360,50 +9360,108 @@ function gerarRelatorioIndPdf(){
 
   if(!lista.length){ toast('Nenhum indicador com dados para o relatório.','var(--amber)'); return; }
 
-  const rows = lista.map(k => {
-    const pol     = k.polaridade || 'Maior é melhor';
-    const und     = k.unidade ? ' ' + k.unidade : '';
-    const hasMeta = Number(k.meta) > 0;
-    let pct = null, statusLabel = '', statusColor = '#555';
-    if(hasMeta){
-      pct = pol === 'Menor é melhor'
-        ? (Number(k.realizado) > 0 ? Math.round((Number(k.meta)/Number(k.realizado))*100) : 0)
-        : Math.round((Number(k.realizado)/Number(k.meta))*100);
-      if(pct >= 100){ statusLabel = '✓ Meta atingida'; statusColor = '#16a34a'; }
-      else if(pct >= 80){ statusLabel = '~ Próximo da meta'; statusColor = '#d97706'; }
-      else { statusLabel = '✗ Abaixo da meta'; statusColor = '#dc2626'; }
+  // ── Calcula pct e classifica cada indicador ──────────────────────────
+  function calcPct(k){
+    const pol = k.polaridade||'Maior é melhor';
+    const hasMeta = Number(k.meta)>0;
+    if(!hasMeta) return null;
+    return pol==='Menor é melhor'
+      ? (Number(k.realizado)>0 ? Math.round((Number(k.meta)/Number(k.realizado))*100) : 0)
+      : Math.round((Number(k.realizado)/Number(k.meta))*100);
+  }
+  function statusInfo(pct, hasMeta){
+    if(!hasMeta || pct===null) return {label:'Sem meta', color:'#9ca3af', bg:'', rowBg:'', badge:'', tier:0};
+    if(pct >= 130) return {label:'⭐ Destaque',     color:'#065f46', bg:'#d1fae5', rowBg:'#f0fff8', badge:'destaque', tier:4};
+    if(pct >= 100) return {label:'✓ Meta atingida',  color:'#16a34a', bg:'#dcfce7', rowBg:'',       badge:'ok',      tier:3};
+    if(pct >= 80)  return {label:'~ Próximo da meta',color:'#92400e', bg:'#fef3c7', rowBg:'',       badge:'warn',    tier:2};
+    if(pct >= 50)  return {label:'✗ Abaixo da meta', color:'#b91c1c', bg:'#fee2e2', rowBg:'#fff5f5',badge:'nok',     tier:1};
+    return            {label:'⚠ Muito abaixo',      color:'#7f1d1d', bg:'#fca5a5', rowBg:'#fff0f0',badge:'crit',    tier:0};
+  }
+
+  // ── Agregador por área ───────────────────────────────────────────────
+  const areaMap = {};
+  lista.forEach(k=>{
+    const a = k.area||'(sem área)';
+    if(!areaMap[a]) areaMap[a]={total:0,comMeta:0,sumPct:0,destaque:0,critico:0};
+    const pct = calcPct(k);
+    areaMap[a].total++;
+    if(pct!==null){
+      areaMap[a].comMeta++;
+      areaMap[a].sumPct += pct;
+      if(pct>=130) areaMap[a].destaque++;
+      if(pct<50)   areaMap[a].critico++;
     }
-    const rowBg = hasMeta && pct !== null && pct < 80 ? 'background:#fff5f5' : '';
-    return `<tr style="${rowBg}">
-      <td>${k.codigo ? '<strong>'+esc(k.codigo)+'</strong> — ' : ''}${esc(k.nome)}</td>
-      <td>${esc(k.area||'—')}</td>
-      <td>${esc(k.periodo||'—')}</td>
-      <td style="text-align:center">${hasMeta ? k.meta+und : '—'}</td>
-      <td style="text-align:center">${k.realizado}${und}</td>
-      <td style="text-align:center;font-weight:700;color:${statusColor}">${pct !== null ? pct+'%' : '—'}</td>
-      <td style="text-align:center;font-size:11px;font-weight:600;color:${statusColor}">${statusLabel || (hasMeta ? '' : 'Sem meta')}</td>
+  });
+  const areaCards = Object.entries(areaMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([nome,d])=>{
+    const avg = d.comMeta ? Math.round(d.sumPct/d.comMeta) : null;
+    const cl  = avg===null?'#6b7280': avg>=100?'#16a34a': avg>=80?'#d97706': avg>=50?'#dc2626':'#991b1b';
+    const bg  = avg===null?'#f3f4f6': avg>=100?'#f0fdf4': avg>=80?'#fffbeb': avg>=50?'#fff5f5':'#fee2e2';
+    const border = avg===null?'#d1d5db': avg>=100?'#4ade80': avg>=80?'#fbbf24': avg>=50?'#f87171':'#ef4444';
+    const extras = [
+      d.destaque ? `<span style="font-size:10px;color:#065f46">⭐ ${d.destaque} destaque${d.destaque>1?'s':''}</span>` : '',
+      d.critico  ? `<span style="font-size:10px;color:#7f1d1d">⚠ ${d.critico} crítico${d.critico>1?'s':''}</span>` : '',
+    ].filter(Boolean).join(' ');
+    return `<div style="background:${bg};border:1.5px solid ${border};border-radius:8px;padding:10px 14px;min-width:140px;flex:1">
+      <div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">${esc(nome)}</div>
+      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${avg!==null?avg+'%':'—'}</div>
+      <div style="font-size:10px;color:#6b7280;margin-top:2px">${d.comMeta} com meta · ${d.total} total</div>
+      ${extras?`<div style="margin-top:4px;display:flex;gap:8px">${extras}</div>`:''}
+    </div>`;
+  }).join('');
+
+  // ── Linhas da tabela ────────────────────────────────────────────────
+  const rows = lista.map(k => {
+    const und     = k.unidade ? ' '+k.unidade : '';
+    const hasMeta = Number(k.meta)>0;
+    const pct     = calcPct(k);
+    const st      = statusInfo(pct, hasMeta);
+    // Fonte maior para extremos
+    const pctStyle = st.tier===4
+      ? `font-size:14px;font-weight:800;color:${st.color}`
+      : st.tier===0 && pct!==null
+        ? `font-size:13px;font-weight:800;color:${st.color}`
+        : `font-weight:700;color:${st.color}`;
+    const badgeStyle = `display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:${st.bg};color:${st.color}`;
+    return `<tr style="background:${st.rowBg}">
+      <td>${k.codigo?'<strong>'+esc(k.codigo)+'</strong> — ':''}${esc(k.nome)}</td>
+      <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
+      <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
+      <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
+      <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
+      <td style="text-align:center;${pctStyle}">${pct!==null?pct+'%':'—'}</td>
+      <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
     </tr>`;
   }).join('');
 
-  const filtros = [area ? 'Área: '+area : '', ciclo ? 'Ciclo: '+ciclo : ''].filter(Boolean).join(' · ') || 'Todos os indicadores';
+  // ── Totalizador rodapé ───────────────────────────────────────────────
+  const comMeta = lista.filter(k=>Number(k.meta)>0);
+  const avgGeral = comMeta.length ? Math.round(comMeta.reduce((s,k)=>s+(calcPct(k)||0),0)/comMeta.length) : null;
+  const destTotal = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p>=130; }).length;
+  const critTotal = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p<50; }).length;
+
+  const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
   const w = window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1a1a2e;background:#fff;padding:24px 32px}
-  .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1e6bfa;padding-bottom:12px;margin-bottom:18px}
-  .hdr-l .org{font-size:10px;font-weight:700;color:#1e6bfa;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
-  .hdr-l .tit{font-size:19px;font-weight:700;color:#1a1a2e;line-height:1.2}
-  .hdr-l .sub{font-size:11px;color:#6b7280;margin-top:4px}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1a1a2e;background:#fff;padding:20px 28px}
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1e6bfa;padding-bottom:10px;margin-bottom:14px}
+  .hdr-l .org{font-size:9px;font-weight:700;color:#1e6bfa;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
+  .hdr-l .tit{font-size:18px;font-weight:700;color:#1a1a2e;line-height:1.2}
+  .hdr-l .sub{font-size:11px;color:#6b7280;margin-top:3px}
   .hdr-r{text-align:right;font-size:11px;color:#6b7280;line-height:1.8}
-  .sec{font-size:10px;font-weight:700;color:#1e6bfa;letter-spacing:.8px;text-transform:uppercase;margin:14px 0 6px}
-  .ia-box{background:#f0f4ff;border-left:3px solid #1e6bfa;border-radius:5px;padding:10px 14px;font-size:12px;line-height:1.7;color:#1a1a2e}
+  .sec{font-size:9px;font-weight:700;color:#1e6bfa;letter-spacing:.8px;text-transform:uppercase;margin:12px 0 6px}
+  .ia-box{background:#f0f4ff;border-left:3px solid #1e6bfa;border-radius:5px;padding:9px 12px;font-size:11.5px;line-height:1.65;color:#1a1a2e}
+  .area-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px}
   table{width:100%;border-collapse:collapse;font-size:11px}
-  thead th{background:#1e6bfa;color:#fff;padding:6px 8px;text-align:left;font-weight:600}
-  tbody tr:nth-child(even){background:#f8faff}
+  thead th{background:#1e3a8a;color:#fff;padding:6px 8px;text-align:left;font-weight:600;font-size:10px;letter-spacing:.3px;text-transform:uppercase}
+  tbody tr:nth-child(even){filter:brightness(.98)}
   tbody td{padding:5px 8px;border-bottom:1px solid #e5e7eb;vertical-align:middle}
-  .ftr{margin-top:14px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between}
-  @media print{body{padding:12px 18px}@page{margin:1cm;size:A4 landscape}}
+  .tfoot-row td{background:#f1f5f9;font-weight:700;font-size:11px;border-top:2px solid #cbd5e1}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:9.5px;color:#374151}
+  .legend span{display:flex;align-items:center;gap:4px}
+  .ftr{margin-top:12px;padding-top:8px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between}
+  @media print{body{padding:10px 16px}@page{margin:.8cm;size:A4 landscape}}
 </style></head><body>
 <div class="hdr">
   <div class="hdr-l">
@@ -9413,25 +9471,44 @@ function gerarRelatorioIndPdf(){
   </div>
   <div class="hdr-r">
     <div><strong>Data:</strong> ${dtHoje}</div>
-    <div><strong>Indicadores analisados:</strong> ${lista.length}</div>
+    <div><strong>Total analisados:</strong> ${lista.length}</div>
+    ${avgGeral!==null?`<div><strong>Desempenho médio geral:</strong> <strong style="color:${avgGeral>=100?'#16a34a':avgGeral>=80?'#d97706':'#dc2626'}">${avgGeral}%</strong></div>`:''}
+    ${destTotal?`<div style="color:#065f46">⭐ ${destTotal} destaque${destTotal>1?'s':''}</div>`:''}
+    ${critTotal?`<div style="color:#7f1d1d">⚠ ${critTotal} crítico${critTotal>1?'s':''}</div>`:''}
   </div>
 </div>
+<div class="sec">Desempenho por área</div>
+<div class="area-grid">${areaCards}</div>
 <div class="sec">✦ Análise da Inteligência Artificial</div>
 <div class="ia-box">${esc(_lastIndAnalise).replace(/\n/g,'<br>')}</div>
 <div class="sec">Indicadores com dados no período</div>
 <table>
   <thead><tr>
     <th>Indicador</th><th>Área</th><th>Período</th>
-    <th style="text-align:center">Meta</th><th style="text-align:center">Realizado</th>
-    <th style="text-align:center">Desempenho</th><th style="text-align:center">Status</th>
+    <th style="text-align:center">Meta</th>
+    <th style="text-align:center">Realizado</th>
+    <th style="text-align:center">Desempenho</th>
+    <th style="text-align:center">Status</th>
   </tr></thead>
   <tbody>${rows}</tbody>
+  ${avgGeral!==null?`<tfoot><tr class="tfoot-row">
+    <td colspan="5">Média geral (indicadores com meta)</td>
+    <td style="text-align:center;font-size:14px;color:${avgGeral>=100?'#16a34a':avgGeral>=80?'#d97706':'#dc2626'}">${avgGeral}%</td>
+    <td></td>
+  </tr></tfoot>`:''}
 </table>
+<div class="legend">
+  <span><span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-weight:700">⭐ Destaque</span> ≥ 130% da meta</span>
+  <span><span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:10px;font-weight:700">✓ Meta atingida</span> ≥ 100%</span>
+  <span><span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:10px;font-weight:700">~ Próximo</span> 80–99%</span>
+  <span><span style="background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:10px;font-weight:700">✗ Abaixo</span> 50–79%</span>
+  <span><span style="background:#fca5a5;color:#7f1d1d;padding:1px 6px;border-radius:10px;font-weight:700">⚠ Muito abaixo</span> &lt; 50%</span>
+</div>
 <div class="ftr">
   <span>Gerado pelo sistema SIGA 2.0 — EP·CAGE/Sefaz-RS</span>
   <span>${dtHoje}</span>
 </div>
-<script>setTimeout(()=>window.print(),400);<\/script>
+<script>setTimeout(()=>window.print(),500);<\/script>
 </body></html>`);
   w.document.close();
 }
