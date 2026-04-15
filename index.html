@@ -2398,6 +2398,58 @@ function reprovarDono(voltaEt,role,acao){
   setTimeout(()=>popupConclusaoDono('Ajuste solicitado com sucesso! O EP foi notificado e revisará o material antes de encaminhar novamente.'),200);
 }
 
+// ── Devolver tarefa ao dono (EP → dono) ──
+function getDevolverEtapa(p){
+  const etapas=getEtapas(p);
+  const idx=etapas.findIndex(e=>e.id===p.etapa);
+  if(idx<=0)return null;
+  for(let i=idx-1;i>=0;i--){
+    if(etapas[i].resp==='dono') return etapas[i].id;
+  }
+  return null;
+}
+function devolverAoDono(){
+  const p=curProc;
+  const etRet=getDevolverEtapa(p);
+  if(!etRet){toast('Nenhuma etapa anterior do dono encontrada.','var(--amber)');return;}
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.id='devolver-ov';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:460px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.4rem">↩ Devolver ao dono</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">A tarefa será enviada de volta para <strong>${etLb(etRet)}</strong>. O dono poderá refazê-la. Nenhum dado das demais etapas será perdido.</div>
+    <div class="fg" style="margin-bottom:1.2rem">
+      <label class="fl">Motivo da devolução <span style="color:var(--red)">*</span></label>
+      <textarea class="fi" id="devolver-motivo" rows="3" placeholder="Explique o que precisa ser corrigido ou complementado..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="document.getElementById('devolver-ov').remove()">Cancelar</button>
+      <button class="btn" style="background:#fef3c7;color:#92400e;border-color:#f59e0b" onclick="confirmarDevolucao('${etRet}')">Confirmar devolução →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function confirmarDevolucao(etRet){
+  const motivo=document.getElementById('devolver-motivo')?.value?.trim();
+  if(!motivo){toast('Informe o motivo da devolução.','var(--red)');return;}
+  const p=curProc;
+  push(p, p.etapa, 'EP', 'Devolução ao dono — '+motivo);
+  // Limpa apenas o registro de "respondido" da etapa de retorno para que o dono possa reenviar
+  if(p.ent?.respondido_por_etapa?.[etRet]) delete p.ent.respondido_por_etapa[etRet];
+  p.etapa=etRet;
+  push(p, etRet, 'Sistema', 'Retornado ao dono para ajustes');
+  document.getElementById('devolver-ov')?.remove();
+  rDetalhe();updCounts();
+  fbAutoSave('devolverAoDono');
+  const email=getDonoEmail(p);
+  if(email){
+    enviarNotif(email, p.dono, 'Tarefa devolvida para ajuste: '+etLb(etRet)+' — '+motivo, p.nome, '', usuarioLogado?.nome||'EP');
+    toast('Tarefa devolvida e dono notificado.','var(--teal)');
+  } else {
+    toast('Tarefa devolvida ao dono.','var(--teal)');
+  }
+}
+
 // ─── FEEDBACK DO DONO (valid_dono) ───────────────────────────────────────────
 function dfbRow(tipo,texto,emoji){
   const idx=globalThis._dfbItems.length;
@@ -3334,6 +3386,17 @@ function rAcao(p){
   if(role==='dono'){ _rAcaoHandleDono(el,ac,p); return; }
   const roleNote=role===ac.rk?'':`<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>${ac.role}</strong>. Troque o perfil para interagir.</div>`;
   el.innerHTML=buildAcaoCardHTML(ac,p,roleNote);
+  // Barra de devolução ao dono (apenas EP, quando há etapa anterior do dono)
+  if(isEP()){
+    const etRet=getDevolverEtapa(p);
+    if(etRet){
+      const bar=document.createElement('div');
+      bar.style.cssText='margin-top:.8rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
+      bar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa que o dono refaça <strong>${etLb(etRet)}</strong>?</span>
+        <button class="btn" style="font-size:12px;padding:4px 10px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="devolverAoDono()">↩ Devolver ao dono</button>`;
+      el.appendChild(bar);
+    }
+  }
   _rAcaoInitBpmn(p, false);
 }
 
