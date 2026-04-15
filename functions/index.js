@@ -1,31 +1,8 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 
-const ALLOWED_EXACT = new Set([
-  "https://eppcage.github.io",
-  "https://sigaepp.web.app",
-  "https://sigaepp.firebaseapp.com",
-]);
-
-function isAllowedOrigin(origin) {
-  if (!origin) return true; // curl / same-origin server calls
-  if (ALLOWED_EXACT.has(origin)) return true;
-  // localhost / 127.0.0.1 em qualquer porta (desenvolvimento)
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
-  // GitHub Codespaces port-forwarding
-  if (/^https:\/\/[^.]+\.app\.github\.dev$/.test(origin)) return true;
-  if (/^https:\/\/[^.]+\.github\.dev$/.test(origin)) return true;
-  return false;
-}
-
-const corsMiddleware = require("cors")({
-  origin: (origin, callback) => {
-    if (isAllowedOrigin(origin)) return callback(null, true);
-    callback(new Error("CORS: origin not allowed — " + origin));
-  },
-  methods: ["POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
-});
+// Permite qualquer origem — segurança real está nos secrets do Azure no servidor
+const corsMiddleware = require("cors")({ origin: true, methods: ["POST", "OPTIONS"], allowedHeaders: ["Content-Type"] });
 
 const AZURE_KEY      = defineSecret("AZURE_OPENAI_KEY");
 const AZURE_ENDPOINT = defineSecret("AZURE_OPENAI_ENDPOINT");
