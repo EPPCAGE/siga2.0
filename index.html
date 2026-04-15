@@ -9062,17 +9062,27 @@ async function iaAnalisarIndicadores(){
   const el  = document.getElementById('ia-ind-result');
   if(btn) btn.disabled = true;
 
+  // Filtra antes de enviar: remove indicadores sem dados (realizado nulo, vazio ou zero)
+  // Indicadores aguardando fechamento do trimestre também são excluídos — a IA não deve vê-los
+  const listaValida = lista.filter(k => {
+    const aguardando = (!k.realizado || Number(k.realizado) === 0) && _ehMesNaoFechamento(k.periodo);
+    if(aguardando) return false;
+    const r = Number(k.realizado);
+    return k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && r !== 0;
+  });
+
+  if(!listaValida.length){
+    if(el) el.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">✦ Análise IA dos indicadores</div><div style="line-height:1.7">Nenhum indicador com dados disponíveis para análise neste período.</div></div>`;
+    if(btn) btn.disabled = false;
+    return;
+  }
+
   const payload = {
-    nota_sisplan: 'Indicadores com aguardando_fechamento=true estão nos 2 primeiros meses de um trimestre e possuem realizado=0 porque o SISPLAN registra resultados somente no último mês do trimestre (março, junho, setembro ou dezembro). Esses indicadores NÃO devem ser tratados como resultados ruins ou abaixo da meta.',
-    indicadores: lista.map(k=>{
-      const aguardando = (!k.realizado || k.realizado===0) && _ehMesNaoFechamento(k.periodo);
-      return {
-        area: k.area, nome: k.nome,
-        meta: k.meta, realizado: k.realizado,
-        pct: k.pct_realizado, periodo: k.periodo,
-        ...(aguardando ? {aguardando_fechamento: true} : {}),
-      };
-    }),
+    indicadores: listaValida.map(k=>({
+      area: k.area, nome: k.nome,
+      meta: k.meta, realizado: k.realizado,
+      pct: k.pct_realizado, periodo: k.periodo,
+    })),
   };
 
   _lastIndLista = lista;
