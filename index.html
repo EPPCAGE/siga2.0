@@ -473,8 +473,14 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <div class="user-role" id="aside-role">-</div>
       </div>
     </div>
-    <div id="ep-toggle-wrap" style="display:none;margin-bottom:6px">
-      <button id="ep-toggle-btn" onclick="togglePerfilEP()" style="width:100%;font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:6px;border:1.5px solid var(--teal-b);background:var(--teal-l);color:var(--teal);cursor:pointer;transition:all .15s">👤 Simular perfil: Executor de Processo</button>
+    <div id="ep-toggle-wrap" style="display:none">
+      <div onclick="togglePerfilEP()" title="Modo simulação: alternar para Executor de Processo" style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0;opacity:.55;transition:opacity .15s" onmouseenter="this.style.opacity='.9'" onmouseleave="this.style.opacity=document.getElementById('ep-toggle-track').classList.contains('on')?'.9':'.55'">
+        <svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px;flex-shrink:0;color:var(--ink3)"><path d="M10.5 1.5a3 3 0 110 6 3 3 0 010-6zM7.72 6.28A4.5 4.5 0 1014.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M1 10.5h7M4.5 8v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <span style="font-size:10.5px;color:var(--ink3);flex:1;line-height:1">Modo simulação</span>
+        <div id="ep-toggle-track" style="width:28px;height:15px;border-radius:8px;background:var(--bdr2);position:relative;transition:background .2s;flex-shrink:0">
+          <div id="ep-toggle-thumb" style="width:11px;height:11px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.25)"></div>
+        </div>
+      </div>
     </div>
     <button class="logout-btn" onclick="doLogout()">Sair da conta</button>
   </div>
@@ -1339,18 +1345,21 @@ function _aplicarUsuario(user){
 function _aplicarToggleEP(user){
   const wrap=document.getElementById('ep-toggle-wrap');
   if(!wrap) return;
-  // Mostra o toggle apenas para usuários EP (perfil original ep)
   const perfilOriginal=user._perfil_original||user.perfil;
   if(perfilOriginal!=='ep'){ wrap.style.display='none'; return; }
   wrap.style.display='block';
   const simulando=user.perfil==='dono';
-  const btn=document.getElementById('ep-toggle-btn');
+  const track=document.getElementById('ep-toggle-track');
+  const thumb=document.getElementById('ep-toggle-thumb');
+  const row=wrap.querySelector('div[onclick]');
   if(simulando){
-    btn.textContent='🔄 Voltar ao perfil EP';
-    btn.style.background='var(--amber-l)'; btn.style.color='var(--amber)'; btn.style.borderColor='var(--amber-b)';
+    track.style.background='var(--teal)';
+    thumb.style.left='15px';
+    if(row) row.style.opacity='.9';
   } else {
-    btn.textContent='👤 Simular perfil: Executor de Processo';
-    btn.style.background='var(--teal-l)'; btn.style.color='var(--teal)'; btn.style.borderColor='var(--teal-b)';
+    track.style.background='var(--bdr2)';
+    thumb.style.left='2px';
+    if(row) row.style.opacity='.55';
   }
 }
 function togglePerfilEP(){
