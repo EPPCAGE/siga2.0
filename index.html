@@ -501,7 +501,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
     </div>
     <div id="ep-toggle-wrap" style="display:none">
-      <div onclick="togglePerfilEP()" title="Modo simulação: alternar para Executor de Processo" style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0;opacity:.55;transition:opacity .15s" onmouseenter="this.style.opacity='.9'" onmouseleave="this.style.opacity=document.getElementById('ep-toggle-track').classList.contains('on')?'.9':'.55'">
+      <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();togglePerfilEP();}" onclick="togglePerfilEP()" title="Modo simulação: alternar para Executor de Processo" style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0;opacity:.55;transition:opacity .15s" onmouseenter="this.style.opacity='.9'" onmouseleave="this.style.opacity=document.getElementById('ep-toggle-track').classList.contains('on')?'.9':'.55'">
         <svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px;flex-shrink:0;color:var(--ink3)"><path d="M10.5 1.5a3 3 0 110 6 3 3 0 010-6zM7.72 6.28A4.5 4.5 0 1014.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M1 10.5h7M4.5 8v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
         <span style="font-size:10.5px;color:var(--ink3);flex:1;line-height:1">Modo simulação</span>
         <div id="ep-toggle-track" style="width:28px;height:15px;border-radius:8px;background:var(--bdr2);position:relative;transition:background .2s;flex-shrink:0">
@@ -1042,12 +1042,12 @@ Não responda este e-mail.</pre>
       </div>
       <div class="fg"><label class="fl" for="pub-tags">Tags (separadas por vírgula)</label><input class="fi" id="pub-tags" placeholder="Ex: bpmn, mapeamento, tutorial"></div>
       <div class="fg">
-        <label class="fl">Capa / Thumbnail</label>
+        <label class="fl" for="pub-thumb">Capa / Thumbnail</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input class="fi" id="pub-thumb" placeholder="URL da imagem (opcional)" style="flex:1;min-width:180px" oninput="(function(v){const p=document.getElementById('pub-thumb-preview'),i=document.getElementById('pub-thumb-img');if(v){i.src=v;p.style.display='block';}else{p.style.display='none';}})(this.value)">
           <label class="btn" style="font-size:11px;padding:3px 10px;cursor:pointer;flex-shrink:0">↑ Upload<input type="file" id="pub-thumb-file" accept="image/*" style="display:none" onchange="uploadThumbPub(this)"></label>
         </div>
-        <div id="pub-thumb-preview" style="margin-top:6px;display:none"><img id="pub-thumb-img" src="" alt="Pré-visualização da imagem de capa" style="height:80px;border-radius:6px;border:1px solid var(--bdr);object-fit:cover"></div>
+        <div id="pub-thumb-preview" style="margin-top:6px;display:none"><img id="pub-thumb-img" src="" alt="Pré-visualização de capa" style="height:80px;border-radius:6px;border:1px solid var(--bdr);object-fit:cover"></div>
       </div>
       <div class="btn-row">
         <button type="button" class="btn btn-r" id="pub-del-btn" style="margin-right:auto;display:none" onclick="deletarPub()">Remover</button>
@@ -1447,7 +1447,7 @@ function togglePerfilEP(){
   // Re-renderiza a view atual
   const pAtivo=document.querySelector('.page.on');
   if(pAtivo){
-    const id=pAtivo.id.replace('page-','');
+    const id=pAtivo.id.replaceAll('page-','');
     const nb=document.getElementById('nb-'+id);
     go(id,nb||null);
   }
@@ -2183,7 +2183,7 @@ function excluirMapeamento(id){
 function abrirProc(id){
   curProc=processos.find(p=>p.id===id);
   // Keep etapasIdC ahead of any existing etapa IDs in this process
-  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replace('ep',''))||0);
+  const nums=(curProc?.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replaceAll('ep',''))||0);
   if(nums.length) etapasIdC=Math.max(etapasIdC,...nums)+1;
   rDetalhe();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -2857,7 +2857,7 @@ const ACOES = {
         ${QUESTOES.map(q=>`
           <div class="quest-item">
             <div class="quest-dim">${q.dim}</div>
-            <div class="quest-txt">${q.id.toUpperCase().replace('Q','')}. ${q.txt}</div>
+            <div class="quest-txt">${q.id.toUpperCase().replaceAll('Q','')}. ${q.txt}</div>
             <div class="likert">
               ${LIKERT.map((l,i)=>`<button type="button" class="lk-btn ${resp[q.id]===i+1?'on':''}" onclick="setLikert('${q.id}',${i+1},this)">${i+1}. ${l}</button>`).join('')}
             </div>
@@ -4679,7 +4679,7 @@ async function salvarQuestaoAuditoria(){
   const idxStr=document.getElementById('aud-q-idx')?.value||'';
   if(!texto){toast('Informe a questão','var(--red)');return;}
   if(idxStr!==''){
-    const idx=parseInt(idxStr);
+    const idx=Number.parseInt(idxStr);
     p.auditoria.questoes[idx]={...p.auditoria.questoes[idx],questao:texto,criterio,responsavel};
     toast('Questão atualizada!','var(--teal)');
   } else {
@@ -4960,7 +4960,7 @@ function visPopPreview(){
   const prev=p.form.pop;
   ['pp-area','pp-ger','pp-mac','pp-obj','pp-def','pp-ent','pp-sai','pp-docs'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el){const key=id.replace('pp-','');prev[key]=el.value;}
+    if(el){const key=id.replaceAll('pp-','');prev[key]=el.value;}
   });
   const etapas=p.mod?.etapas_proc||[];
   const ativ_detalhes=Object.assign({},prev.ativ_detalhes||{});
@@ -7186,7 +7186,7 @@ function fmtPeriodo(v){
 // dot as thousands separator). Also strips % suffix and handles already-numeric values.
 function parseNumBR(v){
   if(typeof v === 'number') return v;
-  let s = v.toString().trim().replace('%','').trim();
+  let s = v.toString().trim().replaceAll('%','').trim();
   if(!s) return 0;
   const hasDot   = s.includes('.');
   const hasComma = s.includes(',');
@@ -7431,13 +7431,13 @@ function periodoToNum(s){
   const MONTHS = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
   const y = (str.match(/\d{4}/)||['0'])[0];
   for(const [abbr,num] of Object.entries(MONTHS)){
-    if(str.includes(abbr)) return parseInt(y)*100 + num;
+    if(str.includes(abbr)) return Number.parseInt(y)*100 + num;
   }
   const tMatch = str.match(/t(\d)/);
-  if(tMatch) return parseInt(y)*100 + (parseInt(tMatch[1])-1)*3 + 1;
+  if(tMatch) return Number.parseInt(y)*100 + (Number.parseInt(tMatch[1])-1)*3 + 1;
   const semMatch = str.match(/(\d)[ºo\s]*sem/);
-  if(semMatch) return parseInt(y)*100 + (parseInt(semMatch[1])===1 ? 1 : 7);
-  if(parseInt(y)) return parseInt(y)*100;
+  if(semMatch) return Number.parseInt(y)*100 + (Number.parseInt(semMatch[1])===1 ? 1 : 7);
+  if(Number.parseInt(y)) return Number.parseInt(y)*100;
   return 0;
 }
 function kpiGroupByKey(list){
@@ -8908,7 +8908,7 @@ async function fbLoad(){
       processos.sort((a,b) => a.id - b.id);
       nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
       // Sync etapasIdC so new etapa IDs never collide with existing ones
-      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replace('ep',''))||0));
+      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replaceAll('ep','''))||0));
       if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
     }
 
