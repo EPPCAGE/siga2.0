@@ -337,6 +337,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   .prc-r{flex-direction:row;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:5px}
   .ri-item{grid-template-columns:1fr auto auto auto;font-size:11px}
   .arq-filtros-avancados{display:none!important}
+  .ind-filtros-avancados{display:none!important}
+  .plano-filtros-avancados{display:none!important}
 }
 @keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .page.on .prc{animation:fu .16s ease both}
@@ -664,16 +666,16 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem">
     <span class="fbar-l">Indicador</span>
     <select class="fi" id="ind-nome-sel" onchange="rInd()" style="max-width:220px"><option value="">Todos</option></select>
-    <span class="fbar-l">Área</span>
-    <select class="fi" id="ind-area-sel" onchange="rInd()" style="max-width:160px"><option value="">Todas</option></select>
-    <span class="fbar-l">PPE?</span>
-    <select class="fi" id="ind-ppe-sel" onchange="rInd()" style="max-width:90px">
+    <span class="fbar-l ind-filtros-avancados">Área</span>
+    <select class="fi ind-filtros-avancados" id="ind-area-sel" onchange="rInd()" style="max-width:160px"><option value="">Todas</option></select>
+    <span class="fbar-l ind-filtros-avancados">PPE?</span>
+    <select class="fi ind-filtros-avancados" id="ind-ppe-sel" onchange="rInd()" style="max-width:90px">
       <option value="">Todos</option><option>Sim</option><option>Não</option>
     </select>
-    <span class="fbar-l">Ciclo</span>
-    <select class="fi" id="ind-ciclo-sel" onchange="rInd()" style="max-width:150px"><option value="">Todos</option></select>
-    <span class="fbar-l">Período</span>
-    <select class="fi" id="ind-periodo-sel" onchange="rInd()" style="max-width:140px"><option value="">Todos</option></select>
+    <span class="fbar-l ind-filtros-avancados">Ciclo</span>
+    <select class="fi ind-filtros-avancados" id="ind-ciclo-sel" onchange="rInd()" style="max-width:150px"><option value="">Todos</option></select>
+    <span class="fbar-l ind-filtros-avancados">Período</span>
+    <select class="fi ind-filtros-avancados" id="ind-periodo-sel" onchange="rInd()" style="max-width:140px"><option value="">Todos</option></select>
   </div>
   <div id="ind-summary" style="margin-bottom:.8rem"></div>
   <div id="ind-c"></div>
@@ -774,26 +776,26 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="plano-stats" style="margin-bottom:1rem"></div>
   <div id="plano-dash" style="margin-bottom:1.2rem"></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
-    <select class="fi" id="plano-filt-tri" onchange="rPlano()" style="width:100px">
+    <select class="fi plano-filtros-avancados" id="plano-filt-tri" onchange="rPlano()" style="width:100px">
       <option value="">Todos</option>
       <option value="Anual">Anual</option>
       <option value="T1">T1</option><option value="T2">T2</option>
       <option value="T3">T3</option><option value="T4">T4</option>
     </select>
-    <select class="fi" id="plano-filt-status" onchange="rPlano()" style="width:140px">
+    <select class="fi plano-filtros-avancados" id="plano-filt-status" onchange="rPlano()" style="width:140px">
       <option value="">Todos os status</option>
       <option value="planejado">Planejado</option>
       <option value="em_execucao">Em execução</option>
       <option value="em_atraso">Em atraso</option>
       <option value="concluida">Concluída</option>
     </select>
-    <select class="fi" id="plano-filt-prio" onchange="rPlano()" style="width:120px">
+    <select class="fi plano-filtros-avancados" id="plano-filt-prio" onchange="rPlano()" style="width:120px">
       <option value="">Todas prioridades</option>
       <option value="alta">Alta</option>
       <option value="media">Média</option>
       <option value="baixa">Baixa</option>
     </select>
-    <select class="fi" id="plano-filt-cat" onchange="rPlano()" style="width:130px">
+    <select class="fi plano-filtros-avancados" id="plano-filt-cat" onchange="rPlano()" style="width:130px">
       <option value="">Todas categorias</option>
       <option value="auditoria">Auditoria</option>
       <option value="mapeamento">Mapeamento</option>
