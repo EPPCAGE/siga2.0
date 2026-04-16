@@ -5457,27 +5457,15 @@ function _bpmnNodeType(tag, GW_TAGS, TASK_TAGS){
     modo:     tag==='servicetask'||tag==='scripttask'?'Automatica':'Manual', desc:''};
   return null;
 }
-function extrairBpmn(){
-  const p=curProc;
-  const isTobe=p.etapa==='det_valid_tobe';
-  const bpmnXml=isTobe?p.mod?.bpmnToBe:p.mod?.bpmnAsIs;
-  if(!bpmnXml){
-    toast('Nenhum fluxo BPMN '+(isTobe?'TO BE':'AS IS')+' salvo. Salve o BPMN na aba de Esboço primeiro.','var(--amber)');
-    return;
-  }
-  const parser=new DOMParser();
-  const xml=parser.parseFromString(bpmnXml,'text/xml');
-
-  // Mapa elementId → nome da raia (lane)
+function _bpmnBuildLaneMap(xml){
   const laneMap={};
   xml.querySelectorAll('lane').forEach(lane=>{
     const nome=lane.getAttribute('name')||'';
     if(nome) lane.querySelectorAll('flowNodeRef').forEach(ref=>{laneMap[ref.textContent.trim()]=nome;});
   });
-
-  // Monta mapa de todos os flow nodes pelo id
-  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
-  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
+  return laneMap;
+}
+function _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap){
   const nodeInfo={};
   xml.querySelectorAll([
     'startEvent','endEvent','intermediateThrowEvent','intermediateCatchEvent',
@@ -5489,15 +5477,17 @@ function extrairBpmn(){
     if(!typeInfo) return;
     nodeInfo[e.id]={xmlId:e.id, nome:e.getAttribute('name')||'', executor:laneMap[e.id]||'', ...typeInfo};
   });
-
-  // Mapa de fluxos de saída: sourceRef → [targetRef] (na ordem do XML)
+  return nodeInfo;
+}
+function _bpmnBuildOutgoing(xml){
   const outgoing={};
   xml.querySelectorAll('sequenceFlow').forEach(sf=>{
     const src=sf.getAttribute('sourceRef'), tgt=sf.getAttribute('targetRef');
-    if(src&&tgt){if(!outgoing[src]){outgoing[src]=[];} outgoing[src].push(tgt);}
+    if(src&&tgt){ if(!outgoing[src]) outgoing[src]=[]; outgoing[src].push(tgt); }
   });
-
-  // BFS a partir dos eventos de início, respeitando a ordem dos sequenceFlows
+  return outgoing;
+}
+function _bpmnBfsOrder(xml, outgoing, nodeInfo){
   const startIds=[];
   xml.querySelectorAll('startEvent').forEach(e=>startIds.push(e.id));
   const visited=new Set();
@@ -5510,8 +5500,25 @@ function extrairBpmn(){
     if(nodeInfo[id]) ordered.push(nodeInfo[id]);
     (outgoing[id]||[]).forEach(tgt=>{if(!visited.has(tgt)) queue.push(tgt);});
   }
-  // Nós não conectados ao fluxo principal (fallback)
   Object.values(nodeInfo).forEach(n=>{if(!visited.has(n.xmlId)) ordered.push(n);});
+  return ordered;
+}
+function extrairBpmn(){
+  const p=curProc;
+  const isTobe=p.etapa==='det_valid_tobe';
+  const bpmnXml=isTobe?p.mod?.bpmnToBe:p.mod?.bpmnAsIs;
+  if(!bpmnXml){
+    toast('Nenhum fluxo BPMN '+(isTobe?'TO BE':'AS IS')+' salvo. Salve o BPMN na aba de Esboço primeiro.','var(--amber)');
+    return;
+  }
+  const xml=new DOMParser().parseFromString(bpmnXml,'text/xml');
+  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
+  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
+
+  const laneMap  = _bpmnBuildLaneMap(xml);
+  const nodeInfo = _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap);
+  const outgoing = _bpmnBuildOutgoing(xml);
+  const ordered  = _bpmnBfsOrder(xml, outgoing, nodeInfo);
 
   if(!ordered.length){toast('Nenhum elemento encontrado no BPMN. Desenhe o fluxo primeiro.','var(--amber)');return;}
 
@@ -5524,7 +5531,6 @@ function extrairBpmn(){
     executor:n.executor, desc:n.desc||'', caminhos:[]
   }));
 
-  // Merge — adiciona apenas os que ainda não existem pelo nome
   if(!p.mod.etapas_proc) p.mod.etapas_proc=[];
   const existentes=new Set(p.mod.etapas_proc.map(e=>e.nome));
   const novas=elems.filter(e=>!existentes.has(e.nome));
@@ -7566,6 +7572,21 @@ function _kpiFormSetFields(k){
   fv('nkpi-polaridade', k.polaridade || 'Maior é melhor');
   fv('nkpi-analise',    k.analise    || '');
 }
+function _kpiUpdateNavDisplay(isMulti){
+  const navBar = document.getElementById('kpi-nav-periodos');
+  const cfgLbl = document.getElementById('kpi-config-geral-lbl');
+  const valLbl = document.getElementById('kpi-valores-periodo-lbl');
+  if(navBar) navBar.style.display = isMulti ? 'flex' : 'none';
+  if(cfgLbl) cfgLbl.style.display = isMulti ? ''    : 'none';
+  if(valLbl) valLbl.style.display = isMulti ? ''    : 'none';
+}
+function _kpiGetSamePeriods(k){
+  const groupKey = k.codigo || k.nome;
+  return kpis
+    .filter(x => (x.codigo || x.nome) === groupKey)
+    .slice()
+    .sort((a,b) => periodoToNum(a.periodo) - periodoToNum(b.periodo));
+}
 function abrirNovoKpi(preselArea){
   if(!isEP()){toast('Ação restrita ao EPP.','var(--amber)');return;}
   const modal = document.getElementById('novo-kpi-modal');
@@ -7577,12 +7598,7 @@ function abrirNovoKpi(preselArea){
   globalThis._kpiPeriodos = [];
   globalThis._kpiPeriodoIdx = 0;
   globalThis._kpiPeriodEdits = {};
-  const navBar = document.getElementById('kpi-nav-periodos');
-  const cfgLbl = document.getElementById('kpi-config-geral-lbl');
-  const valLbl = document.getElementById('kpi-valores-periodo-lbl');
-  if(navBar) navBar.style.display = 'none';
-  if(cfgLbl) cfgLbl.style.display = 'none';
-  if(valLbl) valLbl.style.display = 'none';
+  _kpiUpdateNavDisplay(false);
   _kpiFormSetFields({area: preselArea||'', periodicidade:'Mensal', ppe:'Não', polaridade:'Maior é melhor'});
   modal.style.display = 'flex';
 }
@@ -7668,28 +7684,14 @@ function editKpi(id){
   document.getElementById('nkpi-edit-all-periods').value = '0';
   document.getElementById('kpi-del-btn').style.display = 'inline-flex';
 
-  // Group all periods for this indicator
-  const groupKey = k.codigo || k.nome;
-  const samePeriods = kpis
-    .filter(x => (x.codigo || x.nome) === groupKey)
-    .slice()
-    .sort((a,b) => periodoToNum(a.periodo) - periodoToNum(b.periodo));
-
+  const samePeriods = _kpiGetSamePeriods(k);
   globalThis._kpiPeriodos    = samePeriods;
   globalThis._kpiPeriodoIdx  = Math.max(0, samePeriods.findIndex(x=>x.id===id));
   globalThis._kpiPeriodEdits = {};
 
   const isMulti = samePeriods.length > 1;
-  const navBar = document.getElementById('kpi-nav-periodos');
-  const cfgLbl = document.getElementById('kpi-config-geral-lbl');
-  const valLbl = document.getElementById('kpi-valores-periodo-lbl');
-  if(navBar) navBar.style.display = isMulti ? 'flex' : 'none';
-  if(cfgLbl) cfgLbl.style.display = isMulti ? ''    : 'none';
-  if(valLbl) valLbl.style.display = isMulti ? ''    : 'none';
-
-  // Load general config fields from the current period's KPI
+  _kpiUpdateNavDisplay(isMulti);
   _kpiFormSetFields(k);
-  // Populate period nav if multi
   if(isMulti){ _kpiNavUpdateSelector(); }
   modal.style.display = 'flex';
 }
