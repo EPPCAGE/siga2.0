@@ -1505,42 +1505,24 @@ function togglePrimeiroAcesso(){
   if(!visible) document.getElementById('pa-email')?.focus();
 }
 
-async function processarPrimeiroAcesso(){
-  const nome  = (document.getElementById('pa-nome')?.value||'').trim();
-  const email = (document.getElementById('pa-email')?.value||'').trim().toLowerCase();
-  const msgEl = document.getElementById('pa-msg');
-  const showErr = m => { if(msgEl){ msgEl.style.background='rgba(242,160,160,.15)'; msgEl.style.color='#F2A0A0'; msgEl.textContent=m; msgEl.style.display='block'; } };
-  const showOk  = m => { if(msgEl){ msgEl.style.background='rgba(160,242,196,.15)'; msgEl.style.color='#A0F2C4'; msgEl.textContent=m; msgEl.style.display='block'; } };
-
-  if(!email){ showErr('Informe seu e-mail institucional.'); return; }
-  const dominio = email.split('@')[1]||'';
-  if(!DOMINIOS_PERMITIDOS.includes(dominio)){ showErr('Use um e-mail institucional válido ('+DOMINIOS_PERMITIDOS.join(' ou ')+').'); return; }
-
-  const userExistente = USUARIOS.find(u=>u.email===email);
-
-  if(userExistente){
-    // Usuário já cadastrado → redefinir senha via link Firebase.
-    // Se o usuário foi adicionado manualmente ao Firestore sem ter conta Auth,
-    // cria a conta com senha aleatória primeiro (sem risco de deslogar ninguém,
-    // pois estamos na tela de login antes de qualquer sessão ativa).
-    if(!fbReady()){ showErr('Firebase não configurado.'); return; }
+async function _primeiroAcessoExistente(email, showErr, showOk){
+  if(!fbReady()){ showErr('Firebase não configurado.'); return; }
+  try {
+    const {auth, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail} = fb();
     try {
-      const {auth, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail} = fb();
-      try {
-        const tmpPass = gerarSenhaTemp() + gerarSenhaTemp(); // longo o suficiente, nunca usado
-        await createUserWithEmailAndPassword(auth, email, tmpPass);
-        await signOut(auth); // limpa sessão da conta recém-criada
-      } catch(createErr){
-        if(createErr.code !== 'auth/email-already-in-use') throw createErr;
-        // conta já existe → segue normalmente para o reset
-      }
-      await sendPasswordResetEmail(auth, email);
-      showOk('Link de redefinição enviado para '+email+'. Verifique sua caixa de entrada (e a pasta de spam).');
-    } catch(err){ showErr('Erro ao enviar e-mail: '+err.message); }
-    return;
-  }
+      const tmpPass = gerarSenhaTemp() + gerarSenhaTemp(); // longo o suficiente, nunca usado
+      await createUserWithEmailAndPassword(auth, email, tmpPass);
+      await signOut(auth); // limpa sessão da conta recém-criada
+    } catch(createErr){
+      if(createErr.code !== 'auth/email-already-in-use') throw createErr;
+      // conta já existe → segue normalmente para o reset
+    }
+    await sendPasswordResetEmail(auth, email);
+    showOk('Link de redefinição enviado para '+email+'. Verifique sua caixa de entrada (e a pasta de spam).');
+  } catch(err){ showErr('Erro ao enviar e-mail: '+err.message); }
+}
 
-  // Novo usuário → criar solicitação de acesso
+async function _primeiroAcessoNovo(email, nome, showErr, showOk){
   if(!nome){ showErr('Informe seu nome completo para solicitar o primeiro acesso.'); return; }
   const jaSolicitou = solicitacoes.find(s=>s.email===email && s.status==='pendente');
   if(jaSolicitou){ showOk('Já existe uma solicitação pendente para este e-mail. Aguarde a aprovação do EPP.'); return; }
@@ -1555,6 +1537,24 @@ async function processarPrimeiroAcesso(){
     if(document.getElementById('pa-nome')) document.getElementById('pa-nome').value='';
     if(document.getElementById('pa-email')) document.getElementById('pa-email').value='';
   } catch(e){ showErr('Erro ao enviar solicitação: '+e.message); }
+}
+
+async function processarPrimeiroAcesso(){
+  const nome  = (document.getElementById('pa-nome')?.value||'').trim();
+  const email = (document.getElementById('pa-email')?.value||'').trim().toLowerCase();
+  const msgEl = document.getElementById('pa-msg');
+  const showErr = m => { if(msgEl){ msgEl.style.background='rgba(242,160,160,.15)'; msgEl.style.color='#F2A0A0'; msgEl.textContent=m; msgEl.style.display='block'; } };
+  const showOk  = m => { if(msgEl){ msgEl.style.background='rgba(160,242,196,.15)'; msgEl.style.color='#A0F2C4'; msgEl.textContent=m; msgEl.style.display='block'; } };
+
+  if(!email){ showErr('Informe seu e-mail institucional.'); return; }
+  const dominio = email.split('@')[1]||'';
+  if(!DOMINIOS_PERMITIDOS.includes(dominio)){ showErr('Use um e-mail institucional válido ('+DOMINIOS_PERMITIDOS.join(' ou ')+').'); return; }
+
+  if(USUARIOS.find(u=>u.email===email)){
+    await _primeiroAcessoExistente(email, showErr, showOk);
+  } else {
+    await _primeiroAcessoNovo(email, nome, showErr, showOk);
+  }
 }
 
 // Mantido como alias para compatibilidade com referências antigas
@@ -3635,14 +3635,16 @@ function _rAcaoTarefaRespondidaHTML(jr){
     </div>
   </div></div>`;
 }
+const _BPMN_INIT = {
+  det_valid_asis: (p,mt) => { if(mt) setTimeout(()=>initBpmnMod('asis',p),120); },
+  det_valid_tobe: (p,mt) => { if(mt) setTimeout(()=>initBpmnMod('tobe',p),120); },
+  esboco_asis:    (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); setTimeout(atualizarMermaid,300); },
+  esboco_tobe:    (p)    => { setTimeout(()=>initBpmnMod('tobe',p),120); },
+  desenho_final:  (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); },
+  pop:            ()     => { setTimeout(injectIaPop,100); },
+};
 function _rAcaoInitBpmn(p, minhaTarefa){
-  if(p.etapa==='det_valid_asis' && minhaTarefa) setTimeout(()=>initBpmnMod('asis',p),120);
-  if(p.etapa==='det_valid_tobe' && minhaTarefa) setTimeout(()=>initBpmnMod('tobe',p),120);
-  if(p.etapa==='esboco_asis') setTimeout(()=>{initBpmnMod('asis',p);},120);
-  if(p.etapa==='esboco_tobe') setTimeout(()=>{initBpmnMod('tobe',p);},120);
-  if(p.etapa==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
-  if(p.etapa==='esboco_asis') setTimeout(atualizarMermaid,300);
-  if(p.etapa==='pop') setTimeout(injectIaPop, 100);
+  _BPMN_INIT[p.etapa]?.(p, minhaTarefa);
 }
 function _rAcaoHandleDono(el, ac, p){
   const etObj=ETAPAS.find(e=>e.id===p.etapa);
@@ -5031,17 +5033,16 @@ function tipoCls(t,sub){
 }
 
 // Navigate a dot-path like "ep100.c0.a1.c0" into etapas_proc nested objects
+function _resolvePathPart(obj, part){
+  if(part[0]==='c') return obj.caminhos?.[Number.parseInt(part.slice(1))];
+  if(part[0]==='a') return obj.acoes?.[Number.parseInt(part.slice(1))];
+  return null;
+}
 function resolveGwPath(path){
   const parts=path.split('.');
   let obj=curProc.mod.etapas_proc.find(x=>x.id===parts[0]);
-  if(!obj)return null;
-  for(let i=1;i<parts.length;i++){
-    const p=parts[i];
-    if(p[0]==='c')obj=obj.caminhos?.[Number.parseInt(p.slice(1))];
-    else if(p[0]==='a')obj=obj.acoes?.[Number.parseInt(p.slice(1))];
-    if(obj==null)return null;
-  }
-  return obj;
+  for(let i=1;i<parts.length&&obj!=null;i++) obj=_resolvePathPart(obj,parts[i]);
+  return obj??null;
 }
 
 function renderAcaoGw(camPath,ai,ac,depth){
@@ -5445,27 +5446,26 @@ function addEtapaProc(){
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(curProc.mod.etapas_proc);
   setTimeout(()=>{ toggleEtapaDetalhe(nova.id); atualizarMermaid(); },50);
 }
-function extrairBpmn(){
-  const p=curProc;
-  const isTobe=p.etapa==='det_valid_tobe';
-  const bpmnXml=isTobe?p.mod?.bpmnToBe:p.mod?.bpmnAsIs;
-  if(!bpmnXml){
-    toast('Nenhum fluxo BPMN '+(isTobe?'TO BE':'AS IS')+' salvo. Salve o BPMN na aba de Esboço primeiro.','var(--amber)');
-    return;
-  }
-  const parser=new DOMParser();
-  const xml=parser.parseFromString(bpmnXml,'text/xml');
-
-  // Mapa elementId → nome da raia (lane)
+function _bpmnNodeType(tag, GW_TAGS, TASK_TAGS){
+  if(tag==='startevent')    return {tipo:'Evento', subtipo:'Início', natureza:null, modo:null, desc:'Evento de início do processo'};
+  if(tag==='endevent')      return {tipo:'Evento', subtipo:'Fim',    natureza:null, modo:null, desc:'Evento de fim do processo'};
+  if(tag==='intermediatethrowevent'||tag==='intermediatecatchevent')
+                            return {tipo:'Evento', subtipo:'Intermediário', natureza:null, modo:null, desc:''};
+  if(GW_TAGS.has(tag))      return {tipo:'Decisao', subtipo:null, natureza:null, modo:null, desc:''};
+  if(TASK_TAGS.has(tag))    return {tipo:'Atividade', subtipo:null,
+    natureza: tag==='sendtask'?'Comunicacao':'Execucao',
+    modo:     tag==='servicetask'||tag==='scripttask'?'Automatica':'Manual', desc:''};
+  return null;
+}
+function _bpmnBuildLaneMap(xml){
   const laneMap={};
   xml.querySelectorAll('lane').forEach(lane=>{
     const nome=lane.getAttribute('name')||'';
     if(nome) lane.querySelectorAll('flowNodeRef').forEach(ref=>{laneMap[ref.textContent.trim()]=nome;});
   });
-
-  // Monta mapa de todos os flow nodes pelo id
-  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
-  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
+  return laneMap;
+}
+function _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap){
   const nodeInfo={};
   xml.querySelectorAll([
     'startEvent','endEvent','intermediateThrowEvent','intermediateCatchEvent',
@@ -5473,27 +5473,21 @@ function extrairBpmn(){
     'exclusiveGateway','inclusiveGateway','parallelGateway','complexGateway'
   ].join(',')).forEach(e=>{
     const tag=e.localName.toLowerCase();
-    let tipo,subtipo=null,natureza=null,modo=null,desc='';
-    if(tag==='startevent'){tipo='Evento';subtipo='Início';desc='Evento de início do processo';}
-    else if(tag==='endevent'){tipo='Evento';subtipo='Fim';desc='Evento de fim do processo';}
-    else if(tag==='intermediatethrowevent'||tag==='intermediatecatchevent'){tipo='Evento';subtipo='Intermediário';}
-    else if(GW_TAGS.has(tag)){tipo='Decisao';}
-    else if(TASK_TAGS.has(tag)){
-      tipo='Atividade';
-      natureza=tag==='sendtask'?'Comunicacao':'Execucao';
-      modo=tag==='servicetask'||tag==='scripttask'?'Automatica':'Manual';
-    } else return;
-    nodeInfo[e.id]={xmlId:e.id,nome:e.getAttribute('name')||'',tipo,subtipo,natureza,modo,executor:laneMap[e.id]||'',desc};
+    const typeInfo = _bpmnNodeType(tag, GW_TAGS, TASK_TAGS);
+    if(!typeInfo) return;
+    nodeInfo[e.id]={xmlId:e.id, nome:e.getAttribute('name')||'', executor:laneMap[e.id]||'', ...typeInfo};
   });
-
-  // Mapa de fluxos de saída: sourceRef → [targetRef] (na ordem do XML)
+  return nodeInfo;
+}
+function _bpmnBuildOutgoing(xml){
   const outgoing={};
   xml.querySelectorAll('sequenceFlow').forEach(sf=>{
     const src=sf.getAttribute('sourceRef'), tgt=sf.getAttribute('targetRef');
-    if(src&&tgt){if(!outgoing[src]){outgoing[src]=[];} outgoing[src].push(tgt);}
+    if(src&&tgt){ if(!outgoing[src]) outgoing[src]=[]; outgoing[src].push(tgt); }
   });
-
-  // BFS a partir dos eventos de início, respeitando a ordem dos sequenceFlows
+  return outgoing;
+}
+function _bpmnBfsOrder(xml, outgoing, nodeInfo){
   const startIds=[];
   xml.querySelectorAll('startEvent').forEach(e=>startIds.push(e.id));
   const visited=new Set();
@@ -5506,8 +5500,25 @@ function extrairBpmn(){
     if(nodeInfo[id]) ordered.push(nodeInfo[id]);
     (outgoing[id]||[]).forEach(tgt=>{if(!visited.has(tgt)) queue.push(tgt);});
   }
-  // Nós não conectados ao fluxo principal (fallback)
   Object.values(nodeInfo).forEach(n=>{if(!visited.has(n.xmlId)) ordered.push(n);});
+  return ordered;
+}
+function extrairBpmn(){
+  const p=curProc;
+  const isTobe=p.etapa==='det_valid_tobe';
+  const bpmnXml=isTobe?p.mod?.bpmnToBe:p.mod?.bpmnAsIs;
+  if(!bpmnXml){
+    toast('Nenhum fluxo BPMN '+(isTobe?'TO BE':'AS IS')+' salvo. Salve o BPMN na aba de Esboço primeiro.','var(--amber)');
+    return;
+  }
+  const xml=new DOMParser().parseFromString(bpmnXml,'text/xml');
+  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
+  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
+
+  const laneMap  = _bpmnBuildLaneMap(xml);
+  const nodeInfo = _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap);
+  const outgoing = _bpmnBuildOutgoing(xml);
+  const ordered  = _bpmnBfsOrder(xml, outgoing, nodeInfo);
 
   if(!ordered.length){toast('Nenhum elemento encontrado no BPMN. Desenhe o fluxo primeiro.','var(--amber)');return;}
 
@@ -5520,7 +5531,6 @@ function extrairBpmn(){
     executor:n.executor, desc:n.desc||'', caminhos:[]
   }));
 
-  // Merge — adiciona apenas os que ainda não existem pelo nome
   if(!p.mod.etapas_proc) p.mod.etapas_proc=[];
   const existentes=new Set(p.mod.etapas_proc.map(e=>e.nome));
   const novas=elems.filter(e=>!existentes.has(e.nome));
@@ -6363,26 +6373,49 @@ function limparFiltrosArq(){
 function _parseFaq(texto){
   // Converte texto no formato "P: ...\nR: ..." em array de {p, r}
   if(!texto || !texto.trim()) return [];
-  const pairs = [];
-  const blocos = texto.split(/\n(?=P:|P\s*:)/i).filter(b=>b.trim());
-  for(const bloco of blocos){
-    const linhas = bloco.split('\n');
+  return texto.split(/\n(?=P:|P\s*:)/i).filter(b=>b.trim()).map(bloco => {
     let pergunta = '', resposta = '';
-    for(const linha of linhas){
-      const m = linha.match(/^[PR]\s*:\s*/i);
-      if(m && linha.toLowerCase().startsWith('p:')){
-        pergunta = linha.replace(/^P\s*:\s*/i,'').trim();
-      } else if(m && linha.toLowerCase().startsWith('r:')){
-        resposta = linha.replace(/^R\s*:\s*/i,'').trim();
-      } else if(resposta){
-        resposta += ' ' + linha.trim(); // continuação da resposta
-      }
+    for(const linha of bloco.split('\n')){
+      if(/^P\s*:/i.test(linha))      pergunta = linha.replace(/^P\s*:\s*/i,'').trim();
+      else if(/^R\s*:/i.test(linha)) resposta = linha.replace(/^R\s*:\s*/i,'').trim();
+      else if(resposta)              resposta += ' ' + linha.trim();
     }
-    if(pergunta) pairs.push({p: pergunta, r: resposta});
-  }
-  return pairs;
+    return pergunta ? {p: pergunta, r: resposta} : null;
+  }).filter(Boolean);
 }
 
+function _rFaqHl(txt, srch){
+  if(!srch) return esc(txt);
+  return esc(txt).replace(new RegExp('('+srch.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),
+    '<mark style="background:#fff176;border-radius:2px;padding:0 1px">$1</mark>');
+}
+function _rFaqItemHTML({p, r}, srch){
+  return `<div style="padding:.7rem 0;border-bottom:1px solid var(--bdr)">
+    <div style="font-weight:600;font-size:13px;color:var(--ink);margin-bottom:.3rem">❓ ${_rFaqHl(p, srch)}</div>
+    ${r ? `<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;padding-left:1.1rem">${_rFaqHl(r, srch)}</div>` : ''}
+  </div>`;
+}
+function _rFaqProcHTML(procNome, pares, srch){
+  return `
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        ${esc(procNome)}
+        <span style="font-size:10px;font-weight:400;color:var(--ink3);text-transform:none;letter-spacing:0">${pares.length} pergunta${pares.length!==1?'s':''}</span>
+      </div>
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.2rem 1rem">${pares.map(par=>_rFaqItemHTML(par, srch)).join('')}</div>
+    </div>`;
+}
+function _rFaqMacroHTML(macro, procs, srch){
+  const procHtml = Object.keys(procs).sort().map(nome => _rFaqProcHTML(nome, procs[nome], srch)).join('');
+  return `
+    <div style="margin-bottom:1.8rem">
+      <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:2px solid var(--blue)">
+        📂 ${esc(macro)}
+      </div>
+      ${procHtml}
+    </div>`;
+}
 function rFaq(){
   const container = document.getElementById('faq-c');
   const cntEl     = document.getElementById('faq-result-cnt');
@@ -6396,9 +6429,9 @@ function rFaq(){
   const todos = processos.filter(p => p.form?.faq && p.form.faq.trim());
 
   // Preenche select de macroprocessos na primeira execução
-  const macros = [...new Set(todos.map(p=>p.macro||'').filter(Boolean))].sort();
-  const macroAtual = macroSel?.value;
   if(macroSel && macroSel.options.length <= 1){
+    const macros = [...new Set(todos.map(p=>p.macro||'').filter(Boolean))].sort();
+    const macroAtual = macroSel.value;
     macros.forEach(m=>{
       const opt = document.createElement('option');
       opt.value = m; opt.textContent = m;
@@ -6437,42 +6470,7 @@ function rFaq(){
     return;
   }
 
-  const highlight = (txt) => {
-    if(!srch) return esc(txt);
-    return esc(txt).replace(new RegExp('('+srch.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),
-      '<mark style="background:#fff176;border-radius:2px;padding:0 1px">$1</mark>');
-  };
-
-  let html = '';
-  for(const macro of Object.keys(grupos).sort()){
-    const procs = grupos[macro];
-    let procHtml = '';
-    for(const procNome of Object.keys(procs).sort()){
-      const pares = procs[procNome];
-      const items = pares.map(({p,r})=>`
-        <div style="padding:.7rem 0;border-bottom:1px solid var(--bdr)">
-          <div style="font-weight:600;font-size:13px;color:var(--ink);margin-bottom:.3rem">❓ ${highlight(p)}</div>
-          ${r ? `<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;padding-left:1.1rem">${highlight(r)}</div>` : ''}
-        </div>`).join('');
-      procHtml += `
-        <div style="margin-bottom:1rem">
-          <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;display:flex;align-items:center;gap:6px">
-            <svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            ${esc(procNome)}
-            <span style="font-size:10px;font-weight:400;color:var(--ink3);text-transform:none;letter-spacing:0">${pares.length} pergunta${pares.length!==1?'s':''}</span>
-          </div>
-          <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.2rem 1rem">${items}</div>
-        </div>`;
-    }
-    html += `
-      <div style="margin-bottom:1.8rem">
-        <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:2px solid var(--blue)">
-          📂 ${esc(macro)}
-        </div>
-        ${procHtml}
-      </div>`;
-  }
-  container.innerHTML = html;
+  container.innerHTML = Object.keys(grupos).sort().map(macro => _rFaqMacroHTML(macro, grupos[macro], srch)).join('');
 }
 
 function rArq(){
@@ -7201,6 +7199,14 @@ function parseNumBR(v){
   return Number.parseFloat(s) || 0;
 }
 
+function _xlsNorm(s){ return s.toString().replace(/[^\w\s]/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+function _xlsFindCol(keys, variants){
+  for(const v of variants){
+    const found = keys.find(k => _xlsNorm(k).includes(_xlsNorm(v)));
+    if(found) return found;
+  }
+  return null;
+}
 function importarIndicadores(input){
   const file = input.files[0]; if(!file) return;
   const reader = new FileReader();
@@ -7213,15 +7219,8 @@ function importarIndicadores(input){
       if(!rows.length){ toast('Planilha vazia.','var(--amber)'); return; }
 
       // Fuzzy column matcher — strips emojis/icons and normalizes
-      function norm(s){ return s.toString().replace(/[^\w\s]/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
       const keys = Object.keys(rows[0]);
-      function col(variants){
-        for(const v of variants){
-          const found = keys.find(k => norm(k).includes(norm(v)));
-          if(found) return found;
-        }
-        return null;
-      }
+      const col = variants => _xlsFindCol(keys, variants);
 
       const cArea     = col(['área','area']);
       const cCodigo   = col(['indicador','código','codigo','id']);
@@ -7298,6 +7297,17 @@ function populateIndFilters(){
   if(nomeSel) nomeSel.innerHTML = '<option value="">Todos os indicadores</option>' + nomes.map(a=>`<option ${curNome===a?'selected':''}>${esc(a)}</option>`).join('');
 }
 
+function _kpiGrpStatus(items){
+  const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0)>0);
+  if(!withData.length) return null; // sem dados no período
+  const last = withData[withData.length-1];
+  if(!(Number(last.meta)>0)) return null; // sem meta real (apenas _metaFallback ou sem meta)
+  const pol = items[0].polaridade||'Maior é melhor';
+  const pct = pol==='Menor é melhor'
+    ? (Number(last.realizado)>0?(Number(last.meta)/Number(last.realizado))*100:0)
+    : (Number(last.realizado)/Number(last.meta))*100;
+  return pct>=100?'ok':'nok';
+}
 function rInd(){
   const epAct = document.getElementById('ind-actions-ep');
   if(epAct) epAct.style.display = isEP() ? 'flex' : 'none';
@@ -7333,20 +7343,9 @@ function rInd(){
   // Summary
   // Apenas conta indicadores com dados no período E com meta real (≠ _metaFallback / média histórica)
   // e considera polaridade ('Maior é melhor' vs 'Menor é melhor')
-  const _grpStatus = items => {
-    const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0)>0);
-    if(!withData.length) return null; // sem dados no período
-    const last = withData[withData.length-1];
-    if(!(Number(last.meta)>0)) return null; // sem meta real (apenas _metaFallback ou sem meta)
-    const pol = items[0].polaridade||'Maior é melhor';
-    const pct = pol==='Menor é melhor'
-      ? (Number(last.realizado)>0?(Number(last.meta)/Number(last.realizado))*100:0)
-      : (Number(last.realizado)/Number(last.meta))*100;
-    return pct>=100?'ok':'nok';
-  };
   const sumEl = document.getElementById('ind-summary');
   if(sumEl && lista.length){
-    const statuses = Object.values(grupos).map(_grpStatus);
+    const statuses = Object.values(grupos).map(_kpiGrpStatus);
     const ating  = statuses.filter(s=>s==='ok').length;
     const abaixo = statuses.filter(s=>s==='nok').length;
     sumEl.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -7573,6 +7572,21 @@ function _kpiFormSetFields(k){
   fv('nkpi-polaridade', k.polaridade || 'Maior é melhor');
   fv('nkpi-analise',    k.analise    || '');
 }
+function _kpiUpdateNavDisplay(isMulti){
+  const navBar = document.getElementById('kpi-nav-periodos');
+  const cfgLbl = document.getElementById('kpi-config-geral-lbl');
+  const valLbl = document.getElementById('kpi-valores-periodo-lbl');
+  if(navBar) navBar.style.display = isMulti ? 'flex' : 'none';
+  if(cfgLbl) cfgLbl.style.display = isMulti ? ''    : 'none';
+  if(valLbl) valLbl.style.display = isMulti ? ''    : 'none';
+}
+function _kpiGetSamePeriods(k){
+  const groupKey = k.codigo || k.nome;
+  return kpis
+    .filter(x => (x.codigo || x.nome) === groupKey)
+    .slice()
+    .sort((a,b) => periodoToNum(a.periodo) - periodoToNum(b.periodo));
+}
 function abrirNovoKpi(preselArea){
   if(!isEP()){toast('Ação restrita ao EPP.','var(--amber)');return;}
   const modal = document.getElementById('novo-kpi-modal');
@@ -7584,12 +7598,7 @@ function abrirNovoKpi(preselArea){
   globalThis._kpiPeriodos = [];
   globalThis._kpiPeriodoIdx = 0;
   globalThis._kpiPeriodEdits = {};
-  const navBar = document.getElementById('kpi-nav-periodos');
-  const cfgLbl = document.getElementById('kpi-config-geral-lbl');
-  const valLbl = document.getElementById('kpi-valores-periodo-lbl');
-  if(navBar) navBar.style.display = 'none';
-  if(cfgLbl) cfgLbl.style.display = 'none';
-  if(valLbl) valLbl.style.display = 'none';
+  _kpiUpdateNavDisplay(false);
   _kpiFormSetFields({area: preselArea||'', periodicidade:'Mensal', ppe:'Não', polaridade:'Maior é melhor'});
   modal.style.display = 'flex';
 }
@@ -7675,28 +7684,14 @@ function editKpi(id){
   document.getElementById('nkpi-edit-all-periods').value = '0';
   document.getElementById('kpi-del-btn').style.display = 'inline-flex';
 
-  // Group all periods for this indicator
-  const groupKey = k.codigo || k.nome;
-  const samePeriods = kpis
-    .filter(x => (x.codigo || x.nome) === groupKey)
-    .slice()
-    .sort((a,b) => periodoToNum(a.periodo) - periodoToNum(b.periodo));
-
+  const samePeriods = _kpiGetSamePeriods(k);
   globalThis._kpiPeriodos    = samePeriods;
   globalThis._kpiPeriodoIdx  = Math.max(0, samePeriods.findIndex(x=>x.id===id));
   globalThis._kpiPeriodEdits = {};
 
   const isMulti = samePeriods.length > 1;
-  const navBar = document.getElementById('kpi-nav-periodos');
-  const cfgLbl = document.getElementById('kpi-config-geral-lbl');
-  const valLbl = document.getElementById('kpi-valores-periodo-lbl');
-  if(navBar) navBar.style.display = isMulti ? 'flex' : 'none';
-  if(cfgLbl) cfgLbl.style.display = isMulti ? ''    : 'none';
-  if(valLbl) valLbl.style.display = isMulti ? ''    : 'none';
-
-  // Load general config fields from the current period's KPI
+  _kpiUpdateNavDisplay(isMulti);
   _kpiFormSetFields(k);
-  // Populate period nav if multi
   if(isMulti){ _kpiNavUpdateSelector(); }
   modal.style.display = 'flex';
 }
@@ -7842,54 +7837,57 @@ function salvarGSheetsUrl(){
   lsSet('epcage_gsheets_url', url);
 }
 
+function _normalizeGsheetsUrl(url){
+  if(url.includes('/pub?') || url.includes('pub?output'))
+    return url.replace(/pub\?.*$/, 'pub?output=csv');
+  if(!url.includes('format=csv') && !url.includes('output=csv'))
+    return url.includes('?') ? url + '&format=csv' : url + '?format=csv';
+  return url;
+}
+async function _fetchGsheetsCsv(url){
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const resp = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return await resp.text();
+  } catch(err) {
+    clearTimeout(tid);
+    if(err.name !== 'AbortError' && !err.message.includes('timeout')) throw err;
+  }
+  // Fallback: CORS proxy
+  const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+  const ctrl2 = new AbortController();
+  const tid2 = setTimeout(() => ctrl2.abort(), 20000);
+  try {
+    const resp = await fetch(proxyUrl, { signal: ctrl2.signal });
+    clearTimeout(tid2);
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return await resp.text();
+  } catch(e) {
+    clearTimeout(tid2);
+    throw new Error('Proxy timeout ou indisponível. Tente novamente.');
+  }
+}
 async function sincronizarGSheets(){
   const urlInput = document.getElementById('ind-gsheets-url');
   const statusEl = document.getElementById('ind-gsheets-status');
   let url = (urlInput?.value||'').trim();
   if(!url){ if(statusEl){ statusEl.textContent = '⚠ Informe a URL da planilha publicada.'; } return; }
 
-  // Normalise to CSV export: accept both /pub?output=csv and /export?format=csv formats
-  if(url.includes('/pub?') || url.includes('pub?output')){
-    url = url.replace(/pub\?.*$/, 'pub?output=csv');
-  } else if(!url.includes('format=csv') && !url.includes('output=csv')){
-    url = url.includes('?') ? url + '&format=csv' : url + '?format=csv';
-  }
+  url = _normalizeGsheetsUrl(url);
 
   if(statusEl) statusEl.textContent = '⏳ Sincronizando...';
   try{
-    // Try direct fetch first (with extended timeout)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    let resp;
-    try {
-      resp = await fetch(url, { signal: controller.signal });
-    } catch(err) {
-      if(err.name === 'AbortError' || err.message.includes('timeout')) {
-        // Timeout or CORS blocked — use proxy with longer timeout
-        const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-        const controller2 = new AbortController();
-        const timeoutId2 = setTimeout(() => controller2.abort(), 20000);
-        resp = await fetch(proxyUrl, { signal: controller2.signal }).catch(e => {
-          clearTimeout(timeoutId2);
-          throw new Error('Proxy timeout ou indisponível. Tente novamente.');
-        });
-        clearTimeout(timeoutId2);
-      } else {
-        throw err;
-      }
-    } finally {
-      clearTimeout(timeoutId);
-    }
-    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const csvText = await resp.text();
+    const csvText = await _fetchGsheetsCsv(url);
     const wb = XLSX.read(csvText, {type:'string', raw:true});
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true});
     if(!rows.length){ if(statusEl){ statusEl.textContent = '⚠ Planilha vazia.'; } return; }
 
-    function norm(s){ return s.toString().replace(/[^\w\s]/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
     const keys = Object.keys(rows[0]);
-    function col(variants){ for(const v of variants){ const f=keys.find(k=>norm(k).includes(norm(v))); if(f) return f; } return null; }
+    const col = variants => _xlsFindCol(keys, variants);
 
     const cArea=col(['área','area']),cCodigo=col(['indicador','código','codigo','id']),
       cEnunc=col(['enunciado ind','enunciado']),cDesc=col(['descrição ind','descri','description']),
@@ -8658,10 +8656,7 @@ function planoVinculoOptsHTML(tipo, selId){
   return '';
 }
 
-function abrirPlanoModal(idOrObj){
-  const at = typeof idOrObj==='number' ? plano.find(a=>a.id===idOrObj) : (idOrObj||null);
-  const isNew = !at||!at.id;
-  document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
+function _planoModalBodyHTML(at){
   const vTipo = at?.vinculo_tipo||'';
   const vId   = at?.vinculo_id||'';
   const trOpts = ['Anual','T1','T2','T3','T4'].map(t=>{
@@ -8672,7 +8667,7 @@ function abrirPlanoModal(idOrObj){
     const sel = at?.categoria===v ? 'selected' : '';
     return `<option value="${v}" ${sel}>${l}</option>`;
   }).join('');
-  document.getElementById('plano-modal-body').innerHTML = `
+  return `
     <input type="hidden" id="pm-id" value="${at?.id||''}">
     <input type="hidden" id="pm-ano" value="${at?.ano||planoAno()}">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
@@ -8758,6 +8753,12 @@ function abrirPlanoModal(idOrObj){
       <button type="button" class="btn" onclick="fecharPlanoModal()">Cancelar</button>
       <button type="button" class="btn btn-p" onclick="salvarAtividade()">Salvar atividade</button>
     </div>`;
+}
+function abrirPlanoModal(idOrObj){
+  const at = typeof idOrObj==='number' ? plano.find(a=>a.id===idOrObj) : (idOrObj||null);
+  const isNew = !at||!at.id;
+  document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
+  document.getElementById('plano-modal-body').innerHTML = _planoModalBodyHTML(at);
   document.getElementById('plano-modal').style.display='block';
 }
 
@@ -8908,7 +8909,7 @@ async function fbLoad(){
       processos.sort((a,b) => a.id - b.id);
       nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
       // Sync etapasIdC so new etapa IDs never collide with existing ones
-      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replaceAll('ep','''))||0));
+      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replaceAll('ep',''))||0));
       if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
     }
 
