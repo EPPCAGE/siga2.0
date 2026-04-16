@@ -368,7 +368,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 </head>
 <body>
 <!-- Modal de confirmação (substitui confirm() nativo) -->
-<div id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="modal-confirm-msg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;align-items:center;justify-content:center">
+<dialog id="modal-confirm" aria-modal="true" aria-labelledby="modal-confirm-msg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;align-items:center;justify-content:center">
   <div style="background:var(--surf);border-radius:var(--rl);max-width:420px;width:90%;padding:1.6rem;box-shadow:0 16px 48px rgba(0,0,0,.3)">
     <div id="modal-confirm-msg" style="font-size:14px;color:var(--ink);line-height:1.6;margin-bottom:1.2rem;white-space:pre-wrap"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -376,7 +376,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="btn btn-a" id="modal-confirm-ok" onclick="_confirmarSim()">Confirmar</button>
     </div>
   </div>
-</div>
+</dialog>
 <!-- LOGIN -->
 <div id="login-screen" class="login-screen">
   <div class="login-box">
@@ -501,13 +501,13 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
     </div>
     <div id="ep-toggle-wrap" style="display:none">
-      <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();togglePerfilEP();}" onclick="togglePerfilEP()" title="Modo simulação: alternar para Executor de Processo" style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0;opacity:.55;transition:opacity .15s" onmouseenter="this.style.opacity='.9'" onmouseleave="this.style.opacity=document.getElementById('ep-toggle-track').classList.contains('on')?'.9':'.55'">
+      <button type="button" onclick="togglePerfilEP()" title="Modo simulação: alternar para Executor de Processo" style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0;opacity:.55;transition:opacity .15s;background:none;border:none;width:100%;text-align:left" onmouseenter="this.style.opacity='.9'" onmouseleave="this.style.opacity=document.getElementById('ep-toggle-track').classList.contains('on')?'.9':'.55'">
         <svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px;flex-shrink:0;color:var(--ink3)"><path d="M10.5 1.5a3 3 0 110 6 3 3 0 010-6zM7.72 6.28A4.5 4.5 0 1014.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M1 10.5h7M4.5 8v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
         <span style="font-size:10.5px;color:var(--ink3);flex:1;line-height:1">Modo simulação</span>
         <div id="ep-toggle-track" style="width:28px;height:15px;border-radius:8px;background:var(--bdr2);position:relative;transition:background .2s;flex-shrink:0">
           <div id="ep-toggle-thumb" style="width:11px;height:11px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.25)"></div>
         </div>
-      </div>
+      </button>
     </div>
     <button type="button" class="logout-btn" onclick="doLogout()">Sair da conta</button>
   </div>
@@ -2019,7 +2019,7 @@ function rMeusProc(){
       </div>
       <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">${u.macro}</div>
       ${mapeado ? `
-        <div style="display:flex;gap:2px;margin-bottom:4px">${ETAPAS.map((e,i)=>{const ei=etIdx(proc.etapa);const bg=i<ei?'var(--teal)':i===ei?'var(--blue)':'var(--bg3)';return`<span style="flex:1;height:3px;border-radius:2px;background:${bg}"></span>`;}).join('')}</div>
+        <div style="display:flex;gap:2px;margin-bottom:4px">${ETAPAS.map((e,i)=>{const ei=etIdx(proc.etapa);let bg;if(i<ei)bg='var(--teal)';else if(i===ei)bg='var(--blue)';else bg='var(--bg3)';return`<span style="flex:1;height:3px;border-radius:2px;background:${bg}"></span>`;}).join('')}</div>
         <div style="font-size:11px;color:var(--ink3)">${mat?'Maturidade '+mat+'/5 — '+ML_[mat]:'Maturidade não avaliada'}</div>
       ` : `<div style="font-size:11px;color:var(--ink4)">Clique para ver na arquitetura</div>`}
     </div>`;
@@ -2203,9 +2203,14 @@ function rDetalhe(){
   const epUser=isEP();
   document.getElementById('det-prog').innerHTML=_etapasEfetivas.map((e,i)=>{
     const past=i<idx,cur=i===idx;
-    const stageCls=past?'dn':cur?'da':'';
+    let stageCls;
+    if(past) stageCls='dn';
+    else if(cur) stageCls='da';
+    else stageCls='';
     const clickable=epUser;
-    const tip=past?`Editar: ${e.lb}`:cur?`Editar etapa atual: ${e.lb}`:`Editar: ${e.lb}`;
+    let tip;
+    if(cur) tip=`Editar etapa atual: ${e.lb}`;
+    else tip=`Editar: ${e.lb}`;
     const clickAttrs=clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="${tip}"`:'';
     return `<div class="prog-s ${stageCls}" ${clickAttrs}>
       <div class="prog-d ${stageCls}">${past?'✓':(i+1)}</div>
@@ -2937,16 +2942,22 @@ const ACOES = {
         const liHtml=items.map(i=>'<li>'+esc(i)+'</li>').join('');
         return '<div class="ai-result-lbl" style="margin-top:.8rem'+( style?';'+style:'')+'">'+lbl+'</div><ul>'+liHtml+'</ul>';
       }
-      const iaHtml=a.ia_resultado?('<div class="ai-result">'
-        +(a.ia_resultado.resumo?'<div class="ai-result-lbl">Resumo</div><p>'+esc(a.ia_resultado.resumo)+'</p>':'')
-        +_iaSection('Gargalos',a.ia_resultado.gargalos)
-        +_iaSection('Retrabalhos',a.ia_resultado.retrabalhos)
-        +_iaSection('Gaps de controle',a.ia_resultado.gaps)
-        +_iaSection('Oportunidades',a.ia_resultado.oportunidades)
-        +(a.ia_resultado.complexidade?'<div class="ai-result-lbl" style="margin-top:.8rem">Complexidade</div><p>'+esc(a.ia_resultado.complexidade)+'</p>':'')
-        +_iaSection('💡 Soluções para problemas levantados',a.ia_resultado.solucoes_problemas,'color:var(--teal)')
-        +'</div>')
-        :'<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>';
+      let iaHtml;
+      if(a.ia_resultado){
+        const resumoHtml = a.ia_resultado.resumo?'<div class="ai-result-lbl">Resumo</div><p>'+esc(a.ia_resultado.resumo)+'</p>':'';
+        const complexHtml = a.ia_resultado.complexidade?'<div class="ai-result-lbl" style="margin-top:.8rem">Complexidade</div><p>'+esc(a.ia_resultado.complexidade)+'</p>':'';
+        iaHtml = '<div class="ai-result">'
+          +resumoHtml
+          +_iaSection('Gargalos',a.ia_resultado.gargalos)
+          +_iaSection('Retrabalhos',a.ia_resultado.retrabalhos)
+          +_iaSection('Gaps de controle',a.ia_resultado.gaps)
+          +_iaSection('Oportunidades',a.ia_resultado.oportunidades)
+          +complexHtml
+          +_iaSection('💡 Soluções para problemas levantados',a.ia_resultado.solucoes_problemas,'color:var(--teal)')
+          +'</div>';
+      } else {
+        iaHtml = '<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>';
+      }
       return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN, etapas mapeadas e dados do processo.</div>
         ${bpmnOk?'':'<div class="ib ibr">⚠ Mapeamento BPMN ainda não realizado. A análise será limitada.</div>'}
         <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
@@ -3237,11 +3248,13 @@ const ACOES = {
             </div>
           </div>
         </div>`).join(''):'';
-      const achadosHtml=achados.length?achados.map((a,i)=>`
+      const achadosHtml=achados.length?achados.map((a,i)=>{
+        const badgeClsAchado = a.tipo==='Não conformidade'?'br':a.tipo==='Observação'?'ba':'bt';
+        return `
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
             <strong>NC${i+1}: ${esc(a.titulo)}</strong>
-            <span class="badge ${a.tipo==='Não conformidade'?'br':a.tipo==='Observação'?'ba':'bt'}" style="flex-shrink:0">${a.tipo}</span>
+            <span class="badge ${badgeClsAchado}" style="flex-shrink:0">${a.tipo}</span>
           </div>
           <div style="color:var(--ink3);margin-top:.2rem">${esc(a.descricao||'')}</div>
           ${a.evidencia?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Evidência: ${esc(a.evidencia)}</div>`:''}
@@ -3253,7 +3266,8 @@ const ACOES = {
             <label class="btn" style="font-size:11px;padding:2px 8px;cursor:pointer">↑ Arquivo<input type="file" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="uploadArquivoAchado(${i},this)"></label>
           </div>
           <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-top:.4rem;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoForm(${i})">📎 Anexar</button>
-        </div>`).join(''):'';
+        </div>`;
+      }).join(''):'';
       const acoesHtml=acoes.length?acoes.map((a,i)=>`
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -3529,7 +3543,13 @@ function _rsQuestionario(p){
   const vals=Object.values(resp);
   const total=vals.reduce((a,b)=>a+b,0);
   const media=vals.length>0?(total/vals.length).toFixed(1):0;
-  p.ent.mat=media<=1.5?1:media<=2.5?2:media<=3.5?3:media<=4.5?4:5;
+  let mat;
+  if(media<=1.5) mat=1;
+  else if(media<=2.5) mat=2;
+  else if(media<=3.5) mat=3;
+  else if(media<=4.5) mat=4;
+  else mat=5;
+  p.ent.mat=mat;
 }
 function _rsAnalise(p){
   p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
@@ -3630,10 +3650,14 @@ function _rAcaoPrazoBanner(p){
   const atrasado=p.prazo_dono<hoje;
   const diff=Math.ceil((new Date(p.prazo_dono)-Date.now())/(1000*60*60*24));
   const pzFmt=p.prazo_dono.split('-').reverse().join('/');
-  const cor=atrasado?'var(--red)':diff<=3?'var(--amber)':'var(--ink2)';
-  const label=atrasado
-    ?` <span style="font-size:11px;font-weight:700;color:var(--red)">(ATRASADO)</span>`
-    :diff<=3?` <span style="font-size:11px;color:var(--amber)">(${diff} dia(s))</span>`:'';
+  let cor;
+  if(atrasado) cor='var(--red)';
+  else if(diff<=3) cor='var(--amber)';
+  else cor='var(--ink2)';
+  let label;
+  if(atrasado) label=` <span style="font-size:11px;font-weight:700;color:var(--red)">(ATRASADO)</span>`;
+  else if(diff<=3) label=` <span style="font-size:11px;color:var(--amber)">(${diff} dia(s))</span>`;
+  else label='';
   return `<span style="font-size:12px;font-weight:600;color:${cor}">📅 Prazo: ${pzFmt}${label}</span>`;
 }
 function _rAcaoTarefaRespondidaHTML(jr){
@@ -3795,7 +3819,12 @@ function mostrarResultadoMaturidade(p,nivel,media){
   const dimRows=Object.entries(dims).map(([dim,d])=>{
     const nota=d.cnt>0?(d.sum/d.cnt):0;
     const pct=Math.round(nota/5*100);
-    const cor=nota<2?'#ef4444':nota<3?'#f97316':nota<4?'#eab308':nota<4.5?'#22c55e':'#16a34a';
+    let cor;
+    if(nota<2) cor='#ef4444';
+    else if(nota<3) cor='#f97316';
+    else if(nota<4) cor='#eab308';
+    else if(nota<4.5) cor='#22c55e';
+    else cor='#16a34a';
     return `<div style="margin-bottom:.55rem">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
         <span style="font-size:12px;color:var(--ink2)">${dim}</span>
@@ -4602,7 +4631,10 @@ function renderRelatorioAuditoria(json, conf, p, aud){
   }).join('');
 
   const acoesHtml = (aud.acoes_list||[]).map(a=>{
-    const sc = a.status==='Concluída'?'#16a34a':a.status==='Em andamento'?'#d97706':'#6b7280';
+    let sc;
+    if(a.status==='Concluída') sc='#16a34a';
+    else if(a.status==='Em andamento') sc='#d97706';
+    else sc='#6b7280';
     return `<div style="display:flex;gap:8px;align-items:flex-start;padding:.4rem 0;border-bottom:1px solid var(--bdr)">
       <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:${sc}22;color:${sc};flex-shrink:0;margin-top:1px">${esc(a.status)}</span>
       <div style="flex:1"><div style="font-size:12px">${esc(a.acao)}</div><div style="font-size:10px;color:var(--ink3)">${esc(a.responsavel)} · ${esc(a.prazo)}</div></div>
@@ -5060,6 +5092,13 @@ function renderAcaoGw(camPath,ai,ac,depth){
   const acPath=`${camPath}.a${ai}`;
   const tipo=ac.tipo||'Atividade';
   const rootId=camPath.split('.')[0];
+  const subtNone = ac.subtipo_evento ? '' : 'selected';
+  const subtInicio = ac.subtipo_evento==='Início' ? 'selected' : '';
+  const subtIntermediario = ac.subtipo_evento==='Intermediário' ? 'selected' : '';
+  const subtFim = ac.subtipo_evento==='Fim' ? 'selected' : '';
+  const modoManual = ac.modo==='Manual' ? 'selected' : '';
+  const modoAuto = ac.modo==='Automatica' ? 'selected' : '';
+  const modoSemi = ac.modo==='Semi-automatica' ? 'selected' : '';
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.55rem .75rem;margin-bottom:.4rem">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:.35rem">
       <span class="etapa-tipo ${tipoCls(tipo)}" style="font-size:10px">${tipo}</span>
@@ -5080,10 +5119,10 @@ function renderAcaoGw(camPath,ai,ac,depth){
       </div>
       ${tipo==='Evento'?`<div class="fg"><label class="fl" style="font-size:10px">Subtipo do evento</label>
         <select class="fi" style="font-size:12px" onchange="resolveGwPath('${camPath}').acoes[${ai}].subtipo_evento=this.value">
-          <option value="" ${ac.subtipo_evento?'':'selected'}>Selecione...</option>
-          <option ${ac.subtipo_evento==='Início'?'selected':''}>Início</option>
-          <option ${ac.subtipo_evento==='Intermediário'?'selected':''}>Intermediário</option>
-          <option ${ac.subtipo_evento==='Fim'?'selected':''}>Fim</option>
+          <option value="" ${subtNone}>Selecione...</option>
+          <option ${subtInicio}>Início</option>
+          <option ${subtIntermediario}>Intermediário</option>
+          <option ${subtFim}>Fim</option>
         </select></div>`:''}
     </div>
     ${tipo==='Atividade'?`<div class="g3" style="margin-bottom:.35rem">
@@ -5095,9 +5134,9 @@ function renderAcaoGw(camPath,ai,ac,depth){
       </div>
       <div class="fg"><label class="fl" style="font-size:10px">Modo</label>
         <select class="fi" style="font-size:12px" onchange="resolveGwPath('${camPath}').acoes[${ai}].modo=this.value">
-          <option ${ac.modo==='Manual'?'selected':''}>Manual</option>
-          <option ${ac.modo==='Automatica'?'selected':''}>Automatica</option>
-          <option ${ac.modo==='Semi-automatica'?'selected':''}>Semi-automatica</option>
+          <option ${modoManual}>Manual</option>
+          <option ${modoAuto}>Automatica</option>
+          <option ${modoSemi}>Semi-automatica</option>
         </select>
       </div>
       <div class="fg"><label class="fl" style="font-size:10px">Executor</label>
@@ -5526,13 +5565,19 @@ function extrairBpmn(){
   if(!ordered.length){toast('Nenhum elemento encontrado no BPMN. Desenhe o fluxo primeiro.','var(--amber)');return;}
 
   let seq=1;
-  const elems=ordered.map(n=>({
-    id:'ep'+etapasIdC++, seq:seq++,
-    nome:n.nome||(n.tipo==='Evento'?(n.subtipo||'Evento'):n.tipo==='Decisao'?'Decisão':'Atividade'),
-    tipo:n.tipo, subtipo_evento:n.subtipo||null,
-    natureza:n.natureza, modo:n.modo,
-    executor:n.executor, desc:n.desc||'', caminhos:[]
-  }));
+  const elems=ordered.map(n=>{
+    let nomeFallback;
+    if(n.tipo==='Evento') nomeFallback = n.subtipo||'Evento';
+    else if(n.tipo==='Decisao') nomeFallback = 'Decisão';
+    else nomeFallback = 'Atividade';
+    return {
+      id:'ep'+etapasIdC++, seq:seq++,
+      nome:n.nome||nomeFallback,
+      tipo:n.tipo, subtipo_evento:n.subtipo||null,
+      natureza:n.natureza, modo:n.modo,
+      executor:n.executor, desc:n.desc||'', caminhos:[]
+    };
+  });
 
   if(!p.mod.etapas_proc) p.mod.etapas_proc=[];
   const existentes=new Set(p.mod.etapas_proc.map(e=>e.nome));
@@ -5569,7 +5614,7 @@ function rEnt(p){
     </div>
     <div class="card">
       <div class="card-t">Maturidade — Nível ${e.mat||0}/5: ${ML[e.mat||0]}</div>
-      <div style="margin-bottom:.7rem">${[1,2,3,4,5].map(n=>`<span class="badge" style="margin-right:4px;background:${(e.mat||0)===n?'var(--blue)':e.mat>n?'var(--teal-l)':'var(--bg3)'};color:${(e.mat||0)===n?'#fff':e.mat>n?'var(--teal)':'var(--ink3)'}">${n} ${ML[n]}</span>`).join('')}</div>
+      <div style="margin-bottom:.7rem">${[1,2,3,4,5].map(n=>{let matBg,matColor;if((e.mat||0)===n){matBg='var(--blue)';matColor='#fff';}else if(e.mat>n){matBg='var(--teal-l)';matColor='var(--teal)';}else{matBg='var(--bg3)';matColor='var(--ink3)';}return`<span class="badge" style="margin-right:4px;background:${matBg};color:${matColor}">${n} ${ML[n]}</span>`;}).join('')}</div>
       <div class="sec-lbl">Respostas por dimensão (${respondidas}/15)</div>
       ${Object.entries(dims).map(([dim,d])=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px">
         <span style="flex:1;color:var(--ink2)">${dim}</span>
@@ -5595,10 +5640,7 @@ function rEnt(p){
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;border-radius:10px;overflow:hidden;border:1px solid var(--bdr)">
       ${[['S','Fornecedores',e.fornecedores,'#dbeafe','#1d4ed8'],['I','Entradas',e.entradas,'#dcfce7','#166534'],['P','Processo',p.nome,'#ede9fe','#5b21b6'],['O','Saídas',e.saidas,'#fef3c7','#92400e'],['C','Clientes',e.clientes,'#fce7f3','#9d174d']].map(([k,lb,v,bg,c])=>`<div style="background:${bg};padding:.75rem .55rem;min-width:0"><div style="font-size:22px;font-weight:900;color:${c};line-height:1;font-family:Georgia,serif">${k}</div><div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${c};margin:.3rem 0 .5rem;opacity:.8">${lb}</div><div style="font-size:11.5px;color:#1e293b;word-break:break-word;white-space:pre-wrap;line-height:1.4">${esc(v||'—')}</div></div>`).join('')}
     </div>
-    ${e.atores||e.atividades_principais?`<div style="display:flex;gap:.8rem;margin-top:.65rem;flex-wrap:wrap">
-      ${e.atores?`<div style="flex:1;min-width:140px;padding:.45rem .6rem;background:var(--bg2);border-radius:7px;font-size:11.5px"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);display:block;margin-bottom:3px">Atores / participantes</span>${esc(e.atores)}</div>`:''}
-      ${e.atividades_principais?`<div style="flex:2;min-width:180px;padding:.45rem .6rem;background:var(--bg2);border-radius:7px;font-size:11.5px"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);display:block;margin-bottom:3px">Atividades principais</span><div style="white-space:pre-wrap;line-height:1.5">${esc(e.atividades_principais)}</div></div>`:''}
-    </div>`:''}
+    ${(()=>{const atH=e.atores?`<div style="flex:1;min-width:140px;padding:.45rem .6rem;background:var(--bg2);border-radius:7px;font-size:11.5px"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);display:block;margin-bottom:3px">Atores / participantes</span>${esc(e.atores)}</div>`:'';const avH=e.atividades_principais?`<div style="flex:2;min-width:180px;padding:.45rem .6rem;background:var(--bg2);border-radius:7px;font-size:11.5px"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);display:block;margin-bottom:3px">Atividades principais</span><div style="white-space:pre-wrap;line-height:1.5">${esc(e.atividades_principais)}</div></div>`:'';return e.atores||e.atividades_principais?`<div style="display:flex;gap:.8rem;margin-top:.65rem;flex-wrap:wrap">${atH}${avH}</div>`:''})()}
   </div>`:''}
   ${e.analise&&(e.analise.gargalos||[]).length?`
   <div class="card"><div class="card-t">Análise AS IS</div>
@@ -5774,9 +5816,10 @@ function gerarPopPdf(){
 }
 function rMon(p){
   const inds=kpis.filter(d=>d.pid===p.id);
+  const audConclusaoHtml = p.auditoria?.conclusao ? `<div style="margin-top:.6rem"><div class="sec-lbl">Conclusão</div><div style="font-size:12.5px">${esc(p.auditoria.conclusao)}</div></div>` : '';
   const audHTML=p.auditoria?`<div class="card" style="margin-top:1rem"><div class="card-t">Auditoria — ${esc(p.auditoria.data||'')}</div>
     <div class="g2"><div><div class="sec-lbl">Conformidade</div><div style="font-size:13px;font-weight:600">${esc(p.auditoria.conformidade||'—')}</div></div><div><div class="sec-lbl">Status</div><span class="badge ${p.auditoria.concluida?'bg':'ba'}">${p.auditoria.concluida?'Concluída':'Rascunho'}</span></div></div>
-    ${p.auditoria.conclusao?`<div style="margin-top:.6rem"><div class="sec-lbl">Conclusão</div><div style="font-size:12.5px">${esc(p.auditoria.conclusao)}</div></div>`:''}
+    ${audConclusaoHtml}
   </div>`:'';
   document.getElementById('tab-mon').innerHTML=inds.length?`<div class="g3" style="gap:10px">${inds.map(d=>kpiCard(d)).join('')}</div>${audHTML}`:`<div class="ib ibb">Nenhum indicador importado. <button type="button" class="btn btn-p" style="font-size:12px;padding:4px 10px;margin-left:8px" onclick="go('indicadores',document.getElementById('nb-ind'))">Ir para indicadores →</button></div>${audHTML}`;
 }
@@ -5790,7 +5833,10 @@ function rHist(p){
 }
 
 function _renderAcompReuniao(r){
-  const badgeClass=r.conformidade==='Conforme'?'bbt':r.conformidade?.includes('Parcial')?'bba':'bbr';
+  let badgeClass;
+  if(r.conformidade==='Conforme') badgeClass='bbt';
+  else if(r.conformidade?.includes('Parcial')) badgeClass='bba';
+  else badgeClass='bbr';
   const participantesHtml=r.participantes?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem">👥 ${esc(r.participantes)}</div>`:'';
   const pautaHtml=r.pauta?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem"><strong>Pauta:</strong> ${esc(r.pauta)}</div>`:'';
   const desviosHtml=r.desvios?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem"><strong>Desvios:</strong> ${esc(r.desvios)}</div>`:'';
@@ -6176,7 +6222,12 @@ function rRiscoMatriz(rs){
   const imps=['Baixo','Medio','Alto','Critico'];
   const pScore={Alta:3,Media:2,Baixa:1};
   const iScore={Baixo:1,Medio:2,Alto:3,Critico:4};
-  const zona=s=>s<=2?{bg:'#d1fae5',tx:'#065f46',lb:'Baixo'}:s<=4?{bg:'#fef3c7',tx:'#92400e',lb:'Moderado'}:s<=8?{bg:'#ffedd5',tx:'#9a3412',lb:'Alto'}:{bg:'#fee2e2',tx:'#991b1b',lb:'Crítico'};
+  function zona(s){
+    if(s<=2) return {bg:'#d1fae5',tx:'#065f46',lb:'Baixo'};
+    if(s<=4) return {bg:'#fef3c7',tx:'#92400e',lb:'Moderado'};
+    if(s<=8) return {bg:'#ffedd5',tx:'#9a3412',lb:'Alto'};
+    return {bg:'#fee2e2',tx:'#991b1b',lb:'Crítico'};
+  }
 
   const rows=probs.map(prob=>{
     const cells=imps.map(imp=>{
@@ -6480,8 +6531,9 @@ function rFaq(){
     totalPerguntas += paresFiltrados.length;
   }
 
+  const pergPlural = totalPerguntas===1 ? '' : 's';
   if(cntEl) cntEl.textContent = totalPerguntas
-    ? `${totalPerguntas} pergunta${totalPerguntas===1?'':'s'} encontrada${totalPerguntas===1?'':'s'}`
+    ? `${totalPerguntas} pergunta${pergPlural} encontrada${pergPlural}`
     : '';
 
   if(!Object.keys(grupos).length){
@@ -6506,9 +6558,13 @@ function rArq(){
   // Métricas no topo da arquitetura
   const mx=getMetricasArq();
   const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
+  let pctColor;
+  if(pct>=80) pctColor='var(--teal)';
+  else if(pct>=50) pctColor='var(--amber)';
+  else pctColor='var(--red)';
   document.getElementById('arq-sub').innerHTML=
     `${mx.nMacros} macroprocesso${mx.nMacros===1?'':'s'} · ${mx.nProc} processo${mx.nProc===1?'':'s'} · ${mx.nSub} subprocesso${mx.nSub===1?'':'s'} &nbsp;—&nbsp; `+
-    `<strong style="color:${pct>=80?'var(--teal)':pct>=50?'var(--amber)':'var(--red)'}">${pct}% mapeados</strong> (${mx.nMap}/${mx.nUnid})`;
+    `<strong style="color:${pctColor}">${pct}% mapeados</strong> (${mx.nMap}/${mx.nUnid})`;
 
   const f = getArqFilters();
   const hasFilter = f.srch || f.macro || f.area || f.nat || f.obje || f.mapeado || f.critico;
@@ -6637,9 +6693,16 @@ function _procArqStatusBadge(p, hasSubs, linked){
 }
 function _subArqItemHTML(mid, pid, s){
   const sl=s.proc_id?processos.find(pr=>pr.id===s.proc_id):null;
+  const sMapeado = isMapeado(s.id);
+  const sCritico = isCritico(s.id);
+  const sMapeadoColor = sMapeado ? 'var(--red)' : 'var(--teal)';
+  const sMapeadoLabel = sMapeado ? 'Desmarcar' : '✓ Mapeado';
+  const sCriticoColor = sCritico ? '#dc2626' : 'var(--ink3)';
+  const sCriticoLabel = sCritico ? 'Desmarcar crítico' : '⚠ Crítico';
+  const slNoLink = sMapeado ? `<span class="badge bg" style="font-size:10px">Mapeado</span>` : `<span class="badge bgr" style="font-size:10px">Não mapeado</span>`;
   const slBadge=sl
     ?`<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button type="button" class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`
-    :isMapeado(s.id)?`<span class="badge bg" style="font-size:10px">Mapeado</span>`:`<span class="badge bgr" style="font-size:10px">Não mapeado</span>`;
+    : slNoLink;
   return `<div style="border-top:1px solid var(--bdr)">
     <div style="display:flex;align-items:center;gap:8px;padding:.5rem .9rem;cursor:pointer" onclick="toggleEl('arq-ssub-${s.id}','chvss-${s.id}')">
       <span class="arq-chevron" id="chvss-${s.id}" style="color:var(--ink3);font-size:10px">▶</span>
@@ -6647,9 +6710,9 @@ function _subArqItemHTML(mid, pid, s){
       <span style="font-size:11px;color:var(--ink3)">${s.gerente||s.area||''}</span>
       ${isMeuProcesso(s.id)?'<span class="badge bb" style="font-size:9px">Meu processo</span>':''}
       ${slBadge}
-      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${isMapeado(s.id)?'var(--red)':'var(--teal)'}" onclick="toggleMapeadoManual('${s.id}',event)">${isMapeado(s.id)?'Desmarcar':'✓ Mapeado'}</button>`:''}
-      ${isCritico(s.id)?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
-      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${isCritico(s.id)?'#dc2626':'var(--ink3)'}" onclick="toggleCriticoManual('${s.id}',event)">${isCritico(s.id)?'Desmarcar crítico':'⚠ Crítico'}</button>`:''}
+      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${sMapeadoColor}" onclick="toggleMapeadoManual('${s.id}',event)">${sMapeadoLabel}</button>`:''}
+      ${sCritico?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
+      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${sCriticoColor}" onclick="toggleCriticoManual('${s.id}',event)">${sCriticoLabel}</button>`:''}
       ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
       <button type="button" class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')" aria-label="Remover subprocesso">×</button>`:''}
     </div>
@@ -6668,15 +6731,21 @@ function procArqHTML(mid,p){
        ${p.subprocessos.map(s=>_subArqItemHTML(mid,p.id,s)).join('')}
        ${addSubBtnBlock}`
     : `<div style="padding:.6rem .9rem .8rem">${metaFieldsReadonly(p)}${addSubBtnInline}</div>`;
+  const pMapeado = isMapeado(p.id);
+  const pCritico = isCritico(p.id);
+  const pMapeadoColor = pMapeado ? 'var(--red)' : 'var(--teal)';
+  const pMapeadoLabel = pMapeado ? 'Desmarcar mapeado' : '✓ Mapeado';
+  const pCriticoColor = pCritico ? '#dc2626' : 'var(--ink3)';
+  const pCriticoLabel = pCritico ? 'Desmarcar crítico' : '⚠ Crítico';
   return `<div style="margin-bottom:.5rem">
     <div class="arq-proc-hd" onclick="toggleEl('arq-sub-${p.id}','chvp-${p.id}')">
       <span class="arq-chevron" id="chvp-${p.id}" style="color:var(--ink3)">▶</span>
       <span style="font-size:13px;font-weight:600;color:var(--ink);flex:1">${p.nome}</span>
       <span style="font-size:11px;color:var(--ink3)">${p.area||''} · ${p.gerente||''}</span>
       ${_procArqStatusBadge(p, hasSubs, linked)}
-      ${isEP()&&!hasSubs?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${isMapeado(p.id)?'var(--red)':'var(--teal)'}" onclick="toggleMapeadoManual('${p.id}',event)">${isMapeado(p.id)?'Desmarcar mapeado':'✓ Mapeado'}</button>`:''}
-      ${!hasSubs&&isCritico(p.id)?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
-      ${isEP()&&!hasSubs?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${isCritico(p.id)?'#dc2626':'var(--ink3)'}" onclick="toggleCriticoManual('${p.id}',event)">${isCritico(p.id)?'Desmarcar crítico':'⚠ Crítico'}</button>`:''}
+      ${isEP()&&!hasSubs?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${pMapeadoColor}" onclick="toggleMapeadoManual('${p.id}',event)">${pMapeadoLabel}</button>`:''}
+      ${!hasSubs&&pCritico?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
+      ${isEP()&&!hasSubs?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${pCriticoColor}" onclick="toggleCriticoManual('${p.id}',event)">${pCriticoLabel}</button>`:''}
       ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();novoSubArq('${mid}','${p.id}')">+ Sub</button>
       <button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editProcArq('${mid}','${p.id}')">✎ Editar</button>
       <button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="event.stopPropagation();removerProcArq('${mid}','${p.id}')">× Apagar</button>`:''}
@@ -6689,9 +6758,13 @@ function procArqHTML(mid,p){
 
 function _metaFieldsProgBar(proc){
   const etIdx_ = etIdx(proc.etapa);
-  return ETAPAS.slice(0,etIdx_+1).map((e,i)=>
-    `<span title="${e.lb}" style="flex:1;height:4px;border-radius:2px;background:${i<etIdx_?'var(--teal)':i===etIdx_?'var(--blue)':'var(--bg3)'}"></span>`
-  ).join('') + ETAPAS.slice(etIdx_+1).map(()=>
+  return ETAPAS.slice(0,etIdx_+1).map((e,i)=>{
+    let barBg;
+    if(i<etIdx_) barBg='var(--teal)';
+    else if(i===etIdx_) barBg='var(--blue)';
+    else barBg='var(--bg3)';
+    return `<span title="${e.lb}" style="flex:1;height:4px;border-radius:2px;background:${barBg}"></span>`;
+  }).join('') + ETAPAS.slice(etIdx_+1).map(()=>
     `<span style="flex:1;height:4px;border-radius:2px;background:var(--bg3)"></span>`
   ).join('');
 }
@@ -6700,6 +6773,7 @@ function _metaFieldsMapeamentoHTML(item, proc){
   const analise = proc.ent?.analise;
   const matNivel = proc.ent?.mat||0;
   const progBar = _metaFieldsProgBar(proc);
+  const opElipsis = analise&&analise.oportunidades&&analise.oportunidades.length>2 ? ' …' : '';
   return `
   <div style="margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem;flex-wrap:wrap">
@@ -6720,7 +6794,7 @@ function _metaFieldsMapeamentoHTML(item, proc){
       ${proc.produto?`<div><span style="font-weight:600;color:var(--ink2)">Produto:</span> <span style="color:var(--ink3)">${proc.produto}</span></div>`:''}
     </div>
     ${analise&&analise.gargalos?.length?`<div style="margin-top:.5rem;font-size:11px"><span style="font-weight:600;color:var(--red)">Gargalos:</span> <span style="color:var(--ink3)">${analise.gargalos.join(' · ')}</span></div>`:''}
-    ${analise&&analise.oportunidades?.length?`<div style="margin-top:3px;font-size:11px"><span style="font-weight:600;color:var(--green)">Oportunidades:</span> <span style="color:var(--ink3)">${analise.oportunidades.slice(0,2).join(' · ')}${analise.oportunidades.length>2?' …':''}</span></div>`:''}
+    ${analise&&analise.oportunidades?.length?`<div style="margin-top:3px;font-size:11px"><span style="font-weight:600;color:var(--green)">Oportunidades:</span> <span style="color:var(--ink3)">${analise.oportunidades.slice(0,2).join(' · ')}${opElipsis}</span></div>`:''}
   </div>`;
 }
 // Render metadata fields read-only (expandable view) + linked mapeamento data
@@ -7314,9 +7388,12 @@ function _kpiGrpStatus(items){
   const last = withData[withData.length-1];
   if(Number(last.meta)<=0) return null; // sem meta real (apenas _metaFallback ou sem meta)
   const pol = items[0].polaridade||'Maior é melhor';
-  const pct = pol==='Menor é melhor'
-    ? (Number(last.realizado)>0?(Number(last.meta)/Number(last.realizado))*100:0)
-    : (Number(last.realizado)/Number(last.meta))*100;
+  let pct;
+  if(pol==='Menor é melhor'){
+    pct = Number(last.realizado)>0 ? (Number(last.meta)/Number(last.realizado))*100 : 0;
+  } else {
+    pct = (Number(last.realizado)/Number(last.meta))*100;
+  }
   return pct>=100?'ok':'nok';
 }
 function rInd(){
@@ -7394,10 +7471,15 @@ function kpiGrupoCardHTML(key, items){
   const hasMeta = last && (last.meta||0) > 0;
   let borderColor = 'var(--bdr)';
   if(hasMeta){
-    const pct = polaridade==='Menor é melhor'
-      ? (last.realizado > 0 ? (last.meta/last.realizado)*100 : 0)
-      : (last.realizado/last.meta)*100;
-    borderColor = pct>=100 ? 'var(--green)' : pct>=80 ? 'var(--amber)' : 'var(--red)';
+    let pct;
+    if(polaridade==='Menor é melhor'){
+      pct = last.realizado > 0 ? (last.meta/last.realizado)*100 : 0;
+    } else {
+      pct = (last.realizado/last.meta)*100;
+    }
+    if(pct>=100) borderColor = 'var(--green)';
+    else if(pct>=80) borderColor = 'var(--amber)';
+    else borderColor = 'var(--red)';
   }
 
   // Analysis lines with period label
@@ -7426,7 +7508,9 @@ function kpiBarColor(r, m, polaridade){
   } else {
     pct = r/m;
   }
-  return pct>=1 ? 'rgba(34,197,94,0.75)' : pct>=0.8 ? 'rgba(251,191,36,0.75)' : 'rgba(239,68,68,0.75)';
+  if(pct>=1) return 'rgba(34,197,94,0.75)';
+  if(pct>=0.8) return 'rgba(251,191,36,0.75)';
+  return 'rgba(239,68,68,0.75)';
 }
 function kpiApplyMetaFallback(items){
   const semMeta = items.filter(i=>!i.meta||i.meta===0);
@@ -7513,8 +7597,9 @@ function kpiCard(k){
     }
     const ok   = pct >= 100;
     const warn = pct >= 80 && pct < 100;
-    color  = ok ? 'var(--green)' : warn ? 'var(--amber)' : 'var(--red)';
-    status = ok ? '✓ Meta atingida' : warn ? '~ Próximo da meta' : '✗ Abaixo da meta';
+    if(ok){ color='var(--green)'; status='✓ Meta atingida'; }
+    else if(warn){ color='var(--amber)'; status='~ Próximo da meta'; }
+    else{ color='var(--red)'; status='✗ Abaixo da meta'; }
     barW   = Math.min(100, Math.max(0, pct));
   } else {
     color  = 'var(--ink3)';
@@ -7751,9 +7836,11 @@ function salvarNovoKpi(){
       const pol  = kpis[idx].polaridade;
       const meta = kpis[idx].meta;
       const real = kpis[idx].realizado;
-      kpis[idx].pct_realizado = pol === 'Menor é melhor'
-        ? (real > 0 ? Math.round((meta/real)*100) : 0)
-        : (meta > 0 ? Math.round((real/meta)*100) : 0);
+      if(pol === 'Menor é melhor'){
+        kpis[idx].pct_realizado = real > 0 ? Math.round((meta/real)*100) : 0;
+      } else {
+        kpis[idx].pct_realizado = meta > 0 ? Math.round((real/meta)*100) : 0;
+      }
     });
 
   } else if(editId){
@@ -7761,9 +7848,12 @@ function salvarNovoKpi(){
     const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)  || 0;
     const real      = Number.parseFloat(document.getElementById('nkpi-real').value)  || 0;
     const polaridade = document.getElementById('nkpi-polaridade').value;
-    const pct = polaridade === 'Menor é melhor'
-      ? (real > 0 ? Math.round((meta/real)*100) : 0)
-      : (meta > 0 ? Math.round((real/meta)*100) : 0);
+    let pct;
+    if(polaridade === 'Menor é melhor'){
+      pct = real > 0 ? Math.round((meta/real)*100) : 0;
+    } else {
+      pct = meta > 0 ? Math.round((real/meta)*100) : 0;
+    }
     const editIdNum = Number.parseInt(editId);
     const idx = kpis.findIndex(k=>k.id===editIdNum);
     if(idx >= 0){
@@ -7790,9 +7880,12 @@ function salvarNovoKpi(){
     const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)  || 0;
     const real      = Number.parseFloat(document.getElementById('nkpi-real').value)  || 0;
     const polaridade = document.getElementById('nkpi-polaridade').value;
-    const pct = polaridade === 'Menor é melhor'
-      ? (real > 0 ? Math.round((meta/real)*100) : 0)
-      : (meta > 0 ? Math.round((real/meta)*100) : 0);
+    let pct;
+    if(polaridade === 'Menor é melhor'){
+      pct = real > 0 ? Math.round((meta/real)*100) : 0;
+    } else {
+      pct = meta > 0 ? Math.round((real/meta)*100) : 0;
+    }
     kpis.push({
       id: _kpiIdC++, origem: 'manual',
       area, codigo: document.getElementById('nkpi-codigo').value.trim(),
@@ -8183,6 +8276,7 @@ function renderAdmin(){
     const idx = USUARIOS.indexOf(u);
     const isMe = usuarioLogado?.email===u.email;
     const vinculos = (u.processos_vinculados||[]);
+    const noVinculoHtml = u.perfil==='ep'?'<span style="color:var(--ink4)">Todos (EP)</span>':'<span style="color:var(--red)">Nenhum vínculo</span>';
     return `<tr style="${isMe?'background:var(--blue-l)':''}">
       <td><div style="width:28px;height:28px;border-radius:50%;background:${cors[u.perfil]||'#888'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${u.iniciais}</div></td>
       <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}</td>
@@ -8194,7 +8288,7 @@ function renderAdmin(){
               const u2=getUnidadesMapeaveis().find(u=>u.arq_id===vid);
               return u2?`<span class="badge bgr" style="margin:1px;font-size:10px">${u2.nome}</span>`:'';
             }).join('')
-          : u.perfil==='ep'?'<span style="color:var(--ink4)">Todos (EP)</span>':'<span style="color:var(--red)">Nenhum vínculo</span>'}
+          : noVinculoHtml}
       </td>
       <td><button type="button" class="btn" style="font-size:11px;padding:3px 8px" onclick="abrirModalUsr(${idx})">Editar</button></td>
     </tr>`;
@@ -8528,13 +8622,19 @@ function planoDashAnual(lista){
   const execucao= lista.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
   const planej  = lista.filter(a=>planoStatusEfetivo(a)==='planejado').length;
   const pct = Math.round(concl/total*100);
-  const cor = pct>=75?'#14b8a6':pct>=40?'#f59e0b':'#ef4444';
+  let cor;
+  if(pct>=75) cor='#14b8a6';
+  else if(pct>=40) cor='#f59e0b';
+  else cor='#ef4444';
   // Métricas de pontualidade
   const conclLista = lista.filter(a=>planoStatusEfetivo(a)==='concluida'&&a.entrega_status);
   const emDia      = conclLista.filter(a=>a.entrega_status==='em_dia').length;
   const comAtraso  = conclLista.filter(a=>a.entrega_status==='com_atraso').length;
   const pctPontualidade = conclLista.length ? Math.round(emDia/conclLista.length*100) : null;
-  const corPont = pctPontualidade>=80?'#14b8a6':pctPontualidade>=50?'#f59e0b':'#ef4444';
+  let corPont;
+  if(pctPontualidade>=80) corPont='#14b8a6';
+  else if(pctPontualidade>=50) corPont='#f59e0b';
+  else corPont='#ef4444';
   const dc = (v,l,c,bg)=>`<div style="flex:1;min-width:90px;background:${bg};border:1px solid ${c};border-radius:var(--r);padding:.7rem 1rem"><div style="font-size:22px;font-weight:700;color:${c};line-height:1">${v}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">${l}</div></div>`;
   el.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap;width:100%">
     ${dc(total,'Total atividades','var(--blue)','rgba(59,130,246,.07)')}
@@ -8564,7 +8664,11 @@ function planoStatsTrimestrais(lista){
   const el = document.getElementById('plano-stats');
   if(!el) return;
   const mes = new Date().getMonth();
-  const trimAtual = mes<3?'T1':mes<6?'T2':mes<9?'T3':'T4';
+  let trimAtual;
+  if(mes<3) trimAtual='T1';
+  else if(mes<6) trimAtual='T2';
+  else if(mes<9) trimAtual='T3';
+  else trimAtual='T4';
   const trimestres = ['T1','T2','T3','T4'];
   el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:.8rem">
     ${trimestres.map(tri=>{
@@ -8577,7 +8681,10 @@ function planoStatsTrimestrais(lista){
       const atraso  =items.filter(a=>planoStatusEfetivo(a)==='em_atraso').length;
       const execucao=items.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
       const pct=Math.round(concl/items.length*100);
-      const cor=pct>=75?'#14b8a6':pct>=40?'#f59e0b':'#ef4444';
+      let cor;
+      if(pct>=75) cor='#14b8a6';
+      else if(pct>=40) cor='#f59e0b';
+      else cor='#ef4444';
       return `<div style="background:${isCur?'rgba(59,130,246,.06)':'var(--bg2)'};border:${isCur?'2px solid var(--blue)':'1px solid var(--bdr)'};border-radius:var(--r);padding:.8rem">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
           <span style="font-size:11px;font-weight:700;color:${isCur?'var(--blue)':'var(--ink)'}">${tri}${isCur?' ●':''}</span>
@@ -8609,6 +8716,14 @@ function planoCardHTML(at){
   const prazoText  = diasRest===0 ? 'Vence hoje' : diasRest+'d restantes';
   const prazoColor = st==='em_atraso' ? '#ef4444' : 'var(--ink3)';
   const prazoWarn  = st==='em_atraso' ? ' ⚠' : '';
+  let entregaBg, entregaColor, entregaLabel;
+  if(at.entrega_status==='em_dia'){
+    entregaBg='rgba(20,184,166,.12)'; entregaColor='#0f766e'; entregaLabel='✅ Entregue em dia';
+  } else if(at.entrega_status==='com_atraso'){
+    entregaBg='rgba(239,68,68,.1)'; entregaColor='#dc2626'; entregaLabel=`⚠ Entregue com ${at.dias_atraso}d de atraso`;
+  } else {
+    entregaBg='var(--bg2)'; entregaColor='var(--ink3)'; entregaLabel='📅 Entregue sem prazo';
+  }
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${cfg.cor};border-radius:var(--r);padding:.9rem 1rem;box-shadow:var(--sh)">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
@@ -8645,9 +8760,9 @@ function planoCardHTML(at){
     ${at.obs?`<div style="margin-top:6px;font-size:11px;color:var(--ink2);background:var(--bg2);border-radius:4px;padding:4px 8px;border-left:2px solid var(--bdr2)">📝 ${esc(at.obs)}</div>`:''}
     ${at.evidencia&&st==='concluida'?`<div style="margin-top:5px;font-size:11px;color:#14b8a6;background:rgba(20,184,166,.07);border-radius:4px;padding:4px 8px">✅ ${esc(at.evidencia)}</div>`:''}
     ${st==='concluida'&&at.entrega_status?`<div style="margin-top:5px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;
-      background:${at.entrega_status==='em_dia'?'rgba(20,184,166,.12)':at.entrega_status==='com_atraso'?'rgba(239,68,68,.1)':'var(--bg2)'};
-      color:${at.entrega_status==='em_dia'?'#0f766e':at.entrega_status==='com_atraso'?'#dc2626':'var(--ink3)'}">
-      ${at.entrega_status==='em_dia'?'✅ Entregue em dia':at.entrega_status==='com_atraso'?`⚠ Entregue com ${at.dias_atraso}d de atraso`:'📅 Entregue sem prazo'}
+      background:${entregaBg};
+      color:${entregaColor}">
+      ${entregaLabel}
     </div>`:''}
   </div>`;
 }
@@ -9549,6 +9664,14 @@ async function iaAnalisarIndicadores(){
   if(btn) btn.disabled = false;
 }
 
+function statusInfo(pct, hasMeta){
+    if(!hasMeta || pct===null) return {label:'Sem meta', color:'#9ca3af', bg:'', rowBg:'', badge:'', tier:0};
+    if(pct >= 130) return {label:'⭐ Destaque',     color:'#065f46', bg:'#d1fae5', rowBg:'#f0fff8', badge:'destaque', tier:4};
+    if(pct >= 100) return {label:'✓ Meta atingida',  color:'#16a34a', bg:'#dcfce7', rowBg:'',       badge:'ok',      tier:3};
+    if(pct >= 80)  return {label:'~ Próximo da meta',color:'#92400e', bg:'#fef3c7', rowBg:'',       badge:'warn',    tier:2};
+    if(pct >= 50)  return {label:'✗ Abaixo da meta', color:'#b91c1c', bg:'#fee2e2', rowBg:'#fff5f5',badge:'nok',     tier:1};
+    return            {label:'⚠ Muito abaixo',      color:'#7f1d1d', bg:'#fca5a5', rowBg:'#fff0f0',badge:'crit',    tier:0};
+  }
 function gerarRelatorioIndPdf(){
   if(!_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
 
@@ -9569,17 +9692,10 @@ function gerarRelatorioIndPdf(){
     const pol = k.polaridade||'Maior é melhor';
     const hasMeta = Number(k.meta)>0;
     if(!hasMeta) return null;
-    return pol==='Menor é melhor'
-      ? (Number(k.realizado)>0 ? Math.round((Number(k.meta)/Number(k.realizado))*100) : 0)
-      : Math.round((Number(k.realizado)/Number(k.meta))*100);
-  }
-  function statusInfo(pct, hasMeta){
-    if(!hasMeta || pct===null) return {label:'Sem meta', color:'#9ca3af', bg:'', rowBg:'', badge:'', tier:0};
-    if(pct >= 130) return {label:'⭐ Destaque',     color:'#065f46', bg:'#d1fae5', rowBg:'#f0fff8', badge:'destaque', tier:4};
-    if(pct >= 100) return {label:'✓ Meta atingida',  color:'#16a34a', bg:'#dcfce7', rowBg:'',       badge:'ok',      tier:3};
-    if(pct >= 80)  return {label:'~ Próximo da meta',color:'#92400e', bg:'#fef3c7', rowBg:'',       badge:'warn',    tier:2};
-    if(pct >= 50)  return {label:'✗ Abaixo da meta', color:'#b91c1c', bg:'#fee2e2', rowBg:'#fff5f5',badge:'nok',     tier:1};
-    return            {label:'⚠ Muito abaixo',      color:'#7f1d1d', bg:'#fca5a5', rowBg:'#fff0f0',badge:'crit',    tier:0};
+    if(pol==='Menor é melhor'){
+      return Number(k.realizado)>0 ? Math.round((Number(k.meta)/Number(k.realizado))*100) : 0;
+    }
+    return Math.round((Number(k.realizado)/Number(k.meta))*100);
   }
 
   // ── Agregador por área ───────────────────────────────────────────────
@@ -9601,12 +9717,23 @@ function gerarRelatorioIndPdf(){
   const areaCards = Object.entries(areaMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([nome,d])=>{
     // taxa 0-100%: quantos indicadores (com meta) atingiram a meta
     const taxa = d.comMeta ? Math.round((d.atingiram/d.comMeta)*100) : null;
-    const cl     = taxa===null?'#6b7280': taxa>=80?'#16a34a': taxa>=60?'#d97706': taxa>=40?'#dc2626':'#991b1b';
-    const bg     = taxa===null?'#f3f4f6': taxa>=80?'#f0fdf4': taxa>=60?'#fffbeb': taxa>=40?'#fff5f5':'#fee2e2';
-    const border = taxa===null?'#d1d5db': taxa>=80?'#4ade80': taxa>=60?'#fbbf24': taxa>=40?'#f87171':'#ef4444';
+    let cl, bg, border;
+    if(taxa===null){
+      cl='#6b7280'; bg='#f3f4f6'; border='#d1d5db';
+    } else if(taxa>=80){
+      cl='#16a34a'; bg='#f0fdf4'; border='#4ade80';
+    } else if(taxa>=60){
+      cl='#d97706'; bg='#fffbeb'; border='#fbbf24';
+    } else if(taxa>=40){
+      cl='#dc2626'; bg='#fff5f5'; border='#f87171';
+    } else {
+      cl='#991b1b'; bg='#fee2e2'; border='#ef4444';
+    }
+    const destaqueS = d.destaque > 1 ? 's' : '';
+    const criticoS = d.critico > 1 ? 's' : '';
     const extras = [
-      d.destaque ? `<span style="font-size:10px;color:#065f46">⭐ ${d.destaque} destaque${d.destaque>1?'s':''}</span>` : '',
-      d.critico  ? `<span style="font-size:10px;color:#7f1d1d">⚠ ${d.critico} crítico${d.critico>1?'s':''}</span>` : '',
+      d.destaque ? `<span style="font-size:10px;color:#065f46">⭐ ${d.destaque} destaque${destaqueS}</span>` : '',
+      d.critico  ? `<span style="font-size:10px;color:#7f1d1d">⚠ ${d.critico} crítico${criticoS}</span>` : '',
     ].filter(Boolean).join(' ');
     return `<div style="background:${bg};border:1.5px solid ${border};border-radius:8px;padding:10px 14px;min-width:140px;flex:1">
       <div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">${esc(nome)}</div>
@@ -9624,11 +9751,10 @@ function gerarRelatorioIndPdf(){
     const pct     = calcPct(k);
     const st      = statusInfo(pct, hasMeta);
     // Fonte maior para extremos
-    const pctStyle = st.tier===4
-      ? `font-size:14px;font-weight:800;color:${st.color}`
-      : st.tier===0 && pct!==null
-        ? `font-size:13px;font-weight:800;color:${st.color}`
-        : `font-weight:700;color:${st.color}`;
+    let pctStyle;
+    if(st.tier===4) pctStyle=`font-size:14px;font-weight:800;color:${st.color}`;
+    else if(st.tier===0 && pct!==null) pctStyle=`font-size:13px;font-weight:800;color:${st.color}`;
+    else pctStyle=`font-weight:700;color:${st.color}`;
     const badgeStyle = `display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:${st.bg};color:${st.color}`;
     return `<tr style="background:${st.rowBg}">
       <td>${k.codigo?'<strong>'+esc(k.codigo)+'</strong> — ':''}${esc(k.nome)}</td>
@@ -9648,8 +9774,14 @@ function gerarRelatorioIndPdf(){
   const taxaGeral  = comMeta.length ? Math.round((atingiramG/comMeta.length)*100) : null;
   const destTotal  = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p>=130; }).length;
   const critTotal  = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p<50; }).length;
-  const taxaCl     = taxaGeral===null?'#6b7280': taxaGeral>=80?'#16a34a': taxaGeral>=60?'#d97706':'#dc2626';
+  let taxaCl;
+  if(taxaGeral===null) taxaCl='#6b7280';
+  else if(taxaGeral>=80) taxaCl='#16a34a';
+  else if(taxaGeral>=60) taxaCl='#d97706';
+  else taxaCl='#dc2626';
 
+  const destS = destTotal > 1 ? 's' : '';
+  const critS = critTotal > 1 ? 's' : '';
   const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
   const w = window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
@@ -9684,8 +9816,8 @@ function gerarRelatorioIndPdf(){
     <div><strong>Data:</strong> ${dtHoje}</div>
     <div><strong>Total analisados:</strong> ${lista.length}</div>
     ${taxaGeral===null?'':`<div><strong>Taxa de atingimento geral:</strong> <strong style="color:${taxaCl}">${atingiramG}/${comMeta.length} (${taxaGeral}%)</strong></div>`}
-    ${destTotal?`<div style="color:#065f46">⭐ ${destTotal} destaque${destTotal>1?'s':''}</div>`:''}
-    ${critTotal?`<div style="color:#7f1d1d">⚠ ${critTotal} crítico${critTotal>1?'s':''}</div>`:''}
+    ${destTotal?`<div style="color:#065f46">⭐ ${destTotal} destaque${destS}</div>`:''}
+    ${critTotal?`<div style="color:#7f1d1d">⚠ ${critTotal} crítico${critS}</div>`:''}
   </div>
 </div>
 <div class="sec">Taxa de atingimento por área</div>
@@ -9719,7 +9851,7 @@ function gerarRelatorioIndPdf(){
   <span>Gerado pelo sistema SIGA 2.0 — EP·CAGE/Sefaz-RS</span>
   <span>${dtHoje}</span>
 </div>
-<script>setTimeout(()=>window.print(),500);<\/script>
+<script>setTimeout(()=>window.print(),500);</script>
 </body></html>`);
   w.document.close();
 }
