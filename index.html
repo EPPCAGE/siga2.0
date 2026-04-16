@@ -4756,7 +4756,7 @@ async function iaGerarQuestoesAuditoria(){
   const result=await chamarIA('gerar_questoes', payload, targetEl);
   if(!result)return;
   try{
-    const clean=result.replace(/```json|```/g,'').trim();
+    const clean=result.replaceAll(/```json|```/g,'').trim();
     const lista=JSON.parse(clean);
     if(!Array.isArray(lista))throw new Error('Formato inválido');
     if(!p.auditoria)p.auditoria={};
@@ -4908,7 +4908,7 @@ async function uploadArquivoAchado(idx,input){
   if(!achado.anexos)achado.anexos=[];
   const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
   if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
-  const path=`auditoria/${p.id||'sem-id'}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+  const path=`auditoria/${p.id||'sem-id'}/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
   const ref=storageRef(storage,path);
   try{
     toast('Enviando arquivo…','var(--blue)');
@@ -5201,7 +5201,7 @@ function exportarEtapasAsIsXlsx(){
   ws['!cols'] = [{wch:6},{wch:35},{wch:14},{wch:18},{wch:18},{wch:18},{wch:22},{wch:50}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'AS IS');
-  const nome = (curProc.nome||'processo').replace(/\s+/g,'_').slice(0,40);
+  const nome = (curProc.nome||'processo').replaceAll(/\s+/g,'_').slice(0,40);
   XLSX.writeFile(wb, nome+'_etapas_asis.xlsx');
   toast('Planilha exportada com sucesso.');
 }
@@ -6020,7 +6020,7 @@ function bpmnExport(which){
   const m=bpmnModelers[which];if(!m||!curProc){return;}
   m.saveXML({format:true}).then(({xml})=>{
     const b=new Blob([xml],{type:'text/xml'});const a=document.createElement('a');
-    a.href=URL.createObjectURL(b);a.download=curProc.nome.replace(/\s+/g,'_').slice(0,30)+'_'+which+'.bpmn';a.click();
+    a.href=URL.createObjectURL(b);a.download=curProc.nome.replaceAll(/\s+/g,'_').slice(0,30)+'_'+which+'.bpmn';a.click();
   }).catch(err=>console.warn('bpmnExport error:',err.message||err));
 }
 function bpmnImport(which){
@@ -6087,7 +6087,7 @@ function bpmnExportPNG(which){
       ctx.drawImage(img,0,0);
       const a=document.createElement('a');
       a.href=canvas.toDataURL('image/png');
-      a.download=(curProc.nome||'processo').replace(/\s+/g,'_').slice(0,30)+'_'+which+'.png';
+      a.download=(curProc.nome||'processo').replaceAll(/\s+/g,'_').slice(0,30)+'_'+which+'.png';
       a.click();
     };
     img.onerror=()=>toast('Erro ao renderizar SVG como imagem.','var(--red)');
@@ -6386,7 +6386,7 @@ function _parseFaq(texto){
 
 function _rFaqHl(txt, srch){
   if(!srch) return esc(txt);
-  return esc(txt).replace(new RegExp('('+srch.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),
+  return esc(txt).replaceAll(new RegExp('('+srch.replaceAll(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),
     '<mark style="background:#fff176;border-radius:2px;padding:0 1px">$1</mark>');
 }
 function _rFaqItemHTML({p, r}, srch){
@@ -6558,8 +6558,8 @@ function rArq(){
 
 function highlight(text, srch){
   if(!srch || !text) return text || '—';
-  const escaped = srch.replace(/[-.*+?^${}()|[\]\\]/g,'\\$&'); const re = new RegExp('('+escaped+')', 'gi');
-  return text.replace(re, '<mark style="background:var(--amber-l);color:var(--amber);padding:0 2px;border-radius:2px">$1</mark>');
+  const escaped = srch.replaceAll(/[-.*+?^${}()|[\]\\]/g,'\\$&'); const re = new RegExp('('+escaped+')', 'gi');
+  return text.replaceAll(re, '<mark style="background:var(--amber-l);color:var(--amber);padding:0 2px;border-radius:2px">$1</mark>');
 }
 
 function resultCardHTML(r, srch){
@@ -6935,7 +6935,7 @@ function importarArqExcel(input){
       const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
       if(!rows.length){toast('Planilha vazia ou sem dados reconhecíveis.','var(--amber)');return;}
       // Normalize column name: lowercase, remove accents, collapse spaces
-      function normCol(s){ return s.toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
+      function normCol(s){ return s.toString().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
       const allKeys = Object.keys(rows[0]);
 
       // Find column — exact match first, then includes
@@ -7191,15 +7191,15 @@ function parseNumBR(v){
   if(hasDot && hasComma){
     // Both present — whichever comes last is the decimal separator
     s = s.lastIndexOf(',') > s.lastIndexOf('.')
-      ? s.replace(/\./g,'').replace(',','.')   // Brazilian: 1.234,56
-      : s.replace(/,/g,'');                    // US: 1,234.56
+      ? s.replaceAll('.','').replaceAll(',','.')   // Brazilian: 1.234,56
+      : s.replaceAll(',','');                       // US: 1,234.56
   } else if(hasComma){
     s = s.replace(',','.');                    // 95,09 → 95.09
   }
   return Number.parseFloat(s) || 0;
 }
 
-function _xlsNorm(s){ return s.toString().replace(/[^\w\s]/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+function _xlsNorm(s){ return s.toString().replaceAll(/[^\w\s]/gu,'').replaceAll(/\s+/g,' ').trim().toLowerCase(); }
 function _xlsFindCol(keys, variants){
   for(const v of variants){
     const found = keys.find(k => _xlsNorm(k).includes(_xlsNorm(v)));
@@ -7402,7 +7402,7 @@ function kpiGrupoCardHTML(key, items){
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0">${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button><button type="button" class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${items[0].id})" aria-label="Excluir indicador">×</button>`:''}</div>
     </div>
-    <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replace(/\W/g,'_')}"></canvas></div>
+    <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replaceAll(/\W/g,'_')}"></canvas></div>
     ${analises?`<div style="margin-top:.5rem;padding:.4rem .6rem;background:var(--bg2);border-radius:5px;border-left:2px solid var(--bdr2)">${analises}</div>`:''}
   </div>`;
 }
@@ -7451,7 +7451,7 @@ function kpiGroupByKey(list){
   return grupos;
 }
 function createKpiChart(key, items){
-  const canvas = document.getElementById('chart-kpi-'+key.replace(/\W/g,'_'));
+  const canvas = document.getElementById('chart-kpi-'+key.replaceAll(/\W/g,'_'));
   if(!canvas) return;
   // Only show periods that have data (realizado > 0)
   const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0) > 0);
@@ -8075,7 +8075,7 @@ async function uploadThumbPub(input){
   const file=input?.files?.[0];if(!file)return;
   const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
   if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
-  const path=`publicacoes/thumbs/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+  const path=`publicacoes/thumbs/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
   const ref=storageRef(storage,path);
   try{
     toast('Enviando imagem…','var(--blue)');
@@ -9469,7 +9469,7 @@ async function iaAssistente(){
   const result = await chamarIA('assistente', payload, el);
 
   if(result && el){
-    el.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">✦ Resposta</div>${esc(result).replace(/\n/g,'<br>')}</div>`;
+    el.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">✦ Resposta</div>${esc(result).replaceAll('\n','<br>')}</div>`;
   }
 }
 
@@ -9678,7 +9678,7 @@ function gerarRelatorioIndPdf(){
 <div class="sec">Taxa de atingimento por área</div>
 <div class="area-grid">${areaCards}</div>
 <div class="sec">✦ Análise da Inteligência Artificial</div>
-<div class="ia-box">${esc(_lastIndAnalise).replace(/\n/g,'<br>')}</div>
+<div class="ia-box">${esc(_lastIndAnalise).replaceAll('\n','<br>')}</div>
 <div class="sec">Indicadores com dados no período</div>
 <table>
   <thead><tr>
@@ -9887,7 +9887,7 @@ Inclua TODOS os elementos do fluxo, inclusive os gateways/condicionais.
 POP:\n${texto}`;
     const rawText = await chamarIA('extrair_pop', prompt, loadEl);
     if(!rawText) throw new Error('Sem resposta da IA.');
-    const jsonStr=rawText.trim().replace(/```json?/g,'').replace(/```/g,'').trim();
+    const jsonStr=rawText.trim().replaceAll(/```json?/g,'').replaceAll('```','').trim();
     const extracted=JSON.parse(jsonStr);
     document.getElementById('pop-nome').value=extracted.nome||'';
     document.getElementById('pop-area').value=extracted.area||'';
