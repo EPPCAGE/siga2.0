@@ -1176,9 +1176,9 @@ const STATUS_ENTREGA = Object.freeze({EM_DIA:'em_dia', COM_ATRASO:'com_atraso', 
 const STATUS_PLANO = Object.freeze({PENDENTE:'pendente', EM_ANDAMENTO:'em_andamento', CONCLUIDO:'concluido', CANCELADO:'cancelado', PAUSADO:'pausado'});
 
 // ── localStorage seguro (try/catch para modo incógnito / bloqueio corporativo) ─
-const lsGet = (k, d='') => { try { return localStorage.getItem(k) ?? d; } catch(_) { return d; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, String(v)); } catch(_) { console.warn('localStorage indisponível'); } };
-const lsRemove = (k) => { try { localStorage.removeItem(k); } catch(_) {} };
+const lsGet = (k, d='') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { console.warn('localStorage indisponível'); } };
+const lsRemove = (k) => { try { localStorage.removeItem(k); } catch {} };
 
 let USUARIOS = [
   {email:'ep@sefaz.rs.gov.br',nome:'Equipe EP',perfil:'ep',iniciais:'EP'},
@@ -1550,7 +1550,7 @@ async function processarPrimeiroAcesso(){
   const dominio = email.split('@')[1]||'';
   if(!DOMINIOS_PERMITIDOS.includes(dominio)){ showErr('Use um e-mail institucional válido ('+DOMINIOS_PERMITIDOS.join(' ou ')+').'); return; }
 
-  if(USUARIOS.find(u=>u.email===email)){
+  if(USUARIOS.some(u=>u.email===email)){
     await _primeiroAcessoExistente(email, showErr, showOk);
   } else {
     await _primeiroAcessoNovo(email, nome, showErr, showOk);
@@ -3961,7 +3961,7 @@ async function gerarAnaliseIA(){
   if(result){
     try{
       _gerarAnaliseIASalvarJSON(p, JSON.parse(result));
-    }catch(e){
+    }catch{
       el.innerHTML=`<div class="ai-result"><div class="ai-result-lbl">✦ Análise IA</div>${esc(result)}</div>`;
     }
   }
@@ -4341,7 +4341,7 @@ async function montarPOPPPT(p, dados, logoB64, bpmnAsisPng, bpmnTobePng, indsPro
     sl.addShape(pptx.ShapeType.rect, {x:0,y:6.6,w:'100%',h:0.9,fill:{color:'152C47'}});
     // Logo SIGA em destaque na capa
     if (logoB64) sl.addImage({data:logoB64, x:8.85,y:0.32,w:3.6,h:0.98});
-    sl.addText('Procedimento Operacional Padrão', {x:0.8,y:0.85,w:8.0,h:0.44,fontSize:12,color:'7AAFC8',fontFace:'Calibri',italic:true});
+    sl.addText('Procedimento Operacional Padrão', {x:0.8,y:0.85,w:8,h:0.44,fontSize:12,color:'7AAFC8',fontFace:'Calibri',italic:true});
     sl.addText(p.nome, {x:0.8,y:1.25,w:11.7,h:1.55,fontSize:26,bold:true,color:CW,fontFace:'Calibri',valign:'middle',wrap:true});
     sl.addText(p.macro||'', {x:0.8,y:2.9,w:11.5,h:0.38,fontSize:13,color:'A8C4D4',fontFace:'Calibri'});
     const info = [p.area?'Área: '+p.area:'', p.dono?'Gestor: '+p.dono:'', now()].filter(Boolean).join('   |   ');
@@ -4356,7 +4356,7 @@ async function montarPOPPPT(p, dados, logoB64, bpmnAsisPng, bpmnTobePng, indsPro
     itens.forEach((d, i) => {
       const col = Math.floor(i / perCol), row = i % perCol;
       const bx = 0.4 + col * 6.4, by = 1.22 + row * 1.02;
-      sl.addShape(pptx.ShapeType.roundRect, {x:bx,y:by,w:6.0,h:0.86,fill:{color:CW},line:{color:cor,width:1.5},rectRadius:0.07});
+      sl.addShape(pptx.ShapeType.roundRect, {x:bx,y:by,w:6,h:0.86,fill:{color:CW},line:{color:cor,width:1.5},rectRadius:0.07});
       sl.addText(d.label||'', {x:bx+0.18,y:by+0.06,w:5.65,h:0.26,fontSize:9.5,color:'888888',fontFace:'Calibri'});
       sl.addText(d.valor||'', {x:bx+0.18,y:by+0.36,w:5.65,h:0.4,fontSize:13,color:cor,fontFace:'Calibri',bold:true});
     });
@@ -4415,22 +4415,22 @@ async function montarPOPPPT(p, dados, logoB64, bpmnAsisPng, bpmnTobePng, indsPro
   }
   function renderSlideSolucoes(sl, slide) {
     const itens = slide.itens || [];
-    sl.addShape(pptx.ShapeType.rect, {x:0.3,y:1.15,w:6.0,h:0.36,fill:{color:'B03030'}});
+    sl.addShape(pptx.ShapeType.rect, {x:0.3,y:1.15,w:6,h:0.36,fill:{color:'B03030'}});
     sl.addText('Problema / Risco', {x:0.42,y:1.17,w:5.8,h:0.32,fontSize:10.5,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
     sl.addShape(pptx.ShapeType.rect, {x:6.42,y:1.15,w:6.22,h:0.36,fill:{color:'1A6674'}});
-    sl.addText('Mitigação / Solução', {x:6.54,y:1.17,w:6.0,h:0.32,fontSize:10.5,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
+    sl.addText('Mitigação / Solução', {x:6.54,y:1.17,w:6,h:0.32,fontSize:10.5,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
     itens.slice(0, 6).forEach((item, i) => {
       const by = 1.55 + i * 0.87, bg = i % 2 === 0 ? 'F2F7FB' : CW;
-      sl.addShape(pptx.ShapeType.rect, {x:0.3,y:by,w:6.0,h:0.82,fill:{color:bg},line:{color:'DDDDDD',width:0.5}});
+      sl.addShape(pptx.ShapeType.rect, {x:0.3,y:by,w:6,h:0.82,fill:{color:bg},line:{color:'DDDDDD',width:0.5}});
       sl.addText(item.problema||'', {x:0.42,y:by+0.05,w:5.78,h:0.72,fontSize:10,color:CG,fontFace:'Calibri',wrap:true,valign:'middle'});
       sl.addShape(pptx.ShapeType.rect, {x:6.42,y:by,w:6.22,h:0.82,fill:{color:bg},line:{color:'DDDDDD',width:0.5}});
-      sl.addText(item.solucao||'', {x:6.54,y:by+0.05,w:6.0,h:0.72,fontSize:10,color:CG,fontFace:'Calibri',wrap:true,valign:'middle'});
+      sl.addText(item.solucao||'', {x:6.54,y:by+0.05,w:6,h:0.72,fontSize:10,color:CG,fontFace:'Calibri',wrap:true,valign:'middle'});
     });
   }
   function renderSlideFaq(sl, slide) {
     (slide.itens||[]).slice(0, 5).forEach((item, i) => {
       const by = 1.2 + i * 1.1;
-      sl.addShape(pptx.ShapeType.roundRect, {x:0.35,y:by,w:12.35,h:1.0,fill:{color:'EEF4FA'},line:{color:CL,width:1},rectRadius:0.06});
+      sl.addShape(pptx.ShapeType.roundRect, {x:0.35,y:by,w:12.35,h:1,fill:{color:'EEF4FA'},line:{color:CL,width:1},rectRadius:0.06});
       sl.addText(item.pergunta||'', {x:0.55,y:by+0.05,w:12.05,h:0.34,fontSize:11,bold:true,color:CA,fontFace:'Calibri',wrap:true});
       sl.addText(item.resposta||'', {x:0.55,y:by+0.42,w:12.05,h:0.5,fontSize:10.5,color:CG,fontFace:'Calibri',wrap:true});
     });
@@ -4556,7 +4556,7 @@ async function iaGerarRelatorioAuditoria(){
       const html = renderRelatorioAuditoria(json, conf, p, aud);
       el.innerHTML = html;
       p.auditoria.relatorio_html = html;
-    } catch(e){
+    } catch {
       const html = `<div class="ai-result"><div class="ai-result-lbl">✦ Relatório</div><div style="white-space:pre-wrap;font-size:12px">${esc(result)}</div></div>`;
       el.innerHTML = html;
       p.auditoria.relatorio_html = html;
@@ -4680,13 +4680,13 @@ async function salvarQuestaoAuditoria(){
   const responsavel=document.getElementById('aud-q-resp')?.value||'';
   const idxStr=document.getElementById('aud-q-idx')?.value||'';
   if(!texto){toast('Informe a questão','var(--red)');return;}
-  if(idxStr!==''){
+  if(idxStr===''){
+    p.auditoria.questoes.push({questao:texto,criterio,responsavel,resposta:'',criada_em:now()});
+    toast('Questão adicionada!','var(--teal)');
+  } else {
     const idx=Number.parseInt(idxStr);
     p.auditoria.questoes[idx]={...p.auditoria.questoes[idx],questao:texto,criterio,responsavel};
     toast('Questão atualizada!','var(--teal)');
-  } else {
-    p.auditoria.questoes.push({questao:texto,criterio,responsavel,resposta:'',criada_em:now()});
-    toast('Questão adicionada!','var(--teal)');
   }
   await fbSaveAll();
   rDetalhe();
@@ -5174,7 +5174,7 @@ function exportarEtapasAsIsXlsx(){
   rows.push(['Seq','Nome','Tipo','Subtipo/Evento','Natureza','Modo de execução','Executor','Descrição detalhada']);
 
   function flatEtapa(e, prefixSeq){
-    const seq = prefixSeq !== undefined ? prefixSeq : (e.seq||'');
+    const seq = prefixSeq === undefined ? (e.seq||'') : prefixSeq;
     rows.push([
       seq,
       e.nome||'',
@@ -5312,35 +5312,27 @@ function etapasToMermaid(etapas){
       else lines.push(`  ${id}((${lbl}))`);
       lines.push(`  style ${id} fill:#d1fae5,stroke:#16a34a,color:#14532d`);
     } else if(e.tipo==='Decisao'){
-      lines.push(`  ${id}{${lbl}}`);
-      lines.push(`  style ${id} fill:#fef3c7,stroke:#d97706,color:#78350f`);
+      lines.push(`  ${id}{${lbl}}`, `  style ${id} fill:#fef3c7,stroke:#d97706,color:#78350f`);
     } else if(e.tipo==='Comentario'){
-      lines.push(`  ${id}[/${lbl}/]`);
-      lines.push(`  style ${id} fill:#f3f4f6,stroke:#d1d5db,color:#6b7280`);
+      lines.push(`  ${id}[/${lbl}/]`, `  style ${id} fill:#f3f4f6,stroke:#d1d5db,color:#6b7280`);
     } else {
-      lines.push(`  ${id}[${lbl}]`);
-      lines.push(`  style ${id} fill:#dbeafe,stroke:#2563eb,color:#1e3a5f`);
+      lines.push(`  ${id}[${lbl}]`, `  style ${id} fill:#dbeafe,stroke:#2563eb,color:#1e3a5f`);
     }
   }
   function pushGatewayCaminhos(id, e){
     const mergeId = getId();
-    lines.push(`  ${mergeId}[ ]`);
-    lines.push(`  style ${mergeId} fill:transparent,stroke:transparent`);
+    lines.push(`  ${mergeId}[ ]`, `  style ${mergeId} fill:transparent,stroke:transparent`);
     e.caminhos.forEach(cam=>{
       const clbl = safe(cam.label||'');
       const acoes = cam.acoes||[];
-      if(!acoes.length){
-        const emptyId = getId();
-        lines.push(`  ${emptyId}[ ]`);
-        lines.push(`  style ${emptyId} fill:transparent,stroke:transparent`);
-        lines.push(`  ${id} -->|${clbl}| ${emptyId}`);
-        lines.push(`  ${emptyId} --> ${mergeId}`);
-      } else {
+      if(acoes.length){
         const firstId = 'N'+nodeId;
         buildNodes(acoes, null);
         const lastId = 'N'+(nodeId-1);
-        lines.push(`  ${id} -->|${clbl}| ${firstId}`);
-        lines.push(`  ${lastId} --> ${mergeId}`);
+        lines.push(`  ${id} -->|${clbl}| ${firstId}`, `  ${lastId} --> ${mergeId}`);
+      } else {
+        const emptyId = getId();
+        lines.push(`  ${emptyId}[ ]`, `  style ${emptyId} fill:transparent,stroke:transparent`, `  ${id} -->|${clbl}| ${emptyId}`, `  ${emptyId} --> ${mergeId}`);
       }
     });
     return mergeId;
@@ -5381,7 +5373,7 @@ async function atualizarMermaid(){
     const uid = 'mm-'+Date.now();
     const {svg} = await mermaid.render(uid, _mermaidCode);
     el.innerHTML = svg;
-  } catch(err){
+  } catch {
     el.innerHTML = `<pre style="font-size:10px;color:var(--red);white-space:pre-wrap;word-break:break-all">${esc(_mermaidCode)}</pre>`;
   }
 }
@@ -5549,7 +5541,6 @@ function rEnt(p){
   const e=p.ent;
   const resp=e.quest_resp||{};
   const respondidas=Object.keys(resp).length;
-  const total=Object.values(resp).reduce((a,b)=>a+b,0);
   // Maturidade por dimensão
   const dims={};
   QUESTOES.forEach(q=>{
@@ -5578,7 +5569,7 @@ function rEnt(p){
   <div class="g2" style="gap:12px;margin-bottom:1rem">
     <div class="card"><div class="card-t">Volumetria</div>
       ${e.vol?.exec||e.t_ciclo||e.t_real?`<div class="g3" style="gap:10px">
-        ${[['Execuções/período',e.vol?.exec],['Tempo médio de ciclo',e.t_ciclo!=null?e.t_ciclo+' h':''],['Tempo real (lead time)',e.t_real!=null?e.t_real+' h':''],['Tempo de gaveta',e.t_gaveta!=null?e.t_gaveta+' h':'']].map(([l,v])=>v?`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`:'').join('')}
+        ${[['Execuções/período',e.vol?.exec],['Tempo médio de ciclo',e.t_ciclo==null?'':e.t_ciclo+' h'],['Tempo real (lead time)',e.t_real==null?'':e.t_real+' h'],['Tempo de gaveta',e.t_gaveta==null?'':e.t_gaveta+' h']].map(([l,v])=>v?`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`:'').join('')}
       </div>`:'<div class="ib iba">Não preenchido.</div>'}
     </div>
     <div class="card"><div class="card-t">Problemas identificados (${(e.prob||[]).length})</div>
@@ -5655,8 +5646,7 @@ async function rMod(p){
       ${(p.mod.etapas_proc||[]).length?renderEtapasProc(p.mod.etapas_proc):'<div class="ib iba">Nenhuma etapa detalhada ainda.</div>'}
     </div>
   </div>`;
-  if(!p.arq_id){ setTimeout(()=>initBpmnMod('asis',p),80); }
-  else {
+  if(p.arq_id){
     const base64=await loadFluxoImg(p.arq_id);
     const el=document.getElementById('vm-asis-fluxo');
     if(!el) return;
@@ -5668,7 +5658,7 @@ async function rMod(p){
       p._hasBizagi=false;
       setTimeout(()=>initBpmnMod('asis',p),80);
     }
-  }
+  } else { setTimeout(()=>initBpmnMod('asis',p),80); }
   setTimeout(()=>{ injectIaBpmn('asis'); injectIaBpmn('tobe'); }, 200);
 }
 function sModTab(id,el){
@@ -5971,7 +5961,7 @@ function bpmnEditorHTML(which, existingXml){
 }
 
 function initBpmnMod(which, p){
-  if(bpmnModelers[which]){try{bpmnModelers[which].destroy();}catch(e){}bpmnModelers[which]=null;}
+  if(bpmnModelers[which]){try{bpmnModelers[which].destroy();}catch{}bpmnModelers[which]=null;}
   const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
   if(!canvasEl)return;
   if(typeof BpmnJS==='undefined'){
@@ -6013,9 +6003,9 @@ function bpmnSave(which){
     toast('✓ Fluxo '+which.toUpperCase()+' salvo no servidor');
   }).catch(err=>toast('Erro ao salvar: '+(err.message||err),'var(--red)'));
 }
-function bpmnZ(which,dir){const m=bpmnModelers[which];if(!m){return;}try{m.get('zoomScroll').zoom(dir,{x:400,y:240});}catch(e){}}
-function bpmnFit(which){const m=bpmnModelers[which];if(!m){return;}try{m.get('canvas').zoom('fit-viewport');}catch(e){}}
-function bpmnUndo(which){const m=bpmnModelers[which];if(!m){return;}try{m.get('commandStack').undo();}catch(e){}}
+function bpmnZ(which,dir){const m=bpmnModelers[which];if(!m){return;}try{m.get('zoomScroll').zoom(dir,{x:400,y:240});}catch{}}
+function bpmnFit(which){const m=bpmnModelers[which];if(!m){return;}try{m.get('canvas').zoom('fit-viewport');}catch{}}
+function bpmnUndo(which){const m=bpmnModelers[which];if(!m){return;}try{m.get('commandStack').undo();}catch{}}
 function bpmnExport(which){
   const m=bpmnModelers[which];if(!m||!curProc){return;}
   m.saveXML({format:true}).then(({xml})=>{
@@ -6386,7 +6376,7 @@ function _parseFaq(texto){
 
 function _rFaqHl(txt, srch){
   if(!srch) return esc(txt);
-  return esc(txt).replaceAll(new RegExp('('+srch.replaceAll(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),
+  return esc(txt).replaceAll(new RegExp('('+srch.replaceAll(/[.*+?^${}()|[\]\\]/g,String.raw`\$&`)+')','gi'),
     '<mark style="background:#fff176;border-radius:2px;padding:0 1px">$1</mark>');
 }
 function _rFaqItemHTML({p, r}, srch){
@@ -6401,7 +6391,7 @@ function _rFaqProcHTML(procNome, pares, srch){
       <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;display:flex;align-items:center;gap:6px">
         <svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         ${esc(procNome)}
-        <span style="font-size:10px;font-weight:400;color:var(--ink3);text-transform:none;letter-spacing:0">${pares.length} pergunta${pares.length!==1?'s':''}</span>
+        <span style="font-size:10px;font-weight:400;color:var(--ink3);text-transform:none;letter-spacing:0">${pares.length} pergunta${pares.length===1?'':'s'}</span>
       </div>
       <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.2rem 1rem">${pares.map(par=>_rFaqItemHTML(par, srch)).join('')}</div>
     </div>`;
@@ -6462,7 +6452,7 @@ function rFaq(){
   }
 
   if(cntEl) cntEl.textContent = totalPerguntas
-    ? `${totalPerguntas} pergunta${totalPerguntas!==1?'s':''} encontrada${totalPerguntas!==1?'s':''}`
+    ? `${totalPerguntas} pergunta${totalPerguntas===1?'':'s'} encontrada${totalPerguntas===1?'':'s'}`
     : '';
 
   if(!Object.keys(grupos).length){
@@ -6488,7 +6478,7 @@ function rArq(){
   const mx=getMetricasArq();
   const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
   document.getElementById('arq-sub').innerHTML=
-    `${mx.nMacros} macroprocesso${mx.nMacros!==1?'s':''} · ${mx.nProc} processo${mx.nProc!==1?'s':''} · ${mx.nSub} subprocesso${mx.nSub!==1?'s':''} &nbsp;—&nbsp; `+
+    `${mx.nMacros} macroprocesso${mx.nMacros===1?'':'s'} · ${mx.nProc} processo${mx.nProc===1?'':'s'} · ${mx.nSub} subprocesso${mx.nSub===1?'':'s'} &nbsp;—&nbsp; `+
     `<strong style="color:${pct>=80?'var(--teal)':pct>=50?'var(--amber)':'var(--red)'}">${pct}% mapeados</strong> (${mx.nMap}/${mx.nUnid})`;
 
   const f = getArqFilters();
@@ -6527,7 +6517,7 @@ function rArq(){
   });
 
   const cnt = document.getElementById('arq-result-cnt');
-  if(cnt) cnt.textContent = results.length + ' resultado' + (results.length!==1?'s':'') + ' encontrado' + (results.length!==1?'s':'');
+  if(cnt) cnt.textContent = results.length + ' resultado' + (results.length===1?'':'s') + ' encontrado' + (results.length===1?'':'s');
 
   const sub = document.getElementById('arq-sub');
   if(sub) sub.textContent = 'Resultados da busca';
@@ -6548,7 +6538,7 @@ function rArq(){
     <div class="arq-macro" style="margin-bottom:.8rem">
       <div class="arq-macro-hd" style="cursor:default">
         <span class="arq-macro-nome">${macroNome}</span>
-        <span style="font-size:11px;color:rgba(255,255,255,.4)">${items.length} resultado${items.length!==1?'s':''}</span>
+        <span style="font-size:11px;color:rgba(255,255,255,.4)">${items.length} resultado${items.length===1?'':'s'}</span>
       </div>
       <div class="arq-macro-body">
         ${items.map(r=>resultCardHTML(r, f.srch)).join('')}
@@ -6558,7 +6548,7 @@ function rArq(){
 
 function highlight(text, srch){
   if(!srch || !text) return text || '—';
-  const escaped = srch.replaceAll(/[-.*+?^${}()|[\]\\]/g,'\\$&'); const re = new RegExp('('+escaped+')', 'gi');
+  const escaped = srch.replaceAll(/[-.*+?^${}()|[\]\\]/g,String.raw`\$&`); const re = new RegExp('('+escaped+')', 'gi');
   return text.replaceAll(re, '<mark style="background:var(--amber-l);color:var(--amber);padding:0 2px;border-radius:2px">$1</mark>');
 }
 
@@ -6599,7 +6589,7 @@ function macroArqHTML(m){
       <span class="arq-chevron" id="chv-${m.id}">▶</span>
       <span class="arq-macro-nome">${m.nome}</span>
       ${tenhoAqui?'<span style="font-size:10px;background:rgba(255,255,255,.2);border-radius:4px;padding:1px 7px;font-weight:700">Meus processos</span>':''}
-      <span style="font-size:11px;color:rgba(255,255,255,.4)">${tc} processo${tc!==1?'s':''} · ${ts} subprocesso${ts!==1?'s':''}</span>
+      <span style="font-size:11px;color:rgba(255,255,255,.4)">${tc} processo${tc===1?'':'s'} · ${ts} subprocesso${ts===1?'':'s'}</span>
       ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff" onclick="event.stopPropagation();novoProcArq('${m.id}')">+ Processo</button>
       <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5)" onclick="event.stopPropagation();editMacro('${m.id}')">✎ Renomear</button>
       <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(176,28,28,.3);border-color:rgba(242,160,160,.3);color:#F2A0A0" onclick="event.stopPropagation();removerMacro('${m.id}')">× Apagar</button>`:''}
@@ -6612,7 +6602,7 @@ function macroArqHTML(m){
 }
 
 function _procArqStatusBadge(p, hasSubs, linked){
-  if(hasSubs) return `<span class="badge bgr" style="font-size:10px">Agrupador · ${p.subprocessos.length} subprocesso${p.subprocessos.length!==1?'s':''}</span>`;
+  if(hasSubs) return `<span class="badge bgr" style="font-size:10px">Agrupador · ${p.subprocessos.length} subprocesso${p.subprocessos.length===1?'':'s'}</span>`;
   if(linked) return `<span class="badge ${EBADGE[linked.etapa]||'bgr'}" style="font-size:10px">${etLb(linked.etapa)}</span><button type="button" class="btn btn-p" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();abrirProc(${linked.id})">Abrir</button>`;
   return isMapeado(p.id)
     ? `<span class="badge bg" style="font-size:10px">Mapeado</span>`
@@ -6924,13 +6914,11 @@ function remSubArq(mid,pid,sid){
 }
 
 // IMPORTAR EXCEL ARQUITETURA
-function importarArqExcel(input){
+async function importarArqExcel(input){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
   const file=input.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      const wb=XLSX.read(e.target.result,{type:'array'});
+  try{
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
       if(!rows.length){toast('Planilha vazia ou sem dados reconhecíveis.','var(--amber)');return;}
@@ -7015,7 +7003,7 @@ function importarArqExcel(input){
 
         const sub = gv(row, cSub);
         const subValido = sub && !/^n[ãa]o[\s\-_]*h[aá]/i.test(sub) && sub.toLowerCase()!=='nenhum' && sub.toLowerCase()!=='-' && sub.toLowerCase()!=='n/a';
-        if(subValido && !p.subprocessos.find(s=>s.nome===sub)){
+        if(subValido && !p.subprocessos.some(s=>s.nome===sub)){
           p.subprocessos.push({
             id:'s'+arqIdC++, nome:sub,
             natureza:             gv(row,cNat) ? gv(row,cNat).charAt(0).toUpperCase()+gv(row,cNat).slice(1).toLowerCase() : '',
@@ -7036,8 +7024,6 @@ function importarArqExcel(input){
       toast('Importação concluída: '+added+' processo(s) adicionado(s)');
     }catch(err){toast('Erro ao ler planilha: '+err.message,'var(--red)');}
     input.value='';
-  };
-  reader.readAsArrayBuffer(file);
 }
 
 // Retorna lista plana de todas as unidades mapeáveis da arquitetura
@@ -7207,12 +7193,10 @@ function _xlsFindCol(keys, variants){
   }
   return null;
 }
-function importarIndicadores(input){
+async function importarIndicadores(input){
   const file = input.files[0]; if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
     try{
-      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const wb = XLSX.read(await file.arrayBuffer(), {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
 
@@ -7270,8 +7254,6 @@ function importarIndicadores(input){
       toast(added + ' indicador(es) importado(s)');
     } catch(err){ toast('Erro ao ler planilha: ' + err.message,'var(--red)'); }
     input.value = '';
-  };
-  reader.readAsArrayBuffer(file);
 }
 
 function populateIndFilters(){
@@ -7301,7 +7283,7 @@ function _kpiGrpStatus(items){
   const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0)>0);
   if(!withData.length) return null; // sem dados no período
   const last = withData[withData.length-1];
-  if(!(Number(last.meta)>0)) return null; // sem meta real (apenas _metaFallback ou sem meta)
+  if(Number(last.meta)<=0) return null; // sem meta real (apenas _metaFallback ou sem meta)
   const pol = items[0].polaridade||'Maior é melhor';
   const pct = pol==='Menor é melhor'
     ? (Number(last.realizado)>0?(Number(last.meta)/Number(last.realizado))*100:0)
@@ -7319,7 +7301,7 @@ function rInd(){
   }
 
   // Destroy previous charts
-  _indCharts.forEach(c=>{ try{ c.destroy(); }catch(e){} });
+  _indCharts.forEach(c=>{ try{ c.destroy(); }catch{} });
   _indCharts = [];
 
   populateIndFilters();
@@ -7349,7 +7331,7 @@ function rInd(){
     const ating  = statuses.filter(s=>s==='ok').length;
     const abaixo = statuses.filter(s=>s==='nok').length;
     sumEl.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:12px;color:var(--ink3)">${nGrupos} indicador${nGrupos!==1?'es':''}</span>
+      <span style="font-size:12px;color:var(--ink3)">${nGrupos} indicador${nGrupos===1?'':'es'}</span>
       ${ating>0?`<span class="badge bg">${ating} atingindo meta</span>`:''}
       ${abaixo>0?`<span class="badge br">${abaixo} abaixo da meta</span>`:''}
     </div>`;
@@ -7865,7 +7847,7 @@ async function _fetchGsheetsCsv(url){
     clearTimeout(tid2);
     if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return await resp.text();
-  } catch(e) {
+  } catch {
     clearTimeout(tid2);
     throw new Error('Proxy timeout ou indisponível. Tente novamente.');
   }
@@ -7966,7 +7948,7 @@ function rPub(){
   const el = document.getElementById('pub-list');
   if(!el) return;
   document.getElementById('pub-sub').textContent =
-    publicacoes.length + ' documento' + (publicacoes.length!==1?'s':'') + ' publicado' + (publicacoes.length!==1?'s':'');
+    publicacoes.length + ' documento' + (publicacoes.length===1?'':'s') + ' publicado' + (publicacoes.length===1?'':'s');
   if(!lista.length){
     el.innerHTML = '<div class="ib ibsl">Nenhuma publicação encontrada. Clique em "+ Nova publicação" para adicionar.</div>';
     return;
@@ -8347,11 +8329,11 @@ async function salvarUsr(){
   const idxStr = document.getElementById('usr-idx').value;
 
   if(idxStr===''){
-    if(USUARIOS.find(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
+    if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
     USUARIOS.push({email, nome, perfil, iniciais:ini, processos_vinculados:vinculos});
   } else {
     const idx = Number.parseInt(idxStr);
-    if(USUARIOS.find((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
+    if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
     USUARIOS[idx] = {...USUARIOS[idx], email, nome, perfil, iniciais:ini, processos_vinculados:vinculos};
     if(usuarioLogado?.email===email){
       usuarioLogado = USUARIOS[idx];
@@ -8493,7 +8475,7 @@ function rPlano(){
         <div style="font-family:var(--fh);font-size:13px;font-weight:600">${tri==='Anual'?'📅 Atividades Anuais':tri}</div>
         <div style="display:flex;align-items:center;gap:12px">
           ${atraso?`<span style="font-size:10px;background:rgba(239,68,68,.3);color:#fca5a5;padding:1px 8px;border-radius:10px">⚠ ${atraso} em atraso</span>`:''}
-          <span style="font-size:11px;opacity:.6">${items.length} atividade${items.length!==1?'s':''}</span>
+          <span style="font-size:11px;opacity:.6">${items.length} atividade${items.length===1?'':'s'}</span>
           <div style="display:flex;align-items:center;gap:6px">
             <div style="width:80px;height:6px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden">
               <div style="width:${pct}%;height:100%;background:#14b8a6;border-radius:3px"></div>
@@ -8735,7 +8717,7 @@ function _planoModalBodyHTML(at){
       </div>
       <div>
         <div class="fl">Processo vinculado</div>
-        <select class="fi" id="pm-vinid" ${!vTipo?'disabled':''}>
+        <select class="fi" id="pm-vinid" ${vTipo?'':'disabled'}>
           <option value="">Selecione...</option>
           ${planoVinculoOptsHTML(vTipo,vId)}
         </select>
@@ -8877,10 +8859,12 @@ async function fbSaveAll(){
     kpis.forEach(k => ops.push({ref: doc(db,'kpis',String(k.id)), data: _fsClean(k)}));
     publicacoes.forEach(p => ops.push({ref: doc(db,'publicacoes',String(p.id)), data: _fsClean(p)}));
     plano.forEach(a => ops.push({ref: doc(db,'plano',String(a.id)), data: _fsClean(a)}));
-    ops.push({ref: doc(db,'config','arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}});
-    ops.push({ref: doc(db,'config','usuarios'),    data: {data: JSON.stringify(USUARIOS)}});
-    ops.push({ref: doc(db,'config','mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}});
-    ops.push({ref: doc(db,'config','criticos'),    data: {data: JSON.stringify([...criticosManual])}});
+    ops.push(
+      {ref: doc(db,'config','arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}},
+      {ref: doc(db,'config','usuarios'),    data: {data: JSON.stringify(USUARIOS)}},
+      {ref: doc(db,'config','mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}},
+      {ref: doc(db,'config','criticos'),    data: {data: JSON.stringify([...criticosManual])}}
+    );
 
     // Firestore batch limit is 500 — split into chunks of 450
     for(let i = 0; i < ops.length; i += 450){
@@ -9392,7 +9376,7 @@ async function iaAnalisarBpmn(which){
         ${json.oportunidades?.length?`<div><strong style="color:var(--green)">Oportunidades:</strong> ${json.oportunidades.map(o=>esc(o)).join(' · ')}</div>`:''}
         <div style="margin-top:.5rem;font-size:11px;color:var(--ink4)">Campos de análise preenchidos automaticamente ↑</div>
       </div>`;
-    } catch(e){
+    } catch {
       el.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">✦ Análise IA</div>${esc(result)}</div>`;
     }
   }
@@ -9597,9 +9581,9 @@ function gerarRelatorioIndPdf(){
     ].filter(Boolean).join(' ');
     return `<div style="background:${bg};border:1.5px solid ${border};border-radius:8px;padding:10px 14px;min-width:140px;flex:1">
       <div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">${esc(nome)}</div>
-      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${taxa!==null?taxa+'%':'—'}</div>
+      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${taxa===null?'—':taxa+'%'}</div>
       <div style="font-size:10px;color:#6b7280;margin-top:2px">${d.atingiram} de ${d.comMeta} atingiram a meta</div>
-      <div style="font-size:10px;color:#9ca3af">${d.total} indicador${d.total!==1?'es':''} no total</div>
+      <div style="font-size:10px;color:#9ca3af">${d.total} indicador${d.total===1?'':'es'} no total</div>
       ${extras?`<div style="margin-top:4px;display:flex;gap:8px">${extras}</div>`:''}
     </div>`;
   }).join('');
@@ -9623,7 +9607,7 @@ function gerarRelatorioIndPdf(){
       <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
       <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
       <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
-      <td style="text-align:center;${pctStyle}">${pct!==null?pct+'%':'—'}</td>
+      <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
       <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
     </tr>`;
   }).join('');
@@ -9670,7 +9654,7 @@ function gerarRelatorioIndPdf(){
   <div class="hdr-r">
     <div><strong>Data:</strong> ${dtHoje}</div>
     <div><strong>Total analisados:</strong> ${lista.length}</div>
-    ${taxaGeral!==null?`<div><strong>Taxa de atingimento geral:</strong> <strong style="color:${taxaCl}">${atingiramG}/${comMeta.length} (${taxaGeral}%)</strong></div>`:''}
+    ${taxaGeral===null?'':`<div><strong>Taxa de atingimento geral:</strong> <strong style="color:${taxaCl}">${atingiramG}/${comMeta.length} (${taxaGeral}%)</strong></div>`}
     ${destTotal?`<div style="color:#065f46">⭐ ${destTotal} destaque${destTotal>1?'s':''}</div>`:''}
     ${critTotal?`<div style="color:#7f1d1d">⚠ ${critTotal} crítico${critTotal>1?'s':''}</div>`:''}
   </div>
@@ -9689,11 +9673,11 @@ function gerarRelatorioIndPdf(){
     <th style="text-align:center">Status</th>
   </tr></thead>
   <tbody>${rows}</tbody>
-  ${taxaGeral!==null?`<tfoot><tr class="tfoot-row">
+  ${taxaGeral===null?'':`<tfoot><tr class="tfoot-row">
     <td colspan="5">Taxa de atingimento geral (indicadores com meta)</td>
     <td style="text-align:center;font-size:14px;color:${taxaCl}">${atingiramG}/${comMeta.length} — ${taxaGeral}%</td>
     <td></td>
-  </tr></tfoot>`:''}
+  </tr></tfoot>`}
 </table>
 <div class="legend">
   <span><span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-weight:700">⭐ Destaque</span> ≥ 130% da meta</span>
