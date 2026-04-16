@@ -2825,6 +2825,17 @@ function epManterItem(el){
 // ABA: AÇÃO ATUAL (formulários por etapa)
 // ═══════════════════════════════════════════
 
+function _renderAnexosAchado(anexos, i){
+  if(!anexos.length) return '';
+  const items=anexos.map((x,j)=>
+    '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">'+
+    `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>`+
+    `<button type="button" onclick="removerAnexoAchado(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>`+
+    '</span>'
+  ).join('');
+  return '<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">'+items+'</div>';
+}
+
 const ACOES = {
   abertura:{titulo:'Abrir processo',sub:'Confirmar dados iniciais e vincular equipe.',role:'EP',rk:'ep',
     form:p=>{const dtPrev=p.ent.dt_prev||_addDias(p.ent.dt_inicio,90);return`<div class="ib ibt">Confirme os dados importados da arquitetura e defina a equipe do trabalho.</div>
@@ -3063,8 +3074,12 @@ const ACOES = {
       const fb=p.ent?.analise?.feedback_dono||{};
       const override=p.ent?.analise?.ep_override||[];
       const descartados=Object.entries(fb).flatMap(([,items])=>Object.entries(items).filter(([,v])=>v==='descartado').map(([txt])=>txt)).filter(d=>!override.includes(d));
+      const descartadosBadges=descartados.map(d=>`<span style="font-size:11px;background:var(--red-l);color:var(--red);border-radius:4px;padding:1px 6px;margin:2px">${esc(d)}</span>`).join('');
+      const descartadosBanner=descartados.length
+        ?`<div class="ib" style="background:#fef3c7;border-color:#d97706;margin-bottom:.8rem"><strong>Itens descartados pelo dono (${descartados.length}):</strong> ${descartadosBadges}<div style="font-size:11px;color:var(--ink3);margin-top:4px">Considere estes pontos ao finalizar o desenho.</div></div>`
+        :'<div class="ib ibg" style="margin-bottom:.8rem">Nenhum item descartado pelo dono. O fluxo validado está pronto para ajustes finais.</div>';
       return `
-      ${descartados.length?`<div class="ib" style="background:#fef3c7;border-color:#d97706;margin-bottom:.8rem"><strong>Itens descartados pelo dono (${descartados.length}):</strong> ${descartados.map(d=>`<span style="font-size:11px;background:var(--red-l);color:var(--red);border-radius:4px;padding:1px 6px;margin:2px">${esc(d)}</span>`).join('')}<div style="font-size:11px;color:var(--ink3);margin-top:4px">Considere estes pontos ao finalizar o desenho.</div></div>`:'<div class="ib ibg" style="margin-bottom:.8rem">Nenhum item descartado pelo dono. O fluxo validado está pronto para ajustes finais.</div>'}
+      ${descartadosBanner}
       <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:.5rem">AS IS — Fluxo validado pelo dono</div>
       ${bpmnEditorHTML('asis',p.mod?.bpmnAsIs)}
       <div style="margin-top:.8rem">
@@ -3230,11 +3245,7 @@ const ACOES = {
           </div>
           <div style="color:var(--ink3);margin-top:.2rem">${esc(a.descricao||'')}</div>
           ${a.evidencia?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Evidência: ${esc(a.evidencia)}</div>`:''}
-          ${(a.anexos||[]).length?`<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">${(a.anexos||[]).map((x,j)=>`
-            <span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">
-              <a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>
-              <button type="button" onclick="removerAnexoAchado(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>
-            </span>`).join('')}</div>`:''}
+          ${_renderAnexosAchado(a.anexos||[], i)}
           <div id="aud-anexo-form-${i}" style="margin-top:.5rem;display:none;gap:6px;flex-wrap:wrap;align-items:center">
             <input class="fi" id="aud-link-nome-${i}" placeholder="Nome do documento" style="width:140px;font-size:11px;padding:3px 6px">
             <input class="fi" id="aud-link-url-${i}" placeholder="https://..." style="flex:1;min-width:160px;font-size:11px;padding:3px 6px">
@@ -3545,7 +3556,7 @@ function _rsComplement(p){
 function _rsPOP(p){
   p.form=p.form||{};
   const etapas=p.mod?.etapas_proc||[];
-  const ativ_detalhes=Object.assign({},p.form.pop?.ativ_detalhes||{});
+  const ativ_detalhes={...p.form.pop?.ativ_detalhes||{}};
   etapas.forEach((_,i)=>{
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return;
@@ -3996,7 +4007,7 @@ function salvarPOP(){
   const p=curProc;
   if(!p.form)p.form={pop_ok:false,pop:null,apresent:'',bpmnXml:null};
   const etapas=p.mod?.etapas_proc||[];
-  const ativ_detalhes=Object.assign({},p.form.pop?.ativ_detalhes||{});
+  const ativ_detalhes={...p.form.pop?.ativ_detalhes||{}};
   etapas.forEach((_,i)=>{
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return; // aba Atividades não renderizada, preserva valor anterior
@@ -4146,7 +4157,7 @@ async function gerarFAQIA(){
 }
 
 // ── gerarPOPPPT: construtores de strings extraídos para manutenibilidade ──
-function _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText){
+function _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, {gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText}){
   return `PROCESSO: ${p.nome}
 MACROPROCESSO: ${p.macro || '—'}
 ÁREA: ${p.area || '—'}
@@ -4286,7 +4297,7 @@ async function gerarPOPPPT() {
     const indsText = indsProc.slice(0, 8).map(k => `${k.enunciado || k.indicador}${k.ciclo ? ' (' + k.ciclo + ')' : ''}${k.meta ? ' — meta: ' + k.meta : ''}`).join('\n');
     const faqText = p.form?.faq || '';
 
-    const ctx = _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText);
+    const ctx = _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, {gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText});
     const prompt = _pptPromptStr(ctx);
 
     if (st) st.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA elaborando conteúdo do POP...</div>';
@@ -4965,7 +4976,7 @@ function visPopPreview(){
     if(el){const key=id.replaceAll('pp-','');prev[key]=el.value;}
   });
   const etapas=p.mod?.etapas_proc||[];
-  const ativ_detalhes=Object.assign({},prev.ativ_detalhes||{});
+  const ativ_detalhes={...prev.ativ_detalhes||{}};
   etapas.forEach((_,i)=>{
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return;
@@ -4991,8 +5002,8 @@ function popAtivCards(p){
   const det=p.form?.pop?.ativ_detalhes||{};
   if(!etapas.length) return '<div class="ib iba">Nenhuma etapa cadastrada na modelagem. Complete a etapa "Detalhamento de etapas" primeiro.</div>';
   const TIPOS=['Atividade','Decisão','Observação','Evento'];
-  const normTipo=t=>{if(t==='Decisao'||t==='Decisão')return 'Decisão';if(t==='Comentario'||t==='Observação')return 'Observação';return t||'Atividade';};
-  const normModo=m=>{if(m==='Automatica')return 'Automática';if(m==='Semi-automatica')return 'Semi-automática';return m||'Manual';};
+  const normTipo=t=>{if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t||'Atividade';};
+  const normModo=m=>{if(m==='Automatica'){return 'Automática';}if(m==='Semi-automatica'){return 'Semi-automática';}return m||'Manual';};
   const flat=etapas.map(e=>({nome:e.nome,tipo:normTipo(e.tipo),modo:normModo(e.modo),desc:e.desc||'',resp:e.executor||''}));
   return flat.map((e,i)=>{
     const d=det[i]||{};
@@ -5475,7 +5486,7 @@ function _bpmnBuildOutgoing(xml){
   const outgoing={};
   xml.querySelectorAll('sequenceFlow').forEach(sf=>{
     const src=sf.getAttribute('sourceRef'), tgt=sf.getAttribute('targetRef');
-    if(src&&tgt){ if(!outgoing[src]) outgoing[src]=[]; outgoing[src].push(tgt); }
+    if(src&&tgt){ if(!outgoing[src]){ outgoing[src]=[]; } outgoing[src].push(tgt); }
   });
   return outgoing;
 }
@@ -5594,10 +5605,10 @@ function rEnt(p){
     <div class="g4" style="margin-bottom:.8rem">
       ${[['Complexidade',e.analise.complexidade||'—'],['Ciclo médio',e.analise.t_ciclo_medio||'—'],['Espera/fila',e.analise.t_espera_medio||'—'],['Atividades',e.analise.qtd_atividades||0]].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
     </div>
-    ${(e.analise.gargalos||[]).length?`<div class="analise-item"><div class="analise-cat analise-gar">Gargalos (${e.analise.gargalos.length})</div>${e.analise.gargalos.map(g=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">⚠ ${g}</div>`).join('')}</div>`:''}
-    ${(e.analise.retrabalhos||[]).length?`<div class="analise-item"><div class="analise-cat analise-ret">Retrabalhos (${e.analise.retrabalhos.length})</div>${e.analise.retrabalhos.map(r=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">↩ ${r}</div>`).join('')}</div>`:''}
-    ${(e.analise.gaps||[]).length?`<div class="analise-item"><div class="analise-cat analise-gap">Pontos cegos (${e.analise.gaps.length})</div>${e.analise.gaps.map(g=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">○ ${g}</div>`).join('')}</div>`:''}
-    ${(e.analise.oportunidades||[]).length?`<div class="analise-item"><div class="analise-cat analise-oport">Oportunidades (${e.analise.oportunidades.length})</div>${e.analise.oportunidades.map(o=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">✦ ${o}</div>`).join('')}</div>`:''}
+    ${_renderAnaliseItem(e.analise.gargalos||[], 'Gargalos', 'analise-gar', '⚠')}
+    ${_renderAnaliseItem(e.analise.retrabalhos||[], 'Retrabalhos', 'analise-ret', '↩')}
+    ${_renderAnaliseItem(e.analise.gaps||[], 'Pontos cegos', 'analise-gap', '○')}
+    ${_renderAnaliseItem(e.analise.oportunidades||[], 'Oportunidades', 'analise-oport', '✦')}
   </div>`:''}
   ${isEP()&&e.analise?.feedback_dono&&Object.keys(e.analise.feedback_dono).length?`
   <div class="card" style="margin-top:.8rem;margin-bottom:1rem">
@@ -5605,12 +5616,22 @@ function rEnt(p){
     <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Itens avaliados pelo dono durante a validação. O EPP pode manter itens descartados.</div>
     ${renderFeedbackEP(e.analise)}
   </div>`:''}
-  ${(e.riscos||[]).length?`<div class="card"><div class="card-t">Riscos (${e.riscos.length})</div>
-    <table class="pop-tbl"><thead><tr><th>Risco</th><th>Prob.</th><th>Impacto</th></tr></thead>
-    <tbody>${(e.riscos||[]).map(r=>`<tr><td>${r.desc}</td><td>${pbBadge(r.prob)}</td><td>${ibBadge(r.imp)}</td></tr>`).join('')}</tbody></table>
-  </div>`:''}`;
+  ${_renderRiscosCard(e.riscos||[])}`;
 }
 
+function _renderAnaliseItem(items, label, cssClass, icon){
+  if(!items.length) return '';
+  const rows=items.map(item=>`<div style="font-size:12.5px;padding:3px 0;border-bottom:1px solid var(--bdr)">${icon} ${item}</div>`).join('');
+  return `<div class="analise-item"><div class="analise-cat ${cssClass}">${label} (${items.length})</div>${rows}</div>`;
+}
+function _renderRiscosCard(riscos){
+  if(!riscos.length) return '';
+  const rows=riscos.map(r=>`<tr><td>${r.desc}</td><td>${pbBadge(r.prob)}</td><td>${ibBadge(r.imp)}</td></tr>`).join('');
+  return `<div class="card"><div class="card-t">Riscos (${riscos.length})</div>
+    <table class="pop-tbl"><thead><tr><th>Risco</th><th>Prob.</th><th>Impacto</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+  </div>`;
+}
 function _rModBizagiHTML(arqId, base64){
   return `<div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:.8rem">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
@@ -5690,8 +5711,8 @@ function rForm(p){
       ${(()=>{
         const etapas=curProc?.mod?.etapas_proc||[];
         const det=pd.ativ_detalhes||{};
-        const normTipo=t=>{if(t==='Decisao'||t==='Decisão')return 'Decisão';if(t==='Comentario'||t==='Observação')return 'Observação';return t||'Atividade';};
-        const normModo=m=>{if(m==='Automatica')return 'Automática';if(m==='Semi-automatica')return 'Semi-automática';return m||'Manual';};
+        const normTipo=t=>{if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t||'Atividade';};
+        const normModo=m=>{if(m==='Automatica'){return 'Automática';}if(m==='Semi-automatica'){return 'Semi-automática';}return m||'Manual';};
         const linhas=etapas.map((e,i)=>{
           const d=det[i]||{};
           const desc=(d.desc!==undefined&&d.desc!=='')?d.desc:(e.desc||'');
@@ -5760,9 +5781,27 @@ function rMon(p){
   document.getElementById('tab-mon').innerHTML=inds.length?`<div class="g3" style="gap:10px">${inds.map(d=>kpiCard(d)).join('')}</div>${audHTML}`:`<div class="ib ibb">Nenhum indicador importado. <button type="button" class="btn btn-p" style="font-size:12px;padding:4px 10px;margin-left:8px" onclick="go('indicadores',document.getElementById('nb-ind'))">Ir para indicadores →</button></div>${audHTML}`;
 }
 function rHist(p){
-  document.getElementById('tab-hist').innerHTML=`<div class="card"><div class="card-t">Histórico completo</div><div class="tl">${[...p.hist].reverse().map((h,i)=>`<div class="tl-i"><div class="tl-d ${i===0?'da':'dn'}">${i===0?'●':'✓'}</div><div><div class="tl-t">${esc(h.acao)}</div><div class="tl-m">${esc(h.role)} · ${esc(h.data)}</div></div></div>`).join('')}</div></div>`;
+  const histItems=[...p.hist].reverse().map((h,i)=>{
+    const dotClass=i===0?'da':'dn';
+    const dot=i===0?'●':'✓';
+    return `<div class="tl-i"><div class="tl-d ${dotClass}">${dot}</div><div><div class="tl-t">${esc(h.acao)}</div><div class="tl-m">${esc(h.role)} · ${esc(h.data)}</div></div></div>`;
+  }).join('');
+  document.getElementById('tab-hist').innerHTML=`<div class="card"><div class="card-t">Histórico completo</div><div class="tl">${histItems}</div></div>`;
 }
 
+function _renderAcompReuniao(r){
+  const badgeClass=r.conformidade==='Conforme'?'bbt':r.conformidade?.includes('Parcial')?'bba':'bbr';
+  const participantesHtml=r.participantes?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem">👥 ${esc(r.participantes)}</div>`:'';
+  const pautaHtml=r.pauta?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem"><strong>Pauta:</strong> ${esc(r.pauta)}</div>`:'';
+  const desviosHtml=r.desvios?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem"><strong>Desvios:</strong> ${esc(r.desvios)}</div>`:'';
+  const acoesHtml=r.acoes?`<div style="font-size:12px;color:var(--ink2)"><strong>Ações:</strong> ${esc(r.acoes)}</div>`:'';
+  return `<div class="card" style="margin-bottom:.6rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+        <div class="card-t" style="margin-bottom:0">Acompanhamento — ${esc(r.data||'')}</div>
+        <span class="badge ${badgeClass}">${esc(r.conformidade||'')}</span>
+      </div>
+      ${participantesHtml}${pautaHtml}${desviosHtml}${acoesHtml}    </div>`;
+}
 function rReun(p){
   const REUN_TIPOS={
     reuniao_entendimento:'Reunião de entendimento',
@@ -5810,17 +5849,7 @@ function rReun(p){
 
   const acompHtml=acomp.length?`
     <div style="font-weight:600;font-size:13px;margin:1rem 0 .6rem">Reuniões de acompanhamento</div>
-    ${acomp.map(r=>`
-      <div class="card" style="margin-bottom:.6rem">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
-          <div class="card-t" style="margin-bottom:0">Acompanhamento — ${esc(r.data||'')}</div>
-          <span class="badge ${r.conformidade==='Conforme'?'bbt':r.conformidade?.includes('Parcial')?'bba':'bbr'}">${esc(r.conformidade||'')}</span>
-        </div>
-        ${r.participantes?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem">👥 ${esc(r.participantes)}</div>`:''}
-        ${r.pauta?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem"><strong>Pauta:</strong> ${esc(r.pauta)}</div>`:''}
-        ${r.desvios?`<div style="font-size:12px;color:var(--ink2);margin-bottom:.3rem"><strong>Desvios:</strong> ${esc(r.desvios)}</div>`:''}
-        ${r.acoes?`<div style="font-size:12px;color:var(--ink2)"><strong>Ações:</strong> ${esc(r.acoes)}</div>`:''}
-      </div>`).join('')}`:'';
+    ${acomp.map(r=>_renderAcompReuniao(r)).join('')}`:'';
 
   const allEmpty=!reunioes.length&&!legacyFixas.length&&!acomp.length;
 
@@ -6431,7 +6460,7 @@ function rFaq(){
   }
 
   // Agrupa por macro > processo, aplica filtros
-  const grupos = {}; // { macro: { procNome: [{p,r}] } }
+  const grupos = {};
   let totalPerguntas = 0;
 
   for(const proc of todos){
@@ -6508,11 +6537,9 @@ function rArq(){
             results.push({item:s, macroNome:m.nome, procNome:p.nome, macroId:m.id, procId:p.id, isSub:true});
           }
         });
-      } else {
-        if(itemMatchesFilters(p, m.nome, f)){
+      } else if(itemMatchesFilters(p, m.nome, f)){
           results.push({item:p, macroNome:m.nome, procNome:null, macroId:m.id, procId:p.id, isSub:false});
         }
-      }
     });
   });
 
@@ -6634,11 +6661,13 @@ function _subArqItemHTML(mid, pid, s){
 function procArqHTML(mid,p){
   const hasSubs = p.subprocessos && p.subprocessos.length > 0;
   const linked = !hasSubs && p.proc_id ? processos.find(pr=>pr.id===p.proc_id) : null;
+  const addSubBtnBlock = isEP() ? `<div style="padding:.5rem .8rem"><button type="button" class="arq-add-btn" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button></div>` : '';
+  const addSubBtnInline = isEP() ? `<button type="button" class="arq-add-btn" style="margin-top:4px" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button>` : '';
   const bodyHTML = hasSubs
     ? `<div style="padding:.5rem .8rem .2rem"><div class="ib ibsl" style="font-size:11px;margin-bottom:.5rem">Processo agrupador — os subprocessos abaixo são as unidades mapeáveis individualmente.</div></div>
        ${p.subprocessos.map(s=>_subArqItemHTML(mid,p.id,s)).join('')}
-       ${isEP()?`<div style="padding:.5rem .8rem"><button type="button" class="arq-add-btn" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button></div>`:''}`
-    : `<div style="padding:.6rem .9rem .8rem">${metaFieldsReadonly(p)}${isEP()?`<button type="button" class="arq-add-btn" style="margin-top:4px" onclick="novoSubArq('${mid}','${p.id}')">+ Adicionar subprocesso</button>`:''}</div>`;
+       ${addSubBtnBlock}`
+    : `<div style="padding:.6rem .9rem .8rem">${metaFieldsReadonly(p)}${addSubBtnInline}</div>`;
   return `<div style="margin-bottom:.5rem">
     <div class="arq-proc-hd" onclick="toggleEl('arq-sub-${p.id}','chvp-${p.id}')">
       <span class="arq-chevron" id="chvp-${p.id}" style="color:var(--ink3)">▶</span>
