@@ -9888,12 +9888,18 @@ async function processarArquivoPOP(input){
     const result=await mammoth.extractRawText({arrayBuffer});
     const texto=result.value.trim().slice(0,12000);
     const prompt=`Analise o POP abaixo e retorne APENAS um JSON válido (sem markdown) com a estrutura:
-{"nome":"...","area":"...","objetivo":"...","atores":["..."],"etapas":[{"nome":"...","tipo":"Atividade|Decisao|Evento"}]}
+{"nome":"...","area":"...","objetivo":"...","atores":["..."],"etapas":[{"nome":"...","tipo":"Atividade|Decisao|Evento","executor":"nome do ator responsável por esta etapa"}]}
 
 REGRAS para classificar cada elemento do fluxo:
 - "Atividade": tarefas, execuções, verificações, comunicações, registros (a maioria)
 - "Decisao": gateways, bifurcações, condicionais — frases que começam com "Verificar se", "Caso", "Se sim/não", "Aprovado?", perguntas com "?"
 - "Evento": início do processo, fim/encerramento, espera por prazo ou evento externo
+
+REGRAS para o campo "executor":
+- Identifique QUAL ator/papel do documento executa ESPECIFICAMENTE aquela etapa
+- Use exatamente o nome do papel/cargo como aparece no documento (ex: "Analista de RH", "Gestor", "Servidor")
+- Se uma etapa tiver múltiplos responsáveis, separe por vírgula
+- Se não for possível identificar, use string vazia ""
 
 Inclua TODOS os elementos do fluxo, inclusive os gateways/condicionais.
 
@@ -9906,10 +9912,10 @@ POP:\n${texto}`;
     document.getElementById('pop-area').value=extracted.area||'';
     document.getElementById('pop-objetivo').value=extracted.objetivo||'';
     document.getElementById('pop-atores').value=(extracted.atores||[]).join('\n');
-    // Encode type in textarea so confirmarImportPOP can recover it
+    // Encode type and executor in textarea so confirmarImportPOP can recover them
     const etapasExtraidas=(extracted.etapas||[]);
     document.getElementById('pop-etapas').value=etapasExtraidas.map(e=>
-      typeof e==='string'?e:`[${e.tipo||'Atividade'}] ${e.nome||e}`
+      typeof e==='string'?e:`[${e.tipo||'Atividade'}|${e.executor||''}] ${e.nome||e}`
     ).join('\n');
     loadEl.style.display='none';
     document.getElementById('pop-step1').style.display='none';
@@ -9933,12 +9939,13 @@ function confirmarImportPOP(){
   const etapasTexto=document.getElementById('pop-etapas').value.trim();
   const agora=new Date().toLocaleDateString('pt-BR');
   const novoId=Date.now();
-  // Parse typed etapas: "[Tipo] Nome" prefix encoded by processarArquivoPOP
+  // Parse typed etapas: "[Tipo|Executor] Nome" prefix encoded by processarArquivoPOP
   const etapasProc=etapasTexto.split('\n').filter(Boolean).map((d,i)=>{
-    const m=d.match(/^\[(Atividade|Decisao|Evento|Comentario)\]\s*/i);
+    const m=d.match(/^\[(Atividade|Decisao|Evento|Comentario)(?:\|([^\]]*))?\]\s*/i);
     const tipo=m?m[1]:'Atividade';
+    const executorEtapa=m&&m[2]&&m[2].trim()?m[2].trim():atores;
     const nome=m?d.slice(m[0].length).trim():d.trim();
-    return {id:'ep'+(novoId+i),seq:i+1,nome,tipo,natureza:'Execucao',modo:'Manual',executor:atores,desc:''};
+    return {id:'ep'+(novoId+i),seq:i+1,nome,tipo,natureza:'Execucao',modo:'Manual',executor:executorEtapa,desc:''};
   });
   const ativTexto=etapasProc.map(e=>`${e.seq}. [${e.tipo}] ${e.nome}`).join('\n');
   const donoNome=arqItem?.gerente||'';
