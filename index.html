@@ -3187,7 +3187,10 @@ const ACOES = {
       <div class="fg"><label class="fl">Data de vigência</label><input class="fi" type="date" id="a-vig" value="${p.form?.vig||''}"></div>
       <div class="fg"><label class="fl">Entrega efetiva</label><input class="fi" type="date" id="pub-efet" value="${p.ent?.dt_efetiva||''}"></div>
     </div>
-    <div class="btn-row"><button type="button" class="btn btn-g" onclick="publicarProcesso()">Publicar →</button></div>`},
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="salvarDadosPublicacao()">💾 Salvar dados</button>
+      <button type="button" class="btn btn-g" onclick="publicarProcesso()">Publicar →</button>
+    </div>`},
 
   acompanha:{titulo:'Acompanhamento da implementação',sub:'Registre todas as reuniões de acompanhamento da implementação.',role:'EP',rk:'ep',
     form:p=>{
@@ -4024,6 +4027,18 @@ function excluirReuniaoAcomp(idx){
     toast('Reunião excluída.','var(--amber)');
     rDetalhe();
   });
+}
+function salvarDadosPublicacao(){
+  const p=curProc;if(!p)return;
+  const link=document.getElementById('a-link')?.value||'';
+  const vig=document.getElementById('a-vig')?.value||'';
+  const efet=document.getElementById('pub-efet')?.value||'';
+  p.form=p.form||{};
+  if(link)p.form.link_pub=link;
+  if(vig)p.form.vig=vig;
+  if(efet)p.ent.dt_efetiva=efet;
+  fbAutoSave('salvarDadosPublicacao');
+  toast('Dados salvos!','var(--teal)');
 }
 function publicarProcesso(){
   const p=curProc;
@@ -5810,6 +5825,9 @@ function rEnt(p){
         ${[['Início',e.dt_inicio||'—'],['Prev. entrega',e.dt_prev||'—'],['Entrega efetiva',e.dt_efetiva||'—'],['Produto',p.produto||'—'],['Tempo total',e.t_total||'—'],['Tempo sem fila',e.t_sem_fila||'—']].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
       </div>
       <hr><div class="sec-lbl">Equipe</div><div style="font-size:13px">${e.equipe||'—'}</div>
+      ${p.form?.link_pub||p.form?.vig?`<hr>
+        ${p.form?.link_pub?`<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px"><a href="${esc(p.form.link_pub)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">${esc(p.form.link_pub)}</a></div></div>`:''}
+        ${p.form?.vig?`<div><div class="sec-lbl">Vigência</div><div style="font-size:13px;font-weight:500">${esc(p.form.vig)}</div></div>`:''}`:''}
     </div>
     <div class="card">
       <div class="card-t">Maturidade — Nível ${e.mat||0}/5: ${ML[e.mat||0]}</div>
