@@ -8407,8 +8407,8 @@ function rPub(){
           <div style="font-size:10.5px;color:var(--ink3)">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div style="display:flex;gap:5px">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px;text-decoration:none">↗ Abrir</a>`:''}
-            <button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})" aria-label="Editar publicação">✎</button>
-            <button type="button" class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarPub(${p.id})" aria-label="Excluir publicação">×</button>
+            ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})" aria-label="Editar publicação">✎</button>
+            <button type="button" class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarPub(${p.id})" aria-label="Excluir publicação">×</button>`:''}
           </div>
         </div>
         </div>
