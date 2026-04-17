@@ -3195,13 +3195,18 @@ const ACOES = {
   acompanha:{titulo:'Acompanhamento da implementação',sub:'Registre todas as reuniões de acompanhamento da implementação.',role:'EP',rk:'ep',
     form:p=>{
       const reunioes=p.reunioes_acomp||[];
-      const listaHtml=reunioes.length?reunioes.map((r,i)=>`
+      const listaHtml=reunioes.length?reunioes.map((r,i)=>{
+        let confBadge;
+        if(r.conformidade==='Conforme'){confBadge='bg';}
+        else if(r.conformidade==='Parcialmente conforme'){confBadge='ba';}
+        else{confBadge='br';}
+        return `
         <div class="card" style="margin-bottom:.5rem;padding:.8rem">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
             <div>
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:.3rem">
                 <strong>${r.data}</strong>
-                <span class="badge ${r.conformidade==='Conforme'?'bg':r.conformidade==='Parcialmente conforme'?'ba':'br'}">${r.conformidade}</span>
+                <span class="badge ${confBadge}">${r.conformidade}</span>
               </div>
               <div style="font-size:12px;color:var(--ink3)">${esc(r.pauta||'—')}</div>
               ${r.participantes?`<div style="font-size:12px;color:var(--ink3);margin-top:.2rem">👥 ${esc(r.participantes)}</div>`:''}
@@ -3214,7 +3219,8 @@ const ACOES = {
               <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirReuniaoAcomp(${i})" aria-label="Remover reunião">✕</button>
             </div>
           </div>
-        </div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma reunião registrada ainda.</div>';
+        </div>`;
+      }).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma reunião registrada ainda.</div>';
       return `<div class="ib ibb">Registre todas as reuniões de acompanhamento da implementação.</div>
         <div style="margin-bottom:1rem">${listaHtml}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Nova reunião de acompanhamento</div>
@@ -5816,6 +5822,13 @@ function rEnt(p){
         <span>Atores distintos: <strong>${nAtores}</strong></span>
       </div>
     </div>`; })():'';
+      const linkPubHtml = p.form?.link_pub
+        ? '<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="'+esc(p.form.link_pub)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(p.form.link_pub)+'</a></div></div>'
+        : '';
+      const vigHtml = p.form?.vig
+        ? '<div><div class="sec-lbl">Vigência</div><div style="font-size:13px;font-weight:500">'+esc(p.form.vig)+'</div></div>'
+        : '';
+      const pubExtra = (linkPubHtml||vigHtml) ? '<hr>'+linkPubHtml+vigHtml : '';
   document.getElementById('tab-ent').innerHTML=`
   ${ilpCard}
   <div class="g2" style="gap:12px;margin-bottom:1rem">
@@ -5825,9 +5838,7 @@ function rEnt(p){
         ${[['Início',e.dt_inicio||'—'],['Prev. entrega',e.dt_prev||'—'],['Entrega efetiva',e.dt_efetiva||'—'],['Produto',p.produto||'—'],['Tempo total',e.t_total||'—'],['Tempo sem fila',e.t_sem_fila||'—']].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
       </div>
       <hr><div class="sec-lbl">Equipe</div><div style="font-size:13px">${e.equipe||'—'}</div>
-      ${p.form?.link_pub||p.form?.vig?`<hr>
-        ${p.form?.link_pub?`<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="${esc(p.form.link_pub)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">${esc(p.form.link_pub)}</a></div></div>`:''}
-        ${p.form?.vig?`<div><div class="sec-lbl">Vigência</div><div style="font-size:13px;font-weight:500">${esc(p.form.vig)}</div></div>`:''}`:''}
+      ${pubExtra}
     </div>
     <div class="card">
       <div class="card-t">Maturidade — Nível ${e.mat||0}/5: ${ML[e.mat||0]}</div>
