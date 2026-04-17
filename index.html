@@ -7614,11 +7614,19 @@ async function importarIndicadores(input){
       const cPeriodo  = col(['período','periodo']) ;
       const cCiclo    = col(['ciclo']);
       const cPPE      = col(['ppe']);
+      const cPol      = col(['polaridade','polarity']);
       const cIndice   = col(['índice','indice','% índice','% indice']);
       const cMeta     = col(['meta']);
       const cReal     = col(['realizado','realiz']);
       const cAnalise  = col(['análise','analise','análisis']);
       const cPctReal  = col(['% realizado','pct realizado']);
+
+      // Build polarity lookup from already-edited entries (manual edits survive re-import)
+      const polEditado = {};
+      kpis.filter(k => k.origem === 'gsheets_editado' || k.origem === 'manual').forEach(k => {
+        const gk = (k.codigo||k.nome||'').trim();
+        if(gk && k.polaridade) polEditado[gk] = k.polaridade;
+      });
 
       let added = 0;
       rows.forEach(row => {
@@ -7635,6 +7643,10 @@ async function importarIndicadores(input){
         const real    = parseNumBR(cReal    ? row[cReal]    : 0);
         const analise = (cAnalise  ? row[cAnalise]  : '').toString().trim();
         const pctReal = parseNumBR(cPctReal ? row[cPctReal] : 0) || (meta > 0 ? Math.round((real/meta)*100) : 0);
+        const groupKey = (nome||enunc||'').trim();
+        const polSheet = cPol ? (row[cPol]||'').toString().trim() : '';
+        const polaridade = polEditado[groupKey]
+          || (polSheet === 'Menor é melhor' ? 'Menor é melhor' : 'Maior é melhor');
 
         if(!area && !nome && !enunc) return; // skip empty rows
 
@@ -7644,7 +7656,7 @@ async function importarIndicadores(input){
           periodicidade: period, periodo, ciclo,
           ppe, indice, meta, realizado: real,
           analise, pct_realizado: pctReal,
-          origem: 'importado',
+          polaridade, origem: 'importado',
         });
         added++;
       });
@@ -8311,10 +8323,17 @@ async function sincronizarGSheets(){
     const cArea=col(['área','area']),cCodigo=col(['indicador','código','codigo','id']),
       cEnunc=col(['enunciado ind','enunciado']),cDesc=col(['descrição ind','descri','description']),
       cPeriod=col(['periodicidade']),cPeriodo=col(['período','periodo']),
-      cCiclo=col(['ciclo']),cPPE=col(['ppe']),
+      cCiclo=col(['ciclo']),cPPE=col(['ppe']),cPol=col(['polaridade','polarity']),
       cIndice=col(['índice','indice','% índice','% indice']),cMeta=col(['meta']),
       cReal=col(['realizado','realiz']),cAnalise=col(['análise','analise','análisis']),
       cPctReal=col(['% realizado','pct realizado']);
+
+    // Build polarity lookup from already-edited entries so re-sync preserves manual changes
+    const polEditadoSync = {};
+    kpis.filter(k => k.origem === 'gsheets_editado' || k.origem === 'manual').forEach(k => {
+      const gk = (k.codigo||k.nome||'').trim();
+      if(gk && k.polaridade) polEditadoSync[gk] = k.polaridade;
+    });
 
     // Remove previously unedited GSheets entries; preserve gsheets_editado (manual edits)
     const oldGSheets = kpis.filter(k => k.origem === 'gsheets');
@@ -8343,9 +8362,13 @@ async function sincronizarGSheets(){
       // Skip rows that the user has already edited manually
       const chave = (nome||enunc||'').trim() + '|' + periodo.trim();
       if(editados.has(chave)) return;
+      const polSheet = cPol ? (row[cPol]||'').toString().trim() : '';
+      const groupKey = (nome||enunc||'').trim();
+      const polaridade = polEditadoSync[groupKey]
+        || (polSheet === 'Menor é melhor' ? 'Menor é melhor' : 'Maior é melhor');
       kpis.push({ id:_kpiIdC++, area, codigo:nome, nome:enunc||nome, desc,
         periodicidade:period, periodo, ciclo, ppe, indice, meta, realizado:real,
-        analise, pct_realizado:pctReal, origem:'gsheets' });
+        analise, pct_realizado:pctReal, polaridade, origem:'gsheets' });
       added++;
     });
 
