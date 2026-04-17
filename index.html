@@ -5826,7 +5826,7 @@ function rEnt(p){
       </div>
       <hr><div class="sec-lbl">Equipe</div><div style="font-size:13px">${e.equipe||'—'}</div>
       ${p.form?.link_pub||p.form?.vig?`<hr>
-        ${p.form?.link_pub?`<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px"><a href="${esc(p.form.link_pub)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">${esc(p.form.link_pub)}</a></div></div>`:''}
+        ${p.form?.link_pub?`<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="${esc(p.form.link_pub)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">${esc(p.form.link_pub)}</a></div></div>`:''}
         ${p.form?.vig?`<div><div class="sec-lbl">Vigência</div><div style="font-size:13px;font-weight:500">${esc(p.form.vig)}</div></div>`:''}`:''}
     </div>
     <div class="card">
