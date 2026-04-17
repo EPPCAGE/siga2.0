@@ -3576,7 +3576,7 @@ function _rsComplement(p){
 function _rsPOP(p){
   p.form=p.form||{};
   const etapas=p.mod?.etapas_proc||[];
-  const ativ_detalhes={...p.form.pop?.ativ_detalhes||{}};
+  const ativ_detalhes={...p.form.pop?.ativ_detalhes};
   etapas.forEach((_,i)=>{
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return;
@@ -4051,7 +4051,7 @@ function salvarPOP(){
   const p=curProc;
   if(!p.form)p.form={pop_ok:false,pop:null,apresent:'',bpmnXml:null};
   const etapas=p.mod?.etapas_proc||[];
-  const ativ_detalhes={...p.form.pop?.ativ_detalhes||{}};
+  const ativ_detalhes={...p.form.pop?.ativ_detalhes};
   etapas.forEach((_,i)=>{
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return; // aba Atividades não renderizada, preserva valor anterior
@@ -5023,7 +5023,7 @@ function visPopPreview(){
     if(el){const key=id.replaceAll('pp-','');prev[key]=el.value;}
   });
   const etapas=p.mod?.etapas_proc||[];
-  const ativ_detalhes={...prev.ativ_detalhes||{}};
+  const ativ_detalhes={...prev.ativ_detalhes};
   etapas.forEach((_,i)=>{
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return;
