@@ -608,7 +608,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="prog-tr" id="det-prog"></div>
   <div class="tabs" id="det-tabs">
     <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('acao',this)">Ação atual</div>
-    <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('ent',this)">Entendimento</div>
+    <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('ent',this)">Visão Geral</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('mod',this)">Modelagem</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('form',this)">Formalização</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('mon',this)">Monitoramento</div>
@@ -5537,7 +5537,11 @@ function _bpmnNodeType(tag, GW_TAGS, TASK_TAGS){
   if(tag==='endevent')      return {tipo:'Evento', subtipo:'Fim',    natureza:null, modo:null, desc:'Evento de fim do processo'};
   if(tag==='intermediatethrowevent'||tag==='intermediatecatchevent')
                             return {tipo:'Evento', subtipo:'Intermediário', natureza:null, modo:null, desc:''};
-  if(GW_TAGS.has(tag))      return {tipo:'Decisao', subtipo:null, natureza:null, modo:null, desc:''};
+  if(tag==='exclusivegateway') return {tipo:'Decisao', subtipo_gateway:'exclusivo', natureza:null, modo:null, desc:''};
+  if(tag==='parallelgateway')  return {tipo:'Decisao', subtipo_gateway:'paralelo',  natureza:null, modo:null, desc:''};
+  if(tag==='inclusivegateway') return {tipo:'Decisao', subtipo_gateway:'inclusivo', natureza:null, modo:null, desc:''};
+  if(tag==='complexgateway')   return {tipo:'Decisao', subtipo_gateway:'complexo',  natureza:null, modo:null, desc:''};
+  if(GW_TAGS.has(tag))         return {tipo:'Decisao', subtipo_gateway:null,        natureza:null, modo:null, desc:''};
   if(TASK_TAGS.has(tag))    return {tipo:'Atividade', subtipo:null,
     natureza: tag==='sendtask'?'Comunicacao':null,
     modo:     tag==='servicetask'||tag==='scripttask'?'Automatica':'Manual', desc:''};
@@ -5637,6 +5641,39 @@ function extrairBpmn(){
 // ABAS SECUNDÁRIAS DO DETALHE
 // ═══════════════════════════════════════════
 const ML=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
+// ── Índice Lean Processual ─────────────────
+// ILP = (E + P + 0.5*(C+D)) / (Total + α*GxorDiv + β*(Atores-1)) * 100
+// α=1: cada exclusive gateway divergente equivale a 1 atividade improdutiva
+// β=0.5: cada ator extra além do primeiro equivale a 0.5
+function calcILP(etapas){
+  if(!etapas||!etapas.length)return null;
+  // Flatten: conta atividades em todos os níveis (etapas raiz + acoes em gateways)
+  function flatAcoes(nodes){
+    const out=[];
+    for(const n of nodes){
+      out.push(n);
+      for(const cam of (n.caminhos||[])){
+        out.push(...flatAcoes(cam.acoes||[]));
+      }
+    }
+    return out;
+  }
+  const all=flatAcoes(etapas);
+  const atividades=all.filter(n=>n.tipo==='Atividade');
+  const total=atividades.length;
+  if(!total)return null;
+  const cnt=nat=>atividades.filter(n=>n.natureza===nat).length;
+  const E=cnt('Execucao'), P=cnt('Preparacao'), C=cnt('Comunicacao'), D=cnt('Distribuicao');
+  // Exclusive diverging gateways: tipo Decisao, subtipo_gateway exclusivo, mais de 1 caminho de saída
+  const gxorDiv=all.filter(n=>n.tipo==='Decisao'&&n.subtipo_gateway==='exclusivo'&&(n.caminhos||[]).length>1).length;
+  // Atores distintos (executores não vazios)
+  const atores=new Set(atividades.map(n=>(n.executor||'').trim()).filter(Boolean));
+  const nAtores=atores.size||1;
+  const numerador=E + P + 0.5*(C+D);
+  const denominador=total + 1*gxorDiv + 0.5*Math.max(0,nAtores-1);
+  const ilp=Math.round((numerador/denominador)*100);
+  return {ilp,total,E,P,C,D,R:cnt('Revisao'),A:cnt('Aprovacao'),gxorDiv,nAtores};
+}
 function rEnt(p){
   const e=p.ent;
   const resp=e.quest_resp||{};
@@ -5654,7 +5691,37 @@ function rEnt(p){
     else{matBg='var(--bg3)';matColor='var(--ink3)';}
     return`<span class="badge" style="margin-right:4px;background:${matBg};color:${matColor}">${n} ${ML[n]}</span>`;
   }).join('');
+  const ilpData=calcILP(p.mod?.etapas_proc||[]);
+  const ilpCard=ilpData?(()=>{
+    const {ilp,total,E,P,C,D,R,A,gxorDiv,nAtores}=ilpData;
+    let ilpBg,ilpColor,ilpLabel;
+    if(ilp>=75){ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';}
+    else if(ilp>=50){ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';}
+    else{ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';}
+    const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
+    const nat=(lbl,cnt,color)=>cnt?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${cnt}</span></div>`:'';
+    return `<div class="card" style="margin-bottom:1rem;border-left:4px solid ${ilpColor}">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:.6rem">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">Índice Lean Processual</div>
+          <div style="font-size:28px;font-weight:800;color:${ilpColor};line-height:1.1">${ilp}<span style="font-size:14px;font-weight:500">/100</span></div>
+          <span style="font-size:11px;font-weight:600;color:${ilpColor};background:${ilpBg};padding:2px 8px;border-radius:20px">${ilpLabel}</span>
+        </div>
+        <div style="flex:1">${bar(Math.min(ilp,100))}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:.5rem">
+        ${nat('Execução',E,'#0d9488')}${nat('Preparação',P,'#6366f1')}
+        ${nat('Comunicação',C,'#f59e0b')}${nat('Distribuição',D,'#8b5cf6')}
+        ${nat('Revisão',R,'#ef4444')}${nat('Aprovação',A,'#f97316')}
+      </div>
+      <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.4rem;display:flex;gap:12px;flex-wrap:wrap">
+        <span>Total atividades: <strong>${total}</strong></span>
+        <span>Gateways exclusivos (XOR÷): <strong>${gxorDiv}</strong></span>
+        <span>Atores distintos: <strong>${nAtores}</strong></span>
+      </div>
+    </div>`; })():'';
   document.getElementById('tab-ent').innerHTML=`
+  ${ilpCard}
   <div class="g2" style="gap:12px;margin-bottom:1rem">
     <div class="card">
       <div class="card-t">Identificação temporal</div>
