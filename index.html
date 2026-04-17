@@ -5092,6 +5092,24 @@ function popAtivCards(p){
 // ETAPAS DO PROCESSO
 // ═══════════════════════════════════════════
 const NATUREZAS=['Execucao','Comunicacao','Distribuicao','Preparacao','Revisao','Aprovacao'];
+const _VERB_NAT={
+  Execucao:['executar','realizar','fazer','elaborar','produzir','preencher','registrar','lançar','lancar','cadastrar','emitir','gerar','processar','calcular','conferir','verificar','analisar','apurar','consolidar','atualizar','ajustar','corrigir','providenciar','preparar','montar','organizar','coletar','compilar','redigir','formalizar','encaminhar'],
+  Distribuicao:['distribuir','encaminhar','remeter','enviar','direcionar','transferir','atribuir','repassar','submeter','protocolar','despachar','alocar','delegar','disponibilizar','entregar','destinar','movimentar','expedir','transmitir','reencaminhar'],
+  Preparacao:['preparar','planejar','organizar','estruturar','agendar','programar','definir','estabelecer','identificar','levantar','mapear','selecionar','separar','reunir','compilar','providenciar','configurar','parametrizar','instruir','iniciar','montar','ajustar','alinhar','dimensionar','prever'],
+  Revisao:['revisar','analisar','examinar','avaliar','verificar','conferir','validar','criticar','inspecionar','auditar','comparar','checar','ratificar','retificar','corrigir','reexaminar','homologar','testar','controlar','monitorar'],
+  Comunicacao:['comunicar','informar','notificar','avisar','orientar','solicitar','responder','esclarecer','reportar','relatar','registrar','divulgar','publicar','consultar','confirmar','alinhar','negociar','convocar','apresentar','cientificar'],
+  Aprovacao:['aprovar','autorizar','validar','homologar','ratificar','deferir','indeferir','deliberar','decidir','confirmar','aceitar','rejeitar','vetar','chancelar','anuir','consentir','formalizar','referendar','admitir','sancionar'],
+};
+function inferNatureza(nome){
+  if(!nome)return'';
+  const verb=nome.trim().split(/\s+/)[0].toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')  // strip accents
+    .replace(/[^a-z]/g,'');
+  for(const nat of NATUREZAS){
+    if(_VERB_NAT[nat]?.includes(verb))return nat;
+  }
+  return'';
+}
 let etapasIdC=100;
 
 function tipoCls(t,sub){
@@ -5129,7 +5147,7 @@ function renderAcaoGw(camPath,ai,ac,depth){
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:.35rem">
       <span class="etapa-tipo ${tipoCls(tipo)}" style="font-size:10px">${tipo}</span>
       <input class="fi" style="flex:1;font-size:12px" placeholder="Nome da ação" value="${(ac.nome||'').replaceAll('"','&quot;')}"
-        oninput="resolveGwPath('${camPath}').acoes[${ai}].nome=this.value">
+        oninput="(function(v){const _a=resolveGwPath('${camPath}').acoes[${ai}];_a.nome=v;if(_a.tipo==='Atividade'&&!_a.natureza){const inf=inferNatureza(v);if(inf){_a.natureza=inf;reRenderGw('${rootId}');}};})(this.value)">
       <button type="button" class="btn" style="font-size:10px;padding:2px 6px;color:var(--red);border-color:var(--red-b)"
         onclick="remAcaoGw('${camPath}',${ai});reRenderGw('${rootId}')">×</button>
     </div>
@@ -5287,8 +5305,8 @@ function renderEtapaDetalheConteudo(e){
   return `<div class="g2" style="margin-top:.6rem">
     <div class="fg"><label class="fl">Nome da etapa</label>
       <input class="fi" value="${(e.nome||'').replaceAll('"','&quot;')}"
-        oninput="curProc.mod.etapas_proc.find(x=>x.id==='${id}').nome=this.value;document.querySelector('#ep-${id} .etapa-nome').textContent=this.value;clearTimeout(globalThis._mmT);globalThis._mmT=setTimeout(atualizarMermaid,600)">
-    </div>
+        oninput="(function(v){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.nome=v;document.querySelector('#ep-${id} .etapa-nome').textContent=v;if(_e.tipo==='Atividade'&&!_e.natureza){const inf=inferNatureza(v);if(inf){_e.natureza=inf;reRenderEtapaDetalhe('${id}');}}clearTimeout(globalThis._mmT);globalThis._mmT=setTimeout(atualizarMermaid,600);})(this.value)"
+      >
     <div class="fg"><label class="fl">Tipo</label>
       <select class="fi" onchange="(function(s){const _e=curProc.mod.etapas_proc.find(x=>x.id==='${id}');_e.tipo=s.value;_e.subtipo_evento=null;const _b=document.querySelector('#ep-${id} .etapa-tipo');_b.className='etapa-tipo '+tipoCls(s.value,null);_b.textContent=s.value;reRenderEtapaDetalhe('${id}')})(this)">
         <option ${e.tipo==='Atividade'?'selected':''}>Atividade</option>
@@ -5521,7 +5539,7 @@ function _bpmnNodeType(tag, GW_TAGS, TASK_TAGS){
                             return {tipo:'Evento', subtipo:'Intermediário', natureza:null, modo:null, desc:''};
   if(GW_TAGS.has(tag))      return {tipo:'Decisao', subtipo:null, natureza:null, modo:null, desc:''};
   if(TASK_TAGS.has(tag))    return {tipo:'Atividade', subtipo:null,
-    natureza: tag==='sendtask'?'Comunicacao':'Execucao',
+    natureza: tag==='sendtask'?'Comunicacao':null,
     modo:     tag==='servicetask'||tag==='scripttask'?'Automatica':'Manual', desc:''};
   return null;
 }
@@ -5600,7 +5618,7 @@ function extrairBpmn(){
       id:'ep'+etapasIdC++, seq:seq++,
       nome:n.nome||nomeFallback,
       tipo:n.tipo, subtipo_evento:n.subtipo||null,
-      natureza:n.natureza, modo:n.modo,
+      natureza:n.natureza||(n.tipo==='Atividade'?inferNatureza(n.nome||''):''), modo:n.modo,
       executor:n.executor, desc:n.desc||'', caminhos:[]
     };
   });
