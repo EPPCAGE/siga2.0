@@ -3194,13 +3194,23 @@ const ACOES = {
       const reunioes=p.reunioes_acomp||[];
       const listaHtml=reunioes.length?reunioes.map((r,i)=>`
         <div class="card" style="margin-bottom:.5rem;padding:.8rem">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <strong>${r.data}</strong>
-            <span class="badge ${r.conformidade==='Conforme'?'bg':'br'}">${r.conformidade}</span>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:.3rem">
+                <strong>${r.data}</strong>
+                <span class="badge ${r.conformidade==='Conforme'?'bg':r.conformidade==='Parcialmente conforme'?'ba':'br'}">${r.conformidade}</span>
+              </div>
+              <div style="font-size:12px;color:var(--ink3)">${esc(r.pauta||'—')}</div>
+              ${r.participantes?`<div style="font-size:12px;color:var(--ink3);margin-top:.2rem">👥 ${esc(r.participantes)}</div>`:''}
+              ${r.desvios?`<div style="font-size:12px;color:var(--red);margin-top:.2rem">⚠ Desvios: ${esc(r.desvios)}</div>`:''}
+              ${r.acoes?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem">→ Ações: ${esc(r.acoes)}</div>`:''}
+              ${r.proxima?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Próxima: ${r.proxima}</div>`:''}
+            </div>
+            <div style="display:flex;gap:4px;flex-shrink:0">
+              <button type="button" class="btn" style="font-size:11px;padding:2px 7px" onclick="editarReuniaoAcomp(${i})">✎ Editar</button>
+              <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirReuniaoAcomp(${i})" aria-label="Remover reunião">✕</button>
+            </div>
           </div>
-          <div style="font-size:12px;color:var(--ink3);margin-top:.3rem">${r.pauta||'—'}</div>
-          ${r.desvios?`<div style="font-size:12px;color:var(--red);margin-top:.2rem">Desvios: ${r.desvios}</div>`:''}
-          ${r.acoes?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem">Ações: ${r.acoes}</div>`:''}
         </div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma reunião registrada ainda.</div>';
       return `<div class="ib ibb">Registre todas as reuniões de acompanhamento da implementação.</div>
         <div style="margin-bottom:1rem">${listaHtml}</div>
@@ -3219,6 +3229,24 @@ const ACOES = {
         <div class="btn-row">
           <button type="button" class="btn" onclick="registrarReuniaoAcomp()">＋ Registrar reunião</button>
           <button type="button" class="btn btn-p" onclick="av('acompanha','EP','Acompanhamento concluído')">Concluir acompanhamento →</button>
+        </div>
+        <div id="ac-edit-panel" style="display:none;margin-top:1rem;padding:1rem;background:var(--bg2);border-radius:var(--r);border:1px solid var(--bdr)">
+          <div style="font-weight:600;font-size:13px;margin-bottom:.8rem">✎ Editando reunião</div>
+          <div class="g2">
+            <div class="fg"><label class="fl">Data da reunião</label><input class="fi" id="ac-edit-data" type="date"></div>
+            <div class="fg"><label class="fl">Conformidade</label>
+              <select class="fi" id="ac-edit-conf"><option>Conforme</option><option>Parcialmente conforme</option><option>Não conforme</option></select>
+            </div>
+          </div>
+          <div class="fg"><label class="fl">Pauta / objetivo da reunião</label><textarea class="fi" id="ac-edit-pauta" style="min-height:60px"></textarea></div>
+          <div class="fg"><label class="fl">Desvios identificados</label><textarea class="fi" id="ac-edit-desv" style="min-height:60px"></textarea></div>
+          <div class="fg"><label class="fl">Ações corretivas</label><textarea class="fi" id="ac-edit-acoes" style="min-height:60px"></textarea></div>
+          <div class="fg"><label class="fl">Participantes</label><input class="fi" id="ac-edit-partic"></div>
+          <div class="fg"><label class="fl">Próxima reunião prevista</label><input class="fi" id="ac-edit-proxima" type="date"></div>
+          <div class="btn-row">
+            <button type="button" class="btn" onclick="cancelarEditReuniaoAcomp()">Cancelar</button>
+            <button type="button" class="btn btn-p" onclick="salvarEditReuniaoAcomp()">✓ Salvar alterações</button>
+          </div>
         </div>`;
     }},
 
@@ -3948,6 +3976,54 @@ async function registrarReuniaoAcomp(){
   await fbSaveAll();
   toast('Reunião registrada!','var(--teal)');
   rDetalhe();
+}
+function editarReuniaoAcomp(idx){
+  const r=(curProc?.reunioes_acomp||[])[idx];
+  if(!r)return;
+  globalThis._acEditIdx=idx;
+  const v=id=>document.getElementById(id);
+  v('ac-edit-data').value=r.data||'';
+  v('ac-edit-conf').value=r.conformidade||'Conforme';
+  v('ac-edit-pauta').value=r.pauta||'';
+  v('ac-edit-desv').value=r.desvios||'';
+  v('ac-edit-acoes').value=r.acoes||'';
+  v('ac-edit-partic').value=r.participantes||'';
+  v('ac-edit-proxima').value=r.proxima||'';
+  v('ac-edit-panel').style.display='block';
+  v('ac-edit-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function salvarEditReuniaoAcomp(){
+  const p=curProc;if(!p)return;
+  const idx=globalThis._acEditIdx;
+  if(idx==null||!p.reunioes_acomp?.[idx])return;
+  const v=id=>document.getElementById(id)?.value||'';
+  p.reunioes_acomp[idx]={
+    ...p.reunioes_acomp[idx],
+    data:v('ac-edit-data'),
+    conformidade:v('ac-edit-conf'),
+    pauta:v('ac-edit-pauta'),
+    desvios:v('ac-edit-desv'),
+    acoes:v('ac-edit-acoes'),
+    participantes:v('ac-edit-partic'),
+    proxima:v('ac-edit-proxima'),
+  };
+  await fbSaveAll();
+  toast('Reunião atualizada!','var(--teal)');
+  globalThis._acEditIdx=null;
+  rDetalhe();
+}
+function cancelarEditReuniaoAcomp(){
+  globalThis._acEditIdx=null;
+  document.getElementById('ac-edit-panel').style.display='none';
+}
+function excluirReuniaoAcomp(idx){
+  confirmar('Excluir esta reunião de acompanhamento?',async()=>{
+    const p=curProc;if(!p?.reunioes_acomp)return;
+    p.reunioes_acomp.splice(idx,1);
+    await fbSaveAll();
+    toast('Reunião excluída.','var(--amber)');
+    rDetalhe();
+  });
 }
 function publicarProcesso(){
   const p=curProc;
