@@ -1196,8 +1196,9 @@ Não responda este e-mail.</pre>
           <input class="fi" id="trilha-niveis-num" type="number" min="1" max="10" value="3" placeholder="3">
         </div>
       </div>
-      <div class="fg"><label class="fl">Processos vinculados</label>
-        <div id="trilha-procs-chk" style="display:flex;flex-direction:column;gap:5px;max-height:140px;overflow-y:auto;padding:8px;border:1px solid var(--bdr);border-radius:var(--r);background:var(--bg2)">
+      <div class="fg">
+        <div class="fl" id="trilha-procs-lbl">Processos vinculados</div>
+        <div id="trilha-procs-chk" role="group" aria-labelledby="trilha-procs-lbl" style="display:flex;flex-direction:column;gap:5px;max-height:140px;overflow-y:auto;padding:8px;border:1px solid var(--bdr);border-radius:var(--r);background:var(--bg2)">
           <span style="font-size:12px;color:var(--ink3)">Selecione o macroprocesso primeiro.</span>
         </div>
       </div>
@@ -1342,8 +1343,8 @@ const QUESTOES = [
   {id:'q3',dim:'Estrutura e padronização',txt:'O processo possui documentação atualizada (POP, fluxo, manual).'},
   {id:'q4',dim:'Estrutura e padronização',txt:'As atividades seguem um padrão definido e comunicado a todos os executores.'},
   {id:'q5',dim:'Estrutura e padronização',txt:'Templates e formulários padronizados são utilizados nas principais atividades.'},
-  {id:'q6',dim:'Papéis e responsabilidades',txt:'Cada atividade tem um responsável claramente designado.'},
-  {id:'q7',dim:'Papéis e responsabilidades',txt:'O executor do processo está identificado e exerce seu papel ativamente.'},
+  {id:'q6',dim:'Papéis e responsabilidades',txt:'Cada atividade ou etapa do processo possui um responsável definido, com atribuições documentadas e conhecidas pela equipe.'},
+  {id:'q7',dim:'Papéis e responsabilidades',txt:'O dono do processo tem autoridade e autonomia reconhecidas para tomar decisões sobre a execução, prioridades e alocação de recursos do processo.'},
   {id:'q8',dim:'Execução e controle',txt:'O processo é executado conforme documentado, sem desvios.'},
   {id:'q9',dim:'Execução e controle',txt:'Pontos de controle (gates) são aplicados ao longo do processo.'},
   {id:'q10',dim:'Execução e controle',txt:'Problemas e não-conformidades são registrados e tratados sistematicamente.'},
@@ -7972,7 +7973,7 @@ function _kpiFormSetFields(k){
   if(procSel){
     procSel.innerHTML = '<option value="">— Nenhum —</option>'
       + processos.map(p => `<option value="${p.id}">${esc(p.macro?' ['+p.macro+'] ':'')}${esc(p.nome)}</option>`).join('');
-    procSel.value = k.pid != null ? String(k.pid) : '';
+    procSel.value = k.pid == null ? '' : String(k.pid);
   }
 }
 function _kpiUpdateNavDisplay(isMulti){
@@ -9954,14 +9955,15 @@ function salvarTrilha(){
   if(editId){
     const idx = TRILHAS.findIndex(t => t.id === Number.parseInt(editId));
     if(idx >= 0){
-      TRILHAS[idx] = Object.assign({}, TRILHAS[idx], {
+      TRILHAS[idx] = {
+        ...TRILHAS[idx],
         nome,
         descricao: document.getElementById('trilha-desc').value.trim(),
         macro_id: macroId,
         proc_ids: procIds,
         niveis,
         atualizado_em: now(),
-      });
+      };
     }
   } else {
     TRILHAS.push({
