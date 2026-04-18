@@ -1069,7 +1069,10 @@ Não responda este e-mail.</pre>
 
 <div id="page-admin" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Usuários</div><div class="ph-s">Cadastro de e-mails, perfis e vínculos com processos</div></div>
-  <button type="button" class="btn btn-p" onclick="abrirModalUsr(null)">+ Novo usuário</button></div>
+  <div style="display:flex;gap:8px">
+    <button type="button" class="btn" onclick="exportarBackupJSON()" title="Baixar backup completo dos dados em JSON">⬇ Backup JSON</button>
+    <button type="button" class="btn btn-p" onclick="abrirModalUsr(null)">+ Novo usuário</button>
+  </div></div>
   <div class="fbar"><span class="fbar-l">Perfil</span>
     <div class="chips" id="usr-chips">
       <button type="button" class="chip on" onclick="filtUsr('',this)">Todos</button>
@@ -8606,6 +8609,40 @@ function simImport(){
 }
 
 // ═══════════════════════════════════════════
+// ── BACKUP JSON ──────────────────────────────────────────────────────────────
+function exportarBackupJSON(){
+  const agora = new Date();
+  const ts = agora.toISOString().replace('T',' ').slice(0,19);
+  const fileTs = agora.toISOString().slice(0,10);
+  const backup = {
+    _meta: {
+      sistema: 'SIGA 2.0 — EP·CAGE',
+      exportado_em: ts,
+      versao: '1',
+    },
+    processos,
+    kpis,
+    plano,
+    plano_metas: PLANO_METAS,
+    publicacoes,
+    trilhas: TRILHAS,
+    avisos: AVISOS,
+    arquitetura: ARQUITETURA,
+    usuarios: USUARIOS,
+    mapeados_manual: [...mapeadosManual],
+    criticos_manual: [...criticosManual],
+  };
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `siga2-backup-${fileTs}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`Backup exportado: siga2-backup-${fileTs}.json`);
+}
+
 // ADMIN USUÁRIOS
 // ═══════════════════════════════════════════
 let filtUsrPerfil = '';
