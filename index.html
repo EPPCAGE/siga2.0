@@ -9257,15 +9257,15 @@ async function gerarStatusReportPPT(){
   // ── Shared helpers ───────────────────────────────────────────────────────────
   function addHeader(sl, titulo){
     sl.addShape(pptx.ShapeType.rect,{x:0,y:0,w:20,h:1.5,fill:{color:TEAL}});
-    sl.addText(titulo,{x:1.2,y:0.18,w:17.5,h:1.14,fontSize:40,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
+    sl.addText(titulo,{x:1.2,y:0.18,w:17.5,h:1.14,fontSize:44,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
     sl.addShape(pptx.ShapeType.rect,{x:0,y:1.5,w:0.14,h:9.75,fill:{color:TEAL}});
   }
   function addFooter(sl, num){
     sl.addShape(pptx.ShapeType.rect,{x:0,y:10.82,w:20,h:0.43,fill:{color:NAVY}});
     sl.addText('EP·CAGE — Escritório de Processos — CAGE/Sefaz-RS',
-      {x:0.4,y:10.84,w:14,h:0.3,fontSize:9,color:WHT,fontFace:'Calibri'});
-    sl.addText(dtFmt,{x:15.5,y:10.84,w:3,h:0.3,fontSize:9,color:WHT,fontFace:'Calibri',align:'right'});
-    sl.addText(String(num),{x:19.2,y:10.84,w:0.6,h:0.3,fontSize:9,color:WHT,fontFace:'Calibri',align:'right'});
+      {x:0.4,y:10.84,w:14,h:0.3,fontSize:11,color:WHT,fontFace:'Calibri'});
+    sl.addText(dtFmt,{x:15.5,y:10.84,w:3,h:0.3,fontSize:11,color:WHT,fontFace:'Calibri',align:'right'});
+    sl.addText(String(num),{x:19.2,y:10.84,w:0.6,h:0.3,fontSize:11,color:WHT,fontFace:'Calibri',align:'right'});
   }
   // Draws a table with teal header; colWidths is an array (must sum to totalW)
   function drawTable(sl, x, y, colWidths, headers, rows, rowH, hdrH, maxRows){
@@ -9273,7 +9273,7 @@ async function gerarStatusReportPPT(){
     headers.forEach((h,i)=>{
       const bx = x + colWidths.slice(0,i).reduce((a,b)=>a+b,0);
       sl.addShape(pptx.ShapeType.rect,{x:bx,y,w:colWidths[i]-0.02,h:hdrH,fill:{color:TEAL}});
-      sl.addText(h,{x:bx+0.08,y,w:colWidths[i]-0.14,h:hdrH,fontSize:9,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
+      sl.addText(h,{x:bx+0.08,y,w:colWidths[i]-0.14,h:hdrH,fontSize:11,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
     });
     rows.slice(0,maxRows).forEach((row,ri)=>{
       const rowBg = ri%2===0 ? WHT : 'F0FAF9';
@@ -9283,13 +9283,13 @@ async function gerarStatusReportPPT(){
         const isFirst = ci===0;
         sl.addShape(pptx.ShapeType.rect,{x:bx,y:ry,w:colWidths[ci]-0.02,h:rowH,fill:{color:rowBg},line:{color:'D1D5DB',width:0.5}});
         sl.addText(String(cell??'—'),{x:bx+0.08,y:ry+0.03,w:colWidths[ci]-0.14,h:rowH-0.06,
-          fontSize:isFirst?9:8.5,bold:isFirst,color:BLK,fontFace:'Calibri',valign:'middle',wrap:true});
+          fontSize:isFirst?11:10,bold:isFirst,color:BLK,fontFace:'Calibri',valign:'middle',wrap:true});
       });
     });
     if(rows.length>maxRows){
       const extraY = y+hdrH+maxRows*rowH;
       sl.addText(`+ ${rows.length-maxRows} não exibido(s)`,
-        {x,y:extraY,w:colWidths.reduce((a,b)=>a+b,0),h:0.3,fontSize:8,color:'888888',fontFace:'Calibri',italic:true});
+        {x,y:extraY,w:colWidths.reduce((a,b)=>a+b,0),h:0.3,fontSize:10,color:'888888',fontFace:'Calibri',italic:true});
     }
   }
 
@@ -9340,17 +9340,17 @@ async function gerarStatusReportPPT(){
       return [p.nome, p.dono||'—', prazoFmt, p.objetivo||'—', fi>0?`${fi} — ${etLb(p.etapa)}`:etLb(p.etapa)];
     });
 
-    const rowH=0.54, hdrH=0.52, maxRows=Math.floor(8.5/rowH);
+    const rowH=0.62, hdrH=0.62, maxRows=Math.floor(7.5/rowH);
     if(!rows.length){
       sl.addText('Nenhum mapeamento em andamento no momento.',
-        {x:0.3,y:4,w:19.4,h:1,fontSize:14,color:'888888',fontFace:'Calibri',align:'center'});
+        {x:0.3,y:4,w:19.4,h:1,fontSize:16,color:'888888',fontFace:'Calibri',align:'center'});
     } else {
       drawTable(sl,0.3,1.65,cws,hds,rows,rowH,hdrH,maxRows);
     }
     // Phase guide footnote
     sl.addShape(pptx.ShapeType.rect,{x:0.3,y:9.9,w:19.4,h:0.72,fill:{color:'F8FAFC'},line:{color:'E2E8F0',width:1}});
     sl.addText('Fases: 1·Abertura  2·Reunião  3·Riscos  4·Questionário  5·Esboço  6·Det.Etapas  7·Análise AS IS  8·Valid.Dono  9·Desenho Final  10·Aprovação  11·POP  12·Complemento  13·Apresentação  14·Publicação  15·Acompanhamento  16·Auditoria',
-      {x:0.45,y:9.92,w:19.1,h:0.64,fontSize:7.5,color:'666666',fontFace:'Calibri',valign:'middle',wrap:true});
+      {x:0.45,y:9.92,w:19.1,h:0.64,fontSize:9,color:'666666',fontFace:'Calibri',valign:'middle',wrap:true});
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -9370,10 +9370,10 @@ async function gerarStatusReportPPT(){
       return [PLANO_CAT_LB[a.categoria]||a.categoria||'—', a.nome, a.responsavel||'—',
         a.prazo||'—', entLb, a.descricao||a.obs||'—'];
     });
-    const rowH=0.55, hdrH=0.52, maxRows=Math.floor(8.9/rowH);
+    const rowH=0.62, hdrH=0.62, maxRows=Math.floor(8.4/rowH);
     if(!rows.length){
       sl.addText('Nenhum trabalho concluído registrado no período.',
-        {x:0.3,y:4,w:19.4,h:1,fontSize:14,color:'888888',fontFace:'Calibri',align:'center'});
+        {x:0.3,y:4,w:19.4,h:1,fontSize:16,color:'888888',fontFace:'Calibri',align:'center'});
     } else {
       drawTable(sl,0.3,1.65,cws,hds,rows,rowH,hdrH,maxRows);
     }
@@ -9405,7 +9405,7 @@ async function gerarStatusReportPPT(){
       sl.addShape(pptx.ShapeType.rect,{x:bx,y:Y1,w:kW,h:kH,fill:{color:'F8FAFC'},line:{color:k.cor,width:2.5}});
       sl.addShape(pptx.ShapeType.rect,{x:bx,y:Y1,w:0.14,h:kH,fill:{color:k.cor}});
       sl.addText(k.val,{x:bx+0.26,y:Y1+0.08,w:kW-0.32,h:0.62,fontSize:30,bold:true,color:k.cor,fontFace:'Calibri'});
-      sl.addText(k.lb,{x:bx+0.26,y:Y1+0.74,w:kW-0.32,h:0.3,fontSize:9.5,color:'6B7280',fontFace:'Calibri'});
+      sl.addText(k.lb,{x:bx+0.26,y:Y1+0.74,w:kW-0.32,h:0.3,fontSize:11,color:'6B7280',fontFace:'Calibri'});
     });
 
     // ── Row 2: three panels side-by-side ────────────────────────────────────
@@ -9415,7 +9415,7 @@ async function gerarStatusReportPPT(){
     const pAw=6.3;
     sl.addShape(pptx.ShapeType.rect,{x:0.25,y:Y2,w:pAw,h:pH,fill:{color:'F8FAFC'},line:{color:'E2E8F0',width:1}});
     sl.addShape(pptx.ShapeType.rect,{x:0.25,y:Y2,w:pAw,h:0.42,fill:{color:TEAL}});
-    sl.addText(`${trimAtual} — Status das atividades`,{x:0.38,y:Y2+0.02,w:pAw-0.2,h:0.38,fontSize:10,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
+    sl.addText(`${trimAtual} — Status das atividades`,{x:0.38,y:Y2+0.02,w:pAw-0.2,h:0.38,fontSize:12,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
     const barItems=[
       {lb:'Concluídas',val:triConcl,cor:CINZ},
       {lb:'Em execução',val:triExec, cor:VERDE},
@@ -9427,37 +9427,37 @@ async function gerarStatusReportPPT(){
     barItems.forEach((r,i)=>{
       const bY=Y2+0.62+i*0.74;
       const bW=Math.max(0.08,(r.val/maxB)*barAreaW);
-      sl.addText(r.lb,{x:0.38,y:bY,w:1.9,h:0.36,fontSize:9,color:'374151',fontFace:'Calibri',valign:'middle'});
+      sl.addText(r.lb,{x:0.38,y:bY,w:1.9,h:0.36,fontSize:11,color:'374151',fontFace:'Calibri',valign:'middle'});
       sl.addShape(pptx.ShapeType.rect,{x:2.35,y:bY+0.06,w:bW,h:0.24,fill:{color:r.cor}});
-      sl.addText(String(r.val),{x:2.35+bW+0.1,y:bY,w:0.65,h:0.36,fontSize:10,bold:true,color:r.cor,fontFace:'Calibri',valign:'middle'});
+      sl.addText(String(r.val),{x:2.35+bW+0.1,y:bY,w:0.65,h:0.36,fontSize:12,bold:true,color:r.cor,fontFace:'Calibri',valign:'middle'});
       if(triTotal>0) sl.addText(`(${Math.round(r.val/triTotal*100)}%)`,
-        {x:3.1+bW,y:bY,w:0.8,h:0.36,fontSize:8,color:'9CA3AF',fontFace:'Calibri',valign:'middle'});
+        {x:3.1+bW,y:bY,w:0.8,h:0.36,fontSize:10,color:'9CA3AF',fontFace:'Calibri',valign:'middle'});
     });
     // Previsto vs realizado mini-bar
     const pvY=Y2+3.58;
     sl.addShape(pptx.ShapeType.rect,{x:0.38,y:pvY,w:pAw-0.26,h:0.44,fill:{color:'EEF2FF'},line:{color:'C7D2FE',width:1}});
     const pctTri=triPrev>0?Math.round(triReal/triPrev*100):null;
     sl.addText(`Previsto: ${triPrev}  ·  Realizado: ${triReal}  ·  ${pctTri!==null?pctTri+'% concluído':'—'}`,
-      {x:0.48,y:pvY+0.04,w:pAw-0.38,h:0.36,fontSize:9,bold:true,color:AZUL,fontFace:'Calibri',valign:'middle'});
+      {x:0.48,y:pvY+0.04,w:pAw-0.38,h:0.36,fontSize:11,bold:true,color:AZUL,fontFace:'Calibri',valign:'middle'});
 
     // Panel B — Conclusão anual + Pontualidade (6.3w)
     const pBx=0.25+pAw+0.22, pBw=6.3;
     sl.addShape(pptx.ShapeType.rect,{x:pBx,y:Y2,w:pBw,h:pH,fill:{color:'F8FAFC'},line:{color:'E2E8F0',width:1}});
     sl.addShape(pptx.ShapeType.rect,{x:pBx,y:Y2,w:pBw,h:0.42,fill:{color:TEAL}});
-    sl.addText(`Conclusão ${ano} e Pontualidade`,{x:pBx+0.12,y:Y2+0.02,w:pBw-0.2,h:0.38,fontSize:10,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
+    sl.addText(`Conclusão ${ano} e Pontualidade`,{x:pBx+0.12,y:Y2+0.02,w:pBw-0.2,h:0.38,fontSize:12,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
     // Annual progress
     const corA=pctAnual>=75?VERDE:pctAnual>=40?AMAR:VERM;
-    sl.addText(`Conclusão anual: ${pctAnual}%`,{x:pBx+0.22,y:Y2+0.56,w:pBw-0.4,h:0.32,fontSize:10,bold:true,color:corA,fontFace:'Calibri'});
+    sl.addText(`Conclusão anual: ${pctAnual}%`,{x:pBx+0.22,y:Y2+0.56,w:pBw-0.4,h:0.32,fontSize:12,bold:true,color:corA,fontFace:'Calibri'});
     sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+0.94,w:pBw-0.4,h:0.28,fill:{color:'E5E7EB'}});
     sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+0.94,w:Math.max(0.04,(pBw-0.4)*pctAnual/100),h:0.28,fill:{color:corA}});
-    sl.addText(`${concl}/${total} atividades concluídas`,{x:pBx+0.22,y:Y2+1.3,w:pBw-0.4,h:0.26,fontSize:9,color:'6B7280',fontFace:'Calibri'});
+    sl.addText(`${concl}/${total} atividades concluídas`,{x:pBx+0.22,y:Y2+1.3,w:pBw-0.4,h:0.26,fontSize:11,color:'6B7280',fontFace:'Calibri'});
     // Pontualidade
     if(pctPont!==null){
       const corP=pctPont>=80?VERDE:pctPont>=50?AMAR:VERM;
-      sl.addText(`Pontualidade: ${pctPont}%`,{x:pBx+0.22,y:Y2+1.68,w:pBw-0.4,h:0.32,fontSize:10,bold:true,color:corP,fontFace:'Calibri'});
+      sl.addText(`Pontualidade: ${pctPont}%`,{x:pBx+0.22,y:Y2+1.68,w:pBw-0.4,h:0.32,fontSize:12,bold:true,color:corP,fontFace:'Calibri'});
       sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+2.06,w:pBw-0.4,h:0.28,fill:{color:'E5E7EB'}});
       sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+2.06,w:Math.max(0.04,(pBw-0.4)*pctPont/100),h:0.28,fill:{color:corP}});
-      sl.addText(`✅ Em dia: ${emDia}   ⚠ Com atraso: ${comAtraso}`,{x:pBx+0.22,y:Y2+2.42,w:pBw-0.4,h:0.26,fontSize:9,color:'6B7280',fontFace:'Calibri'});
+      sl.addText(`✅ Em dia: ${emDia}   ⚠ Com atraso: ${comAtraso}`,{x:pBx+0.22,y:Y2+2.42,w:pBw-0.4,h:0.26,fontSize:11,color:'6B7280',fontFace:'Calibri'});
     }
     // Status mini-cards
     const stY=Y2+2.95;
@@ -9465,28 +9465,28 @@ async function gerarStatusReportPPT(){
      {lb:'Em atraso',val:emAtraso,cor:VERM},{lb:'Concluídas',val:concl,cor:CINZ}].forEach((s,i)=>{
       const sw=(pBw-0.4)/4-0.08, bsx=pBx+0.22+i*(sw+0.08);
       sl.addShape(pptx.ShapeType.rect,{x:bsx,y:stY,w:sw,h:0.95,fill:{color:WHT},line:{color:s.cor,width:1.5}});
-      sl.addText(String(s.val),{x:bsx,y:stY+0.04,w:sw,h:0.52,fontSize:22,bold:true,color:s.cor,fontFace:'Calibri',align:'center'});
-      sl.addText(s.lb,{x:bsx,y:stY+0.58,w:sw,h:0.28,fontSize:7.5,color:'6B7280',fontFace:'Calibri',align:'center'});
+      sl.addText(String(s.val),{x:bsx,y:stY+0.04,w:sw,h:0.52,fontSize:24,bold:true,color:s.cor,fontFace:'Calibri',align:'center'});
+      sl.addText(s.lb,{x:bsx,y:stY+0.58,w:sw,h:0.28,fontSize:9,color:'6B7280',fontFace:'Calibri',align:'center'});
     });
 
     // Panel C — Cobertura por macroprocesso (right, fill remaining width)
     const pCx=pBx+pBw+0.22, pCw=19.75-pCx;
     sl.addShape(pptx.ShapeType.rect,{x:pCx,y:Y2,w:pCw,h:pH,fill:{color:'F8FAFC'},line:{color:'E2E8F0',width:1}});
     sl.addShape(pptx.ShapeType.rect,{x:pCx,y:Y2,w:pCw,h:0.42,fill:{color:TEAL}});
-    sl.addText('Cobertura por Macroprocesso',{x:pCx+0.12,y:Y2+0.02,w:pCw-0.2,h:0.38,fontSize:10,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
+    sl.addText('Cobertura por Macroprocesso',{x:pCx+0.12,y:Y2+0.02,w:pCw-0.2,h:0.38,fontSize:12,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
     const barCw=pCw-2.5;
     cobMacro.slice(0,7).forEach((m,i)=>{
       const bY=Y2+0.58+i*0.50;
       const bW=Math.max(0.04,(m.pct/100)*barCw);
       const cor2=m.pct>=70?VERDE:m.pct>=40?AMAR:VERM;
       const nT=m.nome.length>24?m.nome.slice(0,22)+'…':m.nome;
-      sl.addText(nT,{x:pCx+0.15,y:bY,w:2.1,h:0.28,fontSize:7.5,color:'374151',fontFace:'Calibri',valign:'middle'});
+      sl.addText(nT,{x:pCx+0.15,y:bY,w:2.1,h:0.28,fontSize:9,color:'374151',fontFace:'Calibri',valign:'middle'});
       sl.addShape(pptx.ShapeType.rect,{x:pCx+2.32,y:bY+0.04,w:bW,h:0.18,fill:{color:cor2}});
-      sl.addText(`${m.pct}%`,{x:pCx+2.35+bW,y:bY,w:0.65,h:0.28,fontSize:8.5,bold:true,color:cor2,fontFace:'Calibri',valign:'middle'});
+      sl.addText(`${m.pct}%`,{x:pCx+2.35+bW,y:bY,w:0.65,h:0.28,fontSize:10,bold:true,color:cor2,fontFace:'Calibri',valign:'middle'});
     });
     sl.addShape(pptx.ShapeType.rect,{x:pCx+0.15,y:Y2+3.72,w:pCw-0.3,h:0.3,fill:{color:'EFF6FF'}});
     sl.addText(`Total: ${mx.nMap}/${mx.nUnid} mapeados (${pctCob}%)`,
-      {x:pCx+0.25,y:Y2+3.72,w:pCw-0.4,h:0.3,fontSize:9,bold:true,color:AZUL,fontFace:'Calibri',valign:'middle'});
+      {x:pCx+0.25,y:Y2+3.72,w:pCw-0.4,h:0.3,fontSize:11,bold:true,color:AZUL,fontFace:'Calibri',valign:'middle'});
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -9508,10 +9508,10 @@ async function gerarStatusReportPPT(){
       a.responsavel||'—',
       PLANO_CAT_LB[a.categoria]||a.categoria||'—',
     ]);
-    const rowH=0.50, hdrH=0.52, maxRows=Math.floor(9.0/rowH);
+    const rowH=0.58, hdrH=0.60, maxRows=Math.floor(8.5/rowH);
     if(!rows.length){
       sl.addText('Nenhum trabalho planejado no momento.',
-        {x:0.3,y:4,w:19.4,h:1,fontSize:14,color:'888888',fontFace:'Calibri',align:'center'});
+        {x:0.3,y:4,w:19.4,h:1,fontSize:16,color:'888888',fontFace:'Calibri',align:'center'});
     } else {
       drawTable(sl,0.3,1.65,cws,hds,rows,rowH,hdrH,maxRows);
     }
