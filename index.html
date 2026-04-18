@@ -8898,12 +8898,12 @@ async function fbSave(col, id, data){
 // PLANO ANUAL DE TRABALHO (PAT)
 // ═══════════════════════════════════════════
 const PLANO_STATUS_CFG = {
-  planejado:            {lb:'Planejado',           cor:'#6b7280', bg:'rgba(107,114,128,.1)'},
-  em_execucao:          {lb:'Em execução',         cor:'#3b82f6', bg:'rgba(59,130,246,.1)'},
-  em_atraso:            {lb:'Em atraso',            cor:'#ef4444', bg:'rgba(239,68,68,.1)'},
-  concluida:            {lb:'Concluída',           cor:'#16a34a', bg:'rgba(22,163,74,.1)'},
-  concluida_em_dia:     {lb:'Concluída em dia',    cor:'#16a34a', bg:'rgba(22,163,74,.1)'},
-  concluida_com_atraso: {lb:'Concluída com atraso',cor:'#d97706', bg:'rgba(217,119,6,.1)'},
+  planejado:            {lb:'Planejado',            cor:'#3b82f6', bg:'rgba(59,130,246,.1)'},
+  em_execucao:          {lb:'Em execução',          cor:'#16a34a', bg:'rgba(22,163,74,.1)'},
+  em_atraso:            {lb:'Em atraso',             cor:'#ef4444', bg:'rgba(239,68,68,.1)'},
+  concluida:            {lb:'Concluída',             cor:'#6b7280', bg:'rgba(107,114,128,.1)'},
+  concluida_em_dia:     {lb:'Concluída em dia',     cor:'#6b7280', bg:'rgba(107,114,128,.1)'},
+  concluida_com_atraso: {lb:'Concluída com atraso', cor:'#111827', bg:'rgba(17,24,39,.08)'},
 };
 // Returns the visual status key combining effective status + entrega_status
 function planoVisualKey(at, st){
