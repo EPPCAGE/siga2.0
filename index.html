@@ -819,6 +819,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <select class="fi" id="plano-ano-sel" onchange="rPlano()" style="width:90px"></select>
+      <button type="button" class="btn btn-a ep-only" onclick="gerarStatusReportPPT()" title="Gerar Status Report mensal em .pptx">📊 Status Report</button>
       <button type="button" class="btn btn-p" onclick="abrirPlanoModal(null)">+ Nova atividade</button>
     </div>
   </div>
@@ -9177,6 +9178,324 @@ function planoCardHTML(at){
 
 function fecharPlanoModal(){
   document.getElementById('plano-modal').style.display='none';
+}
+
+// ── STATUS REPORT MENSAL — geração automática de .pptx ───────────────────────
+async function gerarStatusReportPPT(){
+  if(!isEP()){ toast('Restrito ao EP.','var(--amber)'); return; }
+  if(typeof PptxGenJS === 'undefined'){ toast('PptxGenJS não carregada.','var(--red)'); return; }
+
+  const ano     = planoAno();
+  const doAno   = plano.filter(a => a.ano === ano);
+  const mes     = new Date().getMonth();
+  let trimAtual;
+  if(mes<3) trimAtual='T1'; else if(mes<6) trimAtual='T2';
+  else if(mes<9) trimAtual='T3'; else trimAtual='T4';
+
+  const dtHoje  = new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const dtFmt   = new Date().toLocaleDateString('pt-BR');
+
+  // ── Métricas gerais do PAT ────────────────────────────────────────────────
+  const total    = doAno.length;
+  const concl    = doAno.filter(a => planoStatusEfetivo(a)==='concluida').length;
+  const emExec   = doAno.filter(a => planoStatusEfetivo(a)==='em_execucao').length;
+  const emAtraso = doAno.filter(a => planoStatusEfetivo(a)==='em_atraso').length;
+  const planej   = doAno.filter(a => planoStatusEfetivo(a)==='planejado').length;
+  const pctAnual = total ? Math.round(concl/total*100) : 0;
+  const conclComStatus = doAno.filter(a => planoStatusEfetivo(a)==='concluida' && a.entrega_status);
+  const emDia    = conclComStatus.filter(a => a.entrega_status==='em_dia').length;
+  const comAtraso= conclComStatus.filter(a => a.entrega_status==='com_atraso').length;
+  const pctPont  = conclComStatus.length ? Math.round(emDia/conclComStatus.length*100) : null;
+
+  // ── Métricas do trimestre atual ──────────────────────────────────────────
+  const doTri    = doAno.filter(a => a.trimestre===trimAtual);
+  const triConcl = doTri.filter(a => planoStatusEfetivo(a)==='concluida').length;
+  const triExec  = doTri.filter(a => planoStatusEfetivo(a)==='em_execucao').length;
+  const triAtras = doTri.filter(a => planoStatusEfetivo(a)==='em_atraso').length;
+  const triPlanj = doTri.filter(a => planoStatusEfetivo(a)==='planejado').length;
+  const triTotal = doTri.length;
+  const triPrevisto  = doTri.reduce((s,a) => s+(a.qt_prevista||0), 0);
+  const triRealizado = doTri.reduce((s,a) => s+(a.qt_realizada||0), 0);
+
+  // ── Cobertura de mapeamento ──────────────────────────────────────────────
+  const mx = getMetricasArq();  // {nMacros, nProc, nSub, nUnid, nMap}
+  const pctCob = mx.nUnid ? Math.round(mx.nMap/mx.nUnid*100) : 0;
+  // por macroprocesso
+  const cobMacro = ARQUITETURA.map(m => {
+    let nUnid=0, nMap=0;
+    m.processos.forEach(p => {
+      if(p.subprocessos && p.subprocessos.length){
+        p.subprocessos.forEach(s => { nUnid++; if(isMapeado(s.id)) nMap++; });
+      } else { nUnid++; if(isMapeado(p.id)) nMap++; }
+    });
+    return { nome: m.nome, nUnid, nMap, pct: nUnid ? Math.round(nMap/nUnid*100) : 0 };
+  }).sort((a,b) => b.pct - a.pct);
+
+  // ── Atividades em andamento e planejadas ─────────────────────────────────
+  const emAndamento = doAno.filter(a => {
+    const st = planoStatusEfetivo(a);
+    return st==='em_execucao' || st==='em_atraso' || st==='quase_vencendo';
+  }).sort((a,b) => {
+    const ord = {em_atraso:0, quase_vencendo:1, em_execucao:2};
+    return (ord[planoStatusEfetivo(a)]??3) - (ord[planoStatusEfetivo(b)]??3);
+  });
+  const proxTrabalhos = doAno.filter(a => planoStatusEfetivo(a)==='planejado');
+
+  // ── Cores padrão ────────────────────────────────────────────────────────
+  const C1='1E3A5F', C2='2E7D8F', CW='FFFFFF', CG='2E2E2E';
+  const VERDE='16a34a', AZUL='3b82f6', VERM='ef4444', AMAR='d97706', CINZ='6b7280';
+
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_WIDE';
+  pptx.author = 'EP·CAGE';
+  pptx.company = 'CAGE/Sefaz-RS';
+  pptx.subject = `Status Report EP·CAGE — ${dtHoje}`;
+
+  function addFooter(sl, num){
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:6.87,w:'100%',h:0.28,fill:{color:'D8E5EF'}});
+    sl.addText('EP·CAGE — Escritório de Processos — CAGE/Sefaz-RS', {x:0.28,y:6.89,w:10,h:0.22,fontSize:7.5,color:'7A8FA0',fontFace:'Calibri'});
+    sl.addText(String(num), {x:12.45,y:6.89,w:0.5,h:0.22,fontSize:7.5,color:'7A8FA0',fontFace:'Calibri',align:'right'});
+  }
+  function addHeader(sl, titulo, subtit){
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:0,w:'100%',h:1.0,fill:{color:C1}});
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:1.0,w:'100%',h:0.04,fill:{color:C2}});
+    sl.addText(titulo, {x:0.45,y:0.12,w:11.3,h:0.52,fontSize:18,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
+    if(subtit) sl.addText(subtit, {x:0.45,y:0.62,w:11.3,h:0.3,fontSize:10,color:'9ab8cc',fontFace:'Calibri'});
+  }
+  function stColor(st){
+    if(st==='em_atraso')      return VERM;
+    if(st==='em_execucao')    return VERDE;
+    if(st==='quase_vencendo') return AMAR;
+    if(st==='concluida')      return CINZ;
+    return AZUL;
+  }
+  function stLabel(st){
+    return PLANO_STATUS_CFG[st]?.lb || st;
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SLIDE 1 — CAPA
+  // ════════════════════════════════════════════════════════════════
+  {
+    const sl = pptx.addSlide();
+    sl.background = {color:C1};
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:3.2,w:'100%',h:0.06,fill:{color:C2}});
+    sl.addShape(pptx.ShapeType.rect, {x:0,y:6.6,w:'100%',h:0.9,fill:{color:'152C47'}});
+    sl.addText('EP·CAGE · Escritório de Processos', {x:0.8,y:0.7,w:11,h:0.38,fontSize:11,color:'7AAFC8',fontFace:'Calibri',italic:true});
+    sl.addText('Status Report', {x:0.8,y:1.1,w:11.7,h:1.1,fontSize:40,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
+    sl.addText('CAGE / Sefaz-RS', {x:0.8,y:2.2,w:11.5,h:0.4,fontSize:15,color:'A8C4D4',fontFace:'Calibri'});
+    const mesStr = new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    sl.addText(mesStr.charAt(0).toUpperCase()+mesStr.slice(1), {x:0.8,y:3.38,w:11.5,h:0.42,fontSize:16,color:'7AAFC8',fontFace:'Calibri',bold:true});
+    sl.addText('Plano Anual de Trabalho '+ano+' · Mapeamento de Processos', {x:0.8,y:3.88,w:11.5,h:0.3,fontSize:10.5,color:'6A8FA8',fontFace:'Calibri'});
+    sl.addText('Produzido automaticamente pelo sistema SIGA 2.0', {x:0,y:6.65,w:'100%',h:0.3,fontSize:9.5,color:'5A7A95',align:'center',fontFace:'Calibri'});
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SLIDE 2 — TRABALHOS EM ANDAMENTO
+  // ════════════════════════════════════════════════════════════════
+  {
+    const sl = pptx.addSlide();
+    sl.background = {color:'F8FAFC'};
+    addHeader(sl, 'Trabalhos em Andamento', `${emAndamento.length} atividade${emAndamento.length===1?'':'s'} em execução, atraso ou próximas do vencimento — ${dtFmt}`);
+    addFooter(sl, 2);
+
+    if(!emAndamento.length){
+      sl.addText('Nenhuma atividade em andamento no momento.', {x:1,y:3,w:11.5,h:1,fontSize:14,color:'888888',fontFace:'Calibri',align:'center'});
+    } else {
+      // Cabeçalho da tabela
+      const cols = [{w:5.2,label:'Atividade'},{w:2.0,label:'Trimestre'},{w:2.0,label:'Prazo'},{w:2.4,label:'Status'}];
+      let cx = 0.28;
+      const HEADER_BG = C1;
+      cols.forEach(c => {
+        sl.addShape(pptx.ShapeType.rect, {x:cx,y:1.12,w:c.w,h:0.34,fill:{color:HEADER_BG}});
+        sl.addText(c.label, {x:cx+0.08,y:1.12,w:c.w-0.1,h:0.34,fontSize:9,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
+        cx += c.w + 0.04;
+      });
+
+      const maxRows = 10;
+      emAndamento.slice(0, maxRows).forEach((a, i) => {
+        const st   = planoStatusEfetivo(a);
+        const vk   = planoVisualKey(a, st);
+        const cor  = stColor(vk);
+        const by   = 1.50 + i * 0.52;
+        const rowBg = i%2===0 ? 'FFFFFF' : 'F1F5F9';
+        let cx2 = 0.28;
+        const vals = [
+          a.nome + (a.descricao ? '\n'+a.descricao : ''),
+          a.trimestre||'—',
+          a.prazo||'—',
+          stLabel(vk),
+        ];
+        const wids = [5.2, 2.0, 2.0, 2.4];
+        vals.forEach((v, vi) => {
+          sl.addShape(pptx.ShapeType.rect, {x:cx2,y:by,w:wids[vi],h:0.48,fill:{color:vi===3?cor+'22':rowBg},line:{color:'E2E8F0',width:0.5}});
+          sl.addText(v, {
+            x:cx2+0.08, y:by+0.02, w:wids[vi]-0.12, h:0.44,
+            fontSize: vi===0 ? 8.5 : 9,
+            bold: vi===3,
+            color: vi===3 ? cor : CG,
+            fontFace:'Calibri', valign:'middle', wrap:true,
+          });
+          cx2 += wids[vi] + 0.04;
+        });
+      });
+      if(emAndamento.length > maxRows){
+        sl.addText(`+ ${emAndamento.length-maxRows} atividade${emAndamento.length-maxRows===1?'':'s'} não exibida${emAndamento.length-maxRows===1?'':'s'}`,
+          {x:0.28,y:1.50+maxRows*0.52,w:12,h:0.28,fontSize:8.5,color:'888888',fontFace:'Calibri',italic:true});
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SLIDE 3 — DASHBOARD
+  // ════════════════════════════════════════════════════════════════
+  {
+    const sl = pptx.addSlide();
+    sl.background = {color:'F8FAFC'};
+    addHeader(sl, 'Dashboard — PAT '+ano+' / '+trimAtual, 'Visão executiva de indicadores, cobertura e andamento — '+dtFmt);
+    addFooter(sl, 3);
+
+    // ── Linha 1: 5 KPI cards ────────────────────────────────────────
+    const kpis = [
+      {lb:'Conclusão Anual PAT',  val: pctAnual+'%',      cor: pctAnual>=75?VERDE:pctAnual>=40?AMAR:VERM},
+      {lb:'Pontualidade Entregas',val: pctPont===null?'N/D':pctPont+'%', cor: pctPont===null?CINZ:pctPont>=80?VERDE:pctPont>=50?AMAR:VERM},
+      {lb:'Em Execução',          val: String(emExec),    cor: VERDE},
+      {lb:'Em Atraso',            val: String(emAtraso),  cor: VERM},
+      {lb:'Cobertura Mapeamento', val: pctCob+'%',        cor: pctCob>=70?VERDE:pctCob>=40?AMAR:VERM},
+    ];
+    const kpiW = 2.44, kpiH = 0.82;
+    kpis.forEach((k, i) => {
+      const bx = 0.28 + i*(kpiW+0.07);
+      sl.addShape(pptx.ShapeType.roundRect, {x:bx,y:1.14,w:kpiW,h:kpiH,fill:{color:'FFFFFF'},line:{color:k.cor,width:2},rectRadius:0.06});
+      sl.addText(k.val, {x:bx+0.1,y:1.18,w:kpiW-0.2,h:0.44,fontSize:22,bold:true,color:k.cor,fontFace:'Calibri',valign:'middle'});
+      sl.addText(k.lb, {x:bx+0.1,y:1.62,w:kpiW-0.2,h:0.28,fontSize:8.5,color:'6B7280',fontFace:'Calibri'});
+    });
+
+    // ── Linha 2a: Rosca trimestre (simulada com barras) ─────────────
+    const rosqBx = 0.28, rosqBy = 2.10;
+    sl.addShape(pptx.ShapeType.rect, {x:rosqBx,y:rosqBy,w:4.6,h:2.85,fill:{color:'FFFFFF'},line:{color:'E2E8F0',width:1}});
+    sl.addText(`${trimAtual} — Composição de Status`, {x:rosqBx+0.15,y:rosqBy+0.1,w:4.3,h:0.28,fontSize:9.5,bold:true,color:C1,fontFace:'Calibri'});
+    const rosqItens = [
+      {lb:'Concluídas', val:triConcl, cor:CINZ},
+      {lb:'Em execução',val:triExec,  cor:VERDE},
+      {lb:'Em atraso',  val:triAtras, cor:VERM},
+      {lb:'Planejadas', val:triPlanj, cor:AZUL},
+    ].filter(r => r.val > 0);
+    rosqItens.forEach((r, i) => {
+      const barW = triTotal > 0 ? Math.max(0.15, (r.val/triTotal)*3.8) : 0;
+      const by2  = rosqBy+0.5 + i*0.54;
+      sl.addText(r.lb, {x:rosqBx+0.15,y:by2,w:1.4,h:0.28,fontSize:9,color:'4B5563',fontFace:'Calibri',valign:'middle'});
+      sl.addShape(pptx.ShapeType.rect, {x:rosqBx+1.6,y:by2+0.04,w:barW,h:0.2,fill:{color:r.cor},line:{color:r.cor}});
+      sl.addText(String(r.val), {x:rosqBx+1.6+barW+0.08,y:by2,w:0.4,h:0.28,fontSize:9,bold:true,color:r.cor,fontFace:'Calibri',valign:'middle'});
+    });
+
+    // ── Linha 2b: Previsto vs Realizado ────────────────────────────
+    const pvBx = 5.10, pvBy = 2.10;
+    sl.addShape(pptx.ShapeType.rect, {x:pvBx,y:pvBy,w:3.5,h:2.85,fill:{color:'FFFFFF'},line:{color:'E2E8F0',width:1}});
+    sl.addText('Previsto vs Realizado — '+trimAtual, {x:pvBx+0.15,y:pvBy+0.1,w:3.2,h:0.28,fontSize:9.5,bold:true,color:C1,fontFace:'Calibri'});
+    const pvMax = Math.max(triPrevisto, triRealizado, 1);
+    [{lb:'Previsto',val:triPrevisto,cor:AZUL},{lb:'Realizado',val:triRealizado,cor:VERDE}].forEach((r,i)=>{
+      const bW = Math.max(0.15, (r.val/pvMax)*2.9);
+      const by2 = pvBy+0.56+i*0.7;
+      sl.addText(r.lb, {x:pvBx+0.15,y:by2,w:1.1,h:0.26,fontSize:9,color:'4B5563',fontFace:'Calibri'});
+      sl.addShape(pptx.ShapeType.rect, {x:pvBx+0.15,y:by2+0.3,w:bW,h:0.28,fill:{color:r.cor},line:{color:r.cor}});
+      sl.addText(String(r.val), {x:pvBx+0.15+bW+0.08,y:by2+0.3,w:0.5,h:0.28,fontSize:10,bold:true,color:r.cor,fontFace:'Calibri',valign:'middle'});
+    });
+    const pctTri = triPrevisto>0 ? Math.round(triRealizado/triPrevisto*100) : null;
+    if(pctTri!==null) sl.addText(pctTri+'% de execução', {x:pvBx+0.15,y:pvBy+2.42,w:3.2,h:0.28,fontSize:9,color:pctTri>=100?VERDE:pctTri>=70?AMAR:VERM,fontFace:'Calibri',bold:true});
+
+    // ── Linha 2c: Cobertura por macroprocesso ─────────────────────
+    const cpBx = 8.80, cpBy = 2.10;
+    const cpW  = 4.60;
+    sl.addShape(pptx.ShapeType.rect, {x:cpBx,y:cpBy,w:cpW,h:2.85,fill:{color:'FFFFFF'},line:{color:'E2E8F0',width:1}});
+    sl.addText('Cobertura por Macroprocesso', {x:cpBx+0.15,y:cpBy+0.1,w:cpW-0.3,h:0.28,fontSize:9.5,bold:true,color:C1,fontFace:'Calibri'});
+    cobMacro.slice(0,5).forEach((m,i)=>{
+      const by2 = cpBy+0.5+i*0.46;
+      const barW = Math.max(0.1, (m.pct/100)*2.9);
+      const nomeTrunc = m.nome.length>28 ? m.nome.slice(0,26)+'…' : m.nome;
+      const cor2 = m.pct>=70?VERDE:m.pct>=40?AMAR:VERM;
+      sl.addText(nomeTrunc, {x:cpBx+0.15,y:by2,w:2.2,h:0.22,fontSize:7.5,color:'4B5563',fontFace:'Calibri',valign:'middle'});
+      sl.addShape(pptx.ShapeType.rect, {x:cpBx+2.42,y:by2+0.02,w:barW,h:0.18,fill:{color:cor2},line:{color:cor2}});
+      sl.addText(m.pct+'%', {x:cpBx+2.42+barW+0.06,y:by2,w:0.55,h:0.22,fontSize:8,bold:true,color:cor2,fontFace:'Calibri',valign:'middle'});
+    });
+    // Total cobertura
+    sl.addShape(pptx.ShapeType.rect, {x:cpBx+0.15,y:cpBy+2.54,w:cpW-0.3,h:0.2,fill:{color:'F1F5F9'}});
+    sl.addText(`Total: ${mx.nMap}/${mx.nUnid} unidades mapeadas (${pctCob}%)`, {x:cpBx+0.15,y:cpBy+2.54,w:cpW-0.3,h:0.2,fontSize:8,color:'374151',fontFace:'Calibri',bold:true,valign:'middle'});
+
+    // ── Linha 3: Pontualidade e legenda ────────────────────────────
+    const lgBy = 5.08;
+    sl.addShape(pptx.ShapeType.rect, {x:0.28,y:lgBy,w:12.58,h:0.66,fill:{color:'FFFFFF'},line:{color:'E2E8F0',width:1}});
+    const legItems = [
+      {cor:CINZ, lb:'Concluídas: '+concl},
+      {cor:VERDE,lb:'Em execução: '+emExec},
+      {cor:VERM, lb:'Em atraso: '+emAtraso},
+      {cor:AZUL, lb:'Planejadas: '+planej},
+      {cor:AMAR, lb:'Entregas em dia: '+emDia+' · Atraso: '+comAtraso+(pctPont!==null?' ('+pctPont+'% pontualidade)':'')},
+    ];
+    legItems.forEach((l,i)=>{
+      const bx2 = 0.5 + i*2.42;
+      sl.addShape(pptx.ShapeType.rect, {x:bx2,y:lgBy+0.22,w:0.16,h:0.16,fill:{color:l.cor},line:{color:l.cor}});
+      sl.addText(l.lb, {x:bx2+0.22,y:lgBy+0.18,w:2.12,h:0.28,fontSize:8,color:'374151',fontFace:'Calibri',valign:'middle'});
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SLIDE 4 — PRÓXIMOS TRABALHOS
+  // ════════════════════════════════════════════════════════════════
+  {
+    const sl = pptx.addSlide();
+    sl.background = {color:'F8FAFC'};
+    addHeader(sl, 'Próximos Trabalhos', `${proxTrabalhos.length} atividade${proxTrabalhos.length===1?'':'s'} planejada${proxTrabalhos.length===1?'':'s'} — ${dtFmt}`);
+    addFooter(sl, 4);
+
+    if(!proxTrabalhos.length){
+      sl.addText('Nenhuma atividade planejada no momento.', {x:1,y:3,w:11.5,h:1,fontSize:14,color:'888888',fontFace:'Calibri',align:'center'});
+    } else {
+      const cols2 = [{w:5.0,label:'Atividade'},{w:1.6,label:'Trimestre'},{w:1.6,label:'Prazo'},{w:1.5,label:'Prioridade'},{w:1.9,label:'Responsável'}];
+      let cx3 = 0.28;
+      cols2.forEach(c => {
+        sl.addShape(pptx.ShapeType.rect, {x:cx3,y:1.12,w:c.w,h:0.34,fill:{color:C1}});
+        sl.addText(c.label, {x:cx3+0.08,y:1.12,w:c.w-0.1,h:0.34,fontSize:9,bold:true,color:CW,fontFace:'Calibri',valign:'middle'});
+        cx3 += c.w + 0.04;
+      });
+      const maxRows2 = 11;
+      proxTrabalhos.slice(0, maxRows2).forEach((a, i) => {
+        const by = 1.50 + i*0.48;
+        const rowBg = i%2===0 ? 'FFFFFF' : 'F1F5F9';
+        const prioC  = PLANO_PRIO_CFG[a.prioridade]?.cor || '#6b7280';
+        const prioL  = PLANO_PRIO_CFG[a.prioridade]?.lb  || '—';
+        let cx4 = 0.28;
+        const wids2 = [5.0, 1.6, 1.6, 1.5, 1.9];
+        const vals2 = [
+          a.nome+(a.descricao?'\n'+a.descricao:''),
+          a.trimestre||'—',
+          a.prazo||'—',
+          prioL,
+          a.responsavel||'—',
+        ];
+        vals2.forEach((v, vi) => {
+          sl.addShape(pptx.ShapeType.rect, {x:cx4,y:by,w:wids2[vi],h:0.44,fill:{color:rowBg},line:{color:'E2E8F0',width:0.5}});
+          sl.addText(v, {
+            x:cx4+0.08, y:by+0.02, w:wids2[vi]-0.12, h:0.40,
+            fontSize: vi===0 ? 8.5 : 9,
+            bold: false,
+            color: vi===3 ? prioC.replace('#','') : CG,
+            fontFace:'Calibri', valign:'middle', wrap:true,
+          });
+          cx4 += wids2[vi] + 0.04;
+        });
+      });
+      if(proxTrabalhos.length > maxRows2){
+        sl.addText(`+ ${proxTrabalhos.length-maxRows2} atividade${proxTrabalhos.length-maxRows2===1?'':'s'} não exibida${proxTrabalhos.length-maxRows2===1?'':'s'}`,
+          {x:0.28,y:1.50+maxRows2*0.48,w:12,h:0.28,fontSize:8.5,color:'888888',fontFace:'Calibri',italic:true});
+      }
+    }
+  }
+
+  // ── Download ───────────────────────────────────────────────────
+  const nomeMes = new Date().toLocaleDateString('pt-BR',{month:'short',year:'numeric'}).replace(' de ',' ').replace('.','');
+  await pptx.writeFile({fileName:`Status Report EP-CAGE ${nomeMes}.pptx`});
+  toast('Status Report gerado com sucesso!','var(--green)');
 }
 
 function planoVinculoOptsHTML(tipo, selId){
