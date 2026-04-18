@@ -8898,11 +8898,19 @@ async function fbSave(col, id, data){
 // PLANO ANUAL DE TRABALHO (PAT)
 // ═══════════════════════════════════════════
 const PLANO_STATUS_CFG = {
-  planejado:   {lb:'Planejado',    cor:'#3b82f6', bg:'rgba(59,130,246,.1)'},
-  em_execucao: {lb:'Em execução',  cor:'#f59e0b', bg:'rgba(245,158,11,.1)'},
-  em_atraso:   {lb:'Em atraso',    cor:'#ef4444', bg:'rgba(239,68,68,.1)'},
-  concluida:   {lb:'Concluída',    cor:'#14b8a6', bg:'rgba(20,184,166,.1)'},
+  planejado:            {lb:'Planejado',           cor:'#6b7280', bg:'rgba(107,114,128,.1)'},
+  em_execucao:          {lb:'Em execução',         cor:'#3b82f6', bg:'rgba(59,130,246,.1)'},
+  em_atraso:            {lb:'Em atraso',            cor:'#ef4444', bg:'rgba(239,68,68,.1)'},
+  concluida:            {lb:'Concluída',           cor:'#16a34a', bg:'rgba(22,163,74,.1)'},
+  concluida_em_dia:     {lb:'Concluída em dia',    cor:'#16a34a', bg:'rgba(22,163,74,.1)'},
+  concluida_com_atraso: {lb:'Concluída com atraso',cor:'#d97706', bg:'rgba(217,119,6,.1)'},
 };
+// Returns the visual status key combining effective status + entrega_status
+function planoVisualKey(at, st){
+  if(st === 'concluida' && at.entrega_status === 'com_atraso') return 'concluida_com_atraso';
+  if(st === 'concluida' && at.entrega_status === 'em_dia')     return 'concluida_em_dia';
+  return st;
+}
 const PLANO_PRIO_CFG = {
   alta:  {lb:'Alta',  cor:'#ef4444'},
   media: {lb:'Média', cor:'#f59e0b'},
@@ -9092,7 +9100,7 @@ function planoStatsTrimestrais(lista){
 
 function planoCardHTML(at){
   const st  = planoStatusEfetivo(at);
-  const cfg = PLANO_STATUS_CFG[st]||PLANO_STATUS_CFG.planejado;
+  const cfg = PLANO_STATUS_CFG[planoVisualKey(at, st)] || PLANO_STATUS_CFG.planejado;
   const pct = planoPct(at);
   const prioC = PLANO_PRIO_CFG[at.prioridade]||PLANO_PRIO_CFG.media;
   const hoje = new Date().toISOString().split('T')[0];
