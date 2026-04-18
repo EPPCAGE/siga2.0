@@ -8900,15 +8900,29 @@ async function fbSave(col, id, data){
 const PLANO_STATUS_CFG = {
   planejado:            {lb:'Planejado',            cor:'#3b82f6', bg:'rgba(59,130,246,.1)'},
   em_execucao:          {lb:'Em execução',          cor:'#16a34a', bg:'rgba(22,163,74,.1)'},
+  quase_vencendo:       {lb:'Vence em breve',       cor:'#d97706', bg:'rgba(217,119,6,.1)'},
   em_atraso:            {lb:'Em atraso',             cor:'#ef4444', bg:'rgba(239,68,68,.1)'},
   concluida:            {lb:'Concluída',             cor:'#6b7280', bg:'rgba(107,114,128,.1)'},
   concluida_em_dia:     {lb:'Concluída em dia',     cor:'#6b7280', bg:'rgba(107,114,128,.1)'},
   concluida_com_atraso: {lb:'Concluída com atraso', cor:'#111827', bg:'rgba(17,24,39,.08)'},
 };
-// Returns the visual status key combining effective status + entrega_status
+// Returns the visual status key combining effective status + entrega_status + deadline proximity
+const PLANO_INICIO_TRI = {T1:'-01-01',T2:'-04-01',T3:'-07-01',T4:'-10-01',Anual:'-01-01'};
 function planoVisualKey(at, st){
   if(st === 'concluida' && at.entrega_status === 'com_atraso') return 'concluida_com_atraso';
   if(st === 'concluida' && at.entrega_status === 'em_dia')     return 'concluida_em_dia';
+  if(st === 'concluida') return 'concluida';
+  // Only apply proximity warning to non-concluded, non-late activities that have a deadline
+  if((st === 'planejado' || st === 'em_execucao') && at.prazo){
+    const hoje     = new Date();
+    const prazoD   = new Date(at.prazo);
+    const anoRef   = at.ano || hoje.getFullYear();
+    const sufIni   = PLANO_INICIO_TRI[at.trimestre] || '-01-01';
+    const inicioD  = new Date(`${anoRef}${sufIni}`);
+    const totalDias    = Math.max(1, Math.ceil((prazoD - inicioD)  / 86400000));
+    const diasRestantes= Math.ceil((prazoD - hoje) / 86400000);
+    if(diasRestantes >= 0 && diasRestantes / totalDias < 0.10) return 'quase_vencendo';
+  }
   return st;
 }
 const PLANO_PRIO_CFG = {
