@@ -9557,8 +9557,13 @@ async function gerarStatusReportPPT(){
     .sort((a,b)=>(b.prazo||'').localeCompare(a.prazo||''));
 
   const proxTrabalhos = doAno
-    .filter(a=>planoStatusEfetivo(a)==='planejado' && a.trimestre===trimProx)
-    .sort((a,b)=>(a.prazo||'').localeCompare(b.prazo||''));
+    .filter(a=>planoStatusEfetivo(a)==='planejado' && (a.trimestre===trimProx || a.trimestre===trimAtual))
+    .sort((a,b)=>{
+      // current trimestre first, then next; within each group sort by prazo
+      const ta = a.trimestre===trimAtual ? 0 : 1;
+      const tb = b.trimestre===trimAtual ? 0 : 1;
+      return ta-tb || (a.prazo||'').localeCompare(b.prazo||'');
+    });
 
   // ── PptxGenJS init ──────────────────────────────────────────────────────────
   const pptx = new PptxGenJS();
@@ -9837,7 +9842,7 @@ async function gerarStatusReportPPT(){
   {
     const sl = pptx.addSlide();
     sl.background = {color:WHT};
-    addHeader(sl,`Próximos trabalhos — ${trimProx}`);
+    addHeader(sl,`Próximos trabalhos — ${trimAtual} (planejados) e ${trimProx}`);
     addFooter(sl,5);
 
     const cws=[7.6,1.5,1.8,2.2,3.3,2.8]; // Atividade|Tri|Prazo|Prioridade|Responsável|Categoria (sum=19.2)
@@ -9853,7 +9858,7 @@ async function gerarStatusReportPPT(){
     const rowH=0.76, hdrH=0.72;
     const maxRows=Math.floor((10.62-1.75-hdrH)/rowH);
     if(!rows.length){
-      sl.addText(`Nenhum trabalho planejado para ${trimProx}.`,
+      sl.addText(`Nenhum trabalho planejado para ${trimAtual}/${trimProx}.`,
         {x:0.4,y:4,w:19.2,h:1,fontSize:18,color:'888888',fontFace:'Calibri',align:'center'});
     } else {
       drawTable(sl,0.4,1.75,cws,hds,rows,rowH,hdrH,maxRows);
