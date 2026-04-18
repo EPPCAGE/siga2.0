@@ -825,6 +825,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </div>
   <div id="plano-stats" style="margin-bottom:1rem"></div>
   <div id="plano-dash" style="margin-bottom:1.2rem"></div>
+  <div id="plano-metas" style="margin-bottom:1.2rem"></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
     <select class="fi plano-filtros-avancados" id="plano-filt-tri" onchange="rPlano()" style="width:100px">
       <option value="">Todos</option>
@@ -1392,6 +1393,8 @@ let _pubIdC = 1;
 
 let plano = [];
 let _planoIdC = 1;
+let PLANO_METAS = [];  // Metas anuais do escritório (config)
+let _metaIdC = 1;
 
 let solicitacoes = [];
 
@@ -8987,6 +8990,7 @@ function rPlano(){
     (a.responsavel||'').toLowerCase().includes(srch));
   planoDashAnual(doAno);
   planoStatsTrimestrais(doAno);
+  renderPlanoMetas();
   const el = document.getElementById('plano-c');
   if(!el) return;
   if(!lista.length){
@@ -9020,6 +9024,274 @@ function rPlano(){
     </div>`;
   }).join('');
 }
+
+// ── METAS DO ESCRITÓRIO ────────────────────────────────────────────────────
+
+// Built-in auto sources: {key, label, calc()}
+const _META_BUILTINS = [
+  { key:'cobertura', label:'Cobertura de mapeamento (%)',
+    calc(){ const mx=getMetricasArq(); return mx.nUnid?Math.round(mx.nMap/mx.nUnid*100):0; } },
+];
+
+// Returns the current realizado value for a meta, honouring auto_fonte
+function _metaRealizado(m){
+  if(m.auto_fonte==='builtin'){
+    const b=_META_BUILTINS.find(x=>x.key===m.auto_campo);
+    return b ? b.calc() : 0;
+  }
+  if(m.auto_fonte==='kpi'){
+    // use the most recent period of the linked KPI
+    const k=kpis.find(x=>x.id===m.kpi_id);
+    return k ? (k.realizado||0) : 0;
+  }
+  return m.realizado||0;
+}
+
+// Badge shown on the card for auto-sourced metas
+function _metaFonteBadge(m){
+  if(m.auto_fonte==='builtin'){
+    const b=_META_BUILTINS.find(x=>x.key===m.auto_campo);
+    return `<span style="font-size:9px;background:rgba(0,197,180,.15);color:#0f766e;padding:1px 6px;border-radius:8px;margin-left:4px" title="Calculado automaticamente pelo sistema">${b?b.label:'auto'}</span>`;
+  }
+  if(m.auto_fonte==='kpi'){
+    const k=kpis.find(x=>x.id===m.kpi_id);
+    return `<span style="font-size:9px;background:rgba(99,102,241,.12);color:#4338ca;padding:1px 6px;border-radius:8px;margin-left:4px" title="Vinculado ao indicador">📊 ${k?esc(k.nome).slice(0,28):'KPI'}</span>`;
+  }
+  return '';
+}
+
+function renderPlanoMetas(){
+  const el=document.getElementById('plano-metas');
+  if(!el) return;
+  const ano=planoAno();
+  const metas=PLANO_METAS.filter(m=>!m.ano||m.ano===ano);
+  const podeEditar=isEP();
+  const btnAdd=podeEditar?`<button type="button" class="btn btn-a ep-only" onclick="abrirMetaModal(null)" style="font-size:11px;padding:3px 10px">+ Meta</button>`:'';
+  if(!metas.length && !podeEditar){el.innerHTML='';return;}
+  el.innerHTML=`
+  <div style="margin-bottom:.5rem;display:flex;align-items:center;gap:8px">
+    <span style="font-size:12px;font-weight:700;color:var(--ink)">🎯 Metas do Escritório — ${ano}</span>
+    ${btnAdd}
+  </div>
+  ${!metas.length?`<div style="font-size:12px;color:var(--ink3);padding:.5rem 0">Nenhuma meta cadastrada. ${podeEditar?'Clique em <b>+ Meta</b> para adicionar.':''}</div>`:''}
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    ${metas.map(m=>{
+      const real=_metaRealizado(m);
+      const mt=m.meta||1;
+      const pct=Math.min(100,Math.round(real/mt*100));
+      const cor=pct>=100?'#14b8a6':pct>=60?'#f59e0b':'#ef4444';
+      const un=m.unidade||'';
+      const valTxt=`${real}${un?' '+un:''} / meta ${mt}${un?' '+un:''}`;
+      const editBtns=podeEditar?`<div style="display:flex;gap:4px;margin-top:6px">
+        <button type="button" class="btn" style="font-size:10px;padding:1px 7px" onclick="abrirMetaModal(${m.id})">✎</button>
+        <button type="button" class="btn" style="font-size:10px;padding:1px 7px;color:var(--red)" onclick="deletarMeta(${m.id})">🗑</button>
+      </div>`:'';
+      return `<div style="flex:1;min-width:180px;max-width:280px;background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${cor};border-radius:var(--r);padding:.7rem 1rem">
+        <div style="font-size:11px;font-weight:700;color:var(--ink);margin-bottom:4px">${esc(m.titulo)}${_metaFonteBadge(m)}</div>
+        <div style="font-size:22px;font-weight:700;color:${cor};line-height:1">${pct}%</div>
+        <div style="font-size:10px;color:var(--ink3);margin-top:2px">${valTxt}</div>
+        <div style="margin-top:6px;height:5px;background:var(--bdr2);border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${cor};border-radius:3px;transition:width .4s"></div>
+        </div>
+        ${m.obs?`<div style="font-size:10px;color:var(--ink3);margin-top:5px;font-style:italic">${esc(m.obs)}</div>`:''}
+        ${editBtns}
+      </div>`;
+    }).join('')}
+    ${podeEditar&&metas.length?`<div style="flex:0 0 auto;display:flex;align-items:center;padding:.5rem">
+      <button type="button" class="btn" onclick="abrirMetaModal(null)" style="font-size:20px;padding:4px 12px;opacity:.5" title="Nova meta">＋</button>
+    </div>`:''}
+  </div>`;
+}
+
+// Populate KPI selector with all available KPIs grouped by area
+function _mmPopulateKpiSel(){
+  const sel=document.getElementById('mm-kpi-sel');
+  if(!sel) return;
+  // deduplicate by id, take latest entry per KPI name
+  const uniq=[];
+  const seen=new Set();
+  [...kpis].reverse().forEach(k=>{ if(!seen.has(k.id)){seen.add(k.id);uniq.push(k);} });
+  uniq.sort((a,b)=>(a.area||'').localeCompare(b.area||'')||(a.nome||'').localeCompare(b.nome||''));
+  sel.innerHTML='<option value="">— selecione —</option>'+uniq.map(k=>{
+    const lbl=`${k.area?k.area+' › ':''}${k.nome}${k.periodo?' ('+k.periodo+')':''}`;
+    return `<option value="${k.id}">${esc(lbl)}</option>`;
+  }).join('');
+}
+
+// Toggle visible rows depending on fonte selection
+function _mmToggleFonte(){
+  const fonte=document.getElementById('mm-fonte')?.value||'';
+  const rowManual=document.getElementById('mm-row-manual');
+  const rowBuiltin=document.getElementById('mm-row-builtin');
+  const rowKpi=document.getElementById('mm-row-kpi');
+  if(rowManual)  rowManual.style.display  = fonte===''       ? 'block' : 'none';
+  if(rowBuiltin) rowBuiltin.style.display = fonte==='builtin' ? 'block' : 'none';
+  if(rowKpi)     rowKpi.style.display     = fonte==='kpi'     ? 'block' : 'none';
+  // auto-fill title/unit when a builtin is chosen
+  if(fonte==='builtin'){
+    const bKey=document.getElementById('mm-builtin')?.value||'';
+    _mmBuiltinChange(bKey);
+  }
+}
+
+function _mmBuiltinChange(key){
+  const b=_META_BUILTINS.find(x=>x.key===key);
+  if(!b) return;
+  const tituloEl=document.getElementById('mm-titulo');
+  if(tituloEl&&!tituloEl.value) tituloEl.value=b.label;
+  const unEl=document.getElementById('mm-unidade');
+  if(unEl&&!unEl.value) unEl.value='%';
+}
+
+function _mmKpiChange(kpiId){
+  const k=kpis.find(x=>x.id===Number.parseInt(kpiId));
+  if(!k) return;
+  const tituloEl=document.getElementById('mm-titulo');
+  if(tituloEl&&!tituloEl.value) tituloEl.value=k.nome;
+  const unEl=document.getElementById('mm-unidade');
+  if(unEl&&!unEl.value&&k.unidade) unEl.value=k.unidade;
+}
+
+function fecharMetaModal(){
+  const el=document.getElementById('meta-modal');
+  if(el) el.style.display='none';
+}
+
+function abrirMetaModal(id){
+  const m=id!=null ? PLANO_METAS.find(x=>x.id===id) : null;
+  const ano=planoAno();
+  if(!document.getElementById('meta-modal')) _criarMetaModal();
+  document.getElementById('meta-modal').style.display='flex';
+  _mmPopulateKpiSel();
+  document.getElementById('mm-id').value = m?m.id:'';
+  document.getElementById('mm-ano').value = m?m.ano||ano:ano;
+  document.getElementById('mm-titulo').value = m?m.titulo:'';
+  document.getElementById('mm-meta').value = m!=null?m.meta:'';
+  document.getElementById('mm-unidade').value = m?m.unidade||'':'';
+  document.getElementById('mm-obs').value = m?m.obs||'':'';
+  // fonte
+  const fonte=m?m.auto_fonte||'':'';
+  document.getElementById('mm-fonte').value = fonte;
+  // manual
+  document.getElementById('mm-realizado').value = (!fonte&&m)?m.realizado||'':'';
+  // builtin
+  if(document.getElementById('mm-builtin')) document.getElementById('mm-builtin').value = m?m.auto_campo||'':'';
+  // kpi
+  if(document.getElementById('mm-kpi-sel')) document.getElementById('mm-kpi-sel').value = m?m.kpi_id||'':'';
+  _mmToggleFonte();
+}
+
+function _criarMetaModal(){
+  const div=document.createElement('div');
+  div.id='meta-modal';
+  div.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:9999;align-items:center;justify-content:center';
+  const builtinOpts=_META_BUILTINS.map(b=>`<option value="${b.key}">${esc(b.label)}</option>`).join('');
+  div.innerHTML=`<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:min(440px,94vw);max-height:92vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.22)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1rem">🎯 Meta do escritório</div>
+    <input type="hidden" id="mm-id">
+    <input type="hidden" id="mm-ano">
+    <div style="display:flex;flex-direction:column;gap:.75rem">
+
+      <div>
+        <label style="font-size:11px;color:var(--ink3)">Título <span style="color:var(--red)">*</span></label>
+        <input class="fi" id="mm-titulo" placeholder="Ex: Reuniões de revisão de mapeamentos" style="margin-top:3px">
+      </div>
+
+      <div>
+        <label style="font-size:11px;color:var(--ink3)">Origem do valor realizado</label>
+        <select class="fi" id="mm-fonte" onchange="_mmToggleFonte()" style="margin-top:3px">
+          <option value="">Manual — informo o valor realizado</option>
+          <option value="builtin">Métrica do sistema (calculada automaticamente)</option>
+          <option value="kpi">Indicador existente — vincular a um KPI</option>
+        </select>
+      </div>
+
+      <div id="mm-row-manual">
+        <label style="font-size:11px;color:var(--ink3)">Valor realizado atual</label>
+        <input class="fi" id="mm-realizado" type="number" min="0" step="any" placeholder="Ex: 8" style="margin-top:3px">
+      </div>
+
+      <div id="mm-row-builtin" style="display:none">
+        <label style="font-size:11px;color:var(--ink3)">Métrica automática</label>
+        <select class="fi" id="mm-builtin" onchange="_mmBuiltinChange(this.value)" style="margin-top:3px">
+          <option value="">— selecione —</option>
+          ${builtinOpts}
+        </select>
+      </div>
+
+      <div id="mm-row-kpi" style="display:none">
+        <label style="font-size:11px;color:var(--ink3)">Indicador vinculado</label>
+        <select class="fi" id="mm-kpi-sel" onchange="_mmKpiChange(this.value)" style="margin-top:3px"></select>
+        <div style="font-size:10px;color:var(--ink3);margin-top:3px">O valor realizado será o último resultado registrado para esse indicador.</div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label style="font-size:11px;color:var(--ink3)">Valor da meta <span style="color:var(--red)">*</span></label>
+          <input class="fi" id="mm-meta" type="number" min="0" step="any" placeholder="Ex: 16" style="margin-top:3px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:var(--ink3)">Unidade</label>
+          <input class="fi" id="mm-unidade" placeholder="Ex: reuniões, %" style="margin-top:3px">
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:11px;color:var(--ink3)">Observação (opcional)</label>
+        <input class="fi" id="mm-obs" placeholder="Ex: meta definida no PAT 2026" style="margin-top:3px">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1.2rem">
+      <button type="button" class="btn" onclick="fecharMetaModal()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="salvarMeta()">Salvar meta</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  return div;
+}
+
+async function salvarMeta(){
+  const titulo=(document.getElementById('mm-titulo')?.value||'').trim();
+  if(!titulo){toast('Informe o título da meta.','var(--amber)');return;}
+  const metaVal=Number.parseFloat(document.getElementById('mm-meta')?.value);
+  if(isNaN(metaVal)||metaVal<=0){toast('Informe o valor da meta (número > 0).','var(--amber)');return;}
+  const fonte=document.getElementById('mm-fonte')?.value||'';
+  const id=Number.parseInt(document.getElementById('mm-id')?.value)||0;
+  const ano=Number.parseInt(document.getElementById('mm-ano')?.value)||planoAno();
+  const m={
+    id: id||_metaIdC++,
+    ano,
+    titulo,
+    meta: metaVal,
+    unidade: (document.getElementById('mm-unidade')?.value||'').trim(),
+    obs: (document.getElementById('mm-obs')?.value||'').trim(),
+    auto_fonte: fonte,
+    // conditional fields
+    realizado: fonte==='' ? Number.parseFloat(document.getElementById('mm-realizado')?.value)||0 : 0,
+    auto_campo: fonte==='builtin' ? document.getElementById('mm-builtin')?.value||'' : '',
+    kpi_id: fonte==='kpi' ? Number.parseInt(document.getElementById('mm-kpi-sel')?.value)||null : null,
+  };
+  if(fonte==='builtin'&&!m.auto_campo){toast('Selecione uma métrica automática.','var(--amber)');return;}
+  if(fonte==='kpi'&&!m.kpi_id){toast('Selecione um indicador.','var(--amber)');return;}
+  if(id){ const i=PLANO_METAS.findIndex(x=>x.id===id); if(i>=0) PLANO_METAS[i]=m; else PLANO_METAS.push(m); }
+  else PLANO_METAS.push(m);
+  fecharMetaModal();
+  await fbSaveAll();
+  renderPlanoMetas();
+  toast(id?'Meta atualizada':'Meta criada');
+}
+
+async function deletarMeta(id){
+  confirmar('Excluir esta meta?',async()=>{
+    PLANO_METAS=PLANO_METAS.filter(m=>m.id!==id);
+    await fbSaveAll();
+    renderPlanoMetas();
+    toast('Meta excluída','var(--amber)');
+  });
+}
+
+// ── FIM METAS ──────────────────────────────────────────────────────────────
 
 function planoDashAnual(lista){
   const el = document.getElementById('plano-dash');
@@ -9487,6 +9759,33 @@ async function gerarStatusReportPPT(){
     sl.addShape(pptx.ShapeType.rect,{x:pCx+0.15,y:Y2+3.72,w:pCw-0.3,h:0.3,fill:{color:'EFF6FF'}});
     sl.addText(`Total: ${mx.nMap}/${mx.nUnid} mapeados (${pctCob}%)`,
       {x:pCx+0.25,y:Y2+3.72,w:pCw-0.4,h:0.3,fontSize:11,bold:true,color:AZUL,fontFace:'Calibri',valign:'middle'});
+
+    // ── Row 3: Metas do escritório ────────────────────────────────────────
+    const metasDoAno=PLANO_METAS.filter(m=>!m.ano||m.ano===ano);
+    if(metasDoAno.length){
+      const Y3=Y2+pH+0.22;
+      const mW=(19.5)/metasDoAno.length - 0.18;
+      metasDoAno.forEach((m,i)=>{
+        const real=_metaRealizado(m);
+        const mt=m.meta||1;
+        const pctM=Math.min(100,Math.round(real/mt*100));
+        const corM=pctM>=100?VERDE:pctM>=60?AMAR:VERM;
+        const bx=0.25+i*(mW+0.18);
+        const un=m.unidade||'';
+        sl.addShape(pptx.ShapeType.rect,{x:bx,y:Y3,w:mW,h:1.4,fill:{color:'F8FAFC'},line:{color:corM,width:2}});
+        sl.addShape(pptx.ShapeType.rect,{x:bx,y:Y3,w:0.12,h:1.4,fill:{color:corM}});
+        const titulo=m.titulo.length>32?m.titulo.slice(0,30)+'…':m.titulo;
+        sl.addText(titulo,{x:bx+0.22,y:Y3+0.06,w:mW-0.3,h:0.36,fontSize:9,bold:true,color:'374151',fontFace:'Calibri',wrap:true});
+        sl.addText(`${pctM}%`,{x:bx+0.22,y:Y3+0.44,w:mW-0.3,h:0.46,fontSize:22,bold:true,color:corM,fontFace:'Calibri'});
+        sl.addText(`${real}${un?' '+un:''} / meta ${mt}${un?' '+un:''}`,
+          {x:bx+0.22,y:Y3+0.92,w:mW-0.3,h:0.28,fontSize:9,color:'6B7280',fontFace:'Calibri'});
+        // progress bar
+        const barW=Math.max(0.04,(mW-0.32)*pctM/100);
+        sl.addShape(pptx.ShapeType.rect,{x:bx+0.22,y:Y3+1.26,w:mW-0.32,h:0.08,fill:{color:'E5E7EB'}});
+        sl.addShape(pptx.ShapeType.rect,{x:bx+0.22,y:Y3+1.26,w:barW,h:0.08,fill:{color:corM}});
+      });
+      sl.addText('🎯 Metas do escritório',{x:0.25,y:Y3-0.28,w:8,h:0.24,fontSize:10,bold:true,color:NAVY,fontFace:'Calibri'});
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -9757,6 +10056,7 @@ async function fbSaveAll(){
     publicacoes.forEach(p => ops.push({ref: doc(db,'publicacoes',String(p.id)), data: _fsClean(p)}));
     plano.forEach(a => ops.push({ref: doc(db,'plano',String(a.id)), data: _fsClean(a)}));
     TRILHAS.forEach(t => ops.push({ref: doc(db,'trilhas',String(t.id)), data: _fsClean(t)}));
+    PLANO_METAS.forEach(m => ops.push({ref: doc(db,'plano_metas',String(m.id)), data: _fsClean(m)}));
     ops.push(
       {ref: doc(db,'config','arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}},
       {ref: doc(db,'config','usuarios'),    data: {data: JSON.stringify(USUARIOS)}},
@@ -9877,6 +10177,14 @@ async function fbLoad(){
       TRILHAS = [];
       trilhasSnap.forEach(d => TRILHAS.push(d.data()));
       _trilhaIdC = Math.max(...TRILHAS.map(t => t.id), 0) + 1;
+    }
+
+    // metas do escritório
+    const metasSnap = await getDocs(collection(db,'plano_metas'));
+    if(!metasSnap.empty){
+      PLANO_METAS = [];
+      metasSnap.forEach(d => PLANO_METAS.push(d.data()));
+      _metaIdC = Math.max(...PLANO_METAS.map(m => m.id), 0) + 1;
     }
 
     console.info('Firebase: dados carregados');
