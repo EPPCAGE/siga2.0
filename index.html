@@ -2187,7 +2187,8 @@ function rDash(){
     '<div class="stat ca"><div class="stat-n">'+mx.nMacros+'</div><div class="stat-l">Macroprocessos</div></div>'+
     '<div class="stat cb"><div class="stat-n">'+mx.nProc+'</div><div class="stat-l">Processos</div></div>'+
     '<div class="stat cg"><div class="stat-n">'+mx.nSub+'</div><div class="stat-l">Subprocessos</div></div>'+
-    '<div class="stat cr"><div class="stat-n">'+processos.filter(p=>p.prio==='Critica').length+'</div><div class="stat-l">Prioridade crítica</div></div>';
+    '<div class="stat cr"><div class="stat-n">'+processos.filter(p=>p.prio==='Critica').length+'</div><div class="stat-l">Prioridade crítica</div></div>'+
+    (()=>{const eco=processos.reduce((s,p)=>{const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);return s+(r.length?r[r.length-1].economia_h:0);},0);return eco!==0?`<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${eco>=0?'+':''}`+eco.toFixed(1)+'h</div><div class="stat-l">Economia de horas/mês estimada</div></div>':''})();
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
@@ -2984,12 +2985,17 @@ const ACOES = {
     <hr>
     <div class="card-t">Volumetria e tempos</div>
     <div class="g3" style="margin-top:.5rem">
-      <div class="fg"><label class="fl">Volume de execuções</label><input class="fi" id="r-exec" value="${esc(p.ent.vol?.exec||'')}" placeholder="Ex: ~40/mês"></div>
+      <div class="fg"><label class="fl">Volume de execuções (por mês)</label><input class="fi" id="r-exec-mensal" type="number" min="0" step="1" value="${p.ent.vol?.exec_mensal||''}" oninput="calcVolumetria()" placeholder="Ex: 40"></div>
       <div class="fg"><label class="fl">Tempo médio de ciclo (horas)</label><input class="fi" id="r-tciclo" type="number" min="0" step="0.5" value="${p.ent.t_ciclo||''}" oninput="calcGaveta()" placeholder="Ex: 4"></div>
-      <div class="fg"><label class="fl">Tempo real / lead time (horas)</label><input class="fi" id="r-treal" type="number" min="0" step="0.5" value="${p.ent.t_real||''}" oninput="calcGaveta()" placeholder="Ex: 24"></div>
+      <div class="fg"><label class="fl">Tempo real / lead time (horas)</label><input class="fi" id="r-treal" type="number" min="0" step="0.5" value="${p.ent.t_real||''}" oninput="calcGaveta();calcVolumetria()" placeholder="Ex: 24"></div>
     </div>
-    <div class="fg"><label class="fl">Tempo de gaveta <small style="font-weight:400;color:var(--ink3)">(calculado: tempo real − tempo médio de ciclo)</small></label>
-      <input class="fi" id="r-tgaveta" readonly style="background:var(--bg2);color:var(--ink3)" value="${p.ent.t_gaveta!=null&&p.ent.t_gaveta!==''?p.ent.t_gaveta+' horas':''}">
+    <div class="g2">
+      <div class="fg"><label class="fl">Tempo de gaveta <small style="font-weight:400;color:var(--ink3)">(calculado: tempo real − tempo médio de ciclo)</small></label>
+        <input class="fi" id="r-tgaveta" readonly style="background:var(--bg2);color:var(--ink3)" value="${p.ent.t_gaveta!=null&&p.ent.t_gaveta!==''?p.ent.t_gaveta+' horas':''}">
+      </div>
+      <div class="fg"><label class="fl">Total de horas/mês no processo <small style="font-weight:400;color:var(--ink3)">(calculado: volume × tempo real)</small></label>
+        <input class="fi" id="r-total-mensal" readonly style="background:var(--bg2);color:var(--teal);font-weight:600" value="${p.ent.total_h_mensal!=null&&p.ent.total_h_mensal!==''?p.ent.total_h_mensal+' h/mês':''}">
+      </div>
     </div>
     <hr>
     <div class="card-t">Problemas e dores</div>
@@ -3012,10 +3018,12 @@ const ACOES = {
     <button type="button" class="btn" style="margin-top:6px;font-size:12px" onclick="addRisco()">+ Adicionar risco</button>
     <div class="btn-row"><button type="button" class="btn btn-t" onclick="salvarRiscos()">Registrar riscos e avançar →</button></div>`},
 
-  analise:{titulo:'Análise do fluxo AS IS',sub:'Análise inteligente gerada por IA com base no BPMN e etapas mapeadas.',role:'EP',rk:'ep',
+  analise:{titulo:'Análise do fluxo AS IS',sub:'Análise inteligente gerada por IA com base nas etapas mapeadas e dados do processo.',role:'EP',rk:'ep',
     form:p=>{
       const a=p.ent.analise||{};
-      const bpmnOk=!!(p.mod?.bpmnAsIs||p.mod?.asIs);
+      const temBpmn=!!(p.mod?.bpmnAsIs||p.mod?.asIs);
+      const temEtapas=!!(p.mod?.etapas_proc||[]).length;
+      const temBase=temBpmn||temEtapas;
       let iaHtml;
       if(a.ia_resultado){
         const resumoHtml = a.ia_resultado.resumo?'<div class="ai-result-lbl">Resumo</div><p>'+esc(a.ia_resultado.resumo)+'</p>':'';
@@ -3032,8 +3040,8 @@ const ACOES = {
       } else {
         iaHtml = '<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>';
       }
-      return `<div class="ib ibp">A análise inteligente é gerada automaticamente pela IA com base no BPMN, etapas mapeadas e dados do processo.</div>
-        ${bpmnOk?'':'<div class="ib ibr">⚠ Mapeamento BPMN ainda não realizado. A análise será limitada.</div>'}
+      return `<div class="ib ibp">A análise inteligente é gerada pela IA com base nas etapas mapeadas e dados do processo. O fluxo BPMN desenhado enriquece a análise, mas não é obrigatório.</div>
+        ${!temBase?'<div class="ib iba">⚠ Nenhuma etapa mapeada ainda. Adicione etapas na etapa Esboço AS IS para obter uma análise mais precisa.</div>':(!temBpmn&&temEtapas?'<div class="ib ibt" style="font-size:12px">ℹ O BPMN não foi desenhado no editor — a análise será realizada com base nas etapas mapeadas.</div>':'')}
         <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
         <div id="ia-analise-result">${iaHtml}</div>
         <div class="btn-row" style="margin-top:.8rem">
@@ -3279,7 +3287,7 @@ const ACOES = {
               ${r.desvios?`<div style="font-size:12px;color:var(--red);margin-top:.2rem">⚠ Desvios: ${esc(r.desvios)}</div>`:''}
               ${r.acoes?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem">→ Ações: ${esc(r.acoes)}</div>`:''}
               ${r.proxima?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Próxima: ${r.proxima}</div>`:''}
-            </div>
+              ${r.economia_h!=null?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem;font-weight:600">📊 Economia estimada: ${r.economia_h>=0?'+':''}`+r.economia_h+' h/mês (vol: '+r.vol_exec_novo+'/mês × '+r.t_real_novo+'h)</div>':''}            </div>
             <div style="display:flex;gap:4px;flex-shrink:0">
               <button type="button" class="btn" style="font-size:11px;padding:2px 7px" onclick="editarReuniaoAcomp(${i})">✎ Editar</button>
               <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirReuniaoAcomp(${i})" aria-label="Remover reunião">✕</button>
@@ -3301,6 +3309,13 @@ const ACOES = {
         <div class="fg"><label class="fl">Ações corretivas</label><textarea class="fi" id="ac-acoes" style="min-height:60px" placeholder="Ações definidas..."></textarea></div>
         <div class="fg"><label class="fl">Participantes</label><input class="fi" id="ac-partic" placeholder="Nomes dos participantes"></div>
         <div class="fg"><label class="fl">Próxima reunião prevista</label><input class="fi" id="ac-proxima" type="date"></div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:.6rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Reavaliação de volumetria <small style="font-weight:400;font-size:11px;color:var(--ink3)">(opcional)</small></div>
+        ${(curProc?.ent?.total_h_mensal)?`<div class="ib ibt" style="font-size:11.5px;margin-bottom:.6rem">Baseline: <strong>${curProc.ent.vol?.exec_mensal||'—'} exec/mês × ${curProc.ent.t_real||'—'}h = ${curProc.ent.total_h_mensal}h/mês</strong></div>`:''}
+        <div class="g3">
+          <div class="fg"><label class="fl">Novo volume (exec/mês)</label><input class="fi" id="ac-vol-novo" type="number" min="0" step="1" oninput="calcEconomiaAcomp()" placeholder="Novo volume mensal"></div>
+          <div class="fg"><label class="fl">Novo tempo real (horas)</label><input class="fi" id="ac-treal-novo" type="number" min="0" step="0.5" oninput="calcEconomiaAcomp()" placeholder="Novo lead time"></div>
+          <div class="fg"><label class="fl">Economia estimada (h/mês)</label><input class="fi" id="ac-economia" readonly style="background:var(--bg2);color:var(--teal);font-weight:600" placeholder="Calculado automaticamente"></div>
+        </div>
         <div class="btn-row">
           <button type="button" class="btn" onclick="registrarReuniaoAcomp()">＋ Registrar reunião</button>
           <button type="button" class="btn btn-p" onclick="av('acompanha','EP','Acompanhamento concluído')">Concluir acompanhamento →</button>
@@ -3318,6 +3333,12 @@ const ACOES = {
           <div class="fg"><label class="fl">Ações corretivas</label><textarea class="fi" id="ac-edit-acoes" style="min-height:60px"></textarea></div>
           <div class="fg"><label class="fl">Participantes</label><input class="fi" id="ac-edit-partic"></div>
           <div class="fg"><label class="fl">Próxima reunião prevista</label><input class="fi" id="ac-edit-proxima" type="date"></div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:.6rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Reavaliação de volumetria <small style="font-weight:400;font-size:11px;color:var(--ink3)">(opcional)</small></div>
+          <div class="g3">
+            <div class="fg"><label class="fl">Novo volume (exec/mês)</label><input class="fi" id="ac-edit-vol-novo" type="number" min="0" step="1" oninput="calcEconomiaAcompEdit()" placeholder="Novo volume mensal"></div>
+            <div class="fg"><label class="fl">Novo tempo real (horas)</label><input class="fi" id="ac-edit-treal-novo" type="number" min="0" step="0.5" oninput="calcEconomiaAcompEdit()" placeholder="Novo lead time"></div>
+            <div class="fg"><label class="fl">Economia estimada (h/mês)</label><input class="fi" id="ac-edit-economia" readonly style="background:var(--bg2);color:var(--teal);font-weight:600" placeholder="Calculado automaticamente"></div>
+          </div>
           <div class="btn-row">
             <button type="button" class="btn" onclick="cancelarEditReuniaoAcomp()">Cancelar</button>
             <button type="button" class="btn btn-p" onclick="salvarEditReuniaoAcomp()">✓ Salvar alterações</button>
@@ -3894,6 +3915,12 @@ function calcGaveta(){
   const gav=document.getElementById('r-tgaveta');
   if(gav&&(ciclo||real)) gav.value=(real-ciclo).toFixed(1)+' horas';
 }
+function calcVolumetria(){
+  const vol=Number.parseFloat(document.getElementById('r-exec-mensal')?.value)||0;
+  const real=Number.parseFloat(document.getElementById('r-treal')?.value)||0;
+  const tot=document.getElementById('r-total-mensal');
+  if(tot) tot.value=(vol&&real)?+(vol*real).toFixed(1)+' h/mês':'';
+}
 function salvarAbertura(){
   const p=curProc;
   p.ent.dt_inicio=document.getElementById('a-ini')?.value||'';
@@ -3997,10 +4024,12 @@ function salvarReuniao(){
   p.ent.saidas=document.getElementById('r-saidas')?.value||'';
   p.ent.atores=document.getElementById('r-atores')?.value||'';
   if(!p.ent.vol)p.ent.vol={};
-  p.ent.vol.exec=document.getElementById('r-exec')?.value||'';
+  p.ent.vol.exec_mensal=Number.parseFloat(document.getElementById('r-exec-mensal')?.value)||null;
   p.ent.t_ciclo=Number.parseFloat(document.getElementById('r-tciclo')?.value)||null;
   p.ent.t_real=Number.parseFloat(document.getElementById('r-treal')?.value)||null;
   if(p.ent.t_ciclo!=null&&p.ent.t_real!=null) p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
+  if(p.ent.vol.exec_mensal&&p.ent.t_real) p.ent.total_h_mensal=+(p.ent.vol.exec_mensal*p.ent.t_real).toFixed(1);
+  else p.ent.total_h_mensal=null;
   const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.ent.prob=prob;
   sincronizarSIPOCArquitetura(p);
@@ -4036,9 +4065,25 @@ function salvarRiscos(){
   const p=curProc;
   av('riscos','EP','Riscos identificados: '+(p.ent.riscos||[]).length+' registro(s).');
 }
+function calcEconomiaAcomp(){
+  const volNovo=Number.parseFloat(document.getElementById('ac-vol-novo')?.value)||0;
+  const trealNovo=Number.parseFloat(document.getElementById('ac-treal-novo')?.value)||0;
+  const el=document.getElementById('ac-economia');
+  if(!el)return;
+  if(volNovo&&trealNovo){
+    const totalNovo=+(volNovo*trealNovo).toFixed(1);
+    const baseline=curProc?.ent?.total_h_mensal||0;
+    const eco=baseline?+(baseline-totalNovo).toFixed(1):null;
+    el.value=eco!=null?(eco>=0?'+'+eco:eco)+' h/mês':'novo total: '+totalNovo+' h/mês';
+  } else {
+    el.value='';
+  }
+}
 async function registrarReuniaoAcomp(){
   const p=curProc;if(!p)return;
   if(!p.reunioes_acomp)p.reunioes_acomp=[];
+  const volNovo=Number.parseFloat(document.getElementById('ac-vol-novo')?.value)||null;
+  const trealNovo=Number.parseFloat(document.getElementById('ac-treal-novo')?.value)||null;
   const r={
     data:document.getElementById('ac-data')?.value||now(),
     conformidade:document.getElementById('ac-conf')?.value||'Conforme',
@@ -4049,12 +4094,33 @@ async function registrarReuniaoAcomp(){
     proxima:document.getElementById('ac-proxima')?.value||'',
     registrada_em:now()
   };
+  if(volNovo&&trealNovo){
+    r.vol_exec_novo=volNovo;
+    r.t_real_novo=trealNovo;
+    r.total_novo=+(volNovo*trealNovo).toFixed(1);
+    const baseline=p.ent?.total_h_mensal||null;
+    r.economia_h=baseline!=null?+(baseline-r.total_novo).toFixed(1):null;
+  }
   if(!r.data){toast('Informe a data da reunião','var(--red)');return;}
   p.reunioes_acomp.push(r);
   push(p,'acompanha','EP','Reunião de acompanhamento registrada — '+r.data+' — '+r.conformidade);
   await fbSaveAll();
   toast('Reunião registrada!','var(--teal)');
   rDetalhe();
+}
+function calcEconomiaAcompEdit(){
+  const volNovo=Number.parseFloat(document.getElementById('ac-edit-vol-novo')?.value)||0;
+  const trealNovo=Number.parseFloat(document.getElementById('ac-edit-treal-novo')?.value)||0;
+  const el=document.getElementById('ac-edit-economia');
+  if(!el)return;
+  if(volNovo&&trealNovo){
+    const totalNovo=+(volNovo*trealNovo).toFixed(1);
+    const baseline=curProc?.ent?.total_h_mensal||0;
+    const eco=baseline?+(baseline-totalNovo).toFixed(1):null;
+    el.value=eco!=null?(eco>=0?'+'+eco:eco)+' h/mês':'novo total: '+totalNovo+' h/mês';
+  } else {
+    el.value='';
+  }
 }
 function editarReuniaoAcomp(idx){
   const r=(curProc?.reunioes_acomp||[])[idx];
@@ -4068,6 +4134,9 @@ function editarReuniaoAcomp(idx){
   v('ac-edit-acoes').value=r.acoes||'';
   v('ac-edit-partic').value=r.participantes||'';
   v('ac-edit-proxima').value=r.proxima||'';
+  v('ac-edit-vol-novo').value=r.vol_exec_novo||'';
+  v('ac-edit-treal-novo').value=r.t_real_novo||'';
+  v('ac-edit-economia').value=r.economia_h!=null?(r.economia_h>=0?'+'+r.economia_h:r.economia_h)+' h/mês':'';
   v('ac-edit-panel').style.display='block';
   v('ac-edit-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -4076,7 +4145,9 @@ async function salvarEditReuniaoAcomp(){
   const idx=globalThis._acEditIdx;
   if(idx==null||!p.reunioes_acomp?.[idx])return;
   const v=id=>document.getElementById(id)?.value||'';
-  p.reunioes_acomp[idx]={
+  const volNovo=Number.parseFloat(v('ac-edit-vol-novo'))||null;
+  const trealNovo=Number.parseFloat(v('ac-edit-treal-novo'))||null;
+  const updated={
     ...p.reunioes_acomp[idx],
     data:v('ac-edit-data'),
     conformidade:v('ac-edit-conf'),
@@ -4085,7 +4156,12 @@ async function salvarEditReuniaoAcomp(){
     acoes:v('ac-edit-acoes'),
     participantes:v('ac-edit-partic'),
     proxima:v('ac-edit-proxima'),
+    vol_exec_novo:volNovo,
+    t_real_novo:trealNovo,
+    total_novo:volNovo&&trealNovo?+(volNovo*trealNovo).toFixed(1):null,
+    economia_h:volNovo&&trealNovo&&p.ent?.total_h_mensal!=null?+(p.ent.total_h_mensal-volNovo*trealNovo).toFixed(1):null,
   };
+  p.reunioes_acomp[idx]=updated;
   await fbSaveAll();
   toast('Reunião atualizada!','var(--teal)');
   globalThis._acEditIdx=null;
@@ -8962,7 +9038,7 @@ function planoVisualKey(at, st){
     const inicioD  = new Date(`${anoRef}${sufIni}`);
     const totalDias    = Math.max(1, Math.ceil((prazoD - inicioD)  / 86400000));
     const diasRestantes= Math.ceil((prazoD - hoje) / 86400000);
-    if(diasRestantes >= 0 && diasRestantes / totalDias < 0.10) return 'quase_vencendo';
+    if(diasRestantes >= 0 && diasRestantes / totalDias < 0.1) return 'quase_vencendo';
   }
   return st;
 }
@@ -9030,13 +9106,13 @@ function rPlano(){
   renderPlanoMetas();
   const el = document.getElementById('plano-c');
   if(!el) return;
-  if(!lista.length){
+  if(lista.length===0){
     el.innerHTML='<div class="ib ibb">Nenhuma atividade encontrada. <button type="button" class="btn" onclick="abrirPlanoModal(null)" style="font-size:12px;margin-left:8px">+ Nova atividade</button></div>';
     return;
   }
   const ORDEM = ['Anual','T1','T2','T3','T4'];
   const grupos = {};
-  lista.forEach(a=>{ const k=a.trimestre||'Anual'; if(!grupos[k]){ grupos[k]=[]; } grupos[k].push(a); });
+  lista.forEach(a=>{ const k=a.trimestre||'Anual'; grupos[k]=grupos[k]||[]; grupos[k].push(a); });
   const statusOrd = {em_atraso:0,em_execucao:1,planejado:2,concluida:3};
   el.innerHTML = ORDEM.filter(k=>grupos[k]).map(tri=>{
     const items = grupos[tri].sort((a,b)=>(statusOrd[planoStatusEfetivo(a)]??2)-(statusOrd[planoStatusEfetivo(b)]??2));
@@ -9104,19 +9180,19 @@ function renderPlanoMetas(){
   const metas=PLANO_METAS.filter(m=>!m.ano||m.ano===ano);
   const podeEditar=isEP();
   const btnAdd=podeEditar?`<button type="button" class="btn btn-a ep-only" onclick="abrirMetaModal(null)" style="font-size:11px;padding:3px 10px">+ Meta</button>`:'';
-  if(!metas.length && !podeEditar){el.innerHTML='';return;}
+  if(metas.length===0 && !podeEditar){el.innerHTML='';return;}
   el.innerHTML=`
   <div style="margin-bottom:.5rem;display:flex;align-items:center;gap:8px">
     <span style="font-size:12px;font-weight:700;color:var(--ink)">🎯 Metas do Escritório — ${ano}</span>
     ${btnAdd}
   </div>
-  ${!metas.length?`<div style="font-size:12px;color:var(--ink3);padding:.5rem 0">Nenhuma meta cadastrada. ${podeEditar?'Clique em <b>+ Meta</b> para adicionar.':''}</div>`:''}
+  ${metas.length?'':`<div style="font-size:12px;color:var(--ink3);padding:.5rem 0">Nenhuma meta cadastrada. ${podeEditar?'Clique em <b>+ Meta</b> para adicionar.':''}</div>`}
   <div style="display:flex;gap:10px;flex-wrap:wrap">
     ${metas.map(m=>{
       const real=_metaRealizado(m);
       const mt=m.meta||1;
       const pct=Math.min(100,Math.round(real/mt*100));
-      const cor=pct>=100?'#14b8a6':pct>=60?'#f59e0b':'#ef4444';
+      let cor; if(pct>=100) cor='#14b8a6'; else if(pct>=60) cor='#f59e0b'; else cor='#ef4444';
       const un=m.unidade||'';
       const valTxt=`${real}${un?' '+un:''} / meta ${mt}${un?' '+un:''}`;
       const editBtns=podeEditar?`<div style="display:flex;gap:4px;margin-top:6px">
@@ -9292,7 +9368,7 @@ async function salvarMeta(){
   const titulo=(document.getElementById('mm-titulo')?.value||'').trim();
   if(!titulo){toast('Informe o título da meta.','var(--amber)');return;}
   const metaVal=Number.parseFloat(document.getElementById('mm-meta')?.value);
-  if(isNaN(metaVal)||metaVal<=0){toast('Informe o valor da meta (número > 0).','var(--amber)');return;}
+  if(Number.isNaN(metaVal)||metaVal<=0){toast('Informe o valor da meta (número > 0).','var(--amber)');return;}
   const fonte=document.getElementById('mm-fonte')?.value||'';
   const id=Number.parseInt(document.getElementById('mm-id')?.value)||0;
   const ano=Number.parseInt(document.getElementById('mm-ano')?.value)||planoAno();
@@ -9581,12 +9657,13 @@ async function gerarStatusReportPPT(){
   function addFooter(sl, num){
     sl.addShape(pptx.ShapeType.rect,{x:0,y:10.78,w:20,h:0.47,fill:{color:NAVY}});
     sl.addText('EP·CAGE — Escritório de Processos — CAGE/Sefaz-RS',
-      {x:0.4,y:10.80,w:14,h:0.34,fontSize:13,color:WHT,fontFace:'Calibri'});
-    sl.addText(dtFmt,{x:15.0,y:10.80,w:3.6,h:0.34,fontSize:13,color:WHT,fontFace:'Calibri',align:'right'});
-    sl.addText(String(num),{x:18.8,y:10.80,w:0.8,h:0.34,fontSize:13,bold:true,color:WHT,fontFace:'Calibri',align:'right'});
+      {x:0.4,y:10.8,w:14,h:0.34,fontSize:13,color:WHT,fontFace:'Calibri'});
+    sl.addText(dtFmt,{x:15,y:10.8,w:3.6,h:0.34,fontSize:13,color:WHT,fontFace:'Calibri',align:'right'});
+    sl.addText(String(num),{x:18.8,y:10.8,w:0.8,h:0.34,fontSize:13,bold:true,color:WHT,fontFace:'Calibri',align:'right'});
   }
   // Draws a table with teal header; colWidths is an array (must sum to totalW)
-  function drawTable(sl, x, y, colWidths, headers, rows, rowH, hdrH, maxRows){
+  function drawTable(sl, x, y, colWidths, headers, rows, opts){
+    const {rowH, hdrH, maxRows} = opts;
     // Header row
     headers.forEach((h,i)=>{
       const bx = x + colWidths.slice(0,i).reduce((a,b)=>a+b,0);
@@ -9619,7 +9696,7 @@ async function gerarStatusReportPPT(){
     sl.background = {color:WHT};
     // Left navy panel
     sl.addShape(pptx.ShapeType.rect,{x:0,y:0,w:7.2,h:11.25,fill:{color:NAVY}});
-    sl.addShape(pptx.ShapeType.rect,{x:7.0,y:0,w:0.2,h:11.25,fill:{color:TEAL}});
+    sl.addShape(pptx.ShapeType.rect,{x:7,y:0,w:0.2,h:11.25,fill:{color:TEAL}});
     // Left panel text
     sl.addText('CAGE',{x:0.4,y:2.8,w:6.2,h:1.8,fontSize:60,bold:true,color:WHT,fontFace:'Calibri',align:'center'});
     sl.addText('Sefaz-RS',{x:0.4,y:4.6,w:6.2,h:0.8,fontSize:22,color:TEAL,fontFace:'Calibri',align:'center'});
@@ -9660,16 +9737,16 @@ async function gerarStatusReportPPT(){
 
     const rowH=0.76, hdrH=0.72;
     const maxRows=Math.floor((9.6-1.75-hdrH)/rowH); // safe bottom = 9.6 (above footnote)
-    if(!rows.length){
+    if(rows.length){
+      drawTable(sl,0.4,1.75,cws,hds,rows,{rowH,hdrH,maxRows});
+    } else {
       sl.addText('Nenhum mapeamento em andamento no momento.',
         {x:0.4,y:4,w:19.2,h:1,fontSize:18,color:'888888',fontFace:'Calibri',align:'center'});
-    } else {
-      drawTable(sl,0.4,1.75,cws,hds,rows,rowH,hdrH,maxRows);
     }
     // Phase guide footnote
     sl.addShape(pptx.ShapeType.rect,{x:0.4,y:9.75,w:19.2,h:0.82,fill:{color:'F8FAFC'},line:{color:'E2E8F0',width:1}});
     sl.addText('Fases: 1·Abertura  2·Reunião  3·Riscos  4·Questionário  5·Esboço  6·Det.Etapas  7·Análise AS IS  8·Valid.Dono  9·Desenho Final  10·Aprovação  11·POP  12·Complemento  13·Apresentação  14·Publicação  15·Acompanhamento  16·Auditoria',
-      {x:0.55,y:9.77,w:19.0,h:0.74,fontSize:10,color:'666666',fontFace:'Calibri',valign:'middle',wrap:true});
+      {x:0.55,y:9.77,w:19,h:0.74,fontSize:10,color:'666666',fontFace:'Calibri',valign:'middle',wrap:true});
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -9681,7 +9758,7 @@ async function gerarStatusReportPPT(){
     addHeader(sl,'Trabalhos concluídos no mês');
     addFooter(sl,3);
 
-    const cws = [2.2,6.8,3.0,1.8,2.0,3.4]; // Tipo|Atividade|Responsável|Prazo|Entrega|Descrição (sum=19.2)
+    const cws = [2.2,6.8,3,1.8,2,3.4]; // Tipo|Atividade|Responsável|Prazo|Entrega|Descrição (sum=19.2)
     const hds = ['Tipo','Atividade / Processo','Responsável','Prazo','Entrega','Objetivo / Resultado'];
     const rows = concluidosMes.map(a=>{
       const entLb = a.entrega_status==='em_dia'?'✅ Em dia'
@@ -9691,11 +9768,11 @@ async function gerarStatusReportPPT(){
     });
     const rowH=0.76, hdrH=0.72;
     const maxRows=Math.floor((10.62-1.75-hdrH)/rowH);
-    if(!rows.length){
+    if(rows.length){
+      drawTable(sl,0.4,1.75,cws,hds,rows,{rowH,hdrH,maxRows});
+    } else {
       sl.addText('Nenhum trabalho concluído registrado no período.',
         {x:0.4,y:4,w:19.2,h:1,fontSize:18,color:'888888',fontFace:'Calibri',align:'center'});
-    } else {
-      drawTable(sl,0.4,1.75,cws,hds,rows,rowH,hdrH,maxRows);
     }
   }
 
@@ -9712,19 +9789,22 @@ async function gerarStatusReportPPT(){
     const Y1 = 1.75; // content top (below header)
 
     // ── Row 1: 5 KPI cards (full width, equal spacing) ──────────────────────
+    let corAnual; if(pctAnual>=75) corAnual=VERDE; else if(pctAnual>=40) corAnual=AMAR; else corAnual=VERM;
+    let corPontK; if(pctPont===null) corPontK=CINZ; else if(pctPont>=80) corPontK=VERDE; else if(pctPont>=50) corPontK=AMAR; else corPontK=VERM;
+    let corCob; if(pctCob>=70) corCob=VERDE; else if(pctCob>=40) corCob=AMAR; else corCob=VERM;
     const kpis=[
-      {lb:'Conclusão Anual PAT', val:pctAnual+'%',          cor:pctAnual>=75?VERDE:pctAnual>=40?AMAR:VERM},
-      {lb:'Pontualidade entregas',val:pctPont===null?'N/D':pctPont+'%', cor:pctPont===null?CINZ:pctPont>=80?VERDE:pctPont>=50?AMAR:VERM},
+      {lb:'Conclusão Anual PAT', val:pctAnual+'%',          cor:corAnual},
+      {lb:'Pontualidade entregas',val:pctPont===null?'N/D':pctPont+'%', cor:corPontK},
       {lb:'Em Execução',         val:String(emExec),        cor:VERDE},
       {lb:'Em Atraso',           val:String(emAtraso),      cor:VERM},
-      {lb:'Cobertura Mapeamento',val:pctCob+'%',            cor:pctCob>=70?VERDE:pctCob>=40?AMAR:VERM},
+      {lb:'Cobertura Mapeamento',val:pctCob+'%',            cor:corCob},
     ];
     const kW=3.74, kH=1.22, kGap=0.11;
     kpis.forEach((k,i)=>{
       const bx=0.4+i*(kW+kGap);
       sl.addShape(pptx.ShapeType.rect,{x:bx,y:Y1,w:kW,h:kH,fill:{color:'F8FAFC'},line:{color:k.cor,width:2.5}});
       sl.addShape(pptx.ShapeType.rect,{x:bx,y:Y1,w:0.16,h:kH,fill:{color:k.cor}});
-      sl.addText(k.val,{x:bx+0.28,y:Y1+0.08,w:kW-0.36,h:0.70,fontSize:34,bold:true,color:k.cor,fontFace:'Calibri'});
+      sl.addText(k.val,{x:bx+0.28,y:Y1+0.08,w:kW-0.36,h:0.7,fontSize:34,bold:true,color:k.cor,fontFace:'Calibri'});
       sl.addText(k.lb,{x:bx+0.28,y:Y1+0.82,w:kW-0.36,h:0.32,fontSize:13,color:'6B7280',fontFace:'Calibri'});
     });
 
@@ -9734,7 +9814,7 @@ async function gerarStatusReportPPT(){
     // Panel A — PAT trimestre status bars
     const pAx=0.4, pAw=6.2;
     sl.addShape(pptx.ShapeType.rect,{x:pAx,y:Y2,w:pAw,h:pH,fill:{color:'F8FAFC'},line:{color:'E2E8F0',width:1}});
-    sl.addShape(pptx.ShapeType.rect,{x:pAx,y:Y2,w:pAw,h:0.50,fill:{color:TEAL}});
+    sl.addShape(pptx.ShapeType.rect,{x:pAx,y:Y2,w:pAw,h:0.5,fill:{color:TEAL}});
     sl.addText(`${trimAtual} — Status das atividades`,{x:pAx+0.14,y:Y2+0.02,w:pAw-0.22,h:0.46,fontSize:14,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
     const barItems=[
       {lb:'Concluídas',val:triConcl,cor:CINZ},
@@ -9747,14 +9827,14 @@ async function gerarStatusReportPPT(){
     barItems.forEach((r,i)=>{
       const bY=Y2+0.68+i*0.76;
       const bW=Math.max(0.1,(r.val/maxB)*barAreaW);
-      sl.addText(r.lb,{x:pAx+0.14,y:bY,w:2.0,h:0.40,fontSize:13,color:'374151',fontFace:'Calibri',valign:'middle'});
+      sl.addText(r.lb,{x:pAx+0.14,y:bY,w:2,h:0.4,fontSize:13,color:'374151',fontFace:'Calibri',valign:'middle'});
       sl.addShape(pptx.ShapeType.rect,{x:pAx+2.2,y:bY+0.08,w:bW,h:0.26,fill:{color:r.cor}});
-      sl.addText(String(r.val),{x:pAx+2.2+bW+0.1,y:bY,w:0.65,h:0.40,fontSize:14,bold:true,color:r.cor,fontFace:'Calibri',valign:'middle'});
+      sl.addText(String(r.val),{x:pAx+2.2+bW+0.1,y:bY,w:0.65,h:0.4,fontSize:14,bold:true,color:r.cor,fontFace:'Calibri',valign:'middle'});
       if(triTotal>0) sl.addText(`(${Math.round(r.val/triTotal*100)}%)`,
-        {x:pAx+3.0+bW,y:bY,w:0.9,h:0.40,fontSize:12,color:'9CA3AF',fontFace:'Calibri',valign:'middle'});
+        {x:pAx+3+bW,y:bY,w:0.9,h:0.4,fontSize:12,color:'9CA3AF',fontFace:'Calibri',valign:'middle'});
     });
     // Previsto vs realizado mini-bar
-    const pvY=Y2+3.50;
+    const pvY=Y2+3.5;
     sl.addShape(pptx.ShapeType.rect,{x:pAx+0.14,y:pvY,w:pAw-0.28,h:0.46,fill:{color:'EEF2FF'},line:{color:'C7D2FE',width:1}});
     const pctTri=triPrev>0?Math.round(triReal/triPrev*100):null;
     sl.addText(`Previsto: ${triPrev}  ·  Realizado: ${triReal}  ·  ${pctTri!==null?pctTri+'% concluído':'—'}`,
@@ -9763,21 +9843,21 @@ async function gerarStatusReportPPT(){
     // Panel B — Conclusão anual + Pontualidade
     const pBx=pAx+pAw+0.22, pBw=6.2;
     sl.addShape(pptx.ShapeType.rect,{x:pBx,y:Y2,w:pBw,h:pH,fill:{color:'F8FAFC'},line:{color:'E2E8F0',width:1}});
-    sl.addShape(pptx.ShapeType.rect,{x:pBx,y:Y2,w:pBw,h:0.50,fill:{color:TEAL}});
+    sl.addShape(pptx.ShapeType.rect,{x:pBx,y:Y2,w:pBw,h:0.5,fill:{color:TEAL}});
     sl.addText(`Conclusão ${ano} e Pontualidade`,{x:pBx+0.14,y:Y2+0.02,w:pBw-0.22,h:0.46,fontSize:14,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
     // Annual progress
-    const corA=pctAnual>=75?VERDE:pctAnual>=40?AMAR:VERM;
+    let corA; if(pctAnual>=75) corA=VERDE; else if(pctAnual>=40) corA=AMAR; else corA=VERM;
     sl.addText(`Conclusão anual: ${pctAnual}%`,{x:pBx+0.22,y:Y2+0.62,w:pBw-0.4,h:0.36,fontSize:14,bold:true,color:corA,fontFace:'Calibri'});
-    sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+1.04,w:pBw-0.44,h:0.30,fill:{color:'E5E7EB'}});
-    sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+1.04,w:Math.max(0.04,(pBw-0.44)*pctAnual/100),h:0.30,fill:{color:corA}});
-    sl.addText(`${concl}/${total} atividades concluídas`,{x:pBx+0.22,y:Y2+1.42,w:pBw-0.4,h:0.30,fontSize:12,color:'6B7280',fontFace:'Calibri'});
+    sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+1.04,w:pBw-0.44,h:0.3,fill:{color:'E5E7EB'}});
+    sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+1.04,w:Math.max(0.04,(pBw-0.44)*pctAnual/100),h:0.3,fill:{color:corA}});
+    sl.addText(`${concl}/${total} atividades concluídas`,{x:pBx+0.22,y:Y2+1.42,w:pBw-0.4,h:0.3,fontSize:12,color:'6B7280',fontFace:'Calibri'});
     // Pontualidade
     if(pctPont!==null){
-      const corP=pctPont>=80?VERDE:pctPont>=50?AMAR:VERM;
+      let corP; if(pctPont>=80) corP=VERDE; else if(pctPont>=50) corP=AMAR; else corP=VERM;
       sl.addText(`Pontualidade: ${pctPont}%`,{x:pBx+0.22,y:Y2+1.82,w:pBw-0.4,h:0.36,fontSize:14,bold:true,color:corP,fontFace:'Calibri'});
-      sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+2.24,w:pBw-0.44,h:0.30,fill:{color:'E5E7EB'}});
-      sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+2.24,w:Math.max(0.04,(pBw-0.44)*pctPont/100),h:0.30,fill:{color:corP}});
-      sl.addText(`✅ Em dia: ${emDia}   ⚠ Com atraso: ${comAtraso}`,{x:pBx+0.22,y:Y2+2.62,w:pBw-0.4,h:0.30,fontSize:12,color:'6B7280',fontFace:'Calibri'});
+      sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+2.24,w:pBw-0.44,h:0.3,fill:{color:'E5E7EB'}});
+      sl.addShape(pptx.ShapeType.rect,{x:pBx+0.22,y:Y2+2.24,w:Math.max(0.04,(pBw-0.44)*pctPont/100),h:0.3,fill:{color:corP}});
+      sl.addText(`✅ Em dia: ${emDia}   ⚠ Com atraso: ${comAtraso}`,{x:pBx+0.22,y:Y2+2.62,w:pBw-0.4,h:0.3,fontSize:12,color:'6B7280',fontFace:'Calibri'});
     }
     // Status mini-cards
     const stY=Y2+3.05;
@@ -9792,16 +9872,16 @@ async function gerarStatusReportPPT(){
     // Panel C — Cobertura por macroprocesso (right, fill remaining width)
     const pCx=pBx+pBw+0.22, pCw=19.6-pCx;
     sl.addShape(pptx.ShapeType.rect,{x:pCx,y:Y2,w:pCw,h:pH,fill:{color:'F8FAFC'},line:{color:'E2E8F0',width:1}});
-    sl.addShape(pptx.ShapeType.rect,{x:pCx,y:Y2,w:pCw,h:0.50,fill:{color:TEAL}});
+    sl.addShape(pptx.ShapeType.rect,{x:pCx,y:Y2,w:pCw,h:0.5,fill:{color:TEAL}});
     sl.addText('Cobertura por Macroprocesso',{x:pCx+0.14,y:Y2+0.02,w:pCw-0.22,h:0.46,fontSize:14,bold:true,color:WHT,fontFace:'Calibri',valign:'middle'});
     const barCw=pCw-2.6;
     cobMacro.slice(0,6).forEach((m,i)=>{
       const bY=Y2+0.64+i*0.56;
       const bW=Math.max(0.04,(m.pct/100)*barCw);
-      const cor2=m.pct>=70?VERDE:m.pct>=40?AMAR:VERM;
+      let cor2; if(m.pct>=70) cor2=VERDE; else if(m.pct>=40) cor2=AMAR; else cor2=VERM;
       const nT=m.nome.length>26?m.nome.slice(0,24)+'…':m.nome;
       sl.addText(nT,{x:pCx+0.14,y:bY,w:2.2,h:0.32,fontSize:11,color:'374151',fontFace:'Calibri',valign:'middle'});
-      sl.addShape(pptx.ShapeType.rect,{x:pCx+2.40,y:bY+0.06,w:bW,h:0.22,fill:{color:cor2}});
+      sl.addShape(pptx.ShapeType.rect,{x:pCx+2.4,y:bY+0.06,w:bW,h:0.22,fill:{color:cor2}});
       sl.addText(`${m.pct}%`,{x:pCx+2.44+bW,y:bY,w:0.72,h:0.32,fontSize:12,bold:true,color:cor2,fontFace:'Calibri',valign:'middle'});
     });
     sl.addShape(pptx.ShapeType.rect,{x:pCx+0.14,y:Y2+3.72,w:pCw-0.28,h:0.26,fill:{color:'EFF6FF'}});
@@ -9814,24 +9894,24 @@ async function gerarStatusReportPPT(){
       const Y3=Y2+pH+0.28;
       const mGap=0.18;
       const mW=(19.2-mGap*(metasDoAno.length-1))/metasDoAno.length;
-      sl.addText('🎯 Metas do escritório',{x:0.4,y:Y3-0.30,w:8,h:0.26,fontSize:12,bold:true,color:NAVY,fontFace:'Calibri'});
+      sl.addText('🎯 Metas do escritório',{x:0.4,y:Y3-0.3,w:8,h:0.26,fontSize:12,bold:true,color:NAVY,fontFace:'Calibri'});
       metasDoAno.forEach((m,i)=>{
         const real=_metaRealizado(m);
         const mt=m.meta||1;
         const pctM=Math.min(100,Math.round(real/mt*100));
-        const corM=pctM>=100?VERDE:pctM>=60?AMAR:VERM;
+        let corM; if(pctM>=100) corM=VERDE; else if(pctM>=60) corM=AMAR; else corM=VERM;
         const bx=0.4+i*(mW+mGap);
         const un=m.unidade||'';
         sl.addShape(pptx.ShapeType.rect,{x:bx,y:Y3,w:mW,h:1.55,fill:{color:'F8FAFC'},line:{color:corM,width:2}});
         sl.addShape(pptx.ShapeType.rect,{x:bx,y:Y3,w:0.14,h:1.55,fill:{color:corM}});
         const titulo=m.titulo.length>36?m.titulo.slice(0,34)+'…':m.titulo;
-        sl.addText(titulo,{x:bx+0.24,y:Y3+0.06,w:mW-0.32,h:0.40,fontSize:11,bold:true,color:'374151',fontFace:'Calibri',wrap:true});
+        sl.addText(titulo,{x:bx+0.24,y:Y3+0.06,w:mW-0.32,h:0.4,fontSize:11,bold:true,color:'374151',fontFace:'Calibri',wrap:true});
         sl.addText(`${pctM}%`,{x:bx+0.24,y:Y3+0.48,w:mW-0.32,h:0.52,fontSize:26,bold:true,color:corM,fontFace:'Calibri'});
         sl.addText(`${real}${un?' '+un:''} / meta ${mt}${un?' '+un:''}`,
-          {x:bx+0.24,y:Y3+1.02,w:mW-0.32,h:0.30,fontSize:11,color:'6B7280',fontFace:'Calibri'});
+          {x:bx+0.24,y:Y3+1.02,w:mW-0.32,h:0.3,fontSize:11,color:'6B7280',fontFace:'Calibri'});
         const barW=Math.max(0.04,(mW-0.36)*pctM/100);
-        sl.addShape(pptx.ShapeType.rect,{x:bx+0.24,y:Y3+1.38,w:mW-0.36,h:0.10,fill:{color:'E5E7EB'}});
-        sl.addShape(pptx.ShapeType.rect,{x:bx+0.24,y:Y3+1.38,w:barW,h:0.10,fill:{color:corM}});
+        sl.addShape(pptx.ShapeType.rect,{x:bx+0.24,y:Y3+1.38,w:mW-0.36,h:0.1,fill:{color:'E5E7EB'}});
+        sl.addShape(pptx.ShapeType.rect,{x:bx+0.24,y:Y3+1.38,w:barW,h:0.1,fill:{color:corM}});
       });
     }
   }
@@ -9857,11 +9937,11 @@ async function gerarStatusReportPPT(){
     ]);
     const rowH=0.76, hdrH=0.72;
     const maxRows=Math.floor((10.62-1.75-hdrH)/rowH);
-    if(!rows.length){
+    if(rows.length){
+      drawTable(sl,0.4,1.75,cws,hds,rows,{rowH,hdrH,maxRows});
+    } else {
       sl.addText(`Nenhum trabalho planejado para ${trimAtual}/${trimProx}.`,
         {x:0.4,y:4,w:19.2,h:1,fontSize:18,color:'888888',fontFace:'Calibri',align:'center'});
-    } else {
-      drawTable(sl,0.4,1.75,cws,hds,rows,rowH,hdrH,maxRows);
     }
   }
 
