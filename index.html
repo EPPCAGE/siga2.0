@@ -9443,8 +9443,16 @@ function planoDashAnual(lista){
     const isActive=st&&st===stF;
     const clickable=!!st;
     const border=isActive?`2px solid ${c}`:`1px solid ${c}`;
-    const bgEff=isActive?bg.replace(/\.(0[0-9])'/,'.18)')  :bg;
-    return `<div role="${clickable?'button':''}" ${clickable?`tabindex="0" onclick="planoFiltrarSt('${st}')" onkeydown="if(event.key==='Enter'||event.key===' ')planoFiltrarSt('${st}')" title="${isActive?'Clique para remover filtro':'Filtrar por: '+l}"`:''} style="flex:1;min-width:90px;background:${bg};border:${border};border-radius:var(--r);padding:.7rem 1rem;${clickable?'cursor:pointer;transition:box-shadow .15s':''}${isActive?';outline:2px solid '+c+';outline-offset:1px':''}" ${clickable?`onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''" onfocus="this.style.boxShadow='0 0 0 2px ${c}'" onblur="this.style.boxShadow=''"`:''}><div style="font-size:22px;font-weight:700;color:${c};line-height:1">${v}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">${l}${isActive?' ▼':''}</div></div>`;
+    const role=clickable?'button':'';
+    const title=isActive?'Clique para remover filtro':'Filtrar por: '+l;
+    const interattrs=clickable
+      ?`tabindex="0" onclick="planoFiltrarSt('${st}')" onkeydown="if(event.key==='Enter'||event.key===' ')planoFiltrarSt('${st}')" title="${title}"`
+      :'';
+    let styleExtra=clickable?'cursor:pointer;transition:box-shadow .15s':'';
+    if(isActive) styleExtra+=';outline:2px solid '+c+';outline-offset:1px';
+    const hoverattrs=clickable?`onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''" onfocus="this.style.boxShadow='0 0 0 2px ${c}'" onblur="this.style.boxShadow=''"`:'';
+    const labelSuffix=isActive?' ▼':'';
+    return `<div role="${role}" ${interattrs} style="flex:1;min-width:90px;background:${bg};border:${border};border-radius:var(--r);padding:.7rem 1rem;${styleExtra}" ${hoverattrs}><div style="font-size:22px;font-weight:700;color:${c};line-height:1">${v}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">${l}${labelSuffix}</div></div>`;
   };
   el.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap;width:100%">
     ${dc(total,'Total atividades','var(--blue)','rgba(59,130,246,.07)','')}
@@ -9511,8 +9519,8 @@ function planoStatsTrimestrais(lista){
       if(pct>=75) cor='#14b8a6';
       else if(pct>=40) cor='#f59e0b';
       else cor='#ef4444';
-      const borderStyle=isFilt?`3px solid var(--blue)`:isCur?`2px solid var(--blue)`:`1px solid var(--bdr)`;
-      const bgStyle=isFilt?`rgba(59,130,246,.12)`:isCur?`rgba(59,130,246,.06)`:`var(--bg2)`;
+      let borderStyle; if(isFilt) borderStyle='3px solid var(--blue)'; else if(isCur) borderStyle='2px solid var(--blue)'; else borderStyle='1px solid var(--bdr)';
+      let bgStyle; if(isFilt) bgStyle='rgba(59,130,246,.12)'; else if(isCur) bgStyle='rgba(59,130,246,.06)'; else bgStyle='var(--bg2)';
       return `<div role="button" tabindex="0" onclick="planoFiltrarTri('${tri}')" onkeydown="if(event.key==='Enter'||event.key===' ')planoFiltrarTri('${tri}')" title="${isFilt?'Clique para remover filtro':'Filtrar por '+tri}" style="background:${bgStyle};border:${borderStyle};border-radius:var(--r);padding:.8rem;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''" onfocus="this.style.boxShadow='0 0 0 2px var(--blue)'" onblur="this.style.boxShadow=''">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
           <span style="font-size:11px;font-weight:700;color:${isFilt||isCur?'var(--blue)':'var(--ink)'}">${tri}${isCur?' ●':''}${isFilt?' ▼':''}</span>
@@ -9707,13 +9715,14 @@ async function gerarStatusReportPPT(){
     rows.slice(0,maxRows).forEach((row,ri)=>{
       const rowBg = ri%2===0 ? WHT : 'F0FAF9';
       const ry = y+hdrH+ri*rowH;
-      row.forEach((cell,ci)=>{
+      for(let ci=0;ci<row.length;ci++){
+        const cell=row[ci];
         const bx = x + colWidths.slice(0,ci).reduce((a,b)=>a+b,0);
         const isFirst = ci===0;
         sl.addShape(pptx.ShapeType.rect,{x:bx,y:ry,w:colWidths[ci]-0.02,h:rowH,fill:{color:rowBg},line:{color:'D1D5DB',width:0.5}});
         sl.addText(String(cell??'—'),{x:bx+0.12,y:ry+0.04,w:colWidths[ci]-0.18,h:rowH-0.08,
           fontSize:isFirst?13:12,bold:isFirst,color:BLK,fontFace:'Calibri',valign:'middle',wrap:true});
-      });
+      }
     });
     if(rows.length>maxRows){
       const extraY = y+hdrH+maxRows*rowH;
