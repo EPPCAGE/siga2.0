@@ -9438,13 +9438,20 @@ function planoDashAnual(lista){
   if(pctPontualidade>=80) corPont='#14b8a6';
   else if(pctPontualidade>=50) corPont='#f59e0b';
   else corPont='#ef4444';
-  const dc = (v,l,c,bg)=>`<div style="flex:1;min-width:90px;background:${bg};border:1px solid ${c};border-radius:var(--r);padding:.7rem 1rem"><div style="font-size:22px;font-weight:700;color:${c};line-height:1">${v}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">${l}</div></div>`;
+  const stF = document.getElementById('plano-filt-status')?.value||'';
+  const dc = (v,l,c,bg,st)=>{
+    const isActive=st&&st===stF;
+    const clickable=!!st;
+    const border=isActive?`2px solid ${c}`:`1px solid ${c}`;
+    const bgEff=isActive?bg.replace(/\.(0[0-9])'/,'.18)')  :bg;
+    return `<div role="${clickable?'button':''}" ${clickable?`tabindex="0" onclick="planoFiltrarSt('${st}')" onkeydown="if(event.key==='Enter'||event.key===' ')planoFiltrarSt('${st}')" title="${isActive?'Clique para remover filtro':'Filtrar por: '+l}"`:''} style="flex:1;min-width:90px;background:${bg};border:${border};border-radius:var(--r);padding:.7rem 1rem;${clickable?'cursor:pointer;transition:box-shadow .15s':''}${isActive?';outline:2px solid '+c+';outline-offset:1px':''}" ${clickable?`onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''" onfocus="this.style.boxShadow='0 0 0 2px ${c}'" onblur="this.style.boxShadow=''"`:''}><div style="font-size:22px;font-weight:700;color:${c};line-height:1">${v}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">${l}${isActive?' ▼':''}</div></div>`;
+  };
   el.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap;width:100%">
-    ${dc(total,'Total atividades','var(--blue)','rgba(59,130,246,.07)')}
-    ${dc(planej,'Planejadas','var(--ink3)','var(--bg2)')}
-    ${dc(execucao,'Em execução','#f59e0b','rgba(245,158,11,.07)')}
-    ${dc(atraso,'Em atraso','#ef4444','rgba(239,68,68,.07)')}
-    ${dc(concl,'Concluídas','#14b8a6','rgba(20,184,166,.07)')}
+    ${dc(total,'Total atividades','var(--blue)','rgba(59,130,246,.07)','')}
+    ${dc(planej,'Planejadas','var(--ink3)','var(--bg2)','planejado')}
+    ${dc(execucao,'Em execução','#f59e0b','rgba(245,158,11,.07)','em_execucao')}
+    ${dc(atraso,'Em atraso','#ef4444','rgba(239,68,68,.07)','em_atraso')}
+    ${dc(concl,'Concluídas','#14b8a6','rgba(20,184,166,.07)','concluida')}
     <div style="flex:1;min-width:120px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.7rem 1rem">
       <div style="font-size:22px;font-weight:700;color:${cor};line-height:1">${pct}%</div>
       <div style="font-size:11px;color:var(--ink3);margin-top:2px">Conclusão anual</div>
@@ -9461,6 +9468,13 @@ function planoDashAnual(lista){
       </div>
     </div>`:''}
   </div>`;
+}
+
+function planoFiltrarSt(st){
+  const sel=document.getElementById('plano-filt-status');
+  if(!sel) return;
+  sel.value = sel.value===st ? '' : st;
+  rPlano();
 }
 
 function planoFiltrarTri(tri){
