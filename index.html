@@ -4888,7 +4888,8 @@ async function iaGerarRelatorioAuditoria(){
       const json = JSON.parse(result.replace(/^```[a-z]*\n?/,'').replace(/```$/,'').trim());
       const conf = document.getElementById('aud-conf')?.value || aud.conformidade || '';
       const html = renderRelatorioAuditoria(json, conf, p, aud);
-      el.innerHTML = html;
+      const _doc = new DOMParser().parseFromString(html, 'text/html');
+      el.replaceChildren(...Array.from(_doc.body.childNodes));
       p.auditoria.relatorio_html = html;
     } catch {
       const _wrap=document.createElement('div'); _wrap.className='ai-result';
