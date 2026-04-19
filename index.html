@@ -404,6 +404,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="login-btn" style="margin-top:.7rem;background:rgba(255,255,255,.15)" onclick="processarPrimeiroAcesso()">Continuar →</button>
       <div id="pa-msg" style="display:none;font-size:12px;text-align:center;margin-top:.5rem;padding:.4rem .6rem;border-radius:6px"></div>
     </div>
+    <div style="margin-top:1.4rem;border-top:1px solid rgba(255,255,255,.1);padding-top:1rem;text-align:center;font-size:11.5px;color:rgba(255,255,255,.35);line-height:1.6">
+      Precisa de apoio com seus projetos ou processos?<br>
+      Entre em contato por <a href="mailto:epp.cage@sefaz.rs.gov.br" style="color:rgba(255,255,255,.55);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.55)'">e-mail</a>
+      ou através do <a href="https://atendimentocage.sefaz.rs.gov.br/" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,.55);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.55)'">Portal e-CAGE</a>.
+    </div>
   </div>
 </div>
 
@@ -2188,7 +2193,7 @@ function rDash(){
     '<div class="stat cb"><div class="stat-n">'+mx.nProc+'</div><div class="stat-l">Processos</div></div>'+
     '<div class="stat cg"><div class="stat-n">'+mx.nSub+'</div><div class="stat-l">Subprocessos</div></div>'+
     '<div class="stat cr"><div class="stat-n">'+processos.filter(p=>p.prio==='Critica').length+'</div><div class="stat-l">Prioridade crítica</div></div>'+
-    (()=>{const eco=processos.reduce((s,p)=>{const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);return s+(r.length?r[r.length-1].economia_h:0);},0);return eco!==0?`<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${eco>=0?'+':''}`+eco.toFixed(1)+'h</div><div class="stat-l">Economia de horas/mês estimada</div></div>':''})();
+    (()=>{const eco=processos.reduce((s,p)=>{const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);return s+(r.length?r[r.length-1].economia_h:0);},0);if(eco===0)return '';const ecoSign=eco>=0?'+':'';return `<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${ecoSign}${eco.toFixed(1)}h</div><div class="stat-l">Economia de horas/mês estimada</div></div>`;})();
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
@@ -3040,8 +3045,10 @@ const ACOES = {
       } else {
         iaHtml = '<div style="font-size:12px;color:var(--ink3)">Nenhuma análise gerada ainda.</div>';
       }
+      let avisoAnalise='';
+      if(temBase){if(!temBpmn&&temEtapas)avisoAnalise='<div class="ib ibt" style="font-size:12px">ℹ O BPMN não foi desenhado no editor — a análise será realizada com base nas etapas mapeadas.</div>';}else{avisoAnalise='<div class="ib iba">⚠ Nenhuma etapa mapeada ainda. Adicione etapas na etapa Esboço AS IS para obter uma análise mais precisa.</div>';}
       return `<div class="ib ibp">A análise inteligente é gerada pela IA com base nas etapas mapeadas e dados do processo. O fluxo BPMN desenhado enriquece a análise, mas não é obrigatório.</div>
-        ${!temBase?'<div class="ib iba">⚠ Nenhuma etapa mapeada ainda. Adicione etapas na etapa Esboço AS IS para obter uma análise mais precisa.</div>':(!temBpmn&&temEtapas?'<div class="ib ibt" style="font-size:12px">ℹ O BPMN não foi desenhado no editor — a análise será realizada com base nas etapas mapeadas.</div>':'')}
+        ${avisoAnalise}
         <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
         <div id="ia-analise-result">${iaHtml}</div>
         <div class="btn-row" style="margin-top:.8rem">
@@ -3287,7 +3294,7 @@ const ACOES = {
               ${r.desvios?`<div style="font-size:12px;color:var(--red);margin-top:.2rem">⚠ Desvios: ${esc(r.desvios)}</div>`:''}
               ${r.acoes?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem">→ Ações: ${esc(r.acoes)}</div>`:''}
               ${r.proxima?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Próxima: ${r.proxima}</div>`:''}
-              ${r.economia_h!=null?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem;font-weight:600">📊 Economia estimada: ${r.economia_h>=0?'+':''}`+r.economia_h+' h/mês (vol: '+r.vol_exec_novo+'/mês × '+r.t_real_novo+'h)</div>':''}            </div>
+              ${(()=>{if(r.economia_h==null)return '';const s=r.economia_h>=0?'+':'';return `<div style="font-size:12px;color:var(--teal);margin-top:.2rem;font-weight:600">📊 Economia estimada: ${s}${r.economia_h} h/mês (vol: ${r.vol_exec_novo}/mês × ${r.t_real_novo}h)</div>`;})()}            </div>
             <div style="display:flex;gap:4px;flex-shrink:0">
               <button type="button" class="btn" style="font-size:11px;padding:2px 7px" onclick="editarReuniaoAcomp(${i})">✎ Editar</button>
               <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirReuniaoAcomp(${i})" aria-label="Remover reunião">✕</button>
@@ -4074,7 +4081,7 @@ function calcEconomiaAcomp(){
     const totalNovo=+(volNovo*trealNovo).toFixed(1);
     const baseline=curProc?.ent?.total_h_mensal||0;
     const eco=baseline?+(baseline-totalNovo).toFixed(1):null;
-    el.value=eco!=null?(eco>=0?'+'+eco:eco)+' h/mês':'novo total: '+totalNovo+' h/mês';
+    if(eco===null){el.value='novo total: '+totalNovo+' h/mês';}else{const s=eco>=0?'+':'';el.value=s+eco+' h/mês';}
   } else {
     el.value='';
   }
@@ -4101,12 +4108,13 @@ async function registrarReuniaoAcomp(){
     const baseline=p.ent?.total_h_mensal||null;
     r.economia_h=baseline!=null?+(baseline-r.total_novo).toFixed(1):null;
   }
-  if(!r.data){toast('Informe a data da reunião','var(--red)');return;}
-  p.reunioes_acomp.push(r);
-  push(p,'acompanha','EP','Reunião de acompanhamento registrada — '+r.data+' — '+r.conformidade);
-  await fbSaveAll();
-  toast('Reunião registrada!','var(--teal)');
-  rDetalhe();
+  if(r.data){
+    p.reunioes_acomp.push(r);
+    push(p,'acompanha','EP','Reunião de acompanhamento registrada — '+r.data+' — '+r.conformidade);
+    await fbSaveAll();
+    toast('Reunião registrada!','var(--teal)');
+    rDetalhe();
+  } else {toast('Informe a data da reunião','var(--red)');}
 }
 function calcEconomiaAcompEdit(){
   const volNovo=Number.parseFloat(document.getElementById('ac-edit-vol-novo')?.value)||0;
@@ -4117,7 +4125,7 @@ function calcEconomiaAcompEdit(){
     const totalNovo=+(volNovo*trealNovo).toFixed(1);
     const baseline=curProc?.ent?.total_h_mensal||0;
     const eco=baseline?+(baseline-totalNovo).toFixed(1):null;
-    el.value=eco!=null?(eco>=0?'+'+eco:eco)+' h/mês':'novo total: '+totalNovo+' h/mês';
+    if(eco===null){el.value='novo total: '+totalNovo+' h/mês';}else{const s=eco>=0?'+':'';el.value=s+eco+' h/mês';}
   } else {
     el.value='';
   }
@@ -4136,7 +4144,7 @@ function editarReuniaoAcomp(idx){
   v('ac-edit-proxima').value=r.proxima||'';
   v('ac-edit-vol-novo').value=r.vol_exec_novo||'';
   v('ac-edit-treal-novo').value=r.t_real_novo||'';
-  v('ac-edit-economia').value=r.economia_h!=null?(r.economia_h>=0?'+'+r.economia_h:r.economia_h)+' h/mês':'';
+  if(r.economia_h===null||r.economia_h===undefined){v('ac-edit-economia').value='';}else{const s=r.economia_h>=0?'+':'';v('ac-edit-economia').value=s+r.economia_h+' h/mês';}
   v('ac-edit-panel').style.display='block';
   v('ac-edit-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -9186,7 +9194,7 @@ function renderPlanoMetas(){
     <span style="font-size:12px;font-weight:700;color:var(--ink)">🎯 Metas do Escritório — ${ano}</span>
     ${btnAdd}
   </div>
-  ${metas.length?'':`<div style="font-size:12px;color:var(--ink3);padding:.5rem 0">Nenhuma meta cadastrada. ${podeEditar?'Clique em <b>+ Meta</b> para adicionar.':''}</div>`}
+  ${metas.length===0?`<div style="font-size:12px;color:var(--ink3);padding:.5rem 0">Nenhuma meta cadastrada. ${podeEditar?'Clique em <b>+ Meta</b> para adicionar.':''}</div>`:''}
   <div style="display:flex;gap:10px;flex-wrap:wrap">
     ${metas.map(m=>{
       const real=_metaRealizado(m);
@@ -9271,7 +9279,7 @@ function fecharMetaModal(){
 }
 
 function abrirMetaModal(id){
-  const m=id!=null ? PLANO_METAS.find(x=>x.id===id) : null;
+  const m=id===null ? null : PLANO_METAS.find(x=>x.id===id);
   const ano=planoAno();
   if(!document.getElementById('meta-modal')) _criarMetaModal();
   document.getElementById('meta-modal').style.display='flex';
@@ -9286,7 +9294,7 @@ function abrirMetaModal(id){
   const fonte=m?m.auto_fonte||'':'';
   document.getElementById('mm-fonte').value = fonte;
   // manual
-  document.getElementById('mm-realizado').value = (!fonte&&m)?m.realizado||'':'';
+  document.getElementById('mm-realizado').value = (m&&fonte==='') ? m.realizado||'' : '';
   // builtin
   if(document.getElementById('mm-builtin')) document.getElementById('mm-builtin').value = m?m.auto_campo||'':'';
   // kpi
@@ -9761,8 +9769,10 @@ async function gerarStatusReportPPT(){
     const cws = [2.2,6.8,3,1.8,2,3.4]; // Tipo|Atividade|Responsável|Prazo|Entrega|Descrição (sum=19.2)
     const hds = ['Tipo','Atividade / Processo','Responsável','Prazo','Entrega','Objetivo / Resultado'];
     const rows = concluidosMes.map(a=>{
-      const entLb = a.entrega_status==='em_dia'?'✅ Em dia'
-        : a.entrega_status==='com_atraso'?`⚠ +${a.dias_atraso||'?'}d`:'—';
+      let entLb;
+      if(a.entrega_status==='em_dia') entLb='✅ Em dia';
+      else if(a.entrega_status==='com_atraso') entLb=`⚠ +${a.dias_atraso||'?'}d`;
+      else entLb='—';
       return [PLANO_CAT_LB[a.categoria]||a.categoria||'—', a.nome, a.responsavel||'—',
         a.prazo||'—', entLb, a.descricao||a.obs||'—'];
     });
@@ -9837,7 +9847,8 @@ async function gerarStatusReportPPT(){
     const pvY=Y2+3.5;
     sl.addShape(pptx.ShapeType.rect,{x:pAx+0.14,y:pvY,w:pAw-0.28,h:0.46,fill:{color:'EEF2FF'},line:{color:'C7D2FE',width:1}});
     const pctTri=triPrev>0?Math.round(triReal/triPrev*100):null;
-    sl.addText(`Previsto: ${triPrev}  ·  Realizado: ${triReal}  ·  ${pctTri!==null?pctTri+'% concluído':'—'}`,
+    const pctTriTxt=pctTri===null?'—':pctTri+'% concluído';
+    sl.addText(`Previsto: ${triPrev}  ·  Realizado: ${triReal}  ·  ${pctTriTxt}`,
       {x:pAx+0.22,y:pvY+0.05,w:pAw-0.42,h:0.36,fontSize:12,bold:true,color:AZUL,fontFace:'Calibri',valign:'middle'});
 
     // Panel B — Conclusão anual + Pontualidade
