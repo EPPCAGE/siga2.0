@@ -1975,7 +1975,10 @@ function rListaAptosAuditoria(){
     return true;
   });
   if(!aptos.length){
-    el.innerHTML='<div class="ib ibg">Nenhum processo mapeado encontrado'+(srch?' para "'+esc(srch)+'"':'')+'. Marque processos como mapeados na arquitetura para habilitá-los.</div>';
+    const _msgDiv=document.createElement('div');
+    _msgDiv.className='ib ibg';
+    _msgDiv.textContent='Nenhum processo mapeado encontrado'+(srch?' para "'+srch+'"':'')+'. Marque processos como mapeados na arquitetura para habilitá-los.';
+    el.replaceChildren(_msgDiv);
     return;
   }
   el.innerHTML=aptos.map(p=>`
@@ -2510,14 +2513,28 @@ function criarProcesso(){
     if(!donoEmail||!donoNome) return;
     const ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
-    ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
-      <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem">Notificar Dono do Processo?</div>
-      <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">Deseja enviar notificação e e-mail para <strong>${p.dono}</strong> informando que o mapeamento de <em>${p.nome}</em> foi iniciado?</div>
-      <div class="btn-row">
-        <button type="button" class="btn" onclick="this.closest('[style*=fixed]').remove()">Não agora</button>
-        <button type="button" class="btn btn-p" onclick="enviarNotif('${donoEmail}','${p.dono}','Mapeamento iniciado — aguarda questionário de maturidade','${p.nome}','','EP·CAGE');toast('Notificação enviada para ${p.dono}','var(--teal)');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
-      </div>
-    </div>`;
+    const _inner=document.createElement('div');
+    _inner.style.cssText='background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)';
+    const _title=document.createElement('div');
+    _title.style.cssText='font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem';
+    _title.textContent='Notificar Dono do Processo?';
+    const _msg=document.createElement('div');
+    _msg.style.cssText='font-size:13px;color:var(--ink3);margin-bottom:1.2rem';
+    const _strong=document.createElement('strong'); _strong.textContent=p.dono;
+    const _em=document.createElement('em'); _em.textContent=p.nome;
+    _msg.append('Deseja enviar notificação e e-mail para ',_strong,' informando que o mapeamento de ',_em,' foi iniciado?');
+    const _btnRow=document.createElement('div'); _btnRow.className='btn-row';
+    const _naoBtn=document.createElement('button'); _naoBtn.type='button'; _naoBtn.className='btn'; _naoBtn.textContent='Não agora';
+    _naoBtn.addEventListener('click',()=>ov.remove());
+    const _simBtn=document.createElement('button'); _simBtn.type='button'; _simBtn.className='btn btn-p'; _simBtn.textContent='Sim, notificar →';
+    _simBtn.addEventListener('click',()=>{
+      enviarNotif(donoEmail,p.dono,'Mapeamento iniciado — aguarda questionário de maturidade',p.nome,'','EP·CAGE');
+      toast('Notificação enviada para '+p.dono,'var(--teal)');
+      ov.remove();
+    });
+    _btnRow.append(_naoBtn,_simBtn);
+    _inner.append(_title,_msg,_btnRow);
+    ov.appendChild(_inner);
     document.body.appendChild(ov);
   }, 400);
   fbAutoSave('criarProcesso');
@@ -4874,9 +4891,12 @@ async function iaGerarRelatorioAuditoria(){
       el.innerHTML = html;
       p.auditoria.relatorio_html = html;
     } catch {
-      const html = `<div class="ai-result"><div class="ai-result-lbl">✦ Relatório</div><div style="white-space:pre-wrap;font-size:12px">${esc(result)}</div></div>`;
-      el.innerHTML = html;
-      p.auditoria.relatorio_html = html;
+      const _wrap=document.createElement('div'); _wrap.className='ai-result';
+      const _lbl=document.createElement('div'); _lbl.className='ai-result-lbl'; _lbl.textContent='✦ Relatório';
+      const _body=document.createElement('div'); _body.style.cssText='white-space:pre-wrap;font-size:12px'; _body.textContent=result;
+      _wrap.append(_lbl,_body);
+      el.replaceChildren(_wrap);
+      p.auditoria.relatorio_html=_wrap.outerHTML;
     }
   }
   if(btn) btn.disabled = false;
@@ -11459,8 +11479,7 @@ function gerarRelatorioIndPdf(){
   const destS = destTotal > 1 ? 's' : '';
   const critS = critTotal > 1 ? 's' : '';
   const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
-  const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
+  const _kpiHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1a1a2e;background:#fff;padding:20px 28px}
@@ -11528,8 +11547,11 @@ function gerarRelatorioIndPdf(){
   <span>${dtHoje}</span>
 </div>
 <script>setTimeout(()=>window.print(),500);</scri\u0070t>
-</body></html>`);
-  w.document.close();
+</body></html>`;
+  const _kpiBlob=new Blob([_kpiHtml],{type:'text/html;charset=utf-8'});
+  const _kpiUrl=URL.createObjectURL(_kpiBlob);
+  const w=window.open(_kpiUrl,'_blank');
+  if(w) w.addEventListener('load',()=>URL.revokeObjectURL(_kpiUrl),{once:true});
 }
 
 // ── INJECT IA BUTTONS INTO PAGES ─────────
