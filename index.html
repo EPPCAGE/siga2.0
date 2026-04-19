@@ -6,16 +6,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.emailjs.com https://*.a.run.app https://docs.google.com https://*.googleusercontent.com https://api.allorigins.win; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'">
 <title>SIGA 2.0 — Sistema Integrado de Gestão Estratégica e Alinhamento</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-js.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-font/css/bpmn-embedded.css">
-<script src="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-modeler.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css" integrity="sha384-2WPRuHNLlqer/8fKQLOMZSWVINTz4vDTnIB1SXm75ubMI3oBGJyfvuOcPPc0Pfjh" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-js.css" integrity="sha384-d5fPuJ8qoomhVwsLNT3CIO4Wr1Ur5kNIP6IkZ1c1m5deqBd43hlGyuXPeFUiuA0N" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-font/css/bpmn-embedded.css" integrity="sha384-ijOXkuNXUCNgtx44AmGWdFd8myXyI3JBDEOUZnqQQ6B2TWkjl+kYe39QSnikx1vD" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-modeler.production.min.js" integrity="sha384-1v9u2TIAwKcIZ4hGlF0eIUQJ3rHQBz5H/iZDcL+oXUeeb3geapaU5zUtQQ4b++uq" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js" integrity="sha384-SALc35EccAf6RzGw4iNsyj7kTPr33K7RoGzYu+7heZhT8s0GZouafRiCg1qy44AS" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js" integrity="sha384-/cXAMbzovUIKbBERjPmR3SnPTh8siWr5lsvFYj1Uq4XP0yaJUZJmsh0YXyGv5P0y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" integrity="sha384-Cck14aA9cifjYolcnjebXRfWGkz5ltHMBiG4px/j8GS+xQcb7OhNQWZYyWjQ+UwQ" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js" integrity="sha384-1CMXl090wj8Dd6YfnzSQUOgWbE6suWCaenYG7pox5AX7apTpY3PmJMeS2oPql4Gk" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 <!-- Config: loaded synchronously so globalThis.CONFIG is available immediately -->
 <script src="config.deploy.js" onerror="console.info('config.deploy.js not found')"></script>
 <script src="config.local.js" onerror="console.info('config.local.js not found')"></script>
@@ -1644,11 +1644,13 @@ function gerarSenhaTemp(){
   const digits = '23456789';
   const all    = upper + lower + digits;
   // Garante ao menos 1 maiúscula, 1 minúscula e 1 dígito + 5 extras
-  let p = upper[Math.floor(Math.random()*upper.length)]
-        + lower[Math.floor(Math.random()*lower.length)]
-        + digits[Math.floor(Math.random()*digits.length)];
-  for(let i=0;i<5;i++) p += all[Math.floor(Math.random()*all.length)];
-  return p.split('').sort(()=>Math.random()-.5).join('');
+  const _rnd = (n) => crypto.getRandomValues(new Uint32Array(n));
+  const _pick = (arr) => arr[_rnd(1)[0] % arr.length];
+  let p = _pick(upper) + _pick(lower) + _pick(digits);
+  for(let i=0;i<5;i++) p += _pick(all);
+  const arr = p.split('');
+  for(let i=arr.length-1;i>0;i--){ const j=_rnd(1)[0]%(i+1); [arr[i],arr[j]]=[arr[j],arr[i]]; }
+  return arr.join('');
 }
 
 function _enviarSenhaAcesso(email, nome, senha){
@@ -4626,7 +4628,9 @@ async function gerarPOPPPT() {
     if (st) st.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA elaborando conteúdo do POP...</div>';
     const raw = await chamarIA('gerar_ppt', prompt, st);
     if (!raw) return;
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const _start = raw.indexOf('{');
+    const _end = raw.lastIndexOf('}');
+    const jsonMatch = _start !== -1 && _end > _start ? [raw.slice(_start, _end + 1)] : null;
     if (!jsonMatch) throw new Error('Resposta da IA não contém JSON válido.');
     const iaContent = JSON.parse(jsonMatch[0]);
 
@@ -10707,11 +10711,11 @@ function trilhaPopulateProcs(selectedIds){
 function _trilhaBuildNiveisEditor(niveis){
   globalThis._trilhaNiveisEdit = niveis.length
     ? niveis.map(nv => ({
-        id:   nv.id   || ('nv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6)),
+        id:   nv.id   || ('nv_'+Date.now()+'_'+Array.from(crypto.getRandomValues(new Uint8Array(3))).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,4)),
         nome: nv.nome || '',
         ordem: nv.ordem || 1,
         competencias: (nv.competencias||[]).map(c => ({
-          id:        c.id  || ('cp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6)),
+          id:        c.id  || ('cp_'+Date.now()+'_'+Array.from(crypto.getRandomValues(new Uint8Array(3))).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,4)),
           nome:      c.nome      || '',
           descricao: c.descricao || '',
           cursos:    (c.cursos||[]).map(cs => ({nome:cs.nome||'',link:cs.link||'',tipo:cs.tipo||''})),
@@ -10722,7 +10726,7 @@ function _trilhaBuildNiveisEditor(niveis){
   while(globalThis._trilhaNiveisEdit.length < numInput){
     const ordem = globalThis._trilhaNiveisEdit.length + 1;
     globalThis._trilhaNiveisEdit.push({
-      id: 'nv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      id: 'nv_'+Date.now()+'_'+Array.from(crypto.getRandomValues(new Uint8Array(3))).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,4),
       nome: 'Nível '+ordem, ordem, competencias:[],
     });
   }
@@ -10733,7 +10737,7 @@ function trilhaAddNivel(){
   if(!globalThis._trilhaNiveisEdit){ globalThis._trilhaNiveisEdit = []; }
   const ordem = globalThis._trilhaNiveisEdit.length + 1;
   globalThis._trilhaNiveisEdit.push({
-    id: 'nv_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    id: 'nv_'+Date.now()+'_'+Array.from(crypto.getRandomValues(new Uint8Array(3))).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,4),
     nome: 'Nível '+ordem, ordem, competencias:[],
   });
   _trilhaRenderEditor();
@@ -10751,7 +10755,7 @@ function trilhaAddComp(nvId){
   const nv = globalThis._trilhaNiveisEdit.find(n => n.id === nvId);
   if(!nv) return;
   nv.competencias.push({
-    id: 'cp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    id: 'cp_'+Date.now()+'_'+Array.from(crypto.getRandomValues(new Uint8Array(3))).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,4),
     nome:'', descricao:'', cursos:[],
   });
   _trilhaRenderEditor();
