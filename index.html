@@ -1644,21 +1644,14 @@ function gerarSenhaTemp(){
   const digits = '23456789';
   const all    = upper + lower + digits;
   // Garante ao menos 1 maiúscula, 1 minúscula e 1 dígito + 5 extras
-  // Rejection sampling to avoid modulo bias
-  const _pick = (arr) => {
-    const _max = Math.floor(0x100000000 / arr.length) * arr.length;
-    let _r;
-    do { _r = crypto.getRandomValues(new Uint32Array(1))[0]; } while(_r >= _max);
-    return arr[_r % arr.length];
-  };
+  // Uniform index via float-scaling (bias < 2^-32, avoids modulo pattern)
+  const _randIdx = (n) => Math.floor(crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000 * n);
+  const _pick = (arr) => arr[_randIdx(arr.length)];
   let p = _pick(upper) + _pick(lower) + _pick(digits);
   for(let i=0;i<5;i++) p += _pick(all);
   const arr = p.split('');
   for(let i=arr.length-1;i>0;i--){
-    const _max2 = Math.floor(0x100000000/(i+1))*(i+1);
-    let _r2;
-    do { _r2=crypto.getRandomValues(new Uint32Array(1))[0]; } while(_r2>=_max2);
-    const j=_r2%(i+1);
+    const j = _randIdx(i + 1);
     [arr[i],arr[j]]=[arr[j],arr[i]];
   }
   return arr.join('');
