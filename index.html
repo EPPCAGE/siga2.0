@@ -1772,7 +1772,7 @@ function stab(id,el){
 // UTILS
 // ═══════════════════════════════════════════
 function now(){const d=new Date();return d.getDate().toString().padStart(2,'0')+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getFullYear();}
-function push(p,step,role,acao){p.hist.push({step,role,acao,data:now()});}
+function push(p,step,role,acao){p.hist.push({step,role,acao,data:now(),por:usuarioLogado?.nome||null});}
 function toast(msg,cor,ms){
   const t=document.createElement('div');
   t.className='toast';
@@ -1949,6 +1949,8 @@ function getTarefasUsr(){
   if(!usuarioLogado)return[];
   const p=usuarioLogado.perfil;
   return processos.filter(proc=>{
+    // Excluir processos suspensos ou cancelados da fila de tarefas
+    if(proc.status_ciclo==='suspenso'||proc.status_ciclo==='cancelado') return false;
     const et=proc.etapa,etObj=ETAPAS.find(e=>e.id===et);
     if(!etObj)return false;
     if(p==='ep')return etObj.resp==='ep';
@@ -2261,7 +2263,7 @@ function renderProcs(){
   el.innerHTML=lista.map(p=>`<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})">
     <div><div class="prc-t">${esc(p.nome)}</div>
     <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong></div></div>
-    <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${pBadge(p.prio)}${isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
+    <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${_statusBadge(p)}${pBadge(p.prio)}${isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
   </div>`).join('');
 }
 function excluirMapeamento(id){
@@ -2295,9 +2297,10 @@ function abrirProc(id){
 function rDetalhe(){
   const p=curProc;
   document.getElementById('det-titulo').textContent=p.nome;
-  document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+eBadge(p.etapa);
+  document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+eBadge(p.etapa)+_statusBadge(p);
   document.getElementById('det-prio').innerHTML=pBadge(p.prio)
-    +(isEP()?` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Editar dono, interessados e produto" onclick="abrirEditarMetadados()">✎ Editar</button>`:'');
+    +(isEP()?` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Editar dono, interessados e produto" onclick="abrirEditarMetadados()">✎ Editar</button>`:'')
+    +(isEP()||usuarioLogado?.perfil==='gestor' ? _renderCicloBar(p) : '');
   epRetroEtapa = null;
   const _etapasEfetivas=getEtapas(p);
   const idx=_etapasEfetivas.findIndex(e=>e.id===p.etapa);
@@ -2368,15 +2371,215 @@ function abrirEditarMetadados(){
 }
 function salvarMetadados(){
   const p=curProc;if(!p)return;
-  p.dono=document.getElementById('em-dono')?.value.trim()||p.dono;
-  p.dono_email=document.getElementById('em-dono-email')?.value.trim()||p.dono_email;
+  const donoAnt=p.dono, donoEmailAnt=p.dono_email;
+  const novoDono=document.getElementById('em-dono')?.value.trim()||p.dono;
+  const novoDonoEmail=document.getElementById('em-dono-email')?.value.trim()||p.dono_email;
+  p.dono=novoDono;
+  p.dono_email=novoDonoEmail;
   p.produto=document.getElementById('em-produto')?.value||p.produto;
   const inter=(document.getElementById('em-inter')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.interessados=inter;
+  // Registrar alterações no histórico
+  if(novoDono!==donoAnt) push(p, p.etapa, 'EP', 'Dono alterado de "'+donoAnt+'" para "'+novoDono+'"');
+  if(novoDonoEmail!==donoEmailAnt && novoDono===donoAnt) push(p, p.etapa, 'EP', 'E-mail do dono atualizado');
+  // Notificar novo dono se e-mail mudou
+  if(novoDonoEmail && novoDonoEmail!==donoEmailAnt)
+    enviarNotif(novoDonoEmail, novoDono, 'Você foi designado como dono do processo "'+p.nome+'" no SIGA.', p.nome, '', usuarioLogado?.nome||'EP');
   document.getElementById('modal-metadados')?.remove();
   fbAutoSave('editarMetadados');
   rDetalhe();
   toast('Dados atualizados!','var(--teal)');
+}
+
+
+// ═══════════════════════════════════════════
+// CICLO DE VIDA DO PROCESSO (suspender / cancelar / reabrir)
+// ═══════════════════════════════════════════
+function _statusBadge(p){
+  if(p.status_ciclo==='suspenso') return '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b">⏸ Suspenso</span>';
+  if(p.status_ciclo==='cancelado') return '<span class="badge" style="background:var(--red-l);color:var(--red)">✕ Cancelado</span>';
+  return '';
+}
+function _renderCicloBar(p){
+  const suspenso=p.status_ciclo==='suspenso', cancelado=p.status_ciclo==='cancelado';
+  const isGestorUser=usuarioLogado?.perfil==='gestor';
+  // Botão reatribuir EP — apenas EP pode reatribuir (ou gestor)
+  const btnReatribuir=` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:4px" onclick="abrirReatribuirEP()" title="Reatribuir responsável EP">✎ EP</button>`;
+  const btnPrio=` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:4px" onclick="abrirAlterarPrio()" title="Alterar prioridade">↑ Prio</button>`;
+  if(suspenso||cancelado){
+    return ` <button type="button" class="btn btn-p" style="font-size:11px;padding:2px 8px;margin-left:6px" onclick="reabrirProcesso()">↩ Reabrir</button>`;
+  }
+  return (isGestorUser||isEP()?btnReatribuir:'')+(isGestorUser||isEP()?btnPrio:'')+
+         ` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:4px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="suspenderProcesso()">⏸ Suspender</button>`+
+         ` <button type="button" class="btn btn-a" style="font-size:11px;padding:2px 8px;margin-left:4px" onclick="cancelarProcesso()">✕ Cancelar</button>`;
+}
+function abrirReatribuirEP(){
+  const p=curProc;
+  if(!p||(!isEP()&&usuarioLogado?.perfil!=='gestor')){toast('Ação restrita ao EP ou Gestor.','var(--amber)');return;}
+  const epList=USUARIOS.filter(u=>u.perfil==='ep');
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.id='modal-reatribuir';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:400px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1rem">✎ Reatribuir responsável EP</div>
+    <div class="fg" style="margin-bottom:.8rem"><label class="fl">Novo EP responsável</label>
+      <select class="fi" id="reatribuir-ep-sel">${epList.map(u=>`<option value="${esc(u.nome)}"${u.nome===p.resp_ep?' selected':''}>${esc(u.nome)}</option>`).join('')}</select></div>
+    <div class="fg" style="margin-bottom:1.2rem"><label class="fl">Motivo da reatribuição <span style="color:var(--red)">*</span></label>
+      <input class="fi" id="reatribuir-motivo" placeholder="Ex: Licença médica, redistribuição de carga..."></div>
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="document.getElementById('modal-reatribuir').remove()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="confirmarReatribuirEP()">Confirmar →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function confirmarReatribuirEP(){
+  const novoEP=document.getElementById('reatribuir-ep-sel')?.value;
+  const motivo=document.getElementById('reatribuir-motivo')?.value?.trim();
+  if(!motivo){toast('Informe o motivo.','var(--red)');return;}
+  const p=curProc;
+  const epAnt=p.resp_ep;
+  p.resp_ep=novoEP;
+  push(p,p.etapa,'Sistema','EP reatribuído de "'+epAnt+'" para "'+novoEP+'" — '+motivo);
+  document.getElementById('modal-reatribuir')?.remove();
+  fbAutoSave('reatribuirEP');
+  rDetalhe();
+  toast('EP atualizado para '+novoEP,'var(--teal)');
+  // Notificar novo EP
+  const novoEPUser=USUARIOS.find(u=>u.nome===novoEP);
+  if(novoEPUser?.email) enviarNotif(novoEPUser.email, novoEP, 'Você foi designado como EP responsável por "'+p.nome+'".', p.nome,'',usuarioLogado?.nome||'Sistema');
+}
+function abrirAlterarPrio(){
+  const p=curProc;
+  if(!p||(!isEP()&&usuarioLogado?.perfil!=='gestor')){toast('Ação restrita ao EP ou Gestor.','var(--amber)');return;}
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.id='modal-prio';
+  const opts=['Critica','Alta','Media','Baixa'].map(v=>`<option value="${v}"${v===p.prio?' selected':''}>${v}</option>`).join('');
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:360px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1rem">↑ Alterar prioridade</div>
+    <div class="fg" style="margin-bottom:1.2rem"><label class="fl">Nova prioridade</label>
+      <select class="fi" id="nova-prio-sel">${opts}</select></div>
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="document.getElementById('modal-prio').remove()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="confirmarAlterarPrio()">Confirmar →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function confirmarAlterarPrio(){
+  const nova=document.getElementById('nova-prio-sel')?.value;
+  const p=curProc;
+  const ant=p.prio;
+  p.prio=nova;
+  push(p,p.etapa,'Sistema','Prioridade alterada de "'+ant+'" para "'+nova+'"');
+  document.getElementById('modal-prio')?.remove();
+  fbAutoSave('alterarPrio');
+  rDetalhe();
+  toast('Prioridade atualizada para '+nova,'var(--teal)');
+}
+function suspenderProcesso(){
+  if(!isEP()&&usuarioLogado?.perfil!=='gestor'){toast('Ação restrita ao EP ou Gestor.','var(--amber)');return;}
+  const p=curProc;
+  if(p.status_ciclo==='cancelado'){toast('Processo já cancelado — use Reabrir para restaurar.','var(--amber)');return;}
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.id='modal-suspender';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:440px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.4rem">⏸ Suspender processo</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">O processo ficará suspenso mas todos os dados serão preservados. Informe o motivo.</div>
+    <div class="fg" style="margin-bottom:1.2rem">
+      <label class="fl">Motivo da suspensão <span style="color:var(--red)">*</span></label>
+      <textarea class="fi" id="suspender-motivo" rows="3" placeholder="Ex: Aguardando decisão da chefia sobre o escopo..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="document.getElementById('modal-suspender').remove()">Cancelar</button>
+      <button type="button" class="btn" style="background:#fef3c7;color:#92400e;border-color:#f59e0b" onclick="confirmarSuspender()">Confirmar suspensão →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function confirmarSuspender(){
+  const motivo=document.getElementById('suspender-motivo')?.value?.trim();
+  if(!motivo){toast('Informe o motivo da suspensão.','var(--red)');return;}
+  const p=curProc;
+  const etapaAnt=p.etapa;
+  p.status_ciclo='suspenso';
+  p.status_ciclo_etapa_ant=etapaAnt;
+  push(p,etapaAnt,'Sistema','Processo suspenso — '+motivo);
+  document.getElementById('modal-suspender')?.remove();
+  fbAutoSave('suspenderProcesso');
+  rDetalhe();updCounts();
+  toast('Processo suspenso. Os dados estão preservados.','var(--amber)');
+}
+function cancelarProcesso(){
+  if(!isEP()&&usuarioLogado?.perfil!=='gestor'){toast('Ação restrita ao EP ou Gestor.','var(--amber)');return;}
+  const p=curProc;
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.id='modal-cancelar';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:440px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--red);margin-bottom:.4rem">✕ Cancelar processo</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">O processo será marcado como cancelado. Os dados históricos são preservados mas o processo sairá das filas ativas.</div>
+    <div class="fg" style="margin-bottom:1.2rem">
+      <label class="fl">Motivo do cancelamento <span style="color:var(--red)">*</span></label>
+      <textarea class="fi" id="cancelar-motivo" rows="3" placeholder="Ex: Processo incorporado a outro escopo..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="document.getElementById('modal-cancelar').remove()">Voltar</button>
+      <button type="button" class="btn btn-a" onclick="confirmarCancelar()">Cancelar processo →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function confirmarCancelar(){
+  const motivo=document.getElementById('cancelar-motivo')?.value?.trim();
+  if(!motivo){toast('Informe o motivo do cancelamento.','var(--red)');return;}
+  const p=curProc;
+  const etapaAnt=p.etapa;
+  p.status_ciclo='cancelado';
+  p.status_ciclo_etapa_ant=etapaAnt;
+  push(p,etapaAnt,'Sistema','Processo cancelado — '+motivo);
+  document.getElementById('modal-cancelar')?.remove();
+  fbAutoSave('cancelarProcesso');
+  rDetalhe();updCounts();
+  toast('Processo cancelado. Histórico preservado.','var(--red)');
+}
+function reabrirProcesso(){
+  if(!isEP()&&usuarioLogado?.perfil!=='gestor'){toast('Ação restrita ao EP ou Gestor.','var(--amber)');return;}
+  const p=curProc;
+  if(!p.status_ciclo||p.status_ciclo==='ativo'){toast('Processo já está ativo.','var(--amber)');return;}
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.id='modal-reabrir';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:440px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.4rem">↩ Reabrir processo</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">O processo retornará à etapa em que estava (${etLb(p.status_ciclo_etapa_ant||p.etapa)}). Informe a justificativa.</div>
+    <div class="fg" style="margin-bottom:1.2rem">
+      <label class="fl">Justificativa <span style="color:var(--red)">*</span></label>
+      <textarea class="fi" id="reabrir-motivo" rows="3" placeholder="Ex: Demanda retomada por decisão da gestão..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="document.getElementById('modal-reabrir').remove()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="confirmarReabrir()">Reabrir →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function confirmarReabrir(){
+  const motivo=document.getElementById('reabrir-motivo')?.value?.trim();
+  if(!motivo){toast('Informe a justificativa.','var(--red)');return;}
+  const p=curProc;
+  const etRet=p.status_ciclo_etapa_ant||p.etapa;
+  const cicloAnt=p.status_ciclo;
+  p.status_ciclo='ativo';
+  delete p.status_ciclo_etapa_ant;
+  p.etapa=etRet;
+  push(p,etRet,'Sistema','Processo reaberto (estava '+cicloAnt+') — '+motivo);
+  document.getElementById('modal-reabrir')?.remove();
+  fbAutoSave('reabrirProcesso');
+  rDetalhe();updCounts();
+  toast('Processo reaberto e retornou a "'+etLb(etRet)+'".','var(--teal)');
 }
 
 // ═══════════════════════════════════════════
@@ -2627,10 +2830,21 @@ function confirmarNotifDono(etapaProxId){
   toast('Notificação enviada para '+p.dono,'var(--teal)');
 }
 function reprovar(voltaEt, role, acao){
-  const obs = document.getElementById('aobs')?.value||'';
-  push(curProc, curProc.etapa, role, acao+(obs?' — '+obs:''));
+  const obs = document.getElementById('aobs')?.value?.trim()||'';
+  if(!obs){
+    toast('Informe o motivo da solicitação de revisão antes de confirmar.','var(--red)');
+    document.getElementById('aobs')?.focus();
+    return;
+  }
+  push(curProc, curProc.etapa, role, acao+' — '+obs);
   curProc.etapa = voltaEt;
   push(curProc, voltaEt, 'Sistema', 'Retornado para ajustes');
+  // Notificar o dono quando a devolução é para etapa dele
+  const etVoltaObj = ETAPAS.find(e=>e.id===voltaEt);
+  if(etVoltaObj?.resp==='dono'){
+    const email = getDonoEmail(curProc);
+    if(email) enviarNotif(email, curProc.dono, 'Solicitação de revisão em "'+etLb(voltaEt)+'": '+obs, curProc.nome, '', usuarioLogado?.nome||role);
+  }
   rDetalhe();
   fbAutoSave('reprovar');
 }
@@ -2654,6 +2868,9 @@ function avDono(etAtu,role,acao,prazoEl){
   if(!curProc.ent) curProc.ent={};
   curProc.ent.revisao_ep_pendente={etapa_dono:etAtu,dt:now()};
   av(etAtu,role,acao,prazoEl);
+  // Notificar o EP responsável que o dono concluiu a etapa
+  const epUser = USUARIOS.find(u=>(u.nome===curProc.resp_ep||u.perfil==='ep')&&u.email);
+  if(epUser?.email) enviarNotif(epUser.email, epUser.nome, curProc.dono+' concluiu "'+etLb(etAtu)+'". Aguarda sua revisão.', curProc.nome, '', curProc.dono||role);
   setTimeout(()=>popupConclusaoDono('Obrigado! Sua validação foi registrada e o EP foi notificado para continuar o processo.'),200);
 }
 
@@ -2900,13 +3117,14 @@ function aprovarDetValidAsis(){
 }
 function reprovarDetValidAsis(){
   const p=curProc;
+  const obs=document.getElementById('aobs')?.value?.trim()||'';
+  if(!obs){toast('Descreva os ajustes necessários antes de solicitar.','var(--red)');document.getElementById('aobs')?.focus();return;}
   if(!p.ent.analise)p.ent.analise={};
   const dt=document.getElementById('va-dt')?.value||'';
   const part=document.getElementById('va-part')?.value||'';
   const ata=document.getElementById('va-ata')?.value||'';
-  const obs=document.getElementById('aobs')?.value||'';
   if(dt||part||ata){p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};}
-  reprovarDono('esboco_asis','Dono','Dono solicitou ajustes no AS IS'+(obs?' — '+obs:''));
+  reprovarDono('esboco_asis','Dono','Dono solicitou ajustes no AS IS — '+obs);
 }
 function salvarMelhorias(){
   const p=curProc;
@@ -2932,13 +3150,14 @@ function aprovarDetValidTobe(){
 }
 function reprovarDetValidTobe(){
   const p=curProc;
+  const obs=document.getElementById('aobs')?.value?.trim()||document.getElementById('vtb-obs')?.value?.trim()||'';
+  if(!obs){toast('Descreva os ajustes necessários antes de solicitar.','var(--red)');(document.getElementById('aobs')||document.getElementById('vtb-obs'))?.focus();return;}
   if(!p.mod)p.mod={};
   const dt=document.getElementById('vtb-dt')?.value||'';
   const part=document.getElementById('vtb-part')?.value||'';
   const ata=document.getElementById('vtb-ata')?.value||'';
-  const obs=document.getElementById('vtb-obs')?.value||'';
   p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
-  reprovarDono('esboco_tobe','Dono','Dono solicitou ajustes no TO BE'+(obs?' — '+obs:''));
+  reprovarDono('esboco_tobe','Dono','Dono solicitou ajustes no TO BE — '+obs);
 }
 function renderFeedbackEP(analise){
   const fb=analise.feedback_dono||{};
@@ -3075,7 +3294,7 @@ const ACOES = {
     <hr>
     <div class="card-t">Problemas e dores</div>
     <div class="fg" style="margin-top:.5rem"><label class="fl">Problemas/dores identificados <small style="font-weight:400;color:var(--ink3)">(um por linha)</small></label><textarea class="fi" id="a-prob" style="min-height:80px" placeholder="Descreva os problemas identificados...">${esc((p.ent.prob||[]).join('\n'))}</textarea></div>
-    <div class="btn-row"><button type="button" class="btn btn-p" onclick="salvarReuniao()">Registrar reunião e avançar →</button></div>`;}}},
+    <div class="btn-row"><button type="button" class="btn btn-p" onclick="salvarReuniao()">Registrar reunião e avançar →</button></div>`;}},
 
   riscos:{titulo:'Identificação de riscos',sub:'Mapear e avaliar riscos operacionais do processo.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibt">Identifique os riscos do processo. Utilize a IA para gerar sugestões ou adicione manualmente.</div>
@@ -3978,6 +4197,22 @@ function rAcao(p){
 // ═══════════════════════════════════════════
 // FUNÇÕES DE SALVAR POR ETAPA
 // ═══════════════════════════════════════════
+
+// ── Validação de campos obrigatórios antes de avançar etapa ──────────────────
+// campos: array de {id, label} — retorna true se ok, false (com toast) se inválido
+function _validarCampos(campos){
+  const vazios=campos.filter(f=>{
+    const el=document.getElementById(f.id);
+    if(!el) return false;
+    return !el.value?.trim();
+  });
+  if(!vazios.length) return true;
+  const nomes=vazios.map(f=>f.label).join(', ');
+  toast('Preencha os campos obrigatórios: '+nomes,'var(--red)',4000);
+  document.getElementById(vazios[0].id)?.focus();
+  return false;
+}
+
 function _addDias(dateStr,dias){
   if(!dateStr)return'';
   const [y,m,d]=dateStr.split('-').map(Number);
@@ -4003,6 +4238,7 @@ function calcVolumetria(){
   if(tot) tot.value=(vol&&real)?+(vol*real).toFixed(1)+' h/mês':'';
 }
 function salvarAbertura(){
+  if(!_validarCampos([{id:'a-ini',label:'Data de início'},{id:'a-equipe',label:'Equipe de trabalho'}])) return;
   const p=curProc;
   p.ent.dt_inicio=document.getElementById('a-ini')?.value||'';
   p.ent.dt_prev=document.getElementById('a-prev')?.value||'';
@@ -4092,6 +4328,12 @@ function mostrarResultadoMaturidade(p,nivel,media){
   document.body.appendChild(ov);
 }
 function salvarReuniao(){
+  if(!_validarCampos([
+    {id:'r-fornec',label:'Fornecedores'},
+    {id:'r-atores',label:'Atores'},
+    {id:'r-entradas',label:'Entradas'},
+    {id:'r-saidas',label:'Saídas'}
+  ])) return;
   const p=curProc;
   p.ent.fornecedores=document.getElementById('r-fornec')?.value||'';
   p.ent.clientes=document.getElementById('r-clientes')?.value||'';
@@ -4360,6 +4602,7 @@ function salvarEsboco(){
   av('esboco_asis','EP','Esboço AS IS elaborado com BPMN');
 }
 function salvarEsbocaTobe(){
+  if(!_validarCampos([{id:'e-tobe',label:'Descrição do TO BE'}])) return;
   const p=curProc;
   p.mod.toBe=document.getElementById('e-tobe')?.value||p.mod.toBe||'';
   const mTo=bpmnModelers['tobe'];
@@ -4468,6 +4711,9 @@ function salvarApresentacao(){
   const ata=document.getElementById('apr-ata')?.value||'';
   if(dt||part||ata) p.form.reuniao_apresentacao={data:dt,participantes:part,ata};
   av('apresentacao','Gestor','Aprovado pelo gestor para publicação');
+  // Notificar EP que gestor aprovou
+  const epUser = USUARIOS.find(u=>(u.nome===p.resp_ep||u.perfil==='ep')&&u.email);
+  if(epUser?.email) enviarNotif(epUser.email, epUser.nome, 'Gestor autorizou a publicação de "'+p.nome+'".', p.nome, '', usuarioLogado?.nome||'Gestor');
 }
 
 // ── GERAÇÃO DE POP EM PPT COM IA (PUBLICAÇÃO) ──
@@ -6385,7 +6631,7 @@ function rHist(p){
   const histItems=[...p.hist].reverse().map((h,i)=>{
     const dotClass=i===0?'da':'dn';
     const dot=i===0?'●':'✓';
-    return `<div class="tl-i"><div class="tl-d ${dotClass}">${dot}</div><div><div class="tl-t">${esc(h.acao)}</div><div class="tl-m">${esc(h.role)} · ${esc(h.data)}</div></div></div>`;
+    return `<div class="tl-i"><div class="tl-d ${dotClass}">${dot}</div><div><div class="tl-t">${esc(h.acao)}</div><div class="tl-m">${esc(h.role)}${h.por?' · '+esc(h.por):''}· ${esc(h.data)}</div></div></div>`;
   }).join('');
   document.getElementById('tab-hist').innerHTML=`<div class="card"><div class="card-t">Histórico completo</div><div class="tl">${histItems}</div></div>`;
 }

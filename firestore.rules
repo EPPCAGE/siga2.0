@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function userPerfil() {
+      // Reads the caller's profile from the 'usuarios' collection
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.perfil;
+    }
+
+    function isEP() {
+      return isAuth() && userPerfil() == 'ep';
+    }
+
+    function isDono() {
+      return isAuth() && userPerfil() == 'dono';
+    }
+
+    function isGestor() {
+      return isAuth() && userPerfil() == 'gestor';
+    }
+
+    // ── Usuários ──────────────────────────────────────────────────────────────
+    match /usuarios/{uid} {
+      // Any authenticated user can read their own record
+      allow read: if isAuth() && request.auth.uid == uid;
+      // EP can read all users (needed for notifications / EP list)
+      allow read: if isEP();
+      // Only EP can create / update user records (admin)
+      allow write: if isEP();
+    }
+
+    // ── Config (EmailJS, notifcações globais) ─────────────────────────────────
+    match /config/{docId} {
+      allow read: if isAuth();
+      allow write: if isEP();
+    }
+
+    // ── Processos ─────────────────────────────────────────────────────────────
+    match /processos/{procId} {
+      // EP: full access to all processes
+      allow read, write: if isEP();
+
+      // Dono: can read + write their own process (identified by dono_email field)
+      allow read: if isDono() && resource.data.dono_email == request.auth.token.email;
+      allow update: if isDono()
+        && resource.data.dono_email == request.auth.token.email
+        // Dono cannot change etapa to skip the EP review gate
+        && (!('etapa' in request.resource.data)
+            || request.resource.data.etapa == resource.data.etapa
+            || _donoAllowedEtapa(request.resource.data.etapa));
+
+      // Gestor: can read all; can update selected governance fields only
+      allow read: if isGestor();
+      allow update: if isGestor()
+        && onlyUpdates(['prio','status_ciclo','status_ciclo_etapa_ant','resp_ep','hist']);
+
+      // deny create/delete for non-EP
+      allow create, delete: if isEP();
+    }
+
+    // ── Publicações ───────────────────────────────────────────────────────────
+    match /publicacoes/{pubId} {
+      allow read: if isAuth();
+      allow write: if isEP();
+    }
+
+    // ── KPIs / Plano / Trilhas / Avisos ───────────────────────────────────────
+    match /kpis/{id}        { allow read: if isAuth(); allow write: if isEP(); }
+    match /plano/{id}       { allow read: if isAuth(); allow write: if isEP(); }
+    match /trilhas/{id}     { allow read: if isAuth(); allow write: if isEP(); }
+    match /avisos/{id}      { allow read: if isAuth(); allow write: if isEP(); }
+    match /solicitacoes/{id}{ allow read: if isAuth(); allow write: if isAuth(); }
+    match /notifs/{id}      { allow read: if isAuth(); allow write: if isAuth(); }
+
+    // ── Arquitetura ───────────────────────────────────────────────────────────
+    match /arquitetura/{id} {
+      allow read: if isAuth();
+      allow write: if isEP();
+    }
+
+    // ── Helpers (cannot be called from rules, but here for documentation) ─────
+    // Restricts which fields an update can touch
+    function onlyUpdates(allowed) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowed);
+    }
+
+    // Etapas that a Dono is allowed to set (their own stages)
+    function _donoAllowedEtapa(et) {
+      return et in ['questionario','det_valid_asis','det_valid_tobe','complement'];
+    }
+
+    // Deny everything not matched above
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
