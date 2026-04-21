@@ -3598,7 +3598,9 @@ const ACOES = {
     </div>
     <hr>
     <div class="card-t">Problemas e dores</div>
-    <div class="fg" style="margin-top:.5rem"><label class="fl">Problemas/dores identificados <small style="font-weight:400;color:var(--ink3)">(um por linha)</small></label><textarea class="fi" id="a-prob" style="min-height:80px" placeholder="Descreva os problemas identificados...">${esc((p.ent.prob||[]).join('\n'))}</textarea></div>
+    <div style="font-size:12px;color:var(--ink3);margin:.4rem 0 .6rem">Registre cada problema em um item. Para cada um, é possível registrar opcionalmente uma proposta de solução colhida junto à equipe.</div>
+    <div id="prob-list" style="margin-bottom:.5rem">${rProbList(p.ent.prob||[])}</div>
+    <button type="button" class="btn" style="font-size:12px;margin-bottom:.8rem" onclick="addProb()">+ Adicionar problema / dor</button>
     <div class="btn-row"><button type="button" class="btn btn-p" onclick="salvarReuniao()">Registrar reunião e avançar →</button></div>`;}},
 
   riscos:{titulo:'Identificação de riscos',sub:'Mapear e avaliar riscos operacionais do processo.',role:'EP',rk:'ep',
@@ -4254,8 +4256,7 @@ function _rsReuniao(p){
   const tr=Number.parseFloat(document.getElementById('r-treal')?.value);
   if(!Number.isNaN(tc)){p.ent.t_ciclo=tc;} if(!Number.isNaN(tr)){p.ent.t_real=tr;}
   if(p.ent.t_ciclo!=null&&p.ent.t_real!=null){p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);}
-  const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  if(prob.length){p.ent.prob=prob;}
+  // prob is live-bound via oninput — no DOM read needed
 }
 function _rsEsbocaAsis(p){
   if(!p.mod)p.mod={};
@@ -4748,6 +4749,37 @@ function mostrarResultadoMaturidade(p,nivel,media){
   </div>`;
   document.body.appendChild(ov);
 }
+function rProbList(probs){
+  if(!probs||!probs.length) return '<div class="ib iba" style="font-size:12px">Nenhum problema adicionado. Clique em <strong>+ Adicionar</strong> para registrar.</div>';
+  return probs.map((pr,i)=>{
+    const p=typeof pr==='string'?{desc:pr,solucao:''}:pr;
+    return `<div style="border:1px solid var(--bdr);border-radius:var(--r);padding:.6rem .75rem;margin-bottom:.5rem;background:var(--bg2)">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <span style="color:var(--red);font-weight:700;font-size:13px;min-width:18px;padding-top:7px">${i+1}</span>
+        <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+          <input class="fi" value="${(p.desc||'').replaceAll('"','&quot;')}" placeholder="Problema / dor identificado..."
+            oninput="(function(v){const _p=curProc.ent.prob[${i}];if(typeof _p==='string')curProc.ent.prob[${i}]={desc:v,solucao:''};else _p.desc=v;})(this.value)">
+          <textarea class="fi" style="min-height:46px;font-size:12px" placeholder="Proposta de solução colhida na reunião (opcional)..."
+            oninput="(function(v){const _p=curProc.ent.prob[${i}];if(typeof _p==='string')curProc.ent.prob[${i}]={desc:curProc.ent.prob[${i}],solucao:v};else _p.solucao=v;})(this.value)">${(p.solucao||'').replaceAll('<','&lt;')}</textarea>
+        </div>
+        <button type="button" class="btn" style="font-size:11px;padding:3px 7px;color:var(--red);border-color:var(--red-b);flex-shrink:0;margin-top:2px" onclick="remProb(${i})" aria-label="Remover problema">×</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function addProb(){
+  if(!curProc?.ent)return;
+  if(!curProc.ent.prob)curProc.ent.prob=[];
+  curProc.ent.prob.push({desc:'',solucao:''});
+  document.getElementById('prob-list').innerHTML=rProbList(curProc.ent.prob);
+  const inputs=document.querySelectorAll('#prob-list input.fi');
+  if(inputs.length) inputs[inputs.length-1].focus();
+}
+function remProb(i){
+  if(!curProc?.ent?.prob)return;
+  curProc.ent.prob.splice(i,1);
+  document.getElementById('prob-list').innerHTML=rProbList(curProc.ent.prob);
+}
 function salvarReuniao(){
   if(!_validarCampos([
     {id:'r-fornec',label:'Fornecedores'},
@@ -4769,8 +4801,7 @@ function salvarReuniao(){
   if(p.ent.t_ciclo!=null&&p.ent.t_real!=null) p.ent.t_gaveta=+(p.ent.t_real-p.ent.t_ciclo).toFixed(1);
   if(p.ent.vol.exec_mensal&&p.ent.t_real) p.ent.total_h_mensal=+(p.ent.vol.exec_mensal*p.ent.t_real).toFixed(1);
   else p.ent.total_h_mensal=null;
-  const prob=(document.getElementById('a-prob')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  p.ent.prob=prob;
+  p.ent.prob=(p.ent.prob||[]).map(x=>typeof x==='string'?{desc:x,solucao:''}:x).filter(x=>x.desc);
   sincronizarSIPOCArquitetura(p);
   av('reuniao','EP','Reunião de entendimento concluída. '+prob.length+' problemas identificados.');
 }
@@ -4779,7 +4810,7 @@ async function iaGerarRiscos(){
   const statusEl=document.getElementById('risco-ia-status');
   if(statusEl)statusEl.textContent='Gerando...';
   const etapasRisco=(p.mod?.etapas_proc||[]).map((e,i)=>`${i+1}. ${e.nome||e.desc||''} (${e.tipo||'Atividade'}, resp: ${e.resp||'—'})`).join('\n');
-  const payload=`Processo: ${p.nome}\nÁrea: ${p.area}\nObjetivo: ${p.objetivo||''}\nAtividades principais: ${p.ent.atividades_principais||''}\nEntradas: ${p.ent.entradas||''}\nSaídas: ${p.ent.saidas||''}\nProblemas identificados: ${(p.ent.prob||[]).join('; ')}${etapasRisco?'\nEtapas detalhadas do processo:\n'+etapasRisco:''}\n\nIdentifique até 6 riscos operacionais relevantes para este processo, considerando as etapas detalhadas e os problemas identificados. Responda com uma lista, cada linha no formato exato:\nRisco | Probabilidade | Impacto\nOnde Probabilidade é Baixa/Media/Alta e Impacto é Baixo/Medio/Alto/Critico. Sem numeração, sem cabeçalho.`;
+  const payload=`Processo: ${p.nome}\nÁrea: ${p.area}\nObjetivo: ${p.objetivo||''}\nAtividades principais: ${p.ent.atividades_principais||''}\nEntradas: ${p.ent.entradas||''}\nSaídas: ${p.ent.saidas||''}\nProblemas identificados: ${(p.ent.prob||[]).map(x=>typeof x==='string'?x:x.desc||'').filter(Boolean).join('; ')}${etapasRisco?'\nEtapas detalhadas do processo:\n'+etapasRisco:''}\n\nIdentifique até 6 riscos operacionais relevantes para este processo, considerando as etapas detalhadas e os problemas identificados. Responda com uma lista, cada linha no formato exato:\nRisco | Probabilidade | Impacto\nOnde Probabilidade é Baixa/Media/Alta e Impacto é Baixo/Medio/Alto/Critico. Sem numeração, sem cabeçalho.`;
   const result=await chamarIA('assistente',payload,null);
   if(result){
     const linhas=result.split('\n').map(l=>l.trim()).filter(l=>l.includes('|'));
@@ -4976,7 +5007,7 @@ function _gerarAnaliseIAPayloadExtra(p){
   const problemas=(p.ent?.prob||[]).filter(Boolean);
   const riscos=(p.ent?.riscos||[]).map(r=>`${r.descricao||r.desc||''} (probabilidade: ${r.probabilidade||'—'}, impacto: ${r.impacto||'—'})`).filter(s=>s.trim()!=='(probabilidade: —, impacto: —)');
   if(!problemas.length && !riscos.length) return '';
-  const probsStr=problemas.length?'\n\nProblemas/dores levantados na reunião de entendimento:\n'+problemas.map((x,i)=>`${i+1}. ${x}`).join('\n'):'';
+  const probsStr=problemas.length?'\n\nProblemas/dores levantados na reunião de entendimento:\n'+problemas.map((x,i)=>{const d=typeof x==='string'?x:x.desc||'';const s=typeof x==='string'?'':x.solucao||'';return `${i+1}. ${d}`+(s?` [Proposta pré-existente: ${s}]`:'');}).join('\n'):'';
   const riscosStr=riscos.length?'\n\nRiscos identificados na etapa de identificação de riscos:\n'+riscos.map((r,i)=>`${i+1}. ${r}`).join('\n'):'';
   const instrucoes='\n\nAlém dos campos padrão (resumo, gargalos, retrabalhos, gaps, oportunidades, complexidade), inclua obrigatoriamente no JSON:\n- "solucoes_problemas": array de strings, uma solução por problema listado acima, obrigatoriamente no formato "[Problema: <texto exato do problema>] <sugestão de solução concreta>" (mesma ordem e quantidade dos problemas)';
   return probsStr+riscosStr+instrucoes;
@@ -5215,7 +5246,7 @@ async function gerarFAQIA(){
     processo: p.nome,
     objetivo: p.objetivo||'',
     etapas: (p.mod?.etapas_proc||[]).map(e=>e.nome).join(', '),
-    problemas: (p.ent?.prob||[]).join('; '),
+    problemas: (p.ent?.prob||[]).map(x=>typeof x==='string'?x:x.desc||'').filter(Boolean).join('; '),
     atores: p.ent?.atores||'',
     produto: p.produto||''
   };
@@ -5368,7 +5399,7 @@ async function gerarPOPPPT() {
     const a = p.ent?.analise || {};
     const { gargalosFinal, oportunidadesFinal, gapsFinal, solucoesFinal } = _pptFinalLists(a);
     const riscosText = _pptRiscosText(p.ent?.riscos);
-    const probsText  = (p.ent?.prob || []).join('\n');
+    const probsText  = (p.ent?.prob || []).map((x,i)=>{const d=typeof x==='string'?x:x.desc||'';const s=typeof x==='string'?'':x.solucao||'';return `${i+1}. ${d}`+(s?` (Proposta: ${s})`:'');}).join('\n');
     const indsText   = _pptIndsText(indsProc);
     const faqText    = p.form?.faq || '';
 
@@ -5896,7 +5927,7 @@ async function iaGerarQuestoesAuditoria(){
     entradas: p.ent?.entradas||'',
     saidas: p.ent?.saidas||'',
     atores: p.ent?.atores||'',
-    problemas: (p.ent?.prob||[]).join('; '),
+    problemas: (p.ent?.prob||[]).map(x=>typeof x==='string'?x:x.desc||'').filter(Boolean).join('; '),
     pop_objetivo: p.form?.pop?.obj||'',
     auditoria_objetivo: objetivo,
     auditoria_escopo: (document.getElementById('aud-escopo')?.value||'').trim()||aud.escopo||'',
@@ -6622,7 +6653,10 @@ function _bpmnBuildNested(startId, stopSet, outgoing, nodeInfo, flowLabels, visi
       const nexts=outgoing[id]||[];
       id=nexts.length===1?nexts[0]:null; continue;
     }
-    const nomeFallback=n.tipo==='Evento'?n.subtipo||'Evento':n.tipo==='Decisao'?'Decisão':'Atividade';
+    let nomeFallback;
+    if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
+    else if(n.tipo==='Decisao') nomeFallback='Decisão';
+    else nomeFallback='Atividade';
     const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
     const elem={
       id:'ep'+etapasIdC++, seq:seqCtr.s++,
@@ -6674,7 +6708,10 @@ function extrairBpmn(){
   Object.keys(nodeInfo).forEach(id=>{
     if(!visited.has(id)){
       const n=nodeInfo[id];
-      const nomeFallback=n.tipo==='Evento'?n.subtipo||'Evento':n.tipo==='Decisao'?'Decisão':'Atividade';
+      let nomeFallback;
+      if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
+      else if(n.tipo==='Decisao') nomeFallback='Decisão';
+      else nomeFallback='Atividade';
       const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
       elems.push({id:'ep'+etapasIdC++,seq:seqCtr.s++,
         nome:n.nome||nomeFallback,
@@ -6843,7 +6880,7 @@ function rEnt(p){
       </div>`:'<div class="ib iba">Não preenchido.</div>'}
     </div>
     <div class="card"><div class="card-t">Problemas identificados (${(e.prob||[]).length})</div>
-      ${(e.prob||[]).length?(e.prob||[]).map((pr,i)=>`<div style="display:flex;gap:6px;padding:5px 0;border-bottom:1px solid var(--bdr);font-size:12.5px"><span style="color:var(--red);font-weight:700;flex-shrink:0">${i+1}</span>${pr}</div>`).join(''):'<div class="ib iba">Nenhum problema registrado.</div>'}
+      ${(e.prob||[]).length?(e.prob||[]).map((pr,i)=>{const d=typeof pr==='string'?pr:pr.desc||'';const s=typeof pr==='string'?'':pr.solucao||'';return `<div style="padding:6px 0;border-bottom:1px solid var(--bdr)"><div style="display:flex;gap:6px;font-size:12.5px"><span style="color:var(--red);font-weight:700;flex-shrink:0">${i+1}</span><span>${d}</span></div>${s?`<div style="margin:3px 0 0 20px;font-size:12px;color:var(--teal);font-style:italic">💡 Proposta: ${s}</div>`:''}</div>`;}).join(''):'<div class="ib iba">Nenhum problema registrado.</div>'}
     </div>
   </div>
   ${(e.fornecedores||e.entradas||e.saidas||e.clientes)?`<div class="card" style="margin-bottom:1rem">
