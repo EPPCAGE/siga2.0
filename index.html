@@ -3877,7 +3877,7 @@ const ACOES = {
     <div class="g3">
       <div class="fg"><label class="fl">Link no repositório</label><input class="fi" id="a-link" placeholder="https://..." value="${p.form?.link_pub||''}"></div>
       <div class="fg"><label class="fl">Data de vigência <small style="font-weight:400;color:var(--ink3)">(2 anos após entrega)</small></label><input class="fi" type="date" id="a-vig" value="${p.form?.vig||''}" readonly style="background:var(--bg2);color:var(--ink3)"></div>
-      <div class="fg"><label class="fl">Entrega efetiva</label><input class="fi" type="date" id="pub-efet" value="${p.ent?.dt_efetiva||\'\'}" oninput="(function(v){if(!v)return;const d=new Date(v);d.setFullYear(d.getFullYear()+2);document.getElementById(\'a-vig\').value=d.toISOString().slice(0,10);})(this.value)"></div>
+      <div class="fg"><label class="fl">Entrega efetiva</label><input class="fi" type="date" id="pub-efet" value="${p.ent?.dt_efetiva||''}" oninput="_onEfetChange(this.value)"></div>
     </div>
     <div class="btn-row">
       <button type="button" class="btn" onclick="salvarDadosPublicacao()">💾 Salvar dados</button>
@@ -4956,6 +4956,10 @@ function _calcVig(efet){
   const d=new Date(efet);
   d.setFullYear(d.getFullYear()+2);
   return d.toISOString().slice(0,10);
+}
+function _onEfetChange(v){
+  const vigEl=document.getElementById('a-vig');
+  if(vigEl) vigEl.value=_calcVig(v);
 }
 function salvarDadosPublicacao(){
   const p=curProc;if(!p)return;
