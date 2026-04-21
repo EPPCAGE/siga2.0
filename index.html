@@ -577,6 +577,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div class="fg"><label class="fl" for="novo-resp-ep">Responsável EP (quem conduz o mapeamento)<span>*</span></label>
       <select class="fi" id="novo-resp-ep"></select>
     </div>
+    <div class="fg"><label class="fl" for="novo-gestor">Patrocinador / Gestor responsável<span>*</span></label>
+      <select class="fi" id="novo-gestor"><option value="">Selecione...</option></select>
+    </div>
     <div class="fg"><label class="fl" for="novo-prio">Prioridade</label>
       <select class="fi" id="novo-prio"><option>Normal</option><option>Alta</option><option>Critica</option></select>
     </div>
@@ -1961,7 +1964,7 @@ function getTarefasUsr(){
       const isVinc=(usuarioLogado.processos_vinculados||[]).includes(proc.arq_id);
       return etObj.resp==='dono'&&(isDonoProc||isVinc);
     }
-    if(p==='gestor')return etObj.resp==='gestor';
+    if(p==='gestor') return etObj.resp==='gestor' && (proc.pat===usuarioLogado.nome || !proc.pat);
     return false;
   });
 }
@@ -2434,7 +2437,7 @@ function renderProcs(){
   em.style.display='none';
   el.innerHTML=lista.map(p=>`<div class="prc ${p.prio==='Critica'?'urg':''} ${isVencido(p)?'venc':''}" onclick="abrirProc(${p.id})" style="${isVencido(p)?'border-left:3px solid var(--red);':''}">
     <div><div class="prc-t">${esc(p.nome)}</div>
-    <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong></div></div>
+    <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div></div>
     <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${_statusBadge(p)}${isVencido(p)?'<span class="badge" style="background:var(--red-l);color:var(--red);margin-left:3px">⚠ Vencido</span>':''}${pBadge(p.prio)}${isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
   </div>`).join('');
 }
@@ -2526,6 +2529,11 @@ function abrirEditarMetadados(){
       <input class="fi" id="em-dono" value="${esc(p.dono||'')}" placeholder="Nome do dono"></div>
     <div class="fg"><label class="fl">E-mail do dono</label>
       <input class="fi" id="em-dono-email" type="email" value="${esc(p.dono_email||'')}" placeholder="email@sefaz.rs.gov.br"></div>
+    <div class="fg"><label class="fl">Patrocinador / Gestor responsável</label>
+      <select class="fi" id="em-gestor">
+        <option value="">Selecione...</option>
+        ${USUARIOS.filter(u=>u.perfil==='gestor').map(u=>`<option value="${esc(u.nome)}" ${u.nome===p.pat?'selected':''}>${esc(u.nome)}</option>`).join('')}
+      </select></div>
     <div class="fg"><label class="fl">Produto do mapeamento</label>
       <select class="fi" id="em-produto">
         <option ${p.produto==='AS IS'?'selected':''}>AS IS</option>
@@ -2551,12 +2559,21 @@ function salvarMetadados(){
   p.produto=document.getElementById('em-produto')?.value||p.produto;
   const inter=(document.getElementById('em-inter')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.interessados=inter;
+  // Patrocinador / Gestor
+  const novoGestor=document.getElementById('em-gestor')?.value||p.pat;
+  if(novoGestor && novoGestor!==p.pat) push(p, p.etapa, 'EP', 'Patrocinador alterado para "'+novoGestor+'"');
+  if(novoGestor) p.pat=novoGestor;
   // Registrar alterações no histórico
   if(novoDono!==donoAnt) push(p, p.etapa, 'EP', 'Dono alterado de "'+donoAnt+'" para "'+novoDono+'"');
   if(novoDonoEmail!==donoEmailAnt && novoDono===donoAnt) push(p, p.etapa, 'EP', 'E-mail do dono atualizado');
   // Notificar novo dono se e-mail mudou
   if(novoDonoEmail && novoDonoEmail!==donoEmailAnt)
     enviarNotif(novoDonoEmail, novoDono, 'Você foi designado como dono do processo "'+p.nome+'" no SIGA.', p.nome, '', usuarioLogado?.nome||'EP');
+  // Notificar novo gestor se mudou
+  if(novoGestor && novoGestor!==p.pat){
+    const gUser=USUARIOS.find(u=>u.nome===novoGestor);
+    if(gUser?.email) enviarNotif(gUser.email, novoGestor, 'Você foi designado como patrocinador do processo "'+p.nome+'" no SIGA.', p.nome, '', usuarioLogado?.nome||'EP');
+  }
   document.getElementById('modal-metadados')?.remove();
   fbAutoSave('editarMetadados');
   rDetalhe();
@@ -2783,6 +2800,9 @@ function abrirNovoProc(){
   // Populate EP users
   const epSel=document.getElementById('novo-resp-ep');
   epSel.innerHTML=USUARIOS.filter(u=>u.perfil==='ep').map(u=>`<option value="${esc(u.nome)}">${esc(u.nome)}</option>`).join('');
+  // Populate Gestor users
+  const gestorSel=document.getElementById('novo-gestor');
+  gestorSel.innerHTML='<option value="">Selecione...</option>'+USUARIOS.filter(u=>u.perfil==='gestor').map(u=>`<option value="${esc(u.nome)}">${esc(u.nome)}</option>`).join('');
   document.getElementById('novo-proc-sel').innerHTML='<option value="">Selecione o macroprocesso primeiro...</option>';
   document.getElementById('novo-preview').style.display='none';
   go('novo',document.getElementById('nb-proc'));
@@ -2891,12 +2911,14 @@ function criarProcesso(){
   const mid=document.getElementById('novo-macro').value;
   const sid=document.getElementById('novo-proc-sel').value;
   const resp_ep=document.getElementById('novo-resp-ep').value;
+  const pat=document.getElementById('novo-gestor').value;
   const prio=document.getElementById('novo-prio').value;
   const produto=document.getElementById('novo-produto').value;
   const objetivo=document.getElementById('novo-objetivo').value.trim();
   const donoNome=document.getElementById('novo-dono-nome').value.trim();
   const donoEmail=document.getElementById('novo-dono-email').value.trim();
   if(!mid||!sid||!produto){toast('Selecione macroprocesso, processo/subprocesso e produto da demanda.','var(--amber)');return;}
+  if(!pat){toast('Selecione o patrocinador / gestor responsável.','var(--amber)');return;}
   if(!donoNome||!donoEmail){toast('Informe o nome e o e-mail do dono do processo.','var(--amber)');return;}
   const m=ARQUITETURA.find(x=>x.id===mid);
   const ap=findArqItem(mid,sid);
@@ -2906,7 +2928,7 @@ function criarProcesso(){
   const p={
     id:nextProcId++,arq_id:sid,nome:ap.nome,macro:m.nome,area:ap.area,dono:donoNome,dono_email:donoEmail,
     interessados:(document.getElementById('novo-interessados')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean),
-    pat:USUARIOS.find(u=>u.perfil==='gestor')?.nome||'',
+    pat,
     resp_ep,prio,produto,objetivo:objetivo||ap.objetivo,
     ent:{dt_inicio:new Date().toISOString().slice(0,10),dt_prev:'',dt_efetiva:'',equipe:resp_ep+', '+donoNome,t_total:'',t_sem_fila:'',
       prob:[],mat:0,quest_resp:{},vol:{exec:'',tempo:'',custo:'',sazon:''},riscos:[],
