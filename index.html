@@ -3876,6 +3876,24 @@ const _BPMN_INIT = {
 function _rAcaoInitBpmn(p, minhaTarefa){
   _BPMN_INIT[p.etapa]?.(p, minhaTarefa);
 }
+function _rAcaoDevolucaoBanner(p, minhaTarefa){
+  const dv=p.ent?.devolucao_pendente;
+  if(!minhaTarefa || !dv || dv.etapa!==p.etapa) return '';
+  const isRefazer=dv.tipo==='refazer';
+  const tipoLabel=isRefazer?'Nova elaboração solicitada':'Complementação solicitada';
+  const corBg =isRefazer?'#fef2f2':'#fffbeb';
+  const corBrd=isRefazer?'#fca5a5':'#fcd34d';
+  const corTxt=isRefazer?'#991b1b':'#92400e';
+  const icon  =isRefazer?'🔄':'📝';
+  return `<div style="background:${corBg};border:1.5px solid ${corBrd};border-radius:var(--r);padding:.8rem 1rem;margin-bottom:1rem;display:flex;gap:.7rem;align-items:flex-start">
+    <span style="font-size:1.3rem">${icon}</span>
+    <div>
+      <div style="font-weight:700;font-size:13px;color:${corTxt};margin-bottom:3px">${tipoLabel} pelo EP</div>
+      <div style="font-size:12.5px;color:var(--ink2)">${esc(dv.motivo)}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:4px">Solicitado por ${esc(dv.por)} em ${dv.dt}</div>
+    </div>
+  </div>`;
+}
 function _rAcaoHandleDono(el, ac, p){
   const etObj=ETAPAS.find(e=>e.id===p.etapa);
   const isDonoProc=p.dono===usuarioLogado.nome;
@@ -3886,23 +3904,7 @@ function _rAcaoHandleDono(el, ac, p){
     const jr=jaFoiRespondido(p.etapa);
     if(jr){ el.innerHTML=_rAcaoTarefaRespondidaHTML(jr); return; }
   }
-  // Banner de devolução pendente (mostrado ao dono quando EP devolveu a tarefa)
-  let devolucaoBanner='';
-  const dv=p.ent?.devolucao_pendente;
-  if(minhaTarefa && dv && dv.etapa===p.etapa){
-    const tipoLabel=dv.tipo==='refazer'?'Nova elaboração solicitada':'Complementação solicitada';
-    const corBg=dv.tipo==='refazer'?'#fef2f2':'#fffbeb';
-    const corBrd=dv.tipo==='refazer'?'#fca5a5':'#fcd34d';
-    const corTxt=dv.tipo==='refazer'?'#991b1b':'#92400e';
-    devolucaoBanner=`<div style="background:${corBg};border:1.5px solid ${corBrd};border-radius:var(--r);padding:.8rem 1rem;margin-bottom:1rem;display:flex;gap:.7rem;align-items:flex-start">
-      <span style="font-size:1.3rem">${dv.tipo==='refazer'?'🔄':'📝'}</span>
-      <div>
-        <div style="font-weight:700;font-size:13px;color:${corTxt};margin-bottom:3px">${tipoLabel} pelo EP</div>
-        <div style="font-size:12.5px;color:var(--ink2)">${esc(dv.motivo)}</div>
-        <div style="font-size:11px;color:var(--ink3);margin-top:4px">Solicitado por ${esc(dv.por)} em ${dv.dt}</div>
-      </div>
-    </div>`;
-  }
+  const devolucaoBanner=_rAcaoDevolucaoBanner(p, minhaTarefa);
   el.innerHTML=minhaTarefa
     ?`<div class="ib ibt" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</span>${prazoBanner}</div>${devolucaoBanner}${buildAcaoCardHTML(ac,p,'')}`
     :`<div class="card"><div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>Esta etapa — <strong>${ac.titulo}</strong> — aguarda ação de <strong>${p.dono||'dono'}</strong>.</span>${prazoBanner}</div><div style="font-size:13px;color:var(--ink2)">${ac.sub}</div></div>`;
@@ -4583,6 +4585,37 @@ DADOS DO PROCESSO:
 ${ctx}`;
 }
 
+function _pptCalcDimText(resp){
+  const dims = {};
+  QUESTOES.forEach(q => {
+    if (!dims[q.dim]) dims[q.dim] = { sum: 0, cnt: 0 };
+    if (resp[q.id]) { dims[q.dim].sum += resp[q.id]; dims[q.dim].cnt++; }
+  });
+  return Object.entries(dims).map(([d, v]) => `${d}: ${v.cnt > 0 ? (v.sum / v.cnt).toFixed(1) : '-'}/5`).join('; ');
+}
+function _pptFinalLists(a){
+  const fb = a.feedback_dono || {};
+  const hasFeedback = Object.keys(fb).length > 0;
+  const conf = (tipo) => Object.entries(fb[tipo]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k);
+  return {
+    gargalosFinal:      hasFeedback ? conf('gargalos')          : (a.gargalos||[]),
+    oportunidadesFinal: hasFeedback ? conf('oportunidades')      : (a.oportunidades||[]),
+    gapsFinal:          hasFeedback ? conf('gaps')               : (a.gaps||[]),
+    solucoesFinal:      hasFeedback ? conf('solucoes_problemas') : (a.solucoes_problemas||[]),
+  };
+}
+function _pptRiscosText(riscos){
+  return (riscos||[]).map((r, i) => {
+    const d = r.desc || r;
+    const det = [r.prob ? 'Prob: '+r.prob : '', r.impacto ? 'Impacto: '+r.impacto : ''].filter(Boolean).join(', ');
+    return `${i+1}. ${d}${det ? ' ('+det+')' : ''}`;
+  }).filter(Boolean).join('\n');
+}
+function _pptIndsText(indsProc){
+  return indsProc.slice(0,8).map(k =>
+    `${k.enunciado||k.indicador}${k.ciclo?' ('+k.ciclo+')':''}${k.meta?' — meta: '+k.meta:''}`
+  ).join('\n');
+}
 async function gerarPOPPPT() {
   const p = curProc;
   if (!p) { toast('Nenhum processo selecionado.','var(--amber)'); return; }
@@ -4598,44 +4631,14 @@ async function gerarPOPPPT() {
       p.mod?.bpmnToBe ? renderBpmnToPng(p.mod.bpmnToBe) : Promise.resolve(null)
     ]);
 
-    // Indicadores vinculados
     const indsProc = kpis.filter(k => k.pid === p.id);
-
-    // Maturidade por dimensão
-    const resp = p.ent?.quest_resp || {};
-    const dims = {};
-    QUESTOES.forEach(q => {
-      if (!dims[q.dim]) dims[q.dim] = { sum: 0, cnt: 0 };
-      if (resp[q.id]) { dims[q.dim].sum += resp[q.id]; dims[q.dim].cnt++; }
-    });
-    const dimText = Object.entries(dims).map(([d, v]) => `${d}: ${v.cnt > 0 ? (v.sum / v.cnt).toFixed(1) : '-'}/5`).join('; ');
-
+    const dimText  = _pptCalcDimText(p.ent?.quest_resp || {});
     const a = p.ent?.analise || {};
-
-    // Filtra apenas itens CONFIRMADOS na etapa Melhorias do Processo
-    const fb = a.feedback_dono || {};
-    function confirmados(tipo) {
-      return Object.entries(fb[tipo] || {}).filter(([,v]) => v === 'confirmado').map(([k]) => k);
-    }
-    const solucoesConf    = confirmados('solucoes_problemas');
-    const gargalosConf    = confirmados('gargalos');
-    const oportunidadesConf = confirmados('oportunidades');
-    const gapsConf        = confirmados('gaps');
-    // Se não houver feedback ainda (etapa não percorrida), usa todos
-    const hasFeedback = Object.keys(fb).length > 0;
-    const gargalosFinal    = hasFeedback ? gargalosConf    : (a.gargalos || []);
-    const oportunidadesFinal = hasFeedback ? oportunidadesConf : (a.oportunidades || []);
-    const gapsFinal        = hasFeedback ? gapsConf        : (a.gaps || []);
-    const solucoesFinal    = hasFeedback ? solucoesConf    : (a.solucoes_problemas || []);
-
-    const riscosText = (p.ent?.riscos || []).map((r, i) => {
-      const d = r.desc || r;
-      const det = [r.prob ? 'Prob: ' + r.prob : '', r.impacto ? 'Impacto: ' + r.impacto : ''].filter(Boolean).join(', ');
-      return `${i + 1}. ${d}${det ? ' (' + det + ')' : ''}`;
-    }).filter(Boolean).join('\n');
-    const probsText = (p.ent?.prob || []).join('\n');
-    const indsText = indsProc.slice(0, 8).map(k => `${k.enunciado || k.indicador}${k.ciclo ? ' (' + k.ciclo + ')' : ''}${k.meta ? ' — meta: ' + k.meta : ''}`).join('\n');
-    const faqText = p.form?.faq || '';
+    const { gargalosFinal, oportunidadesFinal, gapsFinal, solucoesFinal } = _pptFinalLists(a);
+    const riscosText = _pptRiscosText(p.ent?.riscos);
+    const probsText  = (p.ent?.prob || []).join('\n');
+    const indsText   = _pptIndsText(indsProc);
+    const faqText    = p.form?.faq || '';
 
     const ctx = _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, {gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText});
     const prompt = _pptPromptStr(ctx);
