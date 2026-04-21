@@ -557,6 +557,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="chip" onclick="filtFase('Auditoria',this)">Auditoria</button>
     </div>
     <input class="srch" id="srch-p" placeholder="Buscar..." oninput="renderProcs()">
+    <select class="fi" id="filt-ep" onchange="renderProcs()" style="max-width:160px;font-size:12px"></select>
+    <select class="fi" id="filt-dono" onchange="renderProcs()" style="max-width:160px;font-size:12px"></select>
+    <select class="fi" id="filt-produto" onchange="renderProcs()" style="max-width:140px;font-size:12px">
+      <option value="">Produto: Todos</option>
+      <option>AS IS</option><option>TO BE</option><option>AS IS + TO BE</option>
+    </select>
   </div>
   <div class="proc-list" id="proc-list"></div>
   <div id="proc-empty" class="ib ibsl" style="display:none">Nenhum processo encontrado.</div>
@@ -626,6 +632,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('mod',this)">Modelagem</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('form',this)">Formalização</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('mon',this)">Monitoramento</div>
+    <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('anex',this)">Anexos</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('reun',this)">Reuniões</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('hist',this)">Histórico</div>
   </div>
@@ -634,6 +641,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="tab-mod"   class="tab-p"></div>
   <div id="tab-form"  class="tab-p"></div>
   <div id="tab-mon"   class="tab-p"></div>
+  <div id="tab-anex"  class="tab-p"></div>
   <div id="tab-reun"  class="tab-p"></div>
   <div id="tab-hist"  class="tab-p"></div>
 </div></div>
@@ -1770,7 +1778,7 @@ function stab(id,el){
   document.querySelectorAll('.tab-p').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
   document.getElementById('tab-'+id).classList.add('on');
-  ({acao:()=>rAcao(curProc),ent:()=>rEnt(curProc),mod:()=>rMod(curProc),form:()=>rForm(curProc),mon:()=>rMon(curProc),reun:()=>rReun(curProc),hist:()=>rHist(curProc)}[id]||function(){})();
+  ({acao:()=>rAcao(curProc),ent:()=>rEnt(curProc),mod:()=>rMod(curProc),form:()=>rForm(curProc),mon:()=>rMon(curProc),anex:()=>rAnexos(curProc),reun:()=>rReun(curProc),hist:()=>rHist(curProc)}[id]||function(){})();
 }
 
 // ═══════════════════════════════════════════
@@ -2422,6 +2430,22 @@ function renderProcs(){
   aplicarPermissoes();
   const srch=(document.getElementById('srch-p')?.value||'').toLowerCase();
   const isDono=usuarioLogado?.perfil==='dono';
+  // Q034: popular selects de EP e dono dinamicamente
+  const epSel=document.getElementById('filt-ep');
+  const donoSel=document.getElementById('filt-dono');
+  if(epSel){
+    const prevEP=epSel.value;
+    const eps=[...new Set(processos.map(p=>p.resp_ep).filter(Boolean))].sort();
+    epSel.innerHTML='<option value="">EP: Todos</option>'+eps.map(v=>`<option${v===prevEP?' selected':''}>${v}</option>`).join('');
+  }
+  if(donoSel){
+    const prevDono=donoSel.value;
+    const donos=[...new Set(processos.map(p=>p.dono).filter(Boolean))].sort();
+    donoSel.innerHTML='<option value="">Dono: Todos</option>'+donos.map(v=>`<option${v===prevDono?' selected':''}>${v}</option>`).join('');
+  }
+  const filtEP=epSel?.value||'';
+  const filtDono=donoSel?.value||'';
+  const filtProd=document.getElementById('filt-produto')?.value||'';
   const lista=processos.filter(p=>{
     if(isDono){
       const isDonoProc=(p.dono===usuarioLogado.nome);
@@ -2430,7 +2454,8 @@ function renderProcs(){
       const isVinculado=(usuarioLogado.processos_vinculados||[]).includes(p.arq_id);
       if(!isDonoProc&&!isInteressado&&!isVinculado)return false;
     }
-    return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch));
+    return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch))
+      &&(!filtEP||p.resp_ep===filtEP)&&(!filtDono||p.dono===filtDono)&&(!filtProd||p.produto===filtProd);
   });
   const el=document.getElementById('proc-list'),em=document.getElementById('proc-empty');
   if(!lista.length){el.innerHTML='';em.style.display='block';return;}
@@ -2496,6 +2521,12 @@ function rDetalhe(){
       <div class="prog-l ${cur?'da':''}">${e.lb}</div>
     </div>`;
   }).join('');
+  // Q003: linha de próxima etapa esperada
+  const nxObj=_etapasEfetivas[idx+1];
+  const nxEl=document.createElement('div');
+  nxEl.style.cssText='font-size:11px;color:var(--ink3);text-align:right;margin-top:3px;padding-right:4px';
+  nxEl.textContent=nxObj?'→ Próxima etapa esperada: '+nxObj.lb:'✓ Última etapa do pipeline';
+  document.getElementById('det-prog').appendChild(nxEl);
   if(usuarioLogado?.perfil==='dono'){
     const etObj=_etapasEfetivas.find(e=>e.id===p.etapa);
     const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
@@ -3056,6 +3087,41 @@ function confirmarNotifDono(etapaProxId){
   enviarNotif(email, p.dono, acao, p.nome, '', usuarioLogado?.nome||'EP');
   toast('Notificação enviada para '+p.dono,'var(--teal)');
 }
+// Q009: definir prazo individual para etapa EP
+function definirPrazoEP(etapaId){
+  const p=curProc;
+  if(!p) return;
+  const d=new Date(); d.setDate(d.getDate()+14);
+  const defaultPrazo=(p.prazos_ep||{})[etapaId]||d.toISOString().split('T')[0];
+  const hoje=new Date().toISOString().split('T')[0];
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:400px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.5rem">⏱ Prazo da etapa EP</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">Defina o prazo interno para conclusão de <em><strong>${etLb(etapaId)}</strong></em>.</div>
+    <div class="fg" style="margin-bottom:1.2rem">
+      <label class="fl">Prazo para conclusão <span style="color:var(--red)">*</span></label>
+      <input class="fi" type="date" id="prazo-ep-inp" value="${defaultPrazo}" min="${hoje}">
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="this.closest('[style*=fixed]').remove()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="salvarPrazoEP('${etapaId}')">Salvar prazo →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function salvarPrazoEP(etapaId){
+  const prazo=document.getElementById('prazo-ep-inp')?.value;
+  if(!prazo){toast('Informe o prazo antes de continuar.','var(--red)');return;}
+  if(curProc){
+    if(!curProc.prazos_ep) curProc.prazos_ep={};
+    curProc.prazos_ep[etapaId]=prazo;
+  }
+  document.querySelectorAll('[style*="position:fixed"]').forEach(el=>{if(el.querySelector('#prazo-ep-inp'))el.remove();});
+  fbAutoSave('prazo_ep');
+  rAcao(curProc);
+  toast('Prazo EP registrado para '+etLb(etapaId),'var(--teal)');
+}
 function reprovar(voltaEt, role, acao){
   const obs = document.getElementById('aobs')?.value?.trim()||'';
   if(!obs){
@@ -3457,6 +3523,7 @@ const ACOES = {
     </div>
     <div class="fg"><label class="fl">Equipe de trabalho</label><input class="fi" id="a-equipe" value="${esc(p.ent.equipe||'')}" placeholder="Nomes dos membros envolvidos"></div>
     <div class="fg"><label class="fl">Objetivo do trabalho</label><textarea class="fi" id="a-obj" style="min-height:60px">${esc(p.objetivo||'')}</textarea></div>
+    <div class="fg"><label class="fl">Escopo do trabalho <small style="font-weight:400;color:var(--ink3)">(o que está dentro e fora do escopo deste mapeamento)</small></label><textarea class="fi" id="a-escopo" style="min-height:60px" placeholder="Ex: inclui fluxo de compras diretas; exclui contratos de TI...">${esc(p.ent.escopo||'')}</textarea></div>
     <div class="btn-row"><button type="button" class="btn btn-p" onclick="salvarAbertura()">Confirmar e agendar reunião de entendimento →</button></div>`}},
 
   questionario:{titulo:'Questionário de maturidade',sub:'Responder as 15 afirmações sobre o estado atual do processo.',role:'Dono do processo',rk:'dono',
@@ -4385,6 +4452,80 @@ function _rAcaoDevolucaoBanner(p, minhaTarefa){
     </div>
   </div>`;
 }
+// Q019: Checklist de pendências por etapa em tempo real
+function _renderChecklist(p){
+  const e=p.ent;
+  const CHECKS={
+    abertura:[
+      {lb:'Data de início definida',done:!!e.dt_inicio},
+      {lb:'Equipe de trabalho informada',done:!!(e.equipe&&e.equipe.trim())},
+      {lb:'Objetivo do trabalho preenchido',done:!!(p.objetivo&&p.objetivo.trim())},
+      {lb:'Escopo definido',done:!!(e.escopo&&e.escopo.trim())},
+    ],
+    reuniao:[
+      {lb:'SIPOC preenchido (fornecedores, clientes, entradas, saídas)',done:!!(e.fornecedores&&e.clientes&&e.entradas&&e.saidas)},
+      {lb:'Atores identificados',done:!!e.atores},
+      {lb:'Volumetria registrada (tempo de ciclo e lead time)',done:!!(e.t_ciclo&&e.t_real)},
+      {lb:'Problemas / dores identificados',done:!!(e.prob&&e.prob.length)},
+    ],
+    riscos:[
+      {lb:'Riscos identificados e avaliados',done:!!(e.riscos&&e.riscos.length)},
+    ],
+    questionario:[
+      {lb:'15 questões respondidas',done:Object.keys(e.quest_resp||{}).length>=15},
+    ],
+    analise:[
+      {lb:'Análise inteligente gerada (gargalos identificados)',done:!!(e.analise&&(e.analise.gargalos||[]).length)},
+    ],
+    esboco_asis:[
+      {lb:'Descrição AS IS elaborada',done:!!(p.mod&&p.mod.asIs&&p.mod.asIs.trim())},
+      {lb:'Etapas do processo mapeadas',done:!!(p.mod&&(p.mod.etapas_proc||[]).length)},
+    ],
+    det_valid_asis:[
+      {lb:'Etapas detalhadas com responsáveis e tipos',done:!!(p.mod&&(p.mod.etapas_proc||[]).length)},
+      {lb:'Evidências de validação AS IS enviadas',done:!!((p.evidencias||{}).det_valid_asis?.length)},
+    ],
+    melhorias:[
+      {lb:'Melhorias e mitigações revisadas',done:!!(p.mod&&(p.mod.melhorias||[]).length)},
+    ],
+    esboco_tobe:[
+      {lb:'Descrição TO BE elaborada',done:!!(p.mod&&p.mod.toBe&&p.mod.toBe.trim())},
+    ],
+    det_valid_tobe:[
+      {lb:'Processo TO BE detalhado',done:!!(p.mod&&(p.mod.etapas_proc_tobe||p.mod.toBe))},
+      {lb:'Evidências de validação TO BE enviadas',done:!!((p.evidencias||{}).det_valid_tobe?.length)},
+    ],
+    desenho_final:[
+      {lb:'Desenho final concluído',done:!!(p.form&&(p.form.pop||p.mod?.desenho_final))},
+    ],
+    pop:[
+      {lb:'POP redigido (objetivo e responsabilidades preenchidos)',done:!!(p.form&&p.form.pop&&p.form.pop.obj)},
+    ],
+    complement:[
+      {lb:'Complementação do POP pelo dono concluída',done:!!(p.form&&(p.form.faq||p.form.complementacao))},
+    ],
+    apresentacao:[
+      {lb:'Evidência da apresentação ao gestor enviada',done:!!((p.evidencias||{}).apresentacao?.length)},
+    ],
+    publicacao:[
+      {lb:'Publicado no repositório (link informado)',done:!!(p.form&&p.form.link_pub)},
+    ],
+    acompanha:[
+      {lb:'Reunião de acompanhamento realizada',done:!!(p.mod&&(p.mod.reunioes_acomp||[]).length)},
+    ],
+    auditoria:[
+      {lb:'Plano de auditoria definido (objetivo informado)',done:!!(p.auditoria&&p.auditoria.objetivo)},
+    ],
+  };
+  const items=(CHECKS[p.etapa]||[]);
+  if(!items.length) return '';
+  const total=items.length;
+  const done=items.filter(i=>i.done).length;
+  const pct=Math.round(done/total*100);
+  const cor=pct===100?'var(--teal)':pct>=50?'var(--blue)':'var(--amber)';
+  const rows=items.map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bdr);font-size:12.5px"><span style="font-size:15px;flex-shrink:0">${i.done?'✅':'⬜'}</span><span style="color:${i.done?'var(--ink3)':'var(--ink)'}${i.done?';text-decoration:line-through':''}">${i.lb}</span></div>`).join('');
+  return `<div class="card" style="margin-bottom:1rem;border-left:3px solid ${cor}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem"><div class="card-t" style="margin-bottom:0">✔ Checklist da etapa</div><span style="font-size:12px;font-weight:700;color:${cor}">${done}/${total} concluído${done!==1?'s':''}</span></div>${rows}</div>`;
+}
 function _rAcaoHandleDono(el, ac, p){
   const etObj=ETAPAS.find(e=>e.id===p.etapa);
   const isDonoProc=p.dono===usuarioLogado.nome;
@@ -4413,7 +4554,9 @@ function rAcao(p){
     return;
   }
   const roleNote=role===ac.rk?'':`<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>${ac.role}</strong>. Troque o perfil para interagir.</div>`;
-  el.innerHTML=buildAcaoCardHTML(ac,p,roleNote);
+  // Q019: checklist de pendências da etapa atual (apenas EP)
+  const checklistHtml=isEP()?_renderChecklist(p):'';
+  el.innerHTML=checklistHtml+buildAcaoCardHTML(ac,p,roleNote);
   // Barra de devolução ao dono (apenas EP, quando há etapa anterior do dono)
   if(isEP()){
     const etRet=getDevolverEtapa(p);
@@ -4423,6 +4566,16 @@ function rAcao(p){
       bar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa que o dono refaça <strong>${etLb(etRet)}</strong>?</span>
         <button type="button" class="btn" style="font-size:12px;padding:4px 10px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="devolverAoDono()">↩ Devolver ao dono</button>`;
       el.appendChild(bar);
+    }
+    // Q009: barra de prazo da etapa EP
+    const acObj=ACOES[p.etapa];
+    if(acObj&&acObj.resp!=='dono'&&acObj.rk==='ep'){
+      const prazoAtual=(p.prazos_ep||{})[p.etapa]||'';
+      const epbar=document.createElement('div');
+      epbar.style.cssText='margin-top:.6rem;padding:.55rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
+      epbar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">⏱ Prazo desta etapa EP: <strong style="color:var(--ink)">${prazoAtual?prazoAtual.split('-').reverse().join('/'):'Não definido'}</strong></span>
+        <button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="definirPrazoEP('${p.etapa}')">✎ Definir prazo</button>`;
+      el.appendChild(epbar);
     }
   }
   _rAcaoInitBpmn(p, false);
@@ -4435,13 +4588,26 @@ function rAcao(p){
 // ── Validação de campos obrigatórios antes de avançar etapa ──────────────────
 // campos: array de {id, label} — retorna true se ok, false (com toast) se inválido
 function _validarCampos(campos){
+  // Q032: limpar destaques anteriores
+  campos.forEach(f=>{const el=document.getElementById(f.id);if(el){el.style.borderColor='';el.style.boxShadow='';}});
   const vazios=campos.filter(f=>{
     const el=document.getElementById(f.id);
     if(!el) return false;
     return !el.value?.trim();
   });
   if(!vazios.length) return true;
-  const nomes=vazios.map(f=>f.label).join(', ');
+  // Q032: destacar campos vazios em vermelho
+  vazios.forEach(f=>{
+    const el=document.getElementById(f.id);
+    if(el){
+      el.style.borderColor='var(--red)';
+      el.style.boxShadow='0 0 0 2px #fee2e2';
+      const clear=()=>{el.style.borderColor='';el.style.boxShadow='';el.removeEventListener('input',clear);el.removeEventListener('change',clear);};
+      el.addEventListener('input',clear);
+      el.addEventListener('change',clear);
+    }
+  });
+  const nomes=vazios.map(f=>'• '+f.label).join(', ');
   toast('Preencha os campos obrigatórios: '+nomes,'var(--red)',4000);
   document.getElementById(vazios[0].id)?.focus();
   return false;
@@ -4478,6 +4644,7 @@ function salvarAbertura(){
   p.ent.dt_prev=document.getElementById('a-prev')?.value||'';
   p.ent.equipe=document.getElementById('a-equipe')?.value||'';
   p.objetivo=document.getElementById('a-obj')?.value||p.objetivo;
+  p.ent.escopo=document.getElementById('a-escopo')?.value||p.ent.escopo||'';
   av('abertura','EP','Dados iniciais confirmados. Reunião de entendimento agendada.');
 }
 function setLikert(qid,val,btn){
@@ -6642,8 +6809,11 @@ function rEnt(p){
       <div class="g2">
         ${[['Início',e.dt_inicio||'—'],['Prev. entrega',e.dt_prev||'—'],['Entrega efetiva',e.dt_efetiva||'—'],['Produto',p.produto||'—'],['Tempo total',e.t_total||'—'],['Tempo sem fila',e.t_sem_fila||'—']].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
         ${(()=>{const d=_desviosPrazo(p);if(d===null)return'';const cor=d>0?'var(--red)':d<0?'var(--teal)':'var(--ink3)';const txt=d>0?'+'+d+'d (atraso)':d<0?d+'d (adiantado)':'No prazo';return`<div><div class="sec-lbl">Desvio de prazo</div><div style="font-size:13px;font-weight:600;color:${cor}">${txt}</div></div>`;})()}
+        ${(()=>{const pe=(p.prazos_ep||{})[p.etapa];if(!pe)return'';const cor=pe<new Date().toISOString().slice(0,10)?'var(--red)':'var(--teal)';return`<div><div class="sec-lbl">Prazo EP (etapa atual)</div><div style="font-size:13px;font-weight:600;color:${cor}">${pe.split('-').reverse().join('/')}</div></div>`;})()}
       </div>
       <hr><div class="sec-lbl">Equipe</div><div style="font-size:13px">${e.equipe||'—'}</div>
+      ${p.objetivo?`<hr><div class="sec-lbl">Objetivo</div><div style="font-size:13px;margin-bottom:.3rem">${esc(p.objetivo)}</div>`:''}
+      ${e.escopo?`<hr><div class="sec-lbl">Escopo</div><div style="font-size:13px;color:var(--ink2);white-space:pre-wrap">${esc(e.escopo)}</div>`:''}
       ${pubExtra}
     </div>
     <div class="card">
@@ -6868,7 +7038,78 @@ function rHist(p){
     const dot=i===0?'●':'✓';
     return `<div class="tl-i"><div class="tl-d ${dotClass}">${dot}</div><div><div class="tl-t">${esc(h.acao)}</div><div class="tl-m">${esc(h.role)}${h.por?' · '+esc(h.por):''}· ${esc(h.data)}</div></div></div>`;
   }).join('');
-  document.getElementById('tab-hist').innerHTML=`<div class="card"><div class="card-t">Histórico completo</div><div class="tl">${histItems}</div></div>`;
+  // Q025: seção de comentários rápidos
+  const coments=(p.comentarios||[]);
+  const comentHtml=coments.length?coments.slice().reverse().map(c=>`
+    <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--bdr)">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${(c.por||'?').substring(0,2).toUpperCase()}</div>
+      <div style="flex:1">
+        <div style="font-size:12.5px;color:var(--ink);white-space:pre-wrap">${esc(c.txt)}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">${esc(c.por||'Sistema')} · ${esc(c.data)}</div>
+      </div>
+    </div>`).join(''):'<div style="font-size:12px;color:var(--ink3);padding:.3rem 0">Nenhum comentário ainda.</div>';
+  document.getElementById('tab-hist').innerHTML=`
+  <div class="card" style="margin-bottom:1rem">
+    <div class="card-t">💬 Comentários <small style="font-weight:400;color:var(--ink3)">(rápido, sem mudar etapa)</small></div>
+    <div style="max-height:220px;overflow-y:auto;margin-bottom:.8rem">${comentHtml}</div>
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <textarea class="fi" id="coment-inp" style="min-height:38px;resize:vertical;flex:1" placeholder="Escreva um comentário..."></textarea>
+      <button type="button" class="btn btn-p" style="padding:7px 14px;flex-shrink:0" onclick="adicionarComentario()">Enviar</button>
+    </div>
+  </div>
+  <div class="card"><div class="card-t">Histórico completo</div><div class="tl">${histItems}</div></div>`;
+}
+function adicionarComentario(){
+  const p=curProc;
+  if(!p){toast('Nenhum processo selecionado.','var(--amber)');return;}
+  const inp=document.getElementById('coment-inp');
+  const txt=(inp?.value||'').trim();
+  if(!txt){toast('Escreva um comentário antes de enviar.','var(--amber)');inp?.focus();return;}
+  if(!p.comentarios) p.comentarios=[];
+  p.comentarios.push({txt,por:usuarioLogado?.nome||'EP',data:now()});
+  fbAutoSave('comentario');
+  inp.value='';
+  rHist(p);
+  toast('Comentário adicionado.','var(--teal)');
+}
+// Q030: Aba de Anexos — consolida todas as evidências do processo
+function rAnexos(p){
+  const EV_ETAPAS=['det_valid_asis','det_valid_tobe','apresentacao'];
+  let hasAny=false;
+  const sections=EV_ETAPAS.map(etId=>{
+    const evArr=(p.evidencias||{})[etId]||[];
+    if(!evArr.length) return '';
+    hasAny=true;
+    const etLbStr=etLb(etId);
+    const items=evArr.map((ev,i)=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr)">
+        <span style="font-size:18px">📎</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ev.nome||ev.name||'Arquivo '+( i+1))}</div>
+          ${ev.url?`<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--blue)">Abrir arquivo ↗</a>`:''}
+        </div>
+        <div style="font-size:11px;color:var(--ink3);flex-shrink:0">${esc(ev.data||'')}</div>
+      </div>`).join('');
+    return `<div class="card" style="margin-bottom:.8rem"><div class="card-t">📂 ${etLbStr}</div>${items}</div>`;
+  }).join('');
+  const aovEtapas=Object.entries(p.evidencias||{}).filter(([k])=>!EV_ETAPAS.includes(k));
+  const extraSections=aovEtapas.map(([etId,evArr])=>{
+    if(!evArr||!evArr.length) return '';
+    hasAny=true;
+    const items=evArr.map((ev,i)=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr)">
+        <span style="font-size:18px">📎</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ev.nome||ev.name||'Arquivo '+(i+1))}</div>
+          ${ev.url?`<a href="${esc(ev.url)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--blue)">Abrir arquivo ↗</a>`:''}
+        </div>
+        <div style="font-size:11px;color:var(--ink3);flex-shrink:0">${esc(ev.data||'')}</div>
+      </div>`).join('');
+    return `<div class="card" style="margin-bottom:.8rem"><div class="card-t">📂 ${esc(etLb(etId)||etId)}</div>${items}</div>`;
+  }).join('');
+  document.getElementById('tab-anex').innerHTML=hasAny
+    ? `<div class="ib ibt" style="margin-bottom:.8rem">Arquivos de evidência enviados durante o mapeamento.</div>${sections}${extraSections}`
+    : `<div class="ib iba">Nenhum anexo enviado neste processo ainda.<br><small style="color:var(--ink3)">Anexos são enviados nas etapas de validação AS IS, validação TO BE e apresentação ao gestor.</small></div>`;
 }
 
 function _renderAcompReuniao(r){
