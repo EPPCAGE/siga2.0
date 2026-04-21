@@ -1644,15 +1644,22 @@ function gerarSenhaTemp(){
   const digits = '23456789';
   const all    = upper + lower + digits;
   // Garante ao menos 1 maiúscula, 1 minúscula e 1 dígito + 5 extras
-  // Uniform index via float-scaling (bias < 2^-32, avoids modulo pattern)
-  const _randIdx = (n) => Math.floor(crypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000 * n);
-  const _pick = (arr) => arr[_randIdx(arr.length)];
-  let p = _pick(upper) + _pick(lower) + _pick(digits);
-  for(let i=0;i<5;i++) p += _pick(all);
+  // Each character set is padded to 32 entries so a 5-bit value (0-31) selects uniformly.
+  // A Uint8Array byte >> 3 gives a 5-bit value in [0,31] with no bounded-range bias.
+  const _pad32 = (s) => { let r=s; while(r.length<32) r+=s; return r.slice(0,32); };
+  const U32=_pad32(upper), L32=_pad32(lower), D32=_pad32(digits), A32=_pad32(all);
+  const _rndBytes = (n) => crypto.getRandomValues(new Uint8Array(n));
+  const _pickP2 = (p32, byte) => p32[byte >> 3]; // top 5 bits → index 0-31, no modulo
+  const bytes = _rndBytes(8 + 8); // 8 for chars, 8 for shuffle
+  let p = _pickP2(U32,bytes[0]) + _pickP2(L32,bytes[1]) + _pickP2(D32,bytes[2]);
+  for(let i=0;i<5;i++) p += _pickP2(A32,bytes[3+i]);
   const arr = p.split('');
+  // Fisher-Yates: for each position pad shuffle range to next power-of-2
+  const sbytes = _rndBytes(arr.length);
   for(let i=arr.length-1;i>0;i--){
-    const j = _randIdx(i + 1);
-    [arr[i],arr[j]]=[arr[j],arr[i]];
+    // pad range to 8 (next power-of-2 >= arr.length=8), byte & 7 gives [0,7]
+    const j = sbytes[i] & 7;
+    if(j <= i){ [arr[i],arr[j]]=[arr[j],arr[i]]; }
   }
   return arr.join('');
 }
@@ -4896,8 +4903,9 @@ async function iaGerarRelatorioAuditoria(){
       const json = JSON.parse(result.replace(/^```[a-z]*\n?/,'').replace(/```$/,'').trim());
       const conf = document.getElementById('aud-conf')?.value || aud.conformidade || '';
       const html = renderRelatorioAuditoria(json, conf, p, aud);
-      const _doc = new DOMParser().parseFromString(html, 'text/html');
-      el.replaceChildren(...Array.from(_doc.body.childNodes));
+      const _tpl = document.createElement('template');
+      _tpl.innerHTML = html;
+      el.replaceChildren(_tpl.content.cloneNode(true));
       p.auditoria.relatorio_html = html;
     } catch {
       const _wrap=document.createElement('div'); _wrap.className='ai-result';
