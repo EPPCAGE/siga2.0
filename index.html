@@ -6008,7 +6008,7 @@ function calcILP(etapas){
     for(const n of nodes){
       out.push(n);
       for(const cam of (n.caminhos||[])){
-        out.push(...flatAcoes(cam.acoes||[]));
+        for(const a of flatAcoes(cam.acoes||[])) out.push(a);
       }
     }
     return out;
@@ -6029,6 +6029,46 @@ function calcILP(etapas){
   const ilp=Math.round((numerador/denominador)*100);
   return {ilp,total,E,P,C,D,R:cnt('Revisao'),A:cnt('Aprovacao'),gxorDiv,nAtores};
 }
+function _rEntMatBadges(e){
+  const mat=e.mat||0;
+  return [1,2,3,4,5].map(n=>{
+    let matBg,matColor;
+    if(mat===n){matBg='var(--blue)';matColor='#fff';}
+    else if(mat>n){matBg='var(--teal-l)';matColor='var(--teal)';}
+    else{matBg='var(--bg3)';matColor='var(--ink3)';}
+    return `<span class="badge" style="margin-right:4px;background:${matBg};color:${matColor}">${n} ${ML[n]}</span>`;
+  }).join('');
+}
+function _rEntIlpCard(ilpData){
+  if(!ilpData) return '';
+  const {ilp,total,E,P,C,D,R,A,gxorDiv,nAtores}=ilpData;
+  let ilpBg,ilpColor,ilpLabel;
+  if(ilp>=75){ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';}
+  else if(ilp>=50){ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';}
+  else{ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';}
+  const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
+  const nat=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
+  return `<div class="card" style="margin-bottom:1rem;border-left:4px solid ${ilpColor}">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:.6rem">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">Índice Lean Processual</div>
+        <div style="font-size:28px;font-weight:800;color:${ilpColor};line-height:1.1">${ilp}<span style="font-size:14px;font-weight:500">/100</span></div>
+        <span style="font-size:11px;font-weight:600;color:${ilpColor};background:${ilpBg};padding:2px 8px;border-radius:20px">${ilpLabel}</span>
+      </div>
+      <div style="flex:1">${bar(Math.min(ilp,100))}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:.5rem">
+      ${nat('Execução',E,'#0d9488')}${nat('Preparação',P,'#6366f1')}
+      ${nat('Comunicação',C,'#f59e0b')}${nat('Distribuição',D,'#8b5cf6')}
+      ${nat('Revisão',R,'#ef4444')}${nat('Aprovação',A,'#f97316')}
+    </div>
+    <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.4rem;display:flex;gap:12px;flex-wrap:wrap">
+      <span>Total atividades: <strong>${total}</strong></span>
+      <span>Gateways exclusivos (XOR÷): <strong>${gxorDiv}</strong></span>
+      <span>Atores distintos: <strong>${nAtores}</strong></span>
+    </div>
+  </div>`;
+}
 function rEnt(p){
   const e=p.ent;
   const resp=e.quest_resp||{};
@@ -6039,42 +6079,8 @@ function rEnt(p){
     if(!dims[q.dim])dims[q.dim]={sum:0,cnt:0};
     if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
-  const matBadges=[1,2,3,4,5].map(n=>{
-    let matBg,matColor;
-    if((e.mat||0)===n){matBg='var(--blue)';matColor='#fff';}
-    else if((e.mat||0)>n){matBg='var(--teal-l)';matColor='var(--teal)';}
-    else{matBg='var(--bg3)';matColor='var(--ink3)';}
-    return`<span class="badge" style="margin-right:4px;background:${matBg};color:${matColor}">${n} ${ML[n]}</span>`;
-  }).join('');
-  const ilpData=calcILP(p.mod?.etapas_proc||[]);
-  const ilpCard=ilpData?(()=>{
-    const {ilp,total,E,P,C,D,R,A,gxorDiv,nAtores}=ilpData;
-    let ilpBg,ilpColor,ilpLabel;
-    if(ilp>=75){ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';}
-    else if(ilp>=50){ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';}
-    else{ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';}
-    const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
-    const nat=(lbl,cnt,color)=>cnt?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${cnt}</span></div>`:'';
-    return `<div class="card" style="margin-bottom:1rem;border-left:4px solid ${ilpColor}">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:.6rem">
-        <div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">Índice Lean Processual</div>
-          <div style="font-size:28px;font-weight:800;color:${ilpColor};line-height:1.1">${ilp}<span style="font-size:14px;font-weight:500">/100</span></div>
-          <span style="font-size:11px;font-weight:600;color:${ilpColor};background:${ilpBg};padding:2px 8px;border-radius:20px">${ilpLabel}</span>
-        </div>
-        <div style="flex:1">${bar(Math.min(ilp,100))}</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:.5rem">
-        ${nat('Execução',E,'#0d9488')}${nat('Preparação',P,'#6366f1')}
-        ${nat('Comunicação',C,'#f59e0b')}${nat('Distribuição',D,'#8b5cf6')}
-        ${nat('Revisão',R,'#ef4444')}${nat('Aprovação',A,'#f97316')}
-      </div>
-      <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.4rem;display:flex;gap:12px;flex-wrap:wrap">
-        <span>Total atividades: <strong>${total}</strong></span>
-        <span>Gateways exclusivos (XOR÷): <strong>${gxorDiv}</strong></span>
-        <span>Atores distintos: <strong>${nAtores}</strong></span>
-      </div>
-    </div>`; })():'';
+  const matBadges=_rEntMatBadges(e);
+  const ilpCard=_rEntIlpCard(calcILP(p.mod?.etapas_proc||[]));
       const linkPubHtml = p.form?.link_pub
         ? '<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="'+esc(p.form.link_pub)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(p.form.link_pub)+'</a></div></div>'
         : '';
@@ -6899,13 +6905,11 @@ function getArqFilters(){
 
 // Returns true if a process/subprocesso matches current filters
 function itemMatchesFilters(item, macroNome, f){
-  if(f.area  && item.area  !== f.area)  return false;
-  if(f.nat   && (item.natureza||'').toLowerCase() !== f.nat.toLowerCase()) return false;
-  if(f.obje  && !(item.objetivo_estrategico||'').includes(f.obje)) return false;
-  if(f.mapeado === 'sim' && !isMapeado(item.id)) return false;
-  if(f.mapeado === 'nao' && isMapeado(item.id))  return false;
-  if(f.critico === 'sim' && !isCritico(item.id)) return false;
-  if(f.critico === 'nao' && isCritico(item.id))  return false;
+  if(f.area && item.area !== f.area) return false;
+  if(f.nat  && (item.natureza||'').toLowerCase() !== f.nat.toLowerCase()) return false;
+  if(f.obje && !(item.objetivo_estrategico||'').includes(f.obje)) return false;
+  if(f.mapeado && (f.mapeado==='sim') !== isMapeado(item.id)) return false;
+  if(f.critico && (f.critico==='sim') !== isCritico(item.id)) return false;
   if(f.srch){
     const hay = [item.nome, item.area, item.gerente, item.objetivo,
                  item.objetivo_estrategico, item.clientes, macroNome]
