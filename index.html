@@ -6581,13 +6581,20 @@ function _bpmnFindJoin(gwId, outgoing){
   // BFS from each branch to collect reachable sets
   const reachable=branches.map(brId=>{
     const r=new Set(); const q=[brId];
-    while(q.length){ const id=q.shift(); if(r.has(id)) continue; r.add(id); (outgoing[id]||[]).forEach(t=>q.push(t)); }
+    while(q.length){
+      const id=q.shift();
+      if(r.has(id)) continue;
+      r.add(id);
+      (outgoing[id]||[]).forEach(t=>q.push(t));
+    }
     return r;
   });
   // BFS from gateway outgoing; first node in ALL reachable sets is the join
   const seen=new Set([gwId]); const q=[...branches];
   while(q.length){
-    const id=q.shift(); if(seen.has(id)) continue; seen.add(id);
+    const id=q.shift();
+    if(seen.has(id)) continue;
+    seen.add(id);
     if(reachable.every(r=>r.has(id))) return id;
     (outgoing[id]||[]).forEach(t=>{ if(!seen.has(t)) q.push(t); });
   }
@@ -6603,9 +6610,10 @@ function _bpmnBuildNested(startId, stopSet, outgoing, nodeInfo, flowLabels, visi
       const nexts=outgoing[id]||[];
       id=nexts.length===1?nexts[0]:null; continue;
     }
+    const nomeFallback=n.tipo==='Evento'?n.subtipo||'Evento':n.tipo==='Decisao'?'Decisão':'Atividade';
     const elem={
       id:'ep'+etapasIdC++, seq:seqCtr.s++,
-      nome:n.nome||(n.tipo==='Evento'?n.subtipo||'Evento':n.tipo==='Decisao'?'Decisão':'Atividade'),
+      nome:n.nome||nomeFallback,
       tipo:n.tipo, subtipo_evento:n.subtipo||null,
       natureza:n.natureza||(n.tipo==='Atividade'?inferNatureza(n.nome||''):''), modo:n.modo||null,
       executor:n.executor||'', desc:n.desc||'', caminhos:[]
@@ -6653,8 +6661,9 @@ function extrairBpmn(){
   Object.keys(nodeInfo).forEach(id=>{
     if(!visited.has(id)){
       const n=nodeInfo[id];
+      const nomeFallback=n.tipo==='Evento'?n.subtipo||'Evento':n.tipo==='Decisao'?'Decisão':'Atividade';
       elems.push({id:'ep'+etapasIdC++,seq:seqCtr.s++,
-        nome:n.nome||(n.tipo==='Evento'?n.subtipo||'Evento':n.tipo==='Decisao'?'Decisão':'Atividade'),
+        nome:n.nome||nomeFallback,
         tipo:n.tipo,subtipo_evento:n.subtipo||null,
         natureza:n.natureza||(n.tipo==='Atividade'?inferNatureza(n.nome||''):''),modo:n.modo,
         executor:n.executor||'',desc:n.desc||'',caminhos:[]});
