@@ -2594,7 +2594,10 @@ function isVencido(p){
   const prazo=p.ent?.dt_prev||'';
   if(!prazo) return false;
   if(p.status_ciclo==='suspenso'||p.status_ciclo==='cancelado') return false;
-  if(p.etapa==='auditoria'&&p.auditoria?.concluida) return false;
+  // Processo já entregue (dt_efetiva preenchida = publicado)
+  if(p.ent?.dt_efetiva) return false;
+  // Etapas pós-publicação não são "vencidas" — o produto foi entregue
+  if(['publicacao','acompanha','auditoria'].includes(p.etapa)) return false;
   return prazo < new Date().toISOString().slice(0,10);
 }
 // Q027: calcula desvio entre prazo previsto e data efetiva de conclusão
