@@ -6415,6 +6415,30 @@ function exportarEtapasAsIsXlsx(){
   toast('Planilha exportada com sucesso.');
 }
 
+function _renderVinculoGwField(e, id){
+  const etapas=curProc?.mod?.[_ekey()]||[];
+  const gateways=etapas.filter(x=>x.tipo==='Decisao'&&x.id!==id);
+  if(!gateways.length) return '';
+  const selGwId=e.vinculo_gw?.gw_ep_id||'';
+  const selLabel=e.vinculo_gw?.label||'';
+  const selGw=gateways.find(x=>x.id===selGwId);
+  const caminhos=selGw?.caminhos||[];
+  return `<div class="g2" style="margin-top:.5rem;padding:.5rem .75rem;background:var(--bg2);border-radius:var(--r);border:1px solid var(--bdr)">
+    <div class="fg"><label class="fl">Gateway anterior <small style="font-weight:400;color:var(--ink3)">(opcional)</small></label>
+      <select class="fi" onchange="(function(s){const _e=curProc.mod[_ekey()].find(x=>x.id==='${id}');_e.vinculo_gw=s.value?{gw_ep_id:s.value,label:''}:null;reRenderEtapaDetalhe('${id}');})(this)">
+        <option value="">— Nenhum —</option>
+        ${gateways.map(gw=>`<option value="${gw.id}" ${selGwId===gw.id?'selected':''}>${esc(gw.nome||'Decisão')}</option>`).join('')}
+      </select>
+    </div>
+    ${selGwId?`<div class="fg"><label class="fl">Caminho do gateway</label>
+      <select class="fi" onchange="curProc.mod[_ekey()].find(x=>x.id==='${id}').vinculo_gw.label=this.value">
+        <option value="">— Selecione —</option>
+        ${caminhos.filter(c=>c.label).map(c=>`<option value="${esc(c.label)}" ${selLabel===c.label?'selected':''}>${esc(c.label)}</option>`).join('')}
+        ${!caminhos.filter(c=>c.label).some(c=>c.label===selLabel&&selLabel)?`<option value="${esc(selLabel)}" selected>${esc(selLabel)||'(sem rótulo)'}</option>`:''}
+      </select>
+    </div>`:'<div></div>'}
+  </div>`;
+}
 function renderEtapaDetalheConteudo(e){
   const id=e.id;
   return `<div class="g2" style="margin-top:.6rem">
@@ -6434,6 +6458,7 @@ function renderEtapaDetalheConteudo(e){
   </div>
   ${_renderEtapaAtividadeFields(e, id)}
   ${_renderEtapaEventoFields(e, id)}
+  ${e.tipo!=='Decisao'?_renderVinculoGwField(e,id):''}
   ${e.tipo==='Decisao'?`<div id="gw-${id}">${renderGatewaySection(id,0)}</div>`:''}
   <div class="fg" style="margin-top:.4rem"><label class="fl">Descrição detalhada</label>
     <textarea class="fi" style="min-height:60px"
@@ -6462,7 +6487,10 @@ function renderEtapasProc(etapas){
         <span class="etapa-drag-handle" title="Arrastar para reordenar">⠿</span>
         <div class="etapa-seq">${e.seq}</div>
         <span class="etapa-tipo ${tipoCls(e.tipo,e.subtipo_evento)}">${e.tipo}${e.subtipo_evento?' · '+e.subtipo_evento:''}</span>
-        <div class="etapa-nome">${e.nome}</div>
+        <div class="etapa-nome">
+          ${e.nome}
+          ${(()=>{if(!e.vinculo_gw?.gw_ep_id)return '';const _gw=curProc.mod[_ekey()]?.find(x=>x.id===e.vinculo_gw.gw_ep_id);return _gw?`<div style="font-size:10.5px;color:var(--teal);margin-top:1px">⤷ ${esc(_gw.nome||'Gateway')}${e.vinculo_gw.label?' · '+esc(e.vinculo_gw.label):''}</div>`:''})()}
+        </div>
         <button type="button" class="btn" style="font-size:11px;padding:3px 8px" onclick="toggleEtapaDetalhe('${e.id}')">✎ Detalhar</button>
         <button type="button" class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red-b)" onclick="remEtapaProc('${e.id}')" aria-label="Remover etapa">×</button>
       </div>
@@ -6554,7 +6582,7 @@ function addEtapaProc(){
   if(!curProc?.mod)return;
   const key=_ekey(); if(!curProc.mod[key])curProc.mod[key]=[];
   const seq=(curProc.mod[key].length||0)+1;
-  const nova={id:'ep'+etapasIdC++,seq,nome:'Nova etapa '+seq,tipo:'Atividade',natureza:'Execucao',modo:'Manual',executor:'',desc:'',subtipo_evento:null,caminhos:[]};
+  const nova={id:'ep'+etapasIdC++,seq,nome:'Nova etapa '+seq,tipo:'Atividade',natureza:'Execucao',modo:'Manual',executor:'',desc:'',subtipo_evento:null,caminhos:[],vinculo_gw:null};
   curProc.mod[key].push(nova);
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(curProc.mod[key]);
   setTimeout(()=>{ toggleEtapaDetalhe(nova.id); },50);
@@ -6618,70 +6646,82 @@ function _bpmnBuildFlowLabels(xml){
   });
   return labels;
 }
-function _bpmnFindJoin(gwId, outgoing){
-  const branches=outgoing[gwId]||[];
-  if(branches.length<=1) return null;
-  // BFS from each branch to collect reachable sets
-  const reachable=branches.map(brId=>{
-    const r=new Set(); const q=[brId];
-    while(q.length){
-      const id=q.shift();
-      if(r.has(id)) continue;
-      r.add(id);
-      (outgoing[id]||[]).forEach(t=>q.push(t));
-    }
-    return r;
+function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
+  // Build incoming-edge count to detect merge points
+  const incoming={};
+  Object.entries(outgoing).forEach(([src,tgts])=>{
+    tgts.forEach(tgt=>{ incoming[tgt]=(incoming[tgt]||0)+1; });
   });
-  // BFS from gateway outgoing; first node in ALL reachable sets is the join
-  const seen=new Set([gwId]); const q=[...branches];
-  while(q.length){
-    const id=q.shift();
-    if(seen.has(id)) continue;
-    seen.add(id);
-    if(reachable.every(r=>r.has(id))) return id;
-    (outgoing[id]||[]).forEach(t=>{ if(!seen.has(t)) q.push(t); });
-  }
-  return null;
-}
-function _bpmnBuildNested(startId, stopSet, outgoing, nodeInfo, flowLabels, visited, seqCtr){
-  const results=[];
-  let id=startId;
-  while(id && !visited.has(id) && !(stopSet&&stopSet.has(id))){
+  const startIds=_bpmnFindAll(xml,['startEvent']).map(e=>e.id);
+  const visited=new Set();
+  const ordered=[];
+  // Each queue entry: {id, gwCtx: null | {gw_id, epId, label}}
+  const queue=startIds.map(id=>({id,gwCtx:null}));
+  // Track epId assigned per xmlId for gateway linking
+  const xmlToEpId={};
+
+  while(queue.length){
+    const {id,gwCtx}=queue.shift();
+    if(visited.has(id)) continue;
     visited.add(id);
+    // Merge point (multiple predecessors) → clear gateway context
+    const myCtx=(incoming[id]||0)>1?null:gwCtx;
     const n=nodeInfo[id];
-    if(!n){
-      const nexts=outgoing[id]||[];
-      id=nexts.length===1?nexts[0]:null; continue;
+    if(n){
+      let nomeFallback;
+      if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
+      else if(n.tipo==='Decisao') nomeFallback='Decisão';
+      else nomeFallback='Atividade';
+      const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
+      const epId='ep'+etapasIdC++;
+      xmlToEpId[id]=epId;
+      const elem={
+        id:epId, seq:0,
+        nome:n.nome||nomeFallback,
+        tipo:n.tipo, subtipo_evento:n.subtipo||null,
+        natureza:n.natureza||naturezaFallback, modo:n.modo||null,
+        executor:n.executor||'', desc:n.desc||'', caminhos:[],
+        vinculo_gw: (myCtx&&n.tipo!=='Decisao') ? {gw_ep_id:myCtx.epId,label:myCtx.label} : null
+      };
+      // For gateways: pre-populate caminhos labels from flow labels
+      if(n.tipo==='Decisao'){
+        const nextsGw=outgoing[id]||[];
+        if(nextsGw.length>1){
+          elem.caminhos=nextsGw.map(tgt=>({label:flowLabels[id+'→'+tgt]||'',acoes:[]}));
+        }
+      }
+      ordered.push(elem);
     }
-    let nomeFallback;
-    if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
-    else if(n.tipo==='Decisao') nomeFallback='Decisão';
-    else nomeFallback='Atividade';
-    const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
-    const elem={
-      id:'ep'+etapasIdC++, seq:seqCtr.s++,
-      nome:n.nome||nomeFallback,
-      tipo:n.tipo, subtipo_evento:n.subtipo||null,
-      natureza:n.natureza||naturezaFallback, modo:n.modo||null,
-      executor:n.executor||'', desc:n.desc||'', caminhos:[]
-    };
-    results.push(elem);
     const nexts=outgoing[id]||[];
-    if(n.tipo==='Decisao'&&nexts.length>1){
-      const joinId=_bpmnFindJoin(id,outgoing);
-      const stop2=new Set(stopSet||[]);
-      if(joinId) stop2.add(joinId);
-      elem.caminhos=nexts.map(brId=>{
-        const label=flowLabels[id+'→'+brId]||'';
-        const acoes=_bpmnBuildNested(brId,stop2,outgoing,nodeInfo,flowLabels,new Set(visited),seqCtr);
-        return {label,acoes};
-      });
-      id=joinId||null;
-    } else {
-      id=nexts.length===1?nexts[0]:null;
-    }
+    const isGw=nodeInfo[id]?.tipo==='Decisao';
+    nexts.forEach(tgt=>{
+      if(!visited.has(tgt)){
+        let nextCtx;
+        if(isGw){
+          nextCtx={gw_id:id, epId:xmlToEpId[id]||null, label:flowLabels[id+'→'+tgt]||''};
+        } else {
+          nextCtx=myCtx;
+        }
+        queue.push({id:tgt,gwCtx:nextCtx});
+      }
+    });
   }
-  return results;
+  // Disconnected nodes
+  Object.keys(nodeInfo).forEach(id=>{
+    if(!visited.has(id)){
+      const n=nodeInfo[id];
+      let nomeFallback;
+      if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
+      else if(n.tipo==='Decisao') nomeFallback='Decisão';
+      else nomeFallback='Atividade';
+      const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
+      ordered.push({id:'ep'+etapasIdC++,seq:0,
+        nome:n.nome||nomeFallback, tipo:n.tipo, subtipo_evento:n.subtipo||null,
+        natureza:n.natureza||naturezaFallback, modo:n.modo, executor:n.executor||'',
+        desc:n.desc||'', caminhos:[], vinculo_gw:null});
+    }
+  });
+  return ordered;
 }
 function extrairBpmn(){
   const p=curProc;
@@ -6698,28 +6738,8 @@ function extrairBpmn(){
   const nodeInfo  = _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap);
   const outgoing  = _bpmnBuildOutgoing(xml);
   const flowLabels= _bpmnBuildFlowLabels(xml);
-  const startIds  = _bpmnFindAll(xml,['startEvent']).map(e=>e.id);
-  if(!startIds.length&&!Object.keys(nodeInfo).length){toast('Nenhum elemento encontrado no BPMN. Desenhe o fluxo primeiro.','var(--amber)');return;}
-  const startId=startIds[0]||Object.keys(nodeInfo)[0];
-  const seqCtr={s:1};
-  const visited=new Set();
-  const elems=_bpmnBuildNested(startId,null,outgoing,nodeInfo,flowLabels,visited,seqCtr);
-  // Add disconnected nodes not reached from start
-  Object.keys(nodeInfo).forEach(id=>{
-    if(!visited.has(id)){
-      const n=nodeInfo[id];
-      let nomeFallback;
-      if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
-      else if(n.tipo==='Decisao') nomeFallback='Decisão';
-      else nomeFallback='Atividade';
-      const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
-      elems.push({id:'ep'+etapasIdC++,seq:seqCtr.s++,
-        nome:n.nome||nomeFallback,
-        tipo:n.tipo,subtipo_evento:n.subtipo||null,
-        natureza:n.natureza||naturezaFallback,modo:n.modo,
-        executor:n.executor||'',desc:n.desc||'',caminhos:[]});
-    }
-  });
+  if(!Object.keys(nodeInfo).length){toast('Nenhum elemento encontrado no BPMN. Desenhe o fluxo primeiro.','var(--amber)');return;}
+  const elems=_bpmnBuildFlatGwAware(xml,outgoing,nodeInfo,flowLabels);
   if(!elems.length){toast('Nenhum elemento encontrado no BPMN.','var(--amber)');return;}
   const key=isTobe?'etapas_proc_tobe':'etapas_proc';
   if(!p.mod[key]) p.mod[key]=[];
