@@ -1659,7 +1659,7 @@ function gerarSenhaTemp(){
   // Garante ao menos 1 maiúscula, 1 minúscula e 1 dígito + 5 extras
   // Each character set is padded to 32 entries so a 5-bit value (0-31) selects uniformly.
   // A Uint8Array byte >> 3 gives a 5-bit value in [0,31] with no bounded-range bias.
-  const _pad32 = (s) => { let r=s; while(r.length<32) r+=s; return r.slice(0,32); };
+  const _pad32 = (s) => { let r=s; while(r.length<32){ r+=s; } return r.slice(0,32); };
   const U32=_pad32(upper), L32=_pad32(lower), D32=_pad32(digits), A32=_pad32(all);
   const _rndBytes = (n) => crypto.getRandomValues(new Uint8Array(n));
   const _pickP2 = (p32, byte) => p32[byte >> 3]; // top 5 bits → index 0-31, no modulo
@@ -2097,7 +2097,7 @@ function rFila(){
   let aguard=[];
   if(perfil==='ep'){
     // Processos com revisao_ep_pendente (dono submeteu, aguarda EP)
-    aguard=processos.filter(p=>p.ent?.revisao_ep_pendente&&!getTarefasUsr().find(t=>t.id===p.id)&&p.status_ciclo!=='suspenso'&&p.status_ciclo!=='cancelado');
+    aguard=processos.filter(p=>p.ent?.revisao_ep_pendente&&!getTarefasUsr().some(t=>t.id===p.id)&&p.status_ciclo!=='suspenso'&&p.status_ciclo!=='cancelado');
   } else if(perfil==='dono'){
     // Processos do dono que estão em etapa do EP aguardando
     aguard=processos.filter(p=>{
@@ -2172,7 +2172,7 @@ function taskCard(p,ACT){
   const hoje=new Date().toISOString().slice(0,10);
   const venc=prazo && prazo<hoje;
   const prazoHtml=prazo?`<span style="font-size:11px;color:${venc?'var(--red)':'var(--ink3)'}">📅 ${venc?'Vencido':'Prazo'}: ${prazo.split('-').reverse().join('/')}</span>`:'';
-  const vencBorder=venc||isVencido(p)?'border-left:3px solid var(--red);':isVencido(p)?'border-left:3px solid var(--red);':'';
+  const vencBorder=venc||isVencido(p)?'border-left:3px solid var(--red);':'';
   return `<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})" style="margin-bottom:8px;${vencBorder}">
     <div><div class="prc-t">${esc(p.nome)}</div>
     <div style="font-size:12px;color:var(--ink3);margin-top:3px">${esc(ACT[p.etapa]||p.etapa)}</div>
@@ -2336,6 +2336,12 @@ function buildAnalyticsHTML(){
   // Top etapas com mais devoluções
   const topDev=Object.entries(devEtapa).sort((a,b)=>b[1]-a[1]).slice(0,3);
   const topTempo=Object.entries(tempoEtapa).map(([id,t])=>([id,Math.round(t/(contEtapa[id]||1))])).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const topDevRows=topDev.map(([id,n])=>'<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0"><span style="flex:1;color:var(--ink)">'+etLb(id)+'</span><span style="font-weight:600;color:var(--red)">'+n+'×</span></div>').join('');
+  const topTempoRows=topTempo.map(([id,d])=>'<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0"><span style="flex:1;color:var(--ink)">'+etLb(id)+'</span><span style="font-weight:600;color:var(--blue)">'+d+' dias</span></div>').join('');
+  let desvCor,desvVal;
+  if(desvMedio==null){ desvCor='var(--ink3)'; desvVal='—'; }
+  else if(desvMedio>0){ desvCor='var(--red)'; desvVal='+'+desvMedio+'d'; }
+  else { desvCor='var(--teal)'; desvVal=desvMedio+'d'; }
   return `<div class="card" style="margin-bottom:1rem">
     <div class="card-t">Análise gerencial</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem">
@@ -2344,7 +2350,7 @@ function buildAnalyticsHTML(){
         <div style="font-size:11px;color:var(--ink3)">Concluídos este mês</div>
       </div>
       <div style="background:var(--bg2);border-radius:var(--r);padding:.8rem;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:${desvMedio==null?'var(--ink3)':desvMedio>0?'var(--red)':'var(--teal)'}">${desvMedio==null?'—':(desvMedio>0?'+':'')+desvMedio+'d'}</div>
+        <div style="font-size:22px;font-weight:700;color:${desvCor}">${desvVal}</div>
         <div style="font-size:11px;color:var(--ink3)">Desvio médio de prazo</div>
       </div>
       <div style="background:var(--bg2);border-radius:var(--r);padding:.8rem;text-align:center">
@@ -2357,9 +2363,9 @@ function buildAnalyticsHTML(){
       </div>
     </div>
     ${topDev.length?`<div style="margin-bottom:.8rem"><div class="sec-lbl" style="margin-bottom:.4rem">Etapas com mais devoluções</div>
-      ${topDev.map(([id,n])=>`<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0"><span style="flex:1;color:var(--ink)">${etLb(id)}</span><span style="font-weight:600;color:var(--red)">${n}×</span></div>`).join('')}</div>`:''}
+      ${topDevRows}</div>`:''}
     ${topTempo.length?`<div><div class="sec-lbl" style="margin-bottom:.4rem">Etapas com maior tempo médio</div>
-      ${topTempo.map(([id,d])=>`<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0"><span style="flex:1;color:var(--ink)">${etLb(id)}</span><span style="font-weight:600;color:var(--blue)">${d} dias</span></div>`).join('')}</div>`:''}
+      ${topTempoRows}</div>`:''}
   </div>`;
 }
 // ═══════════════════════════════════════════
@@ -3021,12 +3027,12 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
     curProc.etapa = nx;
     push(curProc, nx, 'Sistema', 'Etapa iniciada');
     const nxObj = getEtapas(curProc).find(e=>e.id===nx);
-    curProc.status_workflow = nxObj?.resp==='dono' ? 'aguardando_dono'
-      : nxObj?.resp==='gestor'                     ? 'aguardando_gestor'
-      :                                              'em_andamento';
-  } else {
-    // sem próxima etapa = processo concluído (publicacao → acompanha → auditoria)
-    if(etAtu==='auditoria') curProc.status_workflow='concluido';
+    if(nxObj?.resp==='dono') curProc.status_workflow='aguardando_dono';
+    else if(nxObj?.resp==='gestor') curProc.status_workflow='aguardando_gestor';
+    else curProc.status_workflow='em_andamento';
+  } else if(etAtu==='auditoria'){
+    // processo concluído (publicacao → acompanha → auditoria)
+    curProc.status_workflow='concluido';
   }
   rDetalhe();updCounts();
   fbAutoSave('av');
@@ -3307,9 +3313,10 @@ function devolverAoDono(){
   if(!opcoes.length){toast('Nenhuma etapa anterior do dono encontrada.','var(--amber)');return;}
   // Default: última etapa do dono antes da atual (comportamento anterior)
   const etRetDefault=opcoes[opcoes.length-1].id;
+  const opHtml=opcoes.map(e=>'<option value="'+e.id+'"'+(e.id===etRetDefault?' selected':'')+'>'+etLb(e.id)+'</option>').join('');
   const selectHtml=opcoes.length===1
     ? `<input type="hidden" id="devolver-etapa-sel" value="${etRetDefault}"><div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">A tarefa voltará para <strong>${etLb(etRetDefault)}</strong>. O preenchimento anterior será mantido — o dono só precisará ajustar o que você indicar.</div>`
-    : `<div class="fg" style="margin-bottom:.9rem"><label class="fl">Para qual etapa devolver? <span style="color:var(--red)">*</span></label><select class="fi" id="devolver-etapa-sel">${opcoes.map(e=>`<option value="${e.id}"${e.id===etRetDefault?' selected':''}>${etLb(e.id)}</option>`).join('')}</select><div style="font-size:11px;color:var(--ink3);margin-top:3px">O preenchimento anterior é preservado — o dono ajustará apenas o que você indicar.</div></div>`;
+    : `<div class="fg" style="margin-bottom:.9rem"><label class="fl">Para qual etapa devolver? <span style="color:var(--red)">*</span></label><select class="fi" id="devolver-etapa-sel">${opHtml}</select><div style="font-size:11px;color:var(--ink3);margin-top:3px">O preenchimento anterior é preservado — o dono ajustará apenas o que você indicar.</div></div>`;
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
   ov.id='devolver-ov';
@@ -4437,7 +4444,7 @@ function _rAcaoTarefaRespondidaHTML(jr){
   </div></div>`;
 }
 const _BPMN_INIT = {
-  det_valid_asis: (p,mt) => { if(mt) setTimeout(()=>initBpmnMod('asis',p),120); setTimeout(atualizarMermaid,300); },
+  det_valid_asis: (p,mt) => { if(mt){ setTimeout(()=>initBpmnMod('asis',p),120); } setTimeout(atualizarMermaid,300); },
   det_valid_tobe: (p,mt) => { if(mt) setTimeout(()=>initBpmnMod('tobe',p),120); },
   esboco_asis:    (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); setTimeout(atualizarMermaid,300); },
   esboco_tobe:    (p)    => { setTimeout(()=>initBpmnMod('tobe',p),120); },
@@ -4535,9 +4542,12 @@ function _renderChecklist(p){
   const total=items.length;
   const done=items.filter(i=>i.done).length;
   const pct=Math.round(done/total*100);
-  const cor=pct===100?'var(--teal)':pct>=50?'var(--blue)':'var(--amber)';
+  let cor;
+  if(pct===100) cor='var(--teal)';
+  else if(pct>=50) cor='var(--blue)';
+  else cor='var(--amber)';
   const rows=items.map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bdr);font-size:12.5px"><span style="font-size:15px;flex-shrink:0">${i.done?'✅':'⬜'}</span><span style="color:${i.done?'var(--ink3)':'var(--ink)'}${i.done?';text-decoration:line-through':''}">${i.lb}</span></div>`).join('');
-  return `<div class="card" style="margin-bottom:1rem;border-left:3px solid ${cor}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem"><div class="card-t" style="margin-bottom:0">✔ Checklist da etapa</div><span style="font-size:12px;font-weight:700;color:${cor}">${done}/${total} concluído${done!==1?'s':''}</span></div>${rows}</div>`;
+  return `<div class="card" style="margin-bottom:1rem;border-left:3px solid ${cor}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem"><div class="card-t" style="margin-bottom:0">✔ Checklist da etapa</div><span style="font-size:12px;font-weight:700;color:${cor}">${done}/${total} concluído${done===1?'':'s'}</span></div>${rows}</div>`;
 }
 function _rAcaoHandleDono(el, ac, p){
   const etObj=ETAPAS.find(e=>e.id===p.etapa);
@@ -6574,8 +6584,8 @@ function _bpmnAddSvgClicks(container){
       nodeEl.style.cursor='pointer';
       // Highlight on hover
       const shapes=nodeEl.querySelectorAll('rect,polygon,circle,ellipse,path');
-      nodeEl.addEventListener('mouseenter',()=>shapes.forEach(s=>{s.style.filter='brightness(.88) drop-shadow(0 0 5px rgba(37,99,235,.55))';s.style.transition='filter .12s';}));
-      nodeEl.addEventListener('mouseleave',()=>shapes.forEach(s=>s.style.filter=''));
+      nodeEl.addEventListener('mouseenter',()=>{for(const s of shapes){s.style.filter='brightness(.88) drop-shadow(0 0 5px rgba(37,99,235,.55))';s.style.transition='filter .12s';}});
+      nodeEl.addEventListener('mouseleave',()=>{for(const s of shapes){s.style.filter='';}});
       nodeEl.addEventListener('click',()=>abrirDetalheEtapaModal(epId));
     });
   },80);
@@ -6928,6 +6938,26 @@ function rEnt(p){
         ? '<div><div class="sec-lbl">Vigência</div><div style="font-size:13px;font-weight:500">'+esc(p.form.vig)+'</div></div>'
         : '';
       const pubExtra = (linkPubHtml||vigHtml) ? '<hr>'+linkPubHtml+vigHtml : '';
+  // Pre-compute desvio e prazo EP para evitar IIFEs e ternários aninhados no template
+  let desvioHtml='';
+  const _dv=_desviosPrazo(p);
+  if(_dv!==null){
+    let _dcor;
+    if(_dv>0) _dcor='var(--red)';
+    else if(_dv<0) _dcor='var(--teal)';
+    else _dcor='var(--ink3)';
+    let _dtxt;
+    if(_dv>0) _dtxt='+'+_dv+'d (atraso)';
+    else if(_dv<0) _dtxt=_dv+'d (adiantado)';
+    else _dtxt='No prazo';
+    desvioHtml=`<div><div class="sec-lbl">Desvio de prazo</div><div style="font-size:13px;font-weight:600;color:${_dcor}">${_dtxt}</div></div>`;
+  }
+  let prazoEpHtml='';
+  const _pe=(p.prazos_ep||{})[p.etapa];
+  if(_pe){
+    const _cor=_pe<new Date().toISOString().slice(0,10)?'var(--red)':'var(--teal)';
+    prazoEpHtml=`<div><div class="sec-lbl">Prazo EP (etapa atual)</div><div style="font-size:13px;font-weight:600;color:${_cor}">${_pe.split('-').reverse().join('/')}</div></div>`;
+  }
   document.getElementById('tab-ent').innerHTML=`
   ${ilpCard}
   <div class="g2" style="gap:12px;margin-bottom:1rem">
@@ -6935,8 +6965,8 @@ function rEnt(p){
       <div class="card-t">Identificação temporal</div>
       <div class="g2">
         ${[['Início',e.dt_inicio||'—'],['Prev. entrega',e.dt_prev||'—'],['Entrega efetiva',e.dt_efetiva||'—'],['Produto',p.produto||'—'],['Tempo total',e.t_total||'—'],['Tempo sem fila',e.t_sem_fila||'—']].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
-        ${(()=>{const d=_desviosPrazo(p);if(d===null)return'';const cor=d>0?'var(--red)':d<0?'var(--teal)':'var(--ink3)';const txt=d>0?'+'+d+'d (atraso)':d<0?d+'d (adiantado)':'No prazo';return`<div><div class="sec-lbl">Desvio de prazo</div><div style="font-size:13px;font-weight:600;color:${cor}">${txt}</div></div>`;})()}
-        ${(()=>{const pe=(p.prazos_ep||{})[p.etapa];if(!pe)return'';const cor=pe<new Date().toISOString().slice(0,10)?'var(--red)':'var(--teal)';return`<div><div class="sec-lbl">Prazo EP (etapa atual)</div><div style="font-size:13px;font-weight:600;color:${cor}">${pe.split('-').reverse().join('/')}</div></div>`;})()}
+        ${desvioHtml}
+        ${prazoEpHtml}
       </div>
       <hr><div class="sec-lbl">Equipe</div><div style="font-size:13px">${e.equipe||'—'}</div>
       ${p.objetivo?`<hr><div class="sec-lbl">Objetivo</div><div style="font-size:13px;margin-bottom:.3rem">${esc(p.objetivo)}</div>`:''}
