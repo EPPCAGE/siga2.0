@@ -6653,7 +6653,10 @@ function _bpmnBuildNested(startId, stopSet, outgoing, nodeInfo, flowLabels, visi
       const nexts=outgoing[id]||[];
       id=nexts.length===1?nexts[0]:null; continue;
     }
-    const nomeFallback=n.tipo==='Evento'?n.subtipo||'Evento':n.tipo==='Decisao'?'Decisão':'Atividade';
+    let nomeFallback;
+    if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
+    else if(n.tipo==='Decisao') nomeFallback='Decisão';
+    else nomeFallback='Atividade';
     const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
     const elem={
       id:'ep'+etapasIdC++, seq:seqCtr.s++,
@@ -6705,7 +6708,10 @@ function extrairBpmn(){
   Object.keys(nodeInfo).forEach(id=>{
     if(!visited.has(id)){
       const n=nodeInfo[id];
-      const nomeFallback=n.tipo==='Evento'?n.subtipo||'Evento':n.tipo==='Decisao'?'Decisão':'Atividade';
+      let nomeFallback;
+      if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
+      else if(n.tipo==='Decisao') nomeFallback='Decisão';
+      else nomeFallback='Atividade';
       const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
       elems.push({id:'ep'+etapasIdC++,seq:seqCtr.s++,
         nome:n.nome||nomeFallback,
