@@ -2159,9 +2159,7 @@ function rMeusProc(){
     return `<div style="background:var(--surf);border:1px solid ${borderColor};border-left:3px solid ${borderL};border-radius:var(--r);padding:.8rem 1rem;cursor:pointer;transition:all .13s" onclick="${cardClick}" title="${cardTitle}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
         <div style="font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3">${u.nome}</div>
-        ${mapeado
-          ? `<span class="badge ${EBADGE[proc.etapa]||'bgr'}" style="font-size:10px;flex-shrink:0">${etLb(proc.etapa)}</span>`
-          : `<span class="badge bgr" style="font-size:10px;flex-shrink:0">Não mapeado</span>`}
+        <span class="badge ${mapeado?'bg':'bgr'}" style="font-size:10px;flex-shrink:0">${mapeado?'Mapeado':'Não mapeado'}</span>
       </div>
       <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">${u.macro}</div>
       ${mapeado ? `
@@ -8194,7 +8192,7 @@ function resultCardHTML(r, srch){
       </div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0">
         ${item.natureza ? `<span class="badge bgr" style="font-size:10px">${highlight(item.natureza, srch)}</span>` : ''}
-        ${proc ? `<span class="badge ${EBADGE[proc.etapa]||'bgr'}" style="font-size:10px">${etLb(proc.etapa)}</span>` : '<span class="badge bgr" style="font-size:10px">Não mapeado</span>'}
+        <span class="badge ${proc?'bg':'bgr'}" style="font-size:10px">${proc?'Mapeado':'Não mapeado'}</span>
         ${proc ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px" onclick="abrirProc(${proc.id})">Abrir →</button>` : ''}
         ${isEP() ? `<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editSubArqFull('${r.macroId}','${r.procId}','${item.id}')" aria-label="Editar item">✎</button>` : ''}
       </div>
@@ -8230,22 +8228,27 @@ function macroArqHTML(m){
   </div>`;
 }
 
-function _procArqStatusBadge(p, hasSubs, linked){
+function _procArqStatusBadge(p, hasSubs, linked, bg, txt, border, label){
   if(hasSubs) return `<span class="badge bgr" style="font-size:10px">Agrupador · ${p.subprocessos.length} subprocesso${p.subprocessos.length===1?'':'s'}</span>`;
   if(linked) return `<span class="badge ${EBADGE[linked.etapa]||'bgr'}" style="font-size:10px">${etLb(linked.etapa)}</span><button type="button" class="btn btn-p" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();abrirProc(${linked.id})">Abrir</button>`;
-  return isMapeado(p.id)
-    ? `<span class="badge bg" style="font-size:10px">Mapeado</span>`
-    : `<span class="badge bgr" style="font-size:10px">Não mapeado</span>`;
+  return isEP()
+    ? `<button type="button" class="badge" style="font-size:10px;background:${bg};color:${txt};border:1px solid ${border};cursor:pointer" onclick="event.stopPropagation();toggleMapeadoManual('${p.id}',event)">${label}</button>`
+    : `<span class="badge ${isMapeado(p.id)?'bg':'bgr'}" style="font-size:10px">${label}</span>`;
 }
 function _subArqItemHTML(mid, pid, s){
   const sl=s.proc_id?processos.find(pr=>pr.id===s.proc_id):null;
   const sMapeado = isMapeado(s.id);
   const sCritico = isCritico(s.id);
   const sMapeadoColor = sMapeado ? 'var(--red)' : 'var(--teal)';
-  const sMapeadoLabel = sMapeado ? 'Desmarcar' : '✓ Mapeado';
+  const sMapeadoBg = sMapeado ? 'var(--green-l)' : 'var(--bg3)';
+  const sMapeadoTxt = sMapeado ? 'var(--green)' : 'var(--ink3)';
+  const sMapeadoLabel = sMapeado ? 'Mapeado' : 'Não mapeado';
+  const sMapeadoBorderColor = sMapeado ? 'var(--green)' : 'var(--bdr2)';
   const sCriticoColor = sCritico ? '#dc2626' : 'var(--ink3)';
   const sCriticoLabel = sCritico ? 'Desmarcar crítico' : '⚠ Crítico';
-  const slNoLink = sMapeado ? `<span class="badge bg" style="font-size:10px">Mapeado</span>` : `<span class="badge bgr" style="font-size:10px">Não mapeado</span>`;
+  const slNoLink = isEP()
+    ? `<button type="button" class="badge" style="font-size:10px;background:${sMapeadoBg};color:${sMapeadoTxt};border:1px solid ${sMapeadoBorderColor};cursor:pointer" onclick="event.stopPropagation();toggleMapeadoManual('${s.id}',event)">${sMapeadoLabel}</button>`
+    : `<span class="badge ${sMapeado?'bg':'bgr'}" style="font-size:10px">${sMapeadoLabel}</span>`;
   const slBadge=sl
     ?`<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button type="button" class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`
     : slNoLink;
@@ -8256,9 +8259,9 @@ function _subArqItemHTML(mid, pid, s){
       <span style="font-size:11px;color:var(--ink3)">${s.gerente||s.area||''}</span>
       ${isMeuProcesso(s.id)?'<span class="badge bb" style="font-size:9px">Meu processo</span>':''}
       ${slBadge}
-      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${sMapeadoColor}" onclick="toggleMapeadoManual('${s.id}',event)">${sMapeadoLabel}</button>`:''}
-      ${sCritico?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
-      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${sCriticoColor}" onclick="toggleCriticoManual('${s.id}',event)">${sCriticoLabel}</button>`:''}
+      ${isEP()
+        ? `<button type="button" class="badge" style="font-size:10px;background:${sCritico ? '#dc2626' : 'var(--bg3)'};color:${sCritico ? '#fff' : 'var(--ink3)'};padding:2px 6px;border-radius:4px;border:1px solid ${sCritico ? '#dc2626' : 'var(--bdr2)'};cursor:pointer" onclick="event.stopPropagation();toggleCriticoManual('${s.id}',event)">${sCritico ? '⚠ Crítico' : 'Não crítico'}</button>`
+        : `<span class="badge" style="font-size:10px;background:${sCritico ? '#dc2626' : 'var(--bg3)'};color:${sCritico ? '#fff' : 'var(--ink3)'};padding:2px 6px;border-radius:4px;border:1px solid ${sCritico ? '#dc2626' : 'var(--bdr2)'}">${sCritico ? '⚠ Crítico' : 'Não crítico'}</span>`}
       ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
       <button type="button" class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')" aria-label="Remover subprocesso">×</button>`:''}
     </div>
@@ -8279,8 +8282,10 @@ function procArqHTML(mid,p){
     : `<div style="padding:.6rem .9rem .8rem">${metaFieldsReadonly(p)}${addSubBtnInline}</div>`;
   const pMapeado = isMapeado(p.id);
   const pCritico = isCritico(p.id);
-  const pMapeadoColor = pMapeado ? 'var(--red)' : 'var(--teal)';
-  const pMapeadoLabel = pMapeado ? 'Desmarcar mapeado' : '✓ Mapeado';
+  const pMapeadoBg = pMapeado ? 'var(--green-l)' : 'var(--bg3)';
+  const pMapeadoTxt = pMapeado ? 'var(--green)' : 'var(--ink3)';
+  const pMapeadoLabel = pMapeado ? 'Mapeado' : 'Não mapeado';
+  const pMapeadoBorderColor = pMapeado ? 'var(--green)' : 'var(--bdr2)';
   const pCriticoColor = pCritico ? '#dc2626' : 'var(--ink3)';
   const pCriticoLabel = pCritico ? 'Desmarcar crítico' : '⚠ Crítico';
   return `<div style="margin-bottom:.5rem">
@@ -8288,10 +8293,10 @@ function procArqHTML(mid,p){
       <span class="arq-chevron" id="chvp-${p.id}" style="color:var(--ink3)">▶</span>
       <span style="font-size:13px;font-weight:600;color:var(--ink);flex:1">${p.nome}</span>
       <span style="font-size:11px;color:var(--ink3)">${p.area||''} · ${p.gerente||''}</span>
-      ${_procArqStatusBadge(p, hasSubs, linked)}
-      ${isEP()&&!hasSubs?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${pMapeadoColor}" onclick="toggleMapeadoManual('${p.id}',event)">${pMapeadoLabel}</button>`:''}
-      ${!hasSubs&&pCritico?`<span class="badge" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px">⚠ Crítico</span>`:''}
-      ${isEP()&&!hasSubs?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:${pCriticoColor}" onclick="toggleCriticoManual('${p.id}',event)">${pCriticoLabel}</button>`:''}
+      ${_procArqStatusBadge(p, hasSubs, linked, pMapeadoBg, pMapeadoTxt, pMapeadoBorderColor, pMapeadoLabel)}
+      ${!hasSubs && (isEP()
+        ? `<button type="button" class="badge" style="font-size:10px;background:${pCritico ? '#dc2626' : 'var(--bg3)'};color:${pCritico ? '#fff' : 'var(--ink3)'};padding:2px 6px;border-radius:4px;border:1px solid ${pCritico ? '#dc2626' : 'var(--bdr2)'};cursor:pointer" onclick="event.stopPropagation();toggleCriticoManual('${p.id}',event)">${pCritico ? '⚠ Crítico' : 'Não crítico'}</button>`
+        : `<span class="badge" style="font-size:10px;background:${pCritico ? '#dc2626' : 'var(--bg3)'};color:${pCritico ? '#fff' : 'var(--ink3)'};padding:2px 6px;border-radius:4px;border:1px solid ${pCritico ? '#dc2626' : 'var(--bdr2)'}">${pCritico ? '⚠ Crítico' : 'Não crítico'}</span>`)}
       ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();novoSubArq('${mid}','${p.id}')">+ Sub</button>
       <button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editProcArq('${mid}','${p.id}')">✎ Editar</button>
       <button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="event.stopPropagation();removerProcArq('${mid}','${p.id}')">× Apagar</button>`:''}
