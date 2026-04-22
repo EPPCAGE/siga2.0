@@ -252,7 +252,7 @@ select.fi{cursor:pointer}
 .bpmn-spinner{display:flex;align-items:center;justify-content:center;height:480px;flex-direction:column;gap:10px;color:var(--ink3);font-size:13px}
 .bpmn-spinner .spin{width:24px;height:24px;border:2px solid var(--bdr2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
 .bpmn-dirty{font-size:11px;color:var(--amber);font-weight:600}
-.bpmn-ep-highlight:not(.djs-connection) .djs-visual>:first-child{stroke:#1A5DC8!important;stroke-width:3px!important;fill:rgba(26,93,200,.13)!important}
+.bpmn-ep-highlight .djs-visual rect,.bpmn-ep-highlight .djs-visual polygon,.bpmn-ep-highlight .djs-visual circle{stroke:#1A5DC8!important;stroke-width:3px!important;fill:rgba(26,93,200,.13)!important}
 .det-valid-layout{display:flex;gap:1rem;align-items:flex-start}
 .det-valid-bpmn{width:420px;flex-shrink:0;position:sticky;top:64px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -7404,7 +7404,12 @@ function bpmnHoverEtapa(event, epId){
   }
   if(!epId) return;
   const et=(curProc?.mod?.[_ekey()]||[]).find(x=>x.id===epId);
-  if(!et?.bpmn_id) return;
+  if(!et) return;
+  // Auto-backfill bpmn_id by element name if missing
+  if(!et.bpmn_id){
+    const match=mod.get('elementRegistry').getAll().find(x=>x.type!=='label'&&x.businessObject?.name===et.nome);
+    if(match){et.bpmn_id=match.id;}else return;
+  }
   try{
     canvas.addMarker(et.bpmn_id,'bpmn-ep-highlight');
     globalThis._bpmnLastHL=et.bpmn_id;
@@ -7530,10 +7535,27 @@ function initBpmnMod(which, p){
     const l=document.getElementById('bpmn-'+which+'-loading');
     if(l)l.style.display='none';
     mod.get('canvas').zoom('fit-viewport');
+    // Back-fill missing bpmn_id by element name (covers etapas extracted before this field existed)
+    const etapasArr=curProc?.mod?.[_ekey()]||[];
+    if(etapasArr.some(x=>!x.bpmn_id)){
+      const regAll=mod.get('elementRegistry').getAll();
+      let changed=false;
+      etapasArr.forEach(et=>{
+        if(!et.bpmn_id&&et.nome){
+          const m=regAll.find(x=>x.type!=='label'&&x.businessObject?.name===et.nome);
+          if(m){et.bpmn_id=m.id;changed=true;}
+        }
+      });
+      if(changed)fbAutoSave('syncBpmnIds');
+    }
     mod.on('element.dblclick',1500,(event)=>{
       const etapas=curProc?.mod?.[_ekey()]||[];
-      const et=etapas.find(x=>x.bpmn_id===event.element.id);
-      if(et){ event.stopPropagation(); abrirBpmnEtapaModal(et.id); }
+      let et=etapas.find(x=>x.bpmn_id===event.element.id);
+      if(!et){
+        const elName=event.element.businessObject?.name;
+        if(elName){et=etapas.find(x=>x.nome===elName);if(et)et.bpmn_id=event.element.id;}
+      }
+      if(et){event.stopPropagation();abrirBpmnEtapaModal(et.id);}
     });
   }).catch(err=>{
     const l=document.getElementById('bpmn-'+which+'-loading');
