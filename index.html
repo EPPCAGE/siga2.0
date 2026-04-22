@@ -252,7 +252,7 @@ select.fi{cursor:pointer}
 .bpmn-spinner{display:flex;align-items:center;justify-content:center;height:480px;flex-direction:column;gap:10px;color:var(--ink3);font-size:13px}
 .bpmn-spinner .spin{width:24px;height:24px;border:2px solid var(--bdr2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
 .bpmn-dirty{font-size:11px;color:var(--amber);font-weight:600}
-.bpmn-ep-highlight .djs-visual>:first-child{stroke:var(--blue)!important;stroke-width:3px!important;fill-opacity:.18!important}
+.bpmn-ep-highlight:not(.djs-connection) .djs-visual>:first-child{stroke:#1A5DC8!important;stroke-width:3px!important;fill:rgba(26,93,200,.13)!important}
 .det-valid-layout{display:flex;gap:1rem;align-items:flex-start}
 .det-valid-bpmn{width:420px;flex-shrink:0;position:sticky;top:64px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -6540,6 +6540,7 @@ function reRenderEtapaDetalhe(etapaId){
   const el=document.getElementById('ed-'+etapaId);
   const e=curProc.mod[_ekey()].find(x=>x.id===etapaId);
   if(el&&e){ el.innerHTML=renderEtapaDetalheConteudo(e); }
+  _reRenderBpmnEtapaModal(etapaId);
 }
 function reRenderGw(etapaId){
   const el=document.getElementById('gw-'+etapaId);
@@ -7409,6 +7410,68 @@ function bpmnHoverEtapa(event, epId){
     globalThis._bpmnLastHL=et.bpmn_id;
   }catch{}
 }
+// ── Modal de detalhe de etapa via duplo-clique no BPMN ──────────────────────
+let _bpmnModalEtapaId = null;
+
+function abrirBpmnEtapaModal(epId){
+  const p=curProc;
+  if(!p) return;
+  const e=(p.mod?.[_ekey()]||[]).find(x=>x.id===epId);
+  if(!e) return;
+  fecharBpmnEtapaModal();
+  _bpmnModalEtapaId=epId;
+  const ov=document.createElement('div');
+  ov.id='bpmn-etapa-modal-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.5rem 1.8rem;width:100%;max-width:660px;box-shadow:0 12px 40px rgba(0,0,0,.32)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <div class="card-t" id="bpmn-etapa-modal-title" style="margin-bottom:0;font-size:14px">✎ ${esc(e.nome||'Sem nome')}</div>
+      <button type="button" class="btn" onclick="fecharBpmnEtapaModal()">× Fechar</button>
+    </div>
+    <div id="bpmn-etapa-modal-content">${renderEtapaDetalheConteudo(e)}</div>
+    <div style="margin-top:.8rem;display:flex;gap:8px">
+      <button type="button" class="btn btn-p" onclick="salvarBpmnEtapaModal('${esc(epId)}')">✓ Salvar e fechar</button>
+      <button type="button" class="btn" onclick="fecharBpmnEtapaModal()">Cancelar</button>
+    </div>
+  </div>`;
+  ov.addEventListener('click',ev=>{if(ev.target===ov)fecharBpmnEtapaModal();});
+  document.body.appendChild(ov);
+  globalThis._bpmnEtapaModalKey=ev=>{if(ev.key==='Escape')fecharBpmnEtapaModal();};
+  document.addEventListener('keydown',globalThis._bpmnEtapaModalKey);
+}
+
+function fecharBpmnEtapaModal(){
+  const ov=document.getElementById('bpmn-etapa-modal-ov');
+  if(ov) ov.remove();
+  _bpmnModalEtapaId=null;
+  if(globalThis._bpmnEtapaModalKey){
+    document.removeEventListener('keydown',globalThis._bpmnEtapaModalKey);
+    globalThis._bpmnEtapaModalKey=null;
+  }
+}
+
+function salvarBpmnEtapaModal(epId){
+  fbAutoSave('salvarEtapa');
+  toast('Etapa salva');
+  fecharBpmnEtapaModal();
+  // refresh inline panel if it is visible
+  const inlineEl=document.getElementById('ed-'+epId);
+  if(inlineEl&&inlineEl.style.display!=='none'){
+    const e=(curProc?.mod?.[_ekey()]||[]).find(x=>x.id===epId);
+    if(e) inlineEl.innerHTML=renderEtapaDetalheConteudo(e);
+  }
+}
+
+function _reRenderBpmnEtapaModal(etapaId){
+  if(_bpmnModalEtapaId!==etapaId) return;
+  const content=document.getElementById('bpmn-etapa-modal-content');
+  const e=curProc?.mod?.[_ekey()]?.find(x=>x.id===etapaId);
+  if(!content||!e) return;
+  content.innerHTML=renderEtapaDetalheConteudo(e);
+  const title=document.getElementById('bpmn-etapa-modal-title');
+  if(title) title.textContent='✎ '+(e.nome||'Sem nome');
+}
+
 function bpmnEditorHTML(which, existingXml){
   const saved = existingXml ? '● Fluxo salvo' : '○ Sem fluxo';
   const savedColor = existingXml ? 'var(--green)' : 'var(--ink4)';
@@ -7462,6 +7525,11 @@ function initBpmnMod(which, p){
     const l=document.getElementById('bpmn-'+which+'-loading');
     if(l)l.style.display='none';
     mod.get('canvas').zoom('fit-viewport');
+    mod.on('element.dblclick',({element})=>{
+      const etapas=curProc?.mod?.[_ekey()]||[];
+      const et=etapas.find(x=>x.bpmn_id===element.id);
+      if(et) abrirBpmnEtapaModal(et.id);
+    });
   }).catch(err=>{
     const l=document.getElementById('bpmn-'+which+'-loading');
     if(l)l.innerHTML='<div style="color:var(--red);padding:1rem;font-size:13px">Erro: '+(err.message||err)+'</div>';
