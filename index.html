@@ -254,7 +254,7 @@ select.fi{cursor:pointer}
 .bpmn-dirty{font-size:11px;color:var(--amber);font-weight:600}
 .bpmn-ep-highlight .djs-visual rect,.bpmn-ep-highlight .djs-visual polygon,.bpmn-ep-highlight .djs-visual circle{stroke:#1A5DC8!important;stroke-width:3px!important;fill:rgba(26,93,200,.13)!important}
 .det-valid-layout{display:flex;gap:1rem;align-items:flex-start}
-.det-valid-bpmn{width:420px;flex-shrink:0;position:sticky;top:64px}
+.det-valid-bpmn{flex:1;min-width:0;position:sticky;top:64px}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* analise */
 .analise-item{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.85rem 1rem;margin-bottom:.6rem}
@@ -7549,11 +7549,14 @@ function initBpmnMod(which, p){
       if(changed)fbAutoSave('syncBpmnIds');
     }
     mod.on('element.dblclick',1500,(event)=>{
+      // Resolve label elements to their parent shape
+      const shape=event.element.type==='label'?event.element.labelTarget:event.element;
+      if(!shape) return;
       const etapas=curProc?.mod?.[_ekey()]||[];
-      let et=etapas.find(x=>x.bpmn_id===event.element.id);
+      let et=etapas.find(x=>x.bpmn_id===shape.id);
       if(!et){
-        const elName=event.element.businessObject?.name;
-        if(elName){et=etapas.find(x=>x.nome===elName);if(et)et.bpmn_id=event.element.id;}
+        const elName=shape.businessObject?.name;
+        if(elName){et=etapas.find(x=>x.nome===elName);if(et)et.bpmn_id=shape.id;}
       }
       if(et){event.stopPropagation();abrirBpmnEtapaModal(et.id);}
     });
