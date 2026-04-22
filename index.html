@@ -252,6 +252,9 @@ select.fi{cursor:pointer}
 .bpmn-spinner{display:flex;align-items:center;justify-content:center;height:480px;flex-direction:column;gap:10px;color:var(--ink3);font-size:13px}
 .bpmn-spinner .spin{width:24px;height:24px;border:2px solid var(--bdr2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
 .bpmn-dirty{font-size:11px;color:var(--amber);font-weight:600}
+.bpmn-ep-highlight .djs-visual>:first-child{stroke:var(--blue)!important;stroke-width:3px!important;fill-opacity:.18!important}
+.det-valid-layout{display:flex;gap:1rem;align-items:flex-start}
+.det-valid-bpmn{width:420px;flex-shrink:0;position:sticky;top:64px}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* analise */
 .analise-item{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.85rem 1rem;margin-bottom:.6rem}
@@ -330,6 +333,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   .prog-s{min-width:34px}
   .prog-l{font-size:8.5px;text-align:center}
   .bpmn-canvas{height:280px}
+  .det-valid-layout{flex-direction:column}
+  .det-valid-bpmn{width:100%;position:static}
   .bpmn-bar{gap:3px;padding:.4rem .6rem}
   .bpmn-bar .btn{font-size:10px;padding:3px 7px;min-height:28px}
   .prc{grid-template-columns:1fr}
@@ -3672,35 +3677,41 @@ const ACOES = {
 
   det_valid_asis:{titulo:'Detalhamento e Validação AS IS',sub:'O dono detalha as etapas do fluxo e valida o desenho AS IS elaborado pelo EP.',role:'Dono do processo',rk:'dono',
     form:p=>{
-      return `<div class="ib ibt" style="margin-bottom:1.2rem">
+      return `<div class="ib ibt" style="margin-bottom:1rem">
         <div style="font-weight:600;margin-bottom:.4rem">Suas responsabilidades nesta etapa:</div>
         <ul style="font-size:13px;line-height:1.8;margin:.2rem 0 0 1.2rem;padding:0">
-          <li>Para cada etapa listada, clicar em <strong>✎ Detalhar</strong> e preencher natureza, modo de execução, executor e descrição</li>
-          <li>Revisar o fluxo AS IS desenhado pelo EP e aprovar ou solicitar ajustes</li>
+          <li>Passe o cursor sobre uma etapa para iluminá-la no diagrama ao lado</li>
+          <li>Clique em <strong>✎ Detalhar</strong> em cada etapa e preencha natureza, modo de execução, executor e descrição</li>
+          <li>Revise o fluxo AS IS e aprove ou solicite ajustes</li>
         </ul>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
-        <div class="card-t">Detalhamento das etapas</div>
-        <button type="button" class="btn" style="font-size:11px;padding:3px 10px" onclick="exportarEtapasAsIsXlsx()" title="Exportar todas as etapas para planilha Excel">⬇ Exportar Excel</button>
-      </div>
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Expanda cada etapa (✎ Detalhar) e preencha natureza, modo de execução, executor e descrição.</div>
-      <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
+      <div class="det-valid-layout">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+            <div class="card-t">Detalhamento das etapas</div>
+            <button type="button" class="btn" style="font-size:11px;padding:3px 10px" onclick="exportarEtapasAsIsXlsx()" title="Exportar todas as etapas para planilha Excel">⬇ Exportar Excel</button>
+          </div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Passe o cursor sobre uma etapa para iluminá-la no diagrama. Expanda cada uma (✎ Detalhar) para preencher os detalhes.</div>
+          <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
 
-      <hr style="margin:.8rem 0">
-      <div class="card-t" style="margin-bottom:.6rem">Fluxo AS IS</div>
-      ${p.mod.asIs?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Descrição do processo</div><div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;line-height:1.7">${esc(p.mod.asIs)}</div></div>`:''}
-      ${bpmnEditorHTML('asis',p.mod.bpmnAsIs)}
+          <hr style="margin:.8rem 0">
+          <div class="fg"><label class="fl">Comentários / ajustes solicitados ao EP</label>
+            <textarea class="fi" id="aobs" style="min-height:70px" placeholder="Descreva ajustes necessários ou deixe em branco se aprovado..."></textarea>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-a" onclick="reprovarDetValidAsis()">Solicitar ajustes no AS IS</button>
+            <button type="button" class="btn btn-g" onclick="aprovarDetValidAsis()">Aprovar AS IS ✓</button>
+          </div>
+          ${_renderEvidencias(p,'det_valid_asis')}
+        </div>
 
-      <hr style="margin:.8rem 0">
-      <div class="fg"><label class="fl">Comentários / ajustes solicitados ao EP</label>
-        <textarea class="fi" id="aobs" style="min-height:70px" placeholder="Descreva ajustes necessários ou deixe em branco se aprovado..."></textarea>
-      </div>
-      <div class="btn-row">
-        <button type="button" class="btn btn-a" onclick="reprovarDetValidAsis()">Solicitar ajustes no AS IS</button>
-        <button type="button" class="btn btn-g" onclick="aprovarDetValidAsis()">Aprovar AS IS ✓</button>
-      </div>
-      ${_renderEvidencias(p,'det_valid_asis')}`;
+        <div class="det-valid-bpmn">
+          <div class="card-t" style="margin-bottom:.5rem">Fluxo AS IS</div>
+          ${p.mod.asIs?`<div class="card" style="margin-bottom:.6rem;font-size:12px;color:var(--ink2);white-space:pre-wrap;line-height:1.6;max-height:120px;overflow-y:auto">${esc(p.mod.asIs)}</div>`:''}
+          ${bpmnEditorHTML('asis',p.mod.bpmnAsIs)}
+        </div>
+      </div>`;
     }},
 
   esboco_tobe:{titulo:'Esboço TO BE',sub:'Descrever e desenhar o fluxo futuro proposto.',role:'EP',rk:'ep',
@@ -3719,35 +3730,41 @@ const ACOES = {
 
   det_valid_tobe:{titulo:'Detalhamento e Validação TO BE',sub:'O dono detalha as etapas do fluxo futuro e valida o desenho TO BE elaborado pelo EP.',role:'Dono do processo',rk:'dono',tobe:true,
     form:p=>{
-      return `<div class="ib ibt" style="margin-bottom:1.2rem">
+      return `<div class="ib ibt" style="margin-bottom:1rem">
         <div style="font-weight:600;margin-bottom:.4rem">Suas responsabilidades nesta etapa:</div>
         <ul style="font-size:13px;line-height:1.8;margin:.2rem 0 0 1.2rem;padding:0">
-          <li>Para cada etapa listada, clicar em <strong>✎ Detalhar</strong> e preencher os detalhes do fluxo futuro</li>
-          <li>Revisar o fluxo TO BE desenhado pelo EP e aprovar ou solicitar ajustes</li>
+          <li>Passe o cursor sobre uma etapa para iluminá-la no diagrama ao lado</li>
+          <li>Clique em <strong>✎ Detalhar</strong> em cada etapa e preencha os detalhes do fluxo futuro</li>
+          <li>Revise o fluxo TO BE e aprove ou solicite ajustes</li>
         </ul>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
-        <div class="card-t">Detalhamento das etapas TO BE</div>
-        <button type="button" class="btn" style="font-size:11px;padding:3px 10px" onclick="addEtapaProc()" title="Adicionar etapa TO BE manualmente">+ Adicionar manualmente</button>
-      </div>
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Expanda cada etapa (✎ Detalhar) e preencha os detalhes do fluxo futuro.</div>
-      <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc_tobe||[])}</div>
+      <div class="det-valid-layout">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+            <div class="card-t">Detalhamento das etapas TO BE</div>
+            <button type="button" class="btn" style="font-size:11px;padding:3px 10px" onclick="addEtapaProc()" title="Adicionar etapa TO BE manualmente">+ Adicionar manualmente</button>
+          </div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Passe o cursor sobre uma etapa para iluminá-la no diagrama. Expanda cada uma (✎ Detalhar) para preencher os detalhes.</div>
+          <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc_tobe||[])}</div>
 
-      <hr style="margin:.8rem 0">
-      <div class="card-t" style="margin-bottom:.6rem">Fluxo TO BE proposto</div>
-      ${p.mod?.toBe?`<div class="card" style="margin-bottom:.8rem"><div class="card-t">Descrição TO BE</div><div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;line-height:1.7">${esc(p.mod.toBe)}</div></div>`:''}
-      ${bpmnEditorHTML('tobe',p.mod?.bpmnToBe)}
+          <hr style="margin:.8rem 0">
+          <div class="fg"><label class="fl">Comentários / ajustes solicitados ao EP</label>
+            <textarea class="fi" id="vtb-obs" style="min-height:70px" placeholder="Descreva ajustes necessários ou deixe em branco se aprovado..."></textarea>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-a" onclick="reprovarDetValidTobe()">Solicitar ajustes no TO BE</button>
+            <button type="button" class="btn btn-g" onclick="aprovarDetValidTobe()">Aprovar TO BE ✓</button>
+          </div>
+          ${_renderEvidencias(p,'det_valid_tobe')}
+        </div>
 
-      <hr style="margin:.8rem 0">
-      <div class="fg"><label class="fl">Comentários / ajustes solicitados ao EP</label>
-        <textarea class="fi" id="vtb-obs" style="min-height:70px" placeholder="Descreva ajustes necessários ou deixe em branco se aprovado..."></textarea>
-      </div>
-      <div class="btn-row">
-        <button type="button" class="btn btn-a" onclick="reprovarDetValidTobe()">Solicitar ajustes no TO BE</button>
-        <button type="button" class="btn btn-g" onclick="aprovarDetValidTobe()">Aprovar TO BE ✓</button>
-      </div>
-      ${_renderEvidencias(p,'det_valid_tobe')}`;
+        <div class="det-valid-bpmn">
+          <div class="card-t" style="margin-bottom:.5rem">Fluxo TO BE</div>
+          ${p.mod?.toBe?`<div class="card" style="margin-bottom:.6rem;font-size:12px;color:var(--ink2);white-space:pre-wrap;line-height:1.6;max-height:120px;overflow-y:auto">${esc(p.mod.toBe)}</div>`:''}
+          ${bpmnEditorHTML('tobe',p.mod?.bpmnToBe)}
+        </div>
+      </div>`;
     }},
 
   melhorias:{titulo:'Melhorias do Processo',sub:'Revise os achados da análise inteligente e defina quais melhorias e mitigações serão implementadas.',role:'EP',rk:'ep',
@@ -6498,6 +6515,8 @@ function renderEtapasProc(etapas){
   if(!etapas||!etapas.length)return '<div class="ib ibsl">Nenhuma etapa adicionada. Extraia do BPMN ou adicione manualmente.</div>';
   return etapas.map((e)=>`
     <div class="etapa-proc" id="ep-${e.id}" draggable="true"
+      onmouseenter="bpmnHoverEtapa(event,'${e.id}')"
+      onmouseleave="bpmnHoverEtapa(event,null)"
       ondragstart="onEtapaDragStart(event,'${e.id}')"
       ondragend="onEtapaDragEnd(event,'${e.id}')"
       ondragover="onEtapaDragOver(event,'${e.id}')"
@@ -6697,7 +6716,7 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
       const epId='ep'+etapasIdC++;
       xmlToEpId[id]=epId;
       const elem={
-        id:epId, seq:0,
+        id:epId, seq:0, bpmn_id:id,
         nome:n.nome||nomeFallback,
         tipo:n.tipo, subtipo_evento:n.subtipo||null,
         natureza:n.natureza||naturezaFallback, modo:n.modo||null,
@@ -6736,7 +6755,7 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
       else if(n.tipo==='Decisao') nomeFallback='Decisão';
       else nomeFallback='Atividade';
       const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
-      ordered.push({id:'ep'+etapasIdC++,seq:0,
+      ordered.push({id:'ep'+etapasIdC++,seq:0,bpmn_id:id,
         nome:n.nome||nomeFallback, tipo:n.tipo, subtipo_evento:n.subtipo||null,
         natureza:n.natureza||naturezaFallback, modo:n.modo, executor:n.executor||'',
         desc:n.desc||'', caminhos:[], vinculo_gw:null});
@@ -7373,6 +7392,23 @@ async function salvarReuniaoAvulsa(){
 // ═══════════════════════════════════════════
 // BPMN EDITOR
 // ═══════════════════════════════════════════
+function bpmnHoverEtapa(event, epId){
+  const which=['esboco_tobe','det_valid_tobe'].includes(curProc?.etapa)?'tobe':'asis';
+  const mod=bpmnModelers[which];
+  if(!mod) return;
+  const canvas=mod.get('canvas');
+  if(globalThis._bpmnLastHL){
+    try{canvas.removeMarker(globalThis._bpmnLastHL,'bpmn-ep-highlight');}catch{}
+    globalThis._bpmnLastHL=null;
+  }
+  if(!epId) return;
+  const et=(curProc?.mod?.[_ekey()]||[]).find(x=>x.id===epId);
+  if(!et?.bpmn_id) return;
+  try{
+    canvas.addMarker(et.bpmn_id,'bpmn-ep-highlight');
+    globalThis._bpmnLastHL=et.bpmn_id;
+  }catch{}
+}
 function bpmnEditorHTML(which, existingXml){
   const saved = existingXml ? '● Fluxo salvo' : '○ Sem fluxo';
   const savedColor = existingXml ? 'var(--green)' : 'var(--ink4)';
