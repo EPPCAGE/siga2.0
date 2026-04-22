@@ -3201,40 +3201,50 @@ function reprovarDono(voltaEt,role,acao){
 }
 
 // ── Salva os dados do formulário do dono sem avançar etapa (usado pelo EP ao editar) ──
+function _salvarDonoQuestionario(p){
+  const resp=p.ent.quest_resp||{};
+  const vals=Object.values(resp);
+  if(vals.length>0){
+    const media=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+    p.ent.mat=_calcNivelMaturidade(Number.parseFloat(media));
+  }
+  p.ent.quest_nota=document.getElementById('quest-nota')?.value??p.ent.quest_nota??'';
+}
+function _salvarDonoComplement(p){
+  if(!p.form) p.form={};
+  p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
+  p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
+  p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
+  p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
+  const obs=document.getElementById('aobs')?.value||'';
+  if(obs) p.form.obs_complement=obs;
+}
+function _salvarDonoValidAsIs(p){
+  if(!p.ent.analise) p.ent.analise={};
+  const dt=document.getElementById('va-dt')?.value||'';
+  const part=document.getElementById('va-part')?.value||'';
+  const ata=document.getElementById('va-ata')?.value||'';
+  if(dt||part||ata) p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};
+}
+function _salvarDonoValidToBe(p){
+  if(!p.mod) p.mod={};
+  const dt=document.getElementById('vtb-dt')?.value||'';
+  const part=document.getElementById('vtb-part')?.value||'';
+  const ata=document.getElementById('vtb-ata')?.value||'';
+  if(dt||part||ata) p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
+}
+const _SALVAR_DONO_HANDLERS={
+  questionario:_salvarDonoQuestionario,
+  complement:_salvarDonoComplement,
+  det_valid_asis:_salvarDonoValidAsIs,
+  det_valid_tobe:_salvarDonoValidToBe,
+};
 function _salvarDadosDono(){
   const p=curProc;
   const etDono=p?.ent?.revisao_ep_pendente?.etapa_dono;
   if(!etDono||!p) return;
   if(!p.ent) p.ent={};
-  if(etDono==='questionario'){
-    const resp=p.ent.quest_resp||{};
-    const vals=Object.values(resp);
-    if(vals.length>0){
-      const media=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
-      p.ent.mat=_calcNivelMaturidade(Number.parseFloat(media));
-    }
-    p.ent.quest_nota=document.getElementById('quest-nota')?.value??p.ent.quest_nota??'';
-  } else if(etDono==='complement'){
-    if(!p.form) p.form={};
-    p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
-    p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
-    p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
-    p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
-    const obs=document.getElementById('aobs')?.value||'';
-    if(obs) p.form.obs_complement=obs;
-  } else if(etDono==='det_valid_asis'){
-    if(!p.ent.analise) p.ent.analise={};
-    const dt=document.getElementById('va-dt')?.value||'';
-    const part=document.getElementById('va-part')?.value||'';
-    const ata=document.getElementById('va-ata')?.value||'';
-    if(dt||part||ata) p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};
-  } else if(etDono==='det_valid_tobe'){
-    if(!p.mod) p.mod={};
-    const dt=document.getElementById('vtb-dt')?.value||'';
-    const part=document.getElementById('vtb-part')?.value||'';
-    const ata=document.getElementById('vtb-ata')?.value||'';
-    if(dt||part||ata) p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
-  }
+  _SALVAR_DONO_HANDLERS[etDono]?.(p);
   // etapas_proc (BPMN): já salvas por handlers inline nos editores
 }
 function salvarEdicaoEPDono(){
@@ -4486,71 +4496,71 @@ function _rAcaoDevolucaoBanner(p, minhaTarefa){
   </div>`;
 }
 // Q019: Checklist de pendências por etapa em tempo real
+const _CHECKLIST_DEFS={
+  abertura:(p,e)=>[
+    {lb:'Data de início definida',done:!!e.dt_inicio},
+    {lb:'Equipe de trabalho informada',done:!!(e.equipe&&e.equipe.trim())},
+    {lb:'Objetivo do trabalho preenchido',done:!!(p.objetivo&&p.objetivo.trim())},
+    {lb:'Escopo definido',done:!!(e.escopo&&e.escopo.trim())},
+  ],
+  reuniao:(p,e)=>[
+    {lb:'SIPOC preenchido (fornecedores, clientes, entradas, saídas)',done:!!(e.fornecedores&&e.clientes&&e.entradas&&e.saidas)},
+    {lb:'Atores identificados',done:!!e.atores},
+    {lb:'Volumetria registrada (tempo de ciclo e lead time)',done:!!(e.t_ciclo&&e.t_real)},
+    {lb:'Problemas / dores identificados',done:!!(e.prob&&e.prob.length)},
+  ],
+  riscos:(p,e)=>[
+    {lb:'Riscos identificados e avaliados',done:!!(e.riscos&&e.riscos.length)},
+  ],
+  questionario:(p,e)=>[
+    {lb:'15 questões respondidas',done:Object.keys(e.quest_resp||{}).length>=15},
+  ],
+  analise:(p,e)=>[
+    {lb:'Análise inteligente gerada (gargalos identificados)',done:!!(e.analise&&(e.analise.gargalos||[]).length)},
+  ],
+  esboco_asis:(p)=>[
+    {lb:'Descrição AS IS elaborada',done:!!(p.mod&&p.mod.asIs&&p.mod.asIs.trim())},
+    {lb:'Etapas do processo mapeadas',done:!!(p.mod&&(p.mod.etapas_proc||[]).length)},
+  ],
+  det_valid_asis:(p)=>[
+    {lb:'Etapas detalhadas com responsáveis e tipos',done:!!(p.mod&&(p.mod.etapas_proc||[]).length)},
+    {lb:'Evidências de validação AS IS enviadas',done:!!((p.evidencias||{}).det_valid_asis?.length)},
+  ],
+  melhorias:(p)=>[
+    {lb:'Melhorias e mitigações revisadas',done:!!(p.mod&&(p.mod.melhorias||[]).length)},
+  ],
+  esboco_tobe:(p)=>[
+    {lb:'Descrição TO BE elaborada',done:!!(p.mod&&p.mod.toBe&&p.mod.toBe.trim())},
+  ],
+  det_valid_tobe:(p)=>[
+    {lb:'Processo TO BE detalhado',done:!!(p.mod&&((p.mod.etapas_proc_tobe||[]).length||p.mod.toBe))},
+    {lb:'Evidências de validação TO BE enviadas',done:!!((p.evidencias||{}).det_valid_tobe?.length)},
+  ],
+  desenho_final:(p)=>[
+    {lb:'Desenho final concluído',done:!!(p.form&&(p.form.pop||p.mod?.desenho_final))},
+  ],
+  pop:(p)=>[
+    {lb:'POP redigido (objetivo e responsabilidades preenchidos)',done:!!(p.form&&p.form.pop&&p.form.pop.obj)},
+  ],
+  complement:(p)=>[
+    {lb:'Complementação do POP pelo dono concluída',done:!!(p.form&&(p.form.faq||p.form.complementacao))},
+  ],
+  apresentacao:(p)=>[
+    {lb:'Evidência da apresentação ao gestor enviada',done:!!((p.evidencias||{}).apresentacao?.length)},
+  ],
+  publicacao:(p)=>[
+    {lb:'Publicado no repositório (link informado)',done:!!(p.form&&p.form.link_pub)},
+  ],
+  acompanha:(p)=>[
+    {lb:'Reunião de acompanhamento realizada',done:!!(p.mod&&(p.mod.reunioes_acomp||[]).length)},
+  ],
+  auditoria:(p)=>[
+    {lb:'Plano de auditoria definido (objetivo informado)',done:!!(p.auditoria&&p.auditoria.objetivo)},
+  ],
+};
 function _renderChecklist(p){
   const e=p.ent;
-  const CHECKS={
-    abertura:[
-      {lb:'Data de início definida',done:!!e.dt_inicio},
-      {lb:'Equipe de trabalho informada',done:!!(e.equipe&&e.equipe.trim())},
-      {lb:'Objetivo do trabalho preenchido',done:!!(p.objetivo&&p.objetivo.trim())},
-      {lb:'Escopo definido',done:!!(e.escopo&&e.escopo.trim())},
-    ],
-    reuniao:[
-      {lb:'SIPOC preenchido (fornecedores, clientes, entradas, saídas)',done:!!(e.fornecedores&&e.clientes&&e.entradas&&e.saidas)},
-      {lb:'Atores identificados',done:!!e.atores},
-      {lb:'Volumetria registrada (tempo de ciclo e lead time)',done:!!(e.t_ciclo&&e.t_real)},
-      {lb:'Problemas / dores identificados',done:!!(e.prob&&e.prob.length)},
-    ],
-    riscos:[
-      {lb:'Riscos identificados e avaliados',done:!!(e.riscos&&e.riscos.length)},
-    ],
-    questionario:[
-      {lb:'15 questões respondidas',done:Object.keys(e.quest_resp||{}).length>=15},
-    ],
-    analise:[
-      {lb:'Análise inteligente gerada (gargalos identificados)',done:!!(e.analise&&(e.analise.gargalos||[]).length)},
-    ],
-    esboco_asis:[
-      {lb:'Descrição AS IS elaborada',done:!!(p.mod&&p.mod.asIs&&p.mod.asIs.trim())},
-      {lb:'Etapas do processo mapeadas',done:!!(p.mod&&(p.mod.etapas_proc||[]).length)},
-    ],
-    det_valid_asis:[
-      {lb:'Etapas detalhadas com responsáveis e tipos',done:!!(p.mod&&(p.mod.etapas_proc||[]).length)},
-      {lb:'Evidências de validação AS IS enviadas',done:!!((p.evidencias||{}).det_valid_asis?.length)},
-    ],
-    melhorias:[
-      {lb:'Melhorias e mitigações revisadas',done:!!(p.mod&&(p.mod.melhorias||[]).length)},
-    ],
-    esboco_tobe:[
-      {lb:'Descrição TO BE elaborada',done:!!(p.mod&&p.mod.toBe&&p.mod.toBe.trim())},
-    ],
-    det_valid_tobe:[
-      {lb:'Processo TO BE detalhado',done:!!(p.mod&&((p.mod.etapas_proc_tobe||[]).length||p.mod.toBe))},
-      {lb:'Evidências de validação TO BE enviadas',done:!!((p.evidencias||{}).det_valid_tobe?.length)},
-    ],
-    desenho_final:[
-      {lb:'Desenho final concluído',done:!!(p.form&&(p.form.pop||p.mod?.desenho_final))},
-    ],
-    pop:[
-      {lb:'POP redigido (objetivo e responsabilidades preenchidos)',done:!!(p.form&&p.form.pop&&p.form.pop.obj)},
-    ],
-    complement:[
-      {lb:'Complementação do POP pelo dono concluída',done:!!(p.form&&(p.form.faq||p.form.complementacao))},
-    ],
-    apresentacao:[
-      {lb:'Evidência da apresentação ao gestor enviada',done:!!((p.evidencias||{}).apresentacao?.length)},
-    ],
-    publicacao:[
-      {lb:'Publicado no repositório (link informado)',done:!!(p.form&&p.form.link_pub)},
-    ],
-    acompanha:[
-      {lb:'Reunião de acompanhamento realizada',done:!!(p.mod&&(p.mod.reunioes_acomp||[]).length)},
-    ],
-    auditoria:[
-      {lb:'Plano de auditoria definido (objetivo informado)',done:!!(p.auditoria&&p.auditoria.objetivo)},
-    ],
-  };
-  const items=(CHECKS[p.etapa]||[]);
+  const items=(_CHECKLIST_DEFS[p.etapa]?.(p,e)||[]);
   if(!items.length) return '';
   const total=items.length;
   const done=items.filter(i=>i.done).length;
@@ -8300,9 +8310,12 @@ function procArqHTML(mid,p){
   const pCriticoFg = pCritico ? '#fff' : 'var(--ink3)';
   const pCriticoBorder = pCritico ? '#dc2626' : 'var(--bdr2)';
   const pCriticoText = pCritico ? '⚠ Crítico' : 'Não crítico';
-  const pCriticoBadge = hasSubs ? '' : (isEP()
-    ? `<button type="button" class="badge" style="font-size:10px;background:${pCriticoBg};color:${pCriticoFg};padding:2px 6px;border-radius:4px;border:1px solid ${pCriticoBorder};cursor:pointer" onclick="event.stopPropagation();toggleCriticoManual('${p.id}',event)">${pCriticoText}</button>`
-    : `<span class="badge" style="font-size:10px;background:${pCriticoBg};color:${pCriticoFg};padding:2px 6px;border-radius:4px;border:1px solid ${pCriticoBorder}">${pCriticoText}</span>`);
+  let pCriticoBadge = '';
+  if (!hasSubs) {
+    pCriticoBadge = isEP()
+      ? `<button type="button" class="badge" style="font-size:10px;background:${pCriticoBg};color:${pCriticoFg};padding:2px 6px;border-radius:4px;border:1px solid ${pCriticoBorder};cursor:pointer" onclick="event.stopPropagation();toggleCriticoManual('${p.id}',event)">${pCriticoText}</button>`
+      : `<span class="badge" style="font-size:10px;background:${pCriticoBg};color:${pCriticoFg};padding:2px 6px;border-radius:4px;border:1px solid ${pCriticoBorder}">${pCriticoText}</span>`;
+  }
   return `<div style="margin-bottom:.5rem">
     <div class="arq-proc-hd" onclick="toggleEl('arq-sub-${p.id}','chvp-${p.id}')">
       <span class="arq-chevron" id="chvp-${p.id}" style="color:var(--ink3)">▶</span>
