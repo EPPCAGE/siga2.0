@@ -7352,33 +7352,35 @@ async function _popPdfAnexo(p){
     sections.push(osHtml);
   }
 
-  // ── 13.0 Desenho do processo (BPMN) ──────────────────────────────────────
+  // ── 13.0 Desenho do processo (BPMN) — página separada em paisagem ────────
+  let bpmnLandscape='';
   const hasBpmnA=!!(p.mod?.bpmnAsIs);
   const hasBpmnT=!!(p.mod?.bpmnToBe);
   if(hasBpmnA||hasBpmnT){
-    let bpHtml=secH('13.0','Desenho do Processo');
+    let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">13.0 Desenho do Processo</div>`;
     if(hasBpmnA){
       const svg=await _bpmnGetSvg('asis',p);
       if(svg){
         const uri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
-        bpHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.4rem">AS IS — Situação Atual</div><img src="${uri}" style="max-width:100%;border:1px solid #e0e0f0;border-radius:4px;margin-bottom:1.2rem" alt="Fluxo AS IS">`;
+        bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><img src="${uri}" style="width:100%;max-width:100%;border:1px solid #e0e0f0;border-radius:4px;margin-bottom:1.4rem;display:block" alt="Fluxo AS IS">`;
       }
     }
     if(hasBpmnT){
       const svg=await _bpmnGetSvg('tobe',p);
       if(svg){
         const uri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
-        bpHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.4rem;margin-top:.5rem">TO BE — Situação Proposta</div><img src="${uri}" style="max-width:100%;border:1px solid #e0e0f0;border-radius:4px" alt="Fluxo TO BE">`;
+        bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><img src="${uri}" style="width:100%;max-width:100%;border:1px solid #e0e0f0;border-radius:4px;display:block" alt="Fluxo TO BE">`;
       }
     }
-    sections.push(bpHtml);
+    bpmnLandscape=`<div class="bpmn-landscape">${bpInner}</div>`;
   }
 
-  if(!sections.length)return '';
-  return `<div style="page-break-before:always;padding-top:1.5rem">
+  if(!sections.length&&!bpmnLandscape)return '';
+  const apendice=sections.length?`<div style="page-break-before:always;padding-top:1.5rem">
     <div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.5rem;font-family:'Segoe UI',Arial,sans-serif">APÊNDICE — CARACTERIZAÇÃO DO PROCESSO</div>
     ${sections.join('\n')}
-  </div>`;
+  </div>`:'';
+  return apendice+bpmnLandscape;
 }
 
 async function gerarPopPdf(){
@@ -7405,6 +7407,9 @@ async function gerarPopPdf(){
     th,td{border:1px solid #ddd;padding:5px 8px;text-align:left}
     th{background:#f4f5f8;font-size:10px}
     img{max-width:100%}
+    @page{size:A4 portrait;margin:15mm}
+    @page landscape-page{size:A4 landscape;margin:12mm}
+    .bpmn-landscape{page:landscape-page;page-break-before:always;padding-top:0}
     @media print{body{padding:10px}.pop-pdf-bar{display:none!important}}
   </style>
   </head><body>${inner}${anexo}</body></html>`);
