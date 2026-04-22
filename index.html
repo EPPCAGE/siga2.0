@@ -1438,6 +1438,7 @@ let criticosManual = new Set(JSON.parse(lsGet('criticosManual','[]')));
 let fluxosCache = {};
 let bpmnModelers = {};
 let bpmnDirty = {};
+let bpmnProcIds = {}; // tracks which process ID each modeler was loaded for
 
 // Namespace de estado — espelha os globais para acesso organizado
 // Uso: APP.curProc, APP.kpis, etc. O código existente continua usando as variáveis diretamente (sem quebra)
@@ -7643,23 +7644,43 @@ function initBpmnMod(which, p){
   // This preserves the live diagram state (including unsaved edits) across
   // navigations between esboco and det_valid (they share bpmnModelers['asis'/'tobe']).
   if(bpmnModelers[which]){
-    try{
-      bpmnModelers[which].attachTo(canvasEl);
-      const l=document.getElementById('bpmn-'+which+'-loading');
-      if(l)l.style.display='none';
-      if(bpmnDirty[which]){
-        const lbl=document.getElementById('bpmn-'+which+'-dirty');
-        if(lbl)lbl.style.display='inline';
-      }
-      return;
-    }catch{
-      try{bpmnModelers[which].destroy();}catch{}
-      bpmnModelers[which]=null;
+    // Re-attach only when it's the same process — preserves unsaved edits across
+    // esboco ↔ det_valid navigation. Different process: destroy and reimport.
+    if(bpmnProcIds[which]===p?.id){
+      try{
+        bpmnModelers[which].attachTo(canvasEl);
+        const l=document.getElementById('bpmn-'+which+'-loading');
+        if(l)l.style.display='none';
+        if(bpmnDirty[which]){
+          const lbl=document.getElementById('bpmn-'+which+'-dirty');
+          if(lbl)lbl.style.display='inline';
+        }
+        const canvas=bpmnModelers[which].get('canvas');
+        const isDet=['det_valid_asis','det_valid_tobe'].includes(p?.etapa);
+        if(isDet){
+          const reg=bpmnModelers[which].get('elementRegistry');
+          const startEl=reg.getAll().find(el=>el.type&&el.type.toLowerCase().includes('startevent'));
+          let focusEl=startEl;
+          if(startEl){
+            const conn=reg.getAll().find(el=>el.waypoints&&el.source?.id===startEl.id);
+            if(conn?.target) focusEl=conn.target;
+          }
+          if(focusEl){
+            const fw=Math.max(focusEl.width*5,480),fh=Math.max(focusEl.height*5,360);
+            canvas.viewbox({x:focusEl.x-(fw-focusEl.width)/2,y:focusEl.y-(fh-focusEl.height)/2,width:fw,height:fh});
+          }else{canvas.zoom('fit-viewport');}
+        }else{canvas.zoom('fit-viewport');}
+        globalThis._bpmnLastHL=null;
+        return;
+      }catch{}
     }
+    try{bpmnModelers[which].destroy();}catch{}
+    bpmnModelers[which]=null;
   }
   const mod=new BpmnJS({container:'#bpmn-'+which+'-canvas',keyboard:{bindTo:document}});
   bpmnModelers[which]=mod;
   bpmnDirty[which]=false;
+  bpmnProcIds[which]=p?.id;
   mod.on('commandStack.changed',()=>{
     bpmnDirty[which]=true;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
