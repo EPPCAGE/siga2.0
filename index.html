@@ -9478,11 +9478,11 @@ function populateIndFilters(){
 function _kpiGrpStatus(items){
   // Exclude periods explicitly marked as "sem medição"
   const measured = items.filter(i=>!i.sem_dado);
-  // Include periods that have real data: realizado>0, OR both realizado===0 AND meta===0 (meta cumprida = zero ocorrências)
+  // Include any period with a numeric realizado value (even 0).
+  // "Sem dado" is handled by the sem_dado flag — realizado=0 always means the result was genuinely zero.
   const withData = measured.filter(i=>{
     const r = Number.parseFloat(i.realizado);
-    const m = Number.parseFloat(i.meta);
-    return (r > 0) || (r === 0 && m === 0 && i.realizado != null && i.meta != null);
+    return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
   });
   if(!withData.length) return null; // sem dados no período
   const last = withData[withData.length-1];
@@ -9569,12 +9569,11 @@ function kpiGrupoCardHTML(key, items){
   const area = items[0].area||'';
   const isPpe = items[0].ppe === 'Sim';
 
-  // Border color based on most recent measured period WITH data (realizado>0, OR meta=0+real=0)
+  // Border color based on most recent measured period (any numeric realizado, not sem_dado)
   const withData = items.filter(i=>{
     if(i.sem_dado) return false;
     const r = Number.parseFloat(i.realizado);
-    const m = Number.parseFloat(i.meta);
-    return (r > 0) || (r === 0 && m === 0 && i.realizado != null && i.meta != null);
+    return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
   });
   const last = withData.length ? withData[withData.length-1] : null;
   const lastR = last ? Number.parseFloat(last.realizado) : null;
@@ -9664,12 +9663,11 @@ function kpiGroupByKey(list){
 function createKpiChart(key, items){
   const canvas = document.getElementById('chart-kpi-'+key.replaceAll(/\W/g,'_'));
   if(!canvas) return;
-  // Only show measured periods that have data (realizado>0, OR meta=0+real=0)
+  // Only show measured periods with a numeric realizado (not sem_dado)
   const withData = items.filter(i=>{
     if(i.sem_dado) return false;
     const r = Number.parseFloat(i.realizado);
-    const m = Number.parseFloat(i.meta);
-    return (r > 0) || (r === 0 && m === 0 && i.realizado != null && i.meta != null);
+    return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
   });
   if(!withData.length){ canvas.parentElement.style.display='none'; return; }
   const polaridade = items[0].polaridade||'Maior é melhor';
