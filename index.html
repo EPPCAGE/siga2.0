@@ -8239,13 +8239,10 @@ function _subArqItemHTML(mid, pid, s){
   const sl=s.proc_id?processos.find(pr=>pr.id===s.proc_id):null;
   const sMapeado = isMapeado(s.id);
   const sCritico = isCritico(s.id);
-  const sMapeadoColor = sMapeado ? 'var(--red)' : 'var(--teal)';
   const sMapeadoBg = sMapeado ? 'var(--green-l)' : 'var(--bg3)';
   const sMapeadoTxt = sMapeado ? 'var(--green)' : 'var(--ink3)';
   const sMapeadoLabel = sMapeado ? 'Mapeado' : 'Não mapeado';
   const sMapeadoBorderColor = sMapeado ? 'var(--green)' : 'var(--bdr2)';
-  const sCriticoColor = sCritico ? '#dc2626' : 'var(--ink3)';
-  const sCriticoLabel = sCritico ? 'Desmarcar crítico' : '⚠ Crítico';
   const slNoLink = isEP()
     ? `<button type="button" class="badge" style="font-size:10px;background:${sMapeadoBg};color:${sMapeadoTxt};border:1px solid ${sMapeadoBorderColor};cursor:pointer" onclick="event.stopPropagation();toggleMapeadoManual('${s.id}',event)">${sMapeadoLabel}</button>`
     : `<span class="badge ${sMapeado?'bg':'bgr'}" style="font-size:10px">${sMapeadoLabel}</span>`;
@@ -8286,8 +8283,6 @@ function procArqHTML(mid,p){
   const pMapeadoTxt = pMapeado ? 'var(--green)' : 'var(--ink3)';
   const pMapeadoLabel = pMapeado ? 'Mapeado' : 'Não mapeado';
   const pMapeadoBorderColor = pMapeado ? 'var(--green)' : 'var(--bdr2)';
-  const pCriticoColor = pCritico ? '#dc2626' : 'var(--ink3)';
-  const pCriticoLabel = pCritico ? 'Desmarcar crítico' : '⚠ Crítico';
   return `<div style="margin-bottom:.5rem">
     <div class="arq-proc-hd" onclick="toggleEl('arq-sub-${p.id}','chvp-${p.id}')">
       <span class="arq-chevron" id="chvp-${p.id}" style="color:var(--ink3)">▶</span>
