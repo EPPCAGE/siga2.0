@@ -7145,6 +7145,7 @@ function rForm(p){
     <div style="padding:1.2rem 1.5rem">
       <table class="pop-tbl" style="margin-bottom:1.2rem"><thead><tr><th>Revisão</th><th>Data</th><th>Descrição</th></tr></thead><tbody><tr><td>0</td><td>${now()}</td><td>Emissão inicial</td></tr></tbody></table>
       <table class="pop-tbl" style="margin-bottom:1.5rem"><thead><tr><th>Ação</th><th>Elaborado por</th><th>Revisado por</th><th>Aprovado por</th></tr></thead><tbody><tr><td>Nome</td><td>${(pd.ger&&pd.ger!==p.dono)?pd.ger:(p.resp_ep||'—')}</td><td>${p.dono||'—'}</td><td>${p.pat||'—'}</td></tr><tr><td>Função</td><td>Membro do EPP / CAGE</td><td>Dono do processo</td><td>Gestor responsável</td></tr></tbody></table>
+      ${(()=>{const _e=p.ent||{};const _fmtD=d=>d?d.split('-').reverse().join('/'):'—';if(!(_e.dt_inicio||_e.dt_prev||_e.dt_efetiva||_e.equipe||p.produto||_e.t_total))return'';return`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">Identificação Temporal</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12px">${[['Início',_fmtD(_e.dt_inicio)],['Previsão de entrega',_fmtD(_e.dt_prev)],['Entrega efetiva',_fmtD(_e.dt_efetiva)],['Produto',p.produto||''],['Tempo total',_e.t_total||''],['Equipe EPP',_e.equipe||'']].filter(([,v])=>v&&v!=='—').map(([l,v])=>`<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">${l}</div><div style="font-weight:500">${esc(v)}</div></div>`).join('')}</div></div>`})()}
       <div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">1.0 Objetivo</div><div style="font-size:12.5px;color:var(--ink2)">${pd.obj||p.objetivo||'—'}</div></div>
       ${pd.def?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">1.1 Definições</div><div style="font-size:12.5px;color:var(--ink2);white-space:pre-wrap">${pd.def}</div></div>`:''}
       <div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">1.2 Entradas</div><div style="font-size:12.5px">${pd.ent||'—'}</div></div>
@@ -7233,19 +7234,9 @@ async function _popPdfAnexo(p){
   const secH=(n,t)=>`<div style="font-size:13px;font-weight:700;color:#1a1a2e;border-bottom:2px solid #1e6bfa;padding-bottom:5px;margin:1.5rem 0 .8rem">${n} ${t}</div>`;
   const fld=(l,v)=>v?`<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8888aa;margin-bottom:2px">${l}</div><div style="font-size:12px;font-weight:500;color:#1a1a2e">${_esc(v)}</div></div>`:'';
 
-  // ── 6.0 Identificação temporal ────────────────────────────────────────────
-  if(e.dt_inicio||e.dt_prev||e.dt_efetiva||e.equipe){
-    const fmtD=d=>d?d.split('-').reverse().join('/'):'—';
-    sections.push(`${secH('6.0','Identificação Temporal')}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:.5rem">
-      ${fld('Início',fmtD(e.dt_inicio))}${fld('Previsão de entrega',fmtD(e.dt_prev))}${fld('Entrega efetiva',fmtD(e.dt_efetiva))}
-      ${fld('Produto',p.produto||'')}${fld('Tempo total',e.t_total||'')}${fld('Equipe',e.equipe||'')}
-    </div>`);
-  }
-
-  // ── 7.0 Volumetria ────────────────────────────────────────────────────────
+  // ── 6.0 Volumetria ────────────────────────────────────────────────────────
   if(e.vol?.exec||e.t_ciclo!=null||e.t_real!=null){
-    sections.push(`${secH('7.0','Volumetria')}
+    sections.push(`${secH('6.0','Volumetria')}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:.5rem">
       ${fld('Execuções/período',e.vol?.exec||'')}
       ${fld('Tempo médio de ciclo',e.t_ciclo!=null?e.t_ciclo+' h':'')}
@@ -7254,7 +7245,7 @@ async function _popPdfAnexo(p){
     </div>`);
   }
 
-  // ── 8.0 Índice Lean Processual ────────────────────────────────────────────
+  // ── 7.0 Índice Lean Processual ────────────────────────────────────────────
   const ilpData=calcILP(p.mod?.etapas_proc||[]);
   if(ilpData){
     const {ilp,total,E,P,C,D,R,A,gxorDiv,nAtores}=ilpData;
@@ -7271,7 +7262,7 @@ async function _popPdfAnexo(p){
     }
     const natRow=[['Execução',E,'#0d9488'],['Preparação',P,'#6366f1'],['Comunicação',C,'#f59e0b'],['Distribuição',D,'#8b5cf6'],['Revisão',R,'#ef4444'],['Aprovação',A,'#f97316']]
       .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
-    sections.push(`${secH('8.0','Índice Lean Processual')}
+    sections.push(`${secH('7.0','Índice Lean Processual')}
     <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:.8rem">
       <div style="background:${ilpBg};border-left:4px solid ${ilpColor};border-radius:6px;padding:12px 18px;text-align:center;min-width:130px;flex-shrink:0">
         <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:${ilpColor};margin-bottom:4px">Índice Lean</div>
@@ -7286,7 +7277,7 @@ async function _popPdfAnexo(p){
     </div>`);
   }
 
-  // ── 9.0 Maturidade ────────────────────────────────────────────────────────
+  // ── 8.0 Maturidade ────────────────────────────────────────────────────────
   const matNivel=e.mat||0;
   if(matNivel>0){
     const ML2=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
@@ -7302,15 +7293,15 @@ async function _popPdfAnexo(p){
       const c=matNivel===n?'#fff':matNivel>n?'#065f46':'#8888aa';
       return `<span style="background:${bg};color:${c};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px">${n} ${ML2[n]}</span>`;
     }).join('');
-    sections.push(`${secH('9.0',`Maturidade — Nível ${matNivel}/5: ${ML2[matNivel]}`)}
+    sections.push(`${secH('8.0',`Maturidade — Nível ${matNivel}/5: ${ML2[matNivel]}`)}
     <div style="margin-bottom:.5rem">${badges}</div>
     <div style="font-size:12px;color:#4a4a6a;line-height:1.55">${matDescs[matNivel]}</div>`);
   }
 
-  // ── 10.0 SIPOC ────────────────────────────────────────────────────────────
+  // ── 9.0 SIPOC ────────────────────────────────────────────────────────────
   if(e.fornecedores||e.entradas||e.saidas||e.clientes){
     const cols=[['S','Fornecedores',e.fornecedores,'#dbeafe','#1d4ed8'],['I','Entradas',e.entradas,'#dcfce7','#166534'],['P','Processo',p.nome,'#ede9fe','#5b21b6'],['O','Saídas',e.saidas,'#fef3c7','#92400e'],['C','Clientes',e.clientes,'#fce7f3','#9d174d']];
-    sections.push(`${secH('10.0','SIPOC')}
+    sections.push(`${secH('9.0','SIPOC')}
     <table style="width:100%;border-collapse:collapse">
       <tr>${cols.map(([k,lb,,bg,c])=>`<th style="background:${bg};color:${c};padding:8px;text-align:center;font-size:11px;border:1px solid #e0e0f0"><span style="font-size:18px;font-weight:900;font-family:Georgia,serif;display:block">${k}</span>${lb}</th>`).join('')}</tr>
       <tr>${cols.map(([,,v,bg])=>`<td style="background:${bg}55;padding:8px;font-size:11px;vertical-align:top;border:1px solid #e0e0f0;white-space:pre-wrap">${_esc(v||'—')}</td>`).join('')}</tr>
@@ -7318,21 +7309,21 @@ async function _popPdfAnexo(p){
     ${e.atores?`<div style="font-size:11px;color:#4a4a6a;margin-top:.5rem"><strong>Atores/participantes:</strong> ${_esc(e.atores)}</div>`:''}`);
   }
 
-  // ── 11.0 Matriz de Riscos ─────────────────────────────────────────────────
+  // ── 10.0 Matriz de Riscos ─────────────────────────────────────────────────
   const riscos=e.riscos||[];
   if(riscos.length){
     const pS={Alta:3,Media:2,Baixa:1};
     const iS={Baixo:1,Medio:2,Alto:3,Critico:4};
     const sev=r=>{const s=(pS[r.prob]||1)*(iS[r.imp]||1);if(s<=2)return['#d1fae5','#065f46','Baixo'];if(s<=4)return['#fef3c7','#92400e','Moderado'];if(s<=8)return['#ffedd5','#9a3412','Alto'];return['#fee2e2','#991b1b','Crítico'];};
     const rRows=riscos.map(r=>{const[bg,c,lbl]=sev(r);return`<tr><td style="padding:5px 8px;font-size:11px;border-bottom:1px solid #e0e0f0">${_esc(r.desc)}</td><td style="padding:5px 8px;font-size:11px;text-align:center;border-bottom:1px solid #e0e0f0">${r.prob||'—'}</td><td style="padding:5px 8px;font-size:11px;text-align:center;border-bottom:1px solid #e0e0f0">${r.imp||'—'}</td><td style="padding:5px 8px;font-size:10px;text-align:center;border-bottom:1px solid #e0e0f0;background:${bg};color:${c};font-weight:700">${lbl}</td></tr>`;}).join('');
-    sections.push(`${secH('11.0',`Matriz de Riscos (${riscos.length})`)}
+    sections.push(`${secH('10.0',`Matriz de Riscos (${riscos.length})`)}
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="background:#f4f5f8"><th style="padding:5px 8px;text-align:left;font-size:10px;border-bottom:2px solid #e0e0f0">Risco</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Probabilidade</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Impacto</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Severidade</th></tr></thead>
       <tbody>${rRows}</tbody>
     </table>`);
   }
 
-  // ── 12.0 Oportunidades e Soluções Validadas ──────────────────────────────
+  // ── 11.0 Oportunidades e Soluções Validadas ──────────────────────────────
   const _analise=e.analise||{};
   const _fb=_analise.feedback_dono||{};
   const _hasFb=Object.keys(_fb).length>0;
@@ -7340,7 +7331,7 @@ async function _popPdfAnexo(p){
   const _oport=_hasFb?_conf('oportunidades'):(_analise.oportunidades||[]);
   const _solucoes=_hasFb?_conf('solucoes_problemas'):(_analise.solucoes_problemas||[]);
   if(_oport.length||_solucoes.length){
-    let osHtml=secH('12.0','Oportunidades e Soluções Validadas');
+    let osHtml=secH('11.0','Oportunidades e Soluções Validadas');
     if(_oport.length){
       osHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#065f46;margin:.6rem 0 .4rem">✦ Oportunidades (${_oport.length})</div>`;
       osHtml+=_oport.map(o=>`<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#1a1a2e;padding:5px 0;border-bottom:1px solid #e8e8f4"><span style="color:#22c55e;flex-shrink:0;margin-top:1px">✓</span><span>${_esc(o)}</span></div>`).join('');
@@ -7352,12 +7343,12 @@ async function _popPdfAnexo(p){
     sections.push(osHtml);
   }
 
-  // ── 13.0 Desenho do processo (BPMN) — página separada em paisagem ────────
+  // ── 12.0 Desenho do processo (BPMN) — página separada em paisagem ────────
   let bpmnLandscape='';
   const hasBpmnA=!!(p.mod?.bpmnAsIs);
   const hasBpmnT=!!(p.mod?.bpmnToBe);
   if(hasBpmnA||hasBpmnT){
-    let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">13.0 Desenho do Processo</div>`;
+    let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">12.0 Desenho do Processo</div>`;
     if(hasBpmnA){
       const svg=await _bpmnGetSvg('asis',p);
       if(svg){
