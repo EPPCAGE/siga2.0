@@ -1339,7 +1339,6 @@ const ETAPAS = [
   // Formalização
   {id:'desenho_final',lb:'Desenho final',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'pop',lb:'Construção POP',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
-  {id:'complement',lb:'Complement. dono',fase:'Formalizacao',cor:'pip-f',resp:'dono'},
   {id:'apresentacao',lb:'Aprov. gestor',fase:'Formalizacao',cor:'pip-f',resp:'gestor'},
   {id:'publicacao',lb:'Publicação',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   // Operação
@@ -1354,7 +1353,7 @@ function getEtapas(p){
 }
 const FASES = ['Entendimento','Modelagem','Formalizacao','Operacao','Auditoria'];
 const FASE_COR = {Entendimento:'bt',Modelagem:'bp',Formalizacao:'ba',Operacao:'bb',Auditoria:'br'};
-const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',esboco_asis:'bp',det_valid_asis:'bp',riscos:'bp',analise:'bp',melhorias:'bp',esboco_tobe:'bp',det_valid_tobe:'bp',desenho_final:'ba',pop:'ba',complement:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
+const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',esboco_asis:'bp',det_valid_asis:'bp',riscos:'bp',analise:'bp',melhorias:'bp',esboco_tobe:'bp',det_valid_tobe:'bp',desenho_final:'ba',pop:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
 
 function etIdx(id,p){return getEtapas(p||curProc).findIndex(e=>e.id===id);}
 function etFase(id){return ETAPAS.find(e=>e.id===id)?.fase||'';}
@@ -1829,7 +1828,7 @@ function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'b
 function mBadge(s){return '<span class="badge '+({Identificada:'bsl','Em analise':'bp','Em execucao':'bb',Concluida:'bg'}[s]||'bgr')+'">'+s+'</span>';}
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.length;
-  document.getElementById('nb-pend').textContent=processos.filter(p=>['det_valid_asis','det_valid_tobe','complement','apresentacao'].includes(p.etapa)).length;
+  document.getElementById('nb-pend').textContent=processos.filter(p=>['det_valid_asis','det_valid_tobe','apresentacao'].includes(p.etapa)).length;
   document.getElementById('nb-fila-cnt').textContent=getTarefasUsr().length;
   const mobFilaCnt=document.getElementById('mob-fila-cnt');if(mobFilaCnt){const c=getTarefasUsr().length;mobFilaCnt.textContent=c;mobFilaCnt.style.display=c>0?'inline-flex':'none';}
   document.getElementById('nb-notif-cnt').textContent=notifs.filter(n=>!n.lida).length;
@@ -2088,7 +2087,7 @@ function rFila(){
   rCarrosselAvisos();
   const tarefas=getTarefasUsr();
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
-  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',det_valid_asis:'Detalhar etapas e validar AS IS',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',desenho_final:'Finalizar desenho do processo',pop:'Construir POP no padrão CAGE',complement:'Complementar POP (FAQ, formulários)',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir auditoria do processo'};
+  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',det_valid_asis:'Detalhar etapas e validar AS IS',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',desenho_final:'Finalizar desenho do processo',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir auditoria do processo'};
   const el=document.getElementById('fila-content');
   if(!tarefas.length){el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>';rMeusProc();return;}
   // Q010: separar vencidos, críticos, normais
@@ -2272,7 +2271,7 @@ function rDash(){
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
-  const pend=processos.filter(p=>['det_valid_asis','det_valid_tobe','complement','apresentacao'].includes(p.etapa));
+  const pend=processos.filter(p=>['det_valid_asis','det_valid_tobe','apresentacao'].includes(p.etapa));
   document.getElementById('dash-pend').innerHTML=buildPendentesHTML(pend);
   // Q035: destacar processos vencidos
   const vencidos=processos.filter(p=>isVencido(p));
@@ -3226,15 +3225,6 @@ function _salvarDonoQuestionario(p){
   }
   p.ent.quest_nota=document.getElementById('quest-nota')?.value??p.ent.quest_nota??'';
 }
-function _salvarDonoComplement(p){
-  if(!p.form) p.form={};
-  p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
-  p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
-  p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
-  p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
-  const obs=document.getElementById('aobs')?.value||'';
-  if(obs) p.form.obs_complement=obs;
-}
 function _salvarDonoValidAsIs(p){
   if(!p.ent.analise) p.ent.analise={};
   const dt=document.getElementById('va-dt')?.value||'';
@@ -3251,7 +3241,6 @@ function _salvarDonoValidToBe(p){
 }
 const _SALVAR_DONO_HANDLERS={
   questionario:_salvarDonoQuestionario,
-  complement:_salvarDonoComplement,
   det_valid_asis:_salvarDonoValidAsIs,
   det_valid_tobe:_salvarDonoValidToBe,
 };
@@ -3849,6 +3838,7 @@ const ACOES = {
       <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('pp1',this)">Identificação</div>
       <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('pp2',this)">Objetivo</div>
       <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('pp3',this)">Atividades</div>
+      <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('pp4',this)">Complementação</div>
     </div>
     <div id="pp1" class="tab-p on">
       <div class="g3">
@@ -3868,27 +3858,24 @@ const ACOES = {
       <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Atividades puxadas do detalhamento feito pelo dono (etapa de validação AS IS). Revise tipo, descrição, responsável e etapa seguinte.</div>
       ${popAtivCards(p)}
     </div>
+    <div id="pp4" class="tab-p" style="display:none">
+      <div class="fg">
+        <label class="fl">Perguntas frequentes (FAQ)</label>
+        <div class="ib" style="font-size:12px;color:var(--ink3);margin-bottom:.5rem;background:var(--bg2);border-radius:6px;padding:.5rem .7rem">
+          ✦ Use o botão abaixo para gerar sugestões de perguntas e respostas com IA. <strong>O executor do processo deve validar as perguntas e respostas geradas</strong>, editar o conteúdo conforme necessário e adicionar novas perguntas relevantes.
+        </div>
+        <button type="button" class="btn btn-t" id="btn-gerar-faq" onclick="gerarFAQIA()" style="margin-bottom:.5rem">✦ Gerar FAQ com IA</button>
+        <span id="faq-ia-status" style="font-size:11px;color:var(--ink3);margin-left:.5rem"></span>
+        <textarea class="fi" id="afaq" style="min-height:120px" placeholder="P: Pergunta frequente&#10;R: Resposta&#10;&#10;P: Outra pergunta&#10;R: Resposta">${esc(p.form?.faq||'')}</textarea>
+      </div>
+      <div class="fg"><label class="fl">Exceções / casos especiais</label><textarea class="fi" id="a-excecoes" style="min-height:70px" placeholder="Situações fora do fluxo padrão que devem ser documentadas...">${esc(p.form?.excecoes||'')}</textarea></div>
+      <div class="fg"><label class="fl">Contatos-chave do processo</label><textarea class="fi" id="a-contatos" style="min-height:60px" placeholder="Nome — Função — E-mail ou ramal">${esc(p.form?.contatos||'')}</textarea></div>
+      <div class="fg"><label class="fl">Formulários / sistemas utilizados</label><input class="fi" id="aforms" placeholder="Nome do formulário ou sistema — link se houver" value="${esc(p.form?.forms||'')}"></div>
+      <div class="fg"><label class="fl">Observações complementares</label><textarea class="fi" id="aobs-pop" style="min-height:60px" placeholder="Observações adicionais sobre o processo...">${esc(p.form?.obs_complement||'')}</textarea></div>
+    </div>
     <div class="btn-row">
       <button type="button" class="btn" onclick="visPopPreview()">👁 Pré-visualizar</button>
     </div>`},
-
-  complement:{titulo:'Complementação pelo Dono',sub:'O dono do processo complementa o POP com informações operacionais.',role:'Dono do processo',rk:'dono',
-    form:p=>`<div class="ib iba">Revise o POP elaborado e adicione informações que só você, como responsável pelo processo, pode fornecer.</div>
-    <div style="font-weight:600;font-size:13px;margin-bottom:.6rem">Informações operacionais</div>
-    <div class="fg">
-      <label class="fl">Perguntas frequentes (FAQ)</label>
-      <div class="ib" style="font-size:12px;color:var(--ink3);margin-bottom:.5rem;background:var(--bg2);border-radius:6px;padding:.5rem .7rem">
-        ✦ Use o botão abaixo para gerar sugestões de perguntas e respostas com IA. <strong>O executor do processo deve validar as perguntas e respostas geradas</strong>, editar o conteúdo conforme necessário e adicionar novas perguntas relevantes à realidade do processo.
-      </div>
-      <button type="button" class="btn btn-t" id="btn-gerar-faq" onclick="gerarFAQIA()" style="margin-bottom:.5rem">✦ Gerar FAQ com IA</button>
-      <span id="faq-ia-status" style="font-size:11px;color:var(--ink3);margin-left:.5rem"></span>
-      <textarea class="fi" id="afaq" style="min-height:120px" placeholder="P: Pergunta frequente&#10;R: Resposta&#10;&#10;P: Outra pergunta&#10;R: Resposta">${p.form?.faq||''}</textarea>
-    </div>
-    <div class="fg"><label class="fl">Exceções / casos especiais</label><textarea class="fi" id="a-excecoes" style="min-height:70px" placeholder="Situações fora do fluxo padrão que devem ser documentadas...">${p.form?.excecoes||''}</textarea></div>
-    <div class="fg"><label class="fl">Contatos-chave do processo</label><textarea class="fi" id="a-contatos" style="min-height:60px" placeholder="Nome — Função — E-mail ou ramal">${p.form?.contatos||''}</textarea></div>
-    <div class="fg"><label class="fl">Formulários / sistemas utilizados</label><input class="fi" id="aforms" placeholder="Nome do formulário ou sistema — link se houver" value="${p.form?.forms||''}"></div>
-    <div class="fg"><label class="fl">Observações ou correções ao POP</label><textarea class="fi" id="aobs" style="min-height:60px" placeholder="Aponte qualquer ajuste necessário no documento..."></textarea></div>
-    <div class="btn-row"><button type="button" class="btn btn-p" onclick="salvarComplementacaoDono()">Enviar complementação →</button></div>`},
 
   apresentacao:{titulo:'Aprovação pelo Gestor / Adjunto',sub:'Aprovação de alta gestão antes da publicação.',role:'Gestor / Adjunto',rk:'gestor',
     form:p=>`<div class="ib iba">Aprovação final antes da publicação oficial. Compartilhe o conteúdo do mapeamento com o gestor responsável.</div>
@@ -4227,7 +4214,6 @@ function _formDetValidTobe(p){ return ACOES.det_valid_tobe.form(p); }
 function _formMelhorias(p)   { return ACOES.melhorias.form(p); }
 function _formDesenhoFinal(p){ return ACOES.desenho_final.form(p); }
 function _formPop(p)         { return ACOES.pop.form(p); }
-function _formComplement(p)  { return ACOES.complement.form(p); }
 function _formApresentacao(p){ return ACOES.apresentacao.form(p); }
 function _formPublicacao(p)  { return ACOES.publicacao.form(p); }
 function _formAcompanha(p)   { return ACOES.acompanha.form(p); }
@@ -4350,19 +4336,6 @@ function _rsDesenhoFinal(p){
   p.form.ferramenta=document.getElementById('a-ferr')?.value||p.form.ferramenta||'';
   p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
 }
-function _rsComplement(p){
-  p.form=p.form||{};
-  p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
-  p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
-  p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
-  p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
-  const obs=document.getElementById('aobs')?.value||'';
-  if(obs) p.form.obs_complement=obs;
-  const dt=document.getElementById('comp-dt')?.value||'';
-  const part=document.getElementById('comp-part')?.value||'';
-  const ata=document.getElementById('comp-ata')?.value||'';
-  if(dt||part||ata) p.form.reuniao_complement={data:dt,participantes:part,ata};
-}
 function _rsPOP(p){
   p.form=p.form||{};
   const etapas=p.mod?.etapas_proc||[];
@@ -4388,6 +4361,13 @@ function _rsPOP(p){
     docs:document.getElementById('pp-docs')?.value||prev.docs||'',
     ativ_detalhes,
   };
+  // Campos de complementação (migrados da etapa complement)
+  p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
+  p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
+  p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
+  p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
+  const obsPopRs=document.getElementById('aobs-pop')?.value||'';
+  if(obsPopRs) p.form.obs_complement=obsPopRs;
 }
 function _rsPublicacao(p){
   p.form=p.form||{};
@@ -4436,8 +4416,7 @@ const _RESET_MAP={
   esboco_tobe:   p=>{ if(p.mod){p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];} },
   det_valid_tobe:p=>{ if(p.ent?.evidencias) p.ent.evidencias.det_valid_tobe=[]; },
   desenho_final: p=>{ if(p.mod) p.mod.desenho_final=null; if(p.form) p.form.obs_final=''; },
-  pop:           p=>{ if(p.form) p.form.pop=null; },
-  complement:    p=>{ if(p.form){p.form.faq='';p.form.excecoes='';p.form.contatos='';p.form.forms='';p.form.obs_complement='';} },
+  pop:           p=>{ if(p.form){p.form.pop=null;p.form.faq='';p.form.excecoes='';p.form.contatos='';p.form.forms='';p.form.obs_complement='';} },
   apresentacao:  p=>{ if(p.ent?.evidencias) p.ent.evidencias.apresentacao=[]; },
   publicacao:    p=>{ if(p.form){p.form.link_pub='';p.form.vig='';} if(p.ent) p.ent.dt_efetiva=''; },
   acompanha:     p=>{ if(p.mod) p.mod.reunioes_acomp=[]; },
@@ -4463,7 +4442,7 @@ const _RS_MAP={
   det_valid_asis:_rsDetValidAsis, det_valid_tobe:_rsDetValidTobe,
   apresentacao:_rsApresentacao, questionario:_rsQuestionario,
   analise:_rsAnalise, desenho_final:_rsDesenhoFinal,
-  complement:_rsComplement, pop:_rsPOP, publicacao:_rsPublicacao,
+  pop:_rsPOP, publicacao:_rsPublicacao,
   melhorias:_rsMelhorias, acompanha:_rsAcompanha,
 };
 function salvarRetroativo(etId){
@@ -4612,9 +4591,6 @@ const _CHECKLIST_DEFS={
   ],
   pop:(p)=>[
     {lb:'POP redigido (objetivo e responsabilidades preenchidos)',done:!!(p.form&&p.form.pop&&p.form.pop.obj)},
-  ],
-  complement:(p)=>[
-    {lb:'Complementação do POP pelo dono concluída',done:!!(p.form&&(p.form.faq||p.form.complementacao))},
   ],
   apresentacao:(p)=>[
     {lb:'Evidência da apresentação ao gestor enviada',done:!!((p.evidencias||{}).apresentacao?.length)},
@@ -5233,25 +5209,15 @@ function salvarPOP(){
     ativ_detalhes,
   };
   p.form.pop_ok=true;
-  av('pop','EP','POP construído no padrão CAGE');
-  fbAutoSave('salvarPOP');
-}
-function salvarComplementacaoDono(){
-  const p=curProc;
-  const jr=jaFoiRespondido(p.etapa);
-  if(jr){toast('⚠ Tarefa já respondida por '+jr.nome+'. Não é possível enviar novamente.');return;}
-  if(!p.form)p.form={};
+  // Campos de complementação (migrados da etapa complement)
   p.form.faq=document.getElementById('afaq')?.value||p.form.faq||'';
   p.form.excecoes=document.getElementById('a-excecoes')?.value||p.form.excecoes||'';
   p.form.contatos=document.getElementById('a-contatos')?.value||p.form.contatos||'';
   p.form.forms=document.getElementById('aforms')?.value||p.form.forms||'';
-  const obs=document.getElementById('aobs')?.value||'';
-  if(obs) p.form.obs_complement=obs;
-  const dt=document.getElementById('comp-dt')?.value||'';
-  const part=document.getElementById('comp-part')?.value||'';
-  const ata=document.getElementById('comp-ata')?.value||'';
-  if(dt||part||ata) p.form.reuniao_complement={data:dt,participantes:part,ata};
-  avDono('complement','Dono do processo','Complementação fornecida pelo dono do processo');
+  const obsPopSv=document.getElementById('aobs-pop')?.value||'';
+  if(obsPopSv) p.form.obs_complement=obsPopSv;
+  av('pop','EP','POP construído no padrão CAGE');
+  fbAutoSave('salvarPOP');
 }
 function reprovarApresentacao(){
   const ov=document.createElement('div');
@@ -5259,7 +5225,7 @@ function reprovarApresentacao(){
   ov.id='reprovar-apres-ov';
   ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:440px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
     <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.4rem">↩ Solicitar revisão ao EP</div>
-    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">O processo voltará para <strong>Complementação do dono</strong>. Descreva o que precisa ser ajustado antes da publicação.</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">O processo voltará para <strong>Construção do POP</strong>. Descreva o que precisa ser ajustado antes da publicação.</div>
     <div class="fg" style="margin-bottom:1.2rem">
       <label class="fl">Instrução para o EP / dono <span style="color:var(--red)">*</span></label>
       <textarea class="fi" id="reprovar-apres-motivo" rows="3" placeholder="Ex: Falta detalhar os formulários utilizados..."></textarea>
@@ -5283,7 +5249,7 @@ function confirmarReprovarApresentacao(){
   if(dt||part||ata) p.form.reuniao_apresentacao={data:dt,participantes:part,ata};
   if(obs) p.form.obs_apresentacao=obs;
   document.getElementById('reprovar-apres-ov')?.remove();
-  reprovar('complement','Gestor','Gestor solicitou revisão — '+motivo);
+  reprovar('pop','Gestor','Gestor solicitou revisão — '+motivo);
 }
 function salvarApresentacao(){
   const obs=document.getElementById('aobs')?.value||'';
@@ -7223,6 +7189,10 @@ function rForm(p){
           </table></div>`;
       })()}
       ${pd.docs?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">3.0 Documentos correlatos</div><div style="font-size:12.5px;white-space:pre-wrap">${pd.docs}</div></div>`:''}
+      ${p.form?.faq?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">3.1 Perguntas frequentes (FAQ)</div><div style="font-size:12.5px;white-space:pre-wrap">${esc(p.form.faq)}</div></div>`:''}
+      ${p.form?.excecoes?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">3.2 Exceções / casos especiais</div><div style="font-size:12.5px;white-space:pre-wrap">${esc(p.form.excecoes)}</div></div>`:''}
+      ${p.form?.contatos?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">3.3 Contatos-chave do processo</div><div style="font-size:12.5px;white-space:pre-wrap">${esc(p.form.contatos)}</div></div>`:''}
+      ${p.form?.forms?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">3.4 Formulários e sistemas utilizados</div><div style="font-size:12.5px">${esc(p.form.forms)}</div></div>`:''}
       ${pd.ind?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">4.0 Indicadores</div><div style="font-size:12.5px;white-space:pre-wrap">${pd.ind}</div></div>`:''}
       ${p.form.apresent?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">5.0 Aprovações</div><div style="font-size:12.5px">${p.form.apresent}</div></div>`:''}
     </div>
@@ -11098,7 +11068,7 @@ async function gerarStatusReportPPT(){
     addFooter(sl,2);
 
     const ETAPAS_ORD = ['abertura','reuniao','riscos','questionario','esboco','det_etapas',
-      'analise_asis','valid_dono','desenho_final','aprovacao','pop','complement',
+      'analise_asis','valid_dono','desenho_final','aprovacao','pop',
       'apresentacao','publicacao','acompanha','auditoria'];
     const cws = [4.5,2.8,2.4,7.1,2.4]; // Processo | Dono | Prazo | Objetivo | Fase  (sum=19.2)
     const hds = ['Processo','Gerente do Processo','Previsão de entrega','Objetivo do mapeamento','Fase'];
@@ -11593,6 +11563,8 @@ async function fbLoad(){
     if(!pSnap.empty){
       processos = [];
       pSnap.forEach(d => processos.push(d.data()));
+      // Migração: complement foi removido, mover para apresentacao
+      processos.forEach(p=>{ if(p.etapa==='complement') p.etapa='apresentacao'; });
       processos.sort((a,b) => a.id - b.id);
       nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
       // Sync etapasIdC so new etapa IDs never collide with existing ones
