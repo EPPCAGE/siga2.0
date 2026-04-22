@@ -4373,7 +4373,8 @@ function _rsPOP(p){
     const prev=ativ_detalhes[e.id]||{};
     const t=document.getElementById(`pop-at-tipo-${i}`)?.value;
     const r=document.getElementById(`pop-at-resp-${i}`)?.value;
-    ativ_detalhes[e.id]={tipo:t||prev.tipo||'Atividade',desc:descEl.value||prev.desc||'',resp:r||prev.resp||''};
+    const fallbackTipo=(e.tipo==='Decisao'||e.tipo==='Decisão')?'Decisão':(e.tipo||'Atividade');
+    ativ_detalhes[e.id]={tipo:t||prev.tipo||fallbackTipo,desc:descEl.value||prev.desc||'',resp:r||prev.resp||''};
   });
   const prev=p.form.pop||{};
   p.form.pop={
@@ -5213,8 +5214,9 @@ function salvarPOP(){
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return; // aba Atividades não renderizada, preserva valor anterior
     const prev=ativ_detalhes[e.id]||{};
+    const fallbackTipo=(e.tipo==='Decisao'||e.tipo==='Decisão')?'Decisão':(e.tipo||'Atividade');
     ativ_detalhes[e.id]={
-      tipo:document.getElementById(`pop-at-tipo-${i}`)?.value||prev.tipo||'Atividade',
+      tipo:document.getElementById(`pop-at-tipo-${i}`)?.value||prev.tipo||fallbackTipo,
       desc:descEl.value||prev.desc||'',
       resp:document.getElementById(`pop-at-resp-${i}`)?.value||prev.resp||'',
     };
@@ -6303,13 +6305,17 @@ function popAtivCards(p){
   const det=p.form?.pop?.ativ_detalhes||{};
   if(!etapas.length) return '<div class="ib iba">Nenhuma etapa cadastrada na modelagem. Complete a etapa "Detalhamento de etapas" primeiro.</div>';
   const TIPOS=['Atividade','Decisão','Observação','Evento'];
-  const normTipo=t=>{if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t||'Atividade';};
+  // normTipo retorna '' para entrada falsa, permitindo que o || avance para o fallback correto
+  const normTipo=t=>{if(!t)return '';if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t;};
   const normModo=m=>{if(m==='Automatica'){return 'Automática';}if(m==='Semi-automatica'){return 'Semi-automática';}return m||'Manual';};
   return etapas.map((e,i)=>{
     const d=det[e.id]||{};
-    const tipo=normTipo(d.tipo)||normTipo(e.tipo)||'Atividade';
+    // Para Eventos e Decisões, o tipo do modelo é autoritativo (ignora d.tipo eventualmente salvo errado)
+    const isStructural=e.tipo==='Evento'||e.tipo==='Decisao'||e.tipo==='Decisão';
+    const tipo=isStructural?normTipo(e.tipo)||e.tipo:(normTipo(d.tipo)||normTipo(e.tipo)||'Atividade');
     const desc=(d.desc!==undefined&&d.desc!=='')?d.desc:(e.desc||'');
-    const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:(e.executor||'');
+    // Eventos não têm executor real — só usa d.resp se explicitamente preenchido pelo usuário
+    const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:(isStructural?'':(e.executor||''));
     const modo=normModo(e.modo);
     const gw=e.vinculo_gw?.gw_ep_id?etapas.find(x=>x.id===e.vinculo_gw.gw_ep_id):null;
     const gwHtml=gw?`<div style="font-size:10px;color:var(--teal);margin-top:2px;display:flex;align-items:center;gap:4px"><span style="background:var(--teal-l);border-radius:3px;padding:1px 6px">⤷ ${esc(gw.nome||'Gateway')}${e.vinculo_gw.label?' · '+esc(e.vinculo_gw.label):''}</span></div>`:'';
@@ -7178,13 +7184,15 @@ function rForm(p){
       ${(()=>{
         const etapas=curProc?.mod?.etapas_proc||[];
         const det=pd.ativ_detalhes||{};
-        const normTipo=t=>{if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t||'Atividade';};
+        const normTipo=t=>{if(!t)return '';if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t;};
         const normModo=m=>{if(m==='Automatica'){return 'Automática';}if(m==='Semi-automatica'){return 'Semi-automática';}return m||'Manual';};
         const linhas=etapas.map((e,i)=>{
           const d=det[e.id]||{};
           const desc=(d.desc!==undefined&&d.desc!=='')?d.desc:(e.desc||'');
-          const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:(e.executor||'');
-          const tipo=normTipo(d.tipo||e.tipo);
+          // Eventos e Gateways: tipo sempre do modelo; resp nunca do executor (pode estar desatualizado)
+          const isStructural=e.tipo==='Evento'||e.tipo==='Decisao'||e.tipo==='Decisão';
+          const tipo=isStructural?(normTipo(e.tipo)||e.tipo):(normTipo(d.tipo)||normTipo(e.tipo)||'Atividade');
+          const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:(isStructural?'':(e.executor||''));
           const modo=normModo(e.modo);
           const nat=e.natureza||'';
           const gw=e.vinculo_gw?.gw_ep_id?etapas.find(x=>x.id===e.vinculo_gw.gw_ep_id):null;
