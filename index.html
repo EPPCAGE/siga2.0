@@ -3854,7 +3854,8 @@ const ACOES = {
             <option>Semestral</option><option>Anual</option>
           </select>
         </div>
-        <div style="display:grid;grid-template-columns:3fr auto;gap:6px;align-items:end">
+        <div style="display:grid;grid-template-columns:2fr 2fr auto;gap:6px;align-items:end">
+          <input class="fi" id="ind-formula" placeholder="Fórmula de cálculo" style="font-size:12px">
           <input class="fi" id="ind-fonte" placeholder="Fonte dos dados" style="font-size:12px">
           <button type="button" class="btn btn-p" style="font-size:12px;white-space:nowrap" onclick="addIndProc()">+ Adicionar</button>
         </div>
@@ -4963,14 +4964,15 @@ function salvarRiscos(){
 // ── Etapa: Indicadores do processo ──────────────────────────────────────────
 function rIndProcList(inds){
   if(!inds||!inds.length) return '<div style="font-size:12px;color:var(--ink3);padding:.5rem 0">Nenhum indicador cadastrado ainda.</div>';
-  const hdr='<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:6px;padding:4px 0;border-bottom:2px solid var(--bdr);margin-bottom:4px">'+
-    ['Indicador','Meta','Unidade','Periodicidade','Fonte',''].map((h,i)=>`<span style="font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px${i===5?';width:24px':''}">${h}</span>`).join('')+'</div>';
+  const hdr='<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.5fr 1.5fr auto;gap:6px;padding:4px 0;border-bottom:2px solid var(--bdr);margin-bottom:4px">'+
+    ['Indicador','Meta','Unidade','Periodicidade','Fórmula','Fonte',''].map((h,i)=>`<span style="font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px${i===6?';width:24px':''}">${h}</span>`).join('')+'</div>';
   return hdr+inds.map((ind,i)=>`
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.5fr 1.5fr auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
       <span style="font-size:12px;font-weight:600;color:var(--ink)">${esc(ind.nome)}</span>
       <span style="font-size:11px;color:var(--ink2)">${esc(ind.meta||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(ind.unidade||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(ind.periodicidade||'—')}</span>
+      <span style="font-size:11px;color:var(--ink3)">${esc(ind.formula||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(ind.fonte||'—')}</span>
       <button type="button" class="ri-del" style="width:22px;height:22px;flex-shrink:0" onclick="remIndProc(${i})" aria-label="Remover">×</button>
     </div>`).join('');
@@ -4990,10 +4992,11 @@ function addIndProc(){
     meta:(document.getElementById('ind-meta')?.value||'').trim(),
     unidade:(document.getElementById('ind-unid')?.value||'').trim(),
     periodicidade:document.getElementById('ind-period')?.value||'',
+    formula:(document.getElementById('ind-formula')?.value||'').trim(),
     fonte:(document.getElementById('ind-fonte')?.value||'').trim()
   });
   atualizarIndProcUI();
-  ['ind-nome','ind-meta','ind-unid','ind-fonte'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['ind-nome','ind-meta','ind-unid','ind-formula','ind-fonte'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const sel=document.getElementById('ind-period');if(sel)sel.value='';
   fbAutoSave('addIndProc');
 }
@@ -5009,7 +5012,7 @@ async function iaGerarIndicadores(){
   if(statusEl){statusEl.textContent='Gerando…';}
   const etapasStr=(p.mod?.etapas_proc||[]).map((e,i)=>`${i+1}. ${e.nome||''} (${e.tipo||'Atividade'}, resp: ${e.executor||'—'})`).join('\n');
   const probsStr=(p.ent?.prob||[]).map(x=>typeof x==='string'?x:x.desc||'').filter(Boolean).join('; ');
-  const payload=`Processo: ${p.nome}\nÁrea: ${p.area}\nObjetivo: ${p.objetivo||''}\nEntradas: ${p.ent?.entradas||''}\nSaídas: ${p.ent?.saidas||''}\nProblemas identificados: ${probsStr||'—'}${etapasStr?'\nEtapas do processo:\n'+etapasStr:''}\n\nSugira até 5 indicadores de desempenho para monitoramento contínuo deste processo. Responda com uma lista, cada linha no formato exato:\nNome do indicador | Meta sugerida | Unidade | Periodicidade | Fonte de dados\nSem numeração, sem cabeçalho, sem explicações adicionais.`;
+  const payload=`Processo: ${p.nome}\nÁrea: ${p.area}\nObjetivo: ${p.objetivo||''}\nEntradas: ${p.ent?.entradas||''}\nSaídas: ${p.ent?.saidas||''}\nProblemas identificados: ${probsStr||'—'}${etapasStr?'\nEtapas do processo:\n'+etapasStr:''}\n\nSugira até 5 indicadores de desempenho para monitoramento contínuo deste processo. Responda com uma lista, cada linha no formato exato:\nNome do indicador | Meta sugerida | Unidade | Periodicidade | Fórmula de cálculo | Fonte de dados\nSem numeração, sem cabeçalho, sem explicações adicionais.`;
   const result=await chamarIA('assistente',payload,null);
   if(result){
     if(!p.form) p.form={};
@@ -5019,7 +5022,7 @@ async function iaGerarIndicadores(){
     linhas.forEach(l=>{
       const pts=l.split('|').map(s=>s.trim());
       if(pts[0]){
-        p.form.indicadores_proc.push({nome:pts[0],meta:pts[1]||'',unidade:pts[2]||'',periodicidade:pts[3]||'',fonte:pts[4]||''});
+        p.form.indicadores_proc.push({nome:pts[0],meta:pts[1]||'',unidade:pts[2]||'',periodicidade:pts[3]||'',formula:pts[4]||'',fonte:pts[5]||''});
         adicionados++;
       }
     });
@@ -7312,6 +7315,7 @@ function rForm(p){
             <td style="padding:5px 8px;font-size:11px;color:var(--ink2)">${esc(ind.meta||'—')}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(ind.unidade||'—')}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(ind.periodicidade||'—')}</td>
+            <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(ind.formula||'—')}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(ind.fonte||'—')}</td>
           </tr>`).join('');
           return `<div style="margin-bottom:1rem">${secTitle}<table style="width:100%;border-collapse:collapse">
@@ -7320,6 +7324,7 @@ function rForm(p){
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Meta</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Unidade</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Periodicidade</th>
+              <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Fórmula</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Fonte</th>
             </tr></thead>
             <tbody>${rows}</tbody>
