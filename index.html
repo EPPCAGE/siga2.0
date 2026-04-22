@@ -4964,17 +4964,18 @@ function salvarRiscos(){
 // ── Etapa: Indicadores do processo ──────────────────────────────────────────
 function rIndProcList(inds){
   if(!inds||!inds.length) return '<div style="font-size:12px;color:var(--ink3);padding:.5rem 0">Nenhum indicador cadastrado ainda.</div>';
-  const hdr='<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.5fr 1.5fr auto;gap:6px;padding:4px 0;border-bottom:2px solid var(--bdr);margin-bottom:4px">'+
-    ['Indicador','Meta','Unidade','Periodicidade','Fórmula','Fonte',''].map((h,i)=>`<span style="font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px${i===6?';width:24px':''}">${h}</span>`).join('')+'</div>';
+  const hdr='<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.5fr 1.5fr auto auto;gap:6px;padding:4px 0;border-bottom:2px solid var(--bdr);margin-bottom:4px">'+
+    ['Indicador','Meta','Unidade','Periodicidade','Fórmula','Fonte','',''].map((h,i)=>`<span style="font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px${i>=6?';width:24px':''}">${h}</span>`).join('')+'</div>';
   return hdr+inds.map((ind,i)=>`
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.5fr 1.5fr auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.5fr 1.5fr auto auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
       <span style="font-size:12px;font-weight:600;color:var(--ink)">${esc(ind.nome)}</span>
       <span style="font-size:11px;color:var(--ink2)">${esc(ind.meta||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(ind.unidade||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(ind.periodicidade||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(ind.formula||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(ind.fonte||'—')}</span>
-      <button type="button" class="ri-del" style="width:22px;height:22px;flex-shrink:0" onclick="remIndProc(${i})" aria-label="Remover">×</button>
+      <button type="button" class="btn" style="width:24px;height:24px;padding:0;font-size:12px;flex-shrink:0" onclick="editarIndProc(${i})" aria-label="Editar">✎</button>
+      <button type="button" class="ri-del" style="width:24px;height:24px;flex-shrink:0" onclick="remIndProc(${i})" aria-label="Remover">×</button>
     </div>`).join('');
 }
 function atualizarIndProcUI(){
@@ -5005,6 +5006,52 @@ function remIndProc(i){
   p.form.indicadores_proc.splice(i,1);
   atualizarIndProcUI();
   fbAutoSave('remIndProc');
+}
+function editarIndProc(i){
+  const ind=(curProc?.form?.indicadores_proc||[])[i];
+  if(!ind)return;
+  const PERIODS=['Mensal','Trimestral','Semestral','Anual'];
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:560px;width:96%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1.2rem">✎ Editar indicador</div>
+    <div class="fg"><label class="fl">Nome do indicador</label><input class="fi" id="ei-nome" value="${esc(ind.nome)}"></div>
+    <div class="g2" style="margin-top:.6rem">
+      <div class="fg"><label class="fl">Meta</label><input class="fi" id="ei-meta" value="${esc(ind.meta||'')}"></div>
+      <div class="fg"><label class="fl">Unidade</label><input class="fi" id="ei-unid" value="${esc(ind.unidade||'')}"></div>
+    </div>
+    <div class="g2" style="margin-top:.6rem">
+      <div class="fg"><label class="fl">Periodicidade</label>
+        <select class="fi" id="ei-period">
+          <option value="">—</option>
+          ${PERIODS.map(p=>`<option value="${p}" ${ind.periodicidade===p?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Fórmula de cálculo</label><input class="fi" id="ei-formula" value="${esc(ind.formula||'')}"></div>
+    </div>
+    <div class="fg" style="margin-top:.6rem"><label class="fl">Fonte dos dados</label><input class="fi" id="ei-fonte" value="${esc(ind.fonte||'')}"></div>
+    <div class="btn-row" style="margin-top:1.2rem">
+      <button type="button" class="btn" onclick="this.closest('div[style*=fixed]').remove()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="salvarEdicaoIndProc(${i},this)">Salvar →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function salvarEdicaoIndProc(i,el){
+  const nome=(document.getElementById('ei-nome')?.value||'').trim();
+  if(!nome){toast('Nome é obrigatório.','var(--amber)');return;}
+  const ind=(curProc?.form?.indicadores_proc||[])[i];
+  if(!ind)return;
+  ind.nome=nome;
+  ind.meta=(document.getElementById('ei-meta')?.value||'').trim();
+  ind.unidade=(document.getElementById('ei-unid')?.value||'').trim();
+  ind.periodicidade=document.getElementById('ei-period')?.value||'';
+  ind.formula=(document.getElementById('ei-formula')?.value||'').trim();
+  ind.fonte=(document.getElementById('ei-fonte')?.value||'').trim();
+  el.closest('div[style*=fixed]').remove();
+  atualizarIndProcUI();
+  fbAutoSave('editarIndProc');
 }
 async function iaGerarIndicadores(){
   const p=curProc;if(!p)return;
