@@ -7144,7 +7144,7 @@ function rForm(p){
     </div>
     <div style="padding:1.2rem 1.5rem">
       <table class="pop-tbl" style="margin-bottom:1.2rem"><thead><tr><th>Revisão</th><th>Data</th><th>Descrição</th></tr></thead><tbody><tr><td>0</td><td>${now()}</td><td>Emissão inicial</td></tr></tbody></table>
-      <table class="pop-tbl" style="margin-bottom:1.5rem"><thead><tr><th>Ação</th><th>Elaborado por</th><th>Revisado por</th><th>Aprovado por</th></tr></thead><tbody><tr><td>Nome</td><td>${pd.ger||p.resp_ep||'—'}</td><td>${p.dono||'—'}</td><td>${p.pat||'—'}</td></tr><tr><td>Função</td><td>Membro do EPP / CAGE</td><td>Dono do processo</td><td>Gestor responsável</td></tr></tbody></table>
+      <table class="pop-tbl" style="margin-bottom:1.5rem"><thead><tr><th>Ação</th><th>Elaborado por</th><th>Revisado por</th><th>Aprovado por</th></tr></thead><tbody><tr><td>Nome</td><td>${(pd.ger&&pd.ger!==p.dono)?pd.ger:(p.resp_ep||'—')}</td><td>${p.dono||'—'}</td><td>${p.pat||'—'}</td></tr><tr><td>Função</td><td>Membro do EPP / CAGE</td><td>Dono do processo</td><td>Gestor responsável</td></tr></tbody></table>
       <div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">1.0 Objetivo</div><div style="font-size:12.5px;color:var(--ink2)">${pd.obj||p.objetivo||'—'}</div></div>
       ${pd.def?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">1.1 Definições</div><div style="font-size:12.5px;color:var(--ink2);white-space:pre-wrap">${pd.def}</div></div>`:''}
       <div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">1.2 Entradas</div><div style="font-size:12.5px">${pd.ent||'—'}</div></div>
@@ -13268,7 +13268,7 @@ function confirmarImportPOP(){
     ent:{dt_inicio:agora,dt_prev:'',equipe:'',prob:[],prev_ops:[],analise:'',mat:0,quest_resp:{}},
     mod:{asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,obs:'',etapas_proc:etapasProc},
     form:{faq:'',links:'',forms:'',pop_data:{area,objetivo,atores,atividades:etapasTexto},
-      pop:{area,ger:donoNome,mac:arqItem?.macro||'',obj:objetivo,def:'',ent:'',sai:'',ativ:ativTexto,ind:'',docs:''},
+      pop:{area,ger:'',mac:arqItem?.macro||'',obj:objetivo,def:'',ent:'',sai:'',ativ:ativTexto,ind:'',docs:''},
       pop_ok:true},
     hist:[{acao:'Processo criado via importação de POP Word (IA)',role:'EP',data:agora}],
     auditoria:null
