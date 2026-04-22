@@ -6473,7 +6473,7 @@ function renderEtapaDetalheConteudo(e){
   return `<div class="g2" style="margin-top:.6rem">
     <div class="fg"><label class="fl">Nome da etapa</label>
       <input class="fi" value="${(e.nome||'').replaceAll('"','&quot;')}"
-        oninput="(function(v){const _e=curProc.mod[_ekey()].find(x=>x.id==='${id}');_e.nome=v;document.querySelector('#ep-${id} .etapa-nome').textContent=v;if(_e.tipo==='Atividade'&&!_e.natureza){const inf=inferNatureza(v);if(inf){_e.natureza=inf;reRenderEtapaDetalhe('${id}');}}})(this.value)"
+        oninput="(function(v){const _e=curProc.mod[_ekey()].find(x=>x.id==='${id}');_e.nome=v;document.querySelector('#ep-${id} .etapa-nome').textContent=v;_syncBpmnElName('${id}',v);if(_e.tipo==='Atividade'&&!_e.natureza){const inf=inferNatureza(v);if(inf){_e.natureza=inf;reRenderEtapaDetalhe('${id}');}}})(this.value)"
       >
     </div>
     <div class="fg"><label class="fl">Tipo</label>
@@ -7392,6 +7392,17 @@ async function salvarReuniaoAvulsa(){
 // ═══════════════════════════════════════════
 // BPMN EDITOR
 // ═══════════════════════════════════════════
+function _syncBpmnElName(epId, newName){
+  const which=['esboco_tobe','det_valid_tobe'].includes(curProc?.etapa)?'tobe':'asis';
+  const mod=bpmnModelers[which];
+  if(!mod) return;
+  const et=(curProc?.mod?.[_ekey()]||[]).find(x=>x.id===epId);
+  if(!et?.bpmn_id) return;
+  try{
+    const el=mod.get('elementRegistry').get(et.bpmn_id);
+    if(el) mod.get('modeling').updateLabel(el, newName);
+  }catch{}
+}
 function bpmnHoverEtapa(event, epId){
   const which=['esboco_tobe','det_valid_tobe'].includes(curProc?.etapa)?'tobe':'asis';
   const mod=bpmnModelers[which];
