@@ -3669,10 +3669,12 @@ const ACOES = {
         ${avisoAnalise}
         <div style="font-weight:600;font-size:13px;margin-bottom:.5rem">✦ Análise gerada por IA</div>
         <div id="ia-analise-result">${iaHtml}</div>
-        <div class="btn-row" style="margin-top:.8rem">
+        <div style="margin-top:.8rem">
           ${a.ia_resultado
             ? `<button type="button" class="btn btn-t" onclick="confirmarRegenerarAnalise()" title="Sobrescreve a análise atual com uma nova geração">🔄 Regenerar análise com IA</button>`
             : `<button type="button" class="btn btn-t" onclick="gerarAnaliseIA()">✦ Gerar análise com IA</button>`}
+        </div>
+        <div class="btn-row" style="margin-top:.4rem">
           <button type="button" class="btn btn-p" onclick="salvarAnalise()">Concluir análise →</button>
         </div>`;
     }},
