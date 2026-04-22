@@ -7137,8 +7137,16 @@ function calcILP(etapas){
   if(!total)return null;
   const cnt=nat=>atividades.filter(n=>n.natureza===nat).length;
   const E=cnt('Execucao'), P=cnt('Preparacao'), C=cnt('Comunicacao'), D=cnt('Distribuicao');
-  // Exclusive diverging gateways: tipo Decisao, subtipo_gateway exclusivo, mais de 1 caminho de saída
-  const gxorDiv=all.filter(n=>n.tipo==='Decisao'&&n.subtipo_gateway==='exclusivo'&&(n.caminhos||[]).length>1).length;
+  // Exclusive diverging gateways: tipo Decisao, subtipo_gateway exclusivo
+  // Detecta divergência em DUAS estruturas:
+  //   1. Manual (editor de branches): gateway tem caminhos.length>1
+  //   2. BPMN plano (extrairBpmn): atividades dentro de branches referenciam o
+  //      gateway via vinculo_gw.gw_ep_id — o gateway em si fica com caminhos:[]
+  const xorGateways=all.filter(n=>n.tipo==='Decisao'&&n.subtipo_gateway==='exclusivo');
+  const gxorDiv=xorGateways.filter(gw=>
+    (gw.caminhos||[]).length>1 ||                          // estrutura manual
+    all.some(n=>n.vinculo_gw?.gw_ep_id===gw.id)           // estrutura BPMN plana
+  ).length;
   // Atores distintos (executores não vazios)
   const atores=new Set(atividades.map(n=>(n.executor||'').trim()).filter(Boolean));
   const nAtores=atores.size||1;
