@@ -7137,13 +7137,16 @@ function calcILP(etapas){
   if(!total)return null;
   const cnt=nat=>atividades.filter(n=>n.natureza===nat).length;
   const E=cnt('Execucao'), P=cnt('Preparacao'), C=cnt('Comunicacao'), D=cnt('Distribuicao');
-  // Gateways divergentes (qualquer tipo): Decisao com ramificações reais.
-  // NÃO filtra por subtipo_gateway — dados antigos não têm esse campo salvo.
+  // Gateways XOR divergentes: exclui tipos não-exclusivos (paralelo, inclusivo, complexo).
+  // Dados antigos sem subtipo_gateway são tratados como exclusivo (XOR) por default.
   // Detecta divergência por estrutura:
   //   a) caminhos.length>1   → estrutura manual OU BPMN novo (extrator popula caminhos)
   //   b) vinculo_gw.gw_ep_id → estrutura BPMN plana (atividades dentro de branches)
+  const NON_XOR=new Set(['paralelo','inclusivo','complexo']);
   const gxorDiv=all.filter(n=>
-    n.tipo==='Decisao' && (
+    n.tipo==='Decisao' &&
+    !NON_XOR.has(n.subtipo_gateway) &&
+    (
       (n.caminhos||[]).length>1 ||
       all.some(a=>a.vinculo_gw?.gw_ep_id===n.id)
     )
@@ -7152,7 +7155,7 @@ function calcILP(etapas){
   const atores=new Set(atividades.map(n=>(n.executor||'').trim()).filter(Boolean));
   const nAtores=atores.size||1;
   const numerador=E + P + 0.5*(C+D);
-  const denominador=total + 1*gxorDiv + 0.5*Math.max(0,nAtores-1);
+  const denominador=total + 0.5*gxorDiv + 0.5*Math.max(0,nAtores-1);
   const ilp=Math.round((numerador/denominador)*100);
   return {ilp,total,E,P,C,D,R:cnt('Revisao'),A:cnt('Aprovacao'),gxorDiv,nAtores};
 }
