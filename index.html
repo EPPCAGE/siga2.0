@@ -7533,7 +7533,26 @@ function initBpmnMod(which, p){
   mod.importXML(xml).then(()=>{
     const l=document.getElementById('bpmn-'+which+'-loading');
     if(l)l.style.display='none';
-    mod.get('canvas').zoom('fit-viewport');
+    const canvas=mod.get('canvas');
+    const isDet=['det_valid_asis','det_valid_tobe'].includes(p?.etapa);
+    if(isDet){
+      // Zoom in on the first task instead of fit-viewport (diagram is only 50% width)
+      const reg=mod.get('elementRegistry');
+      const startEl=reg.getAll().find(el=>el.type&&el.type.toLowerCase().includes('startevent'));
+      let focusEl=startEl;
+      if(startEl){
+        const conn=reg.getAll().find(el=>el.waypoints&&el.source?.id===startEl.id);
+        if(conn?.target) focusEl=conn.target;
+      }
+      if(focusEl){
+        const fw=Math.max(focusEl.width*5,480), fh=Math.max(focusEl.height*5,360);
+        canvas.viewbox({x:focusEl.x-(fw-focusEl.width)/2, y:focusEl.y-(fh-focusEl.height)/2, width:fw, height:fh});
+      } else {
+        canvas.zoom('fit-viewport');
+      }
+    } else {
+      canvas.zoom('fit-viewport');
+    }
     // Back-fill missing bpmn_id by element name (covers etapas extracted before this field existed)
     const etapasArr=curProc?.mod?.[_ekey()]||[];
     if(etapasArr.some(x=>!x.bpmn_id)){
