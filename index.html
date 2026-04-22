@@ -6451,8 +6451,7 @@ function _renderVinculoGwField(e, id){
   const selLabel=e.vinculo_gw?.label||'';
   const selGw=gateways.find(x=>x.id===selGwId);
   const caminhos=selGw?.caminhos||[];
-  const labeledCaminhos=caminhos.filter(c=>c.label);
-  const currentLabelMissing=selLabel&&!labeledCaminhos.some(c=>c.label===selLabel);
+  const currentLabelMissing=selLabel&&!caminhos.some(c=>c.label===selLabel);
   return `<div class="g2" style="margin-top:.5rem;padding:.5rem .75rem;background:var(--bg2);border-radius:var(--r);border:1px solid var(--bdr)">
     <div class="fg"><label class="fl">Gateway anterior <small style="font-weight:400;color:var(--ink3)">(opcional)</small></label>
       <select class="fi" onchange="(function(s){const _e=curProc.mod[_ekey()].find(x=>x.id==='${id}');_e.vinculo_gw=s.value?{gw_ep_id:s.value,label:''}:null;reRenderEtapaDetalhe('${id}');})(this)">
@@ -6461,9 +6460,9 @@ function _renderVinculoGwField(e, id){
       </select>
     </div>
     ${selGwId?`<div class="fg"><label class="fl">Caminho do gateway</label>
-      <select class="fi" onchange="curProc.mod[_ekey()].find(x=>x.id==='${id}').vinculo_gw.label=this.value">
+      <select class="fi" onchange="(function(s){const _e=curProc.mod[_ekey()].find(x=>x.id==='${id}');if(_e.vinculo_gw){_e.vinculo_gw.label=s.value;const _nm=document.querySelector('#ep-${id} .etapa-nome');if(_nm)_nm.innerHTML=esc(_e.nome||'')+_gwBadge(_e);}})(this)">
         <option value="">— Selecione —</option>
-        ${labeledCaminhos.map(c=>`<option value="${esc(c.label)}" ${selLabel===c.label?'selected':''}>${esc(c.label)}</option>`).join('')}
+        ${caminhos.map(c=>`<option value="${esc(c.label)}" ${selLabel===c.label?'selected':''}>${esc(c.label)||'(sem rótulo)'}</option>`).join('')}
         ${currentLabelMissing?`<option value="${esc(selLabel)}" selected>${esc(selLabel)||'(sem rótulo)'}</option>`:''}
       </select>
     </div>`:'<div></div>'}
@@ -6728,7 +6727,7 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
       if(n.tipo==='Decisao'){
         const nextsGw=outgoing[id]||[];
         if(nextsGw.length>1){
-          elem.caminhos=nextsGw.map(tgt=>({label:flowLabels[id+'→'+tgt]||'',acoes:[]}));
+          elem.caminhos=nextsGw.map((tgt,i)=>({label:flowLabels[id+'→'+tgt]||'Caminho '+(i+1),acoes:[]}));
         }
       }
       ordered.push(elem);
@@ -6739,7 +6738,7 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
       if(!visited.has(tgt)){
         let nextCtx;
         if(isGw){
-          nextCtx={gw_id:id, epId:xmlToEpId[id]||null, label:flowLabels[id+'→'+tgt]||''};
+          nextCtx={gw_id:id, epId:xmlToEpId[id]||null, label:flowLabels[id+'→'+tgt]||('Caminho '+(nexts.indexOf(tgt)+1))};
         } else {
           nextCtx=myCtx;
         }
@@ -7534,7 +7533,26 @@ function initBpmnMod(which, p){
   mod.importXML(xml).then(()=>{
     const l=document.getElementById('bpmn-'+which+'-loading');
     if(l)l.style.display='none';
-    mod.get('canvas').zoom('fit-viewport');
+    const canvas=mod.get('canvas');
+    const isDet=['det_valid_asis','det_valid_tobe'].includes(p?.etapa);
+    if(isDet){
+      // Zoom in on the first task instead of fit-viewport (diagram is only 50% width)
+      const reg=mod.get('elementRegistry');
+      const startEl=reg.getAll().find(el=>el.type&&el.type.toLowerCase().includes('startevent'));
+      let focusEl=startEl;
+      if(startEl){
+        const conn=reg.getAll().find(el=>el.waypoints&&el.source?.id===startEl.id);
+        if(conn?.target) focusEl=conn.target;
+      }
+      if(focusEl){
+        const fw=Math.max(focusEl.width*5,480), fh=Math.max(focusEl.height*5,360);
+        canvas.viewbox({x:focusEl.x-(fw-focusEl.width)/2, y:focusEl.y-(fh-focusEl.height)/2, width:fw, height:fh});
+      } else {
+        canvas.zoom('fit-viewport');
+      }
+    } else {
+      canvas.zoom('fit-viewport');
+    }
     // Back-fill missing bpmn_id by element name (covers etapas extracted before this field existed)
     const etapasArr=curProc?.mod?.[_ekey()]||[];
     if(etapasArr.some(x=>!x.bpmn_id)){
