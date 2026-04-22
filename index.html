@@ -7201,13 +7201,179 @@ function rForm(p){
     <button type="button" class="btn btn-a" onclick="gerarPopPdf()">⬇ Gerar POP em PDF</button>
   </div>`;
 }
-function gerarPopPdf(){
+// ─── Retorna SVG string do diagrama BPMN; usa modeler carregado ou renderiza
+// o XML num container temporário invisível como fallback ─────────────────────
+async function _bpmnGetSvg(which,p){
+  const m=bpmnModelers[which];
+  if(m&&bpmnProcIds[which]===p?.id){
+    try{const {svg}=await m.saveSVG();return svg;}catch{}
+  }
+  const xml=which==='asis'?p.mod?.bpmnAsIs:p.mod?.bpmnToBe;
+  if(!xml)return null;
+  return new Promise(resolve=>{
+    const tmp=document.createElement('div');
+    tmp.style.cssText='position:fixed;left:-9999px;top:0;width:1600px;height:900px;opacity:0;pointer-events:none;z-index:-1;';
+    document.body.appendChild(tmp);
+    let viewer;
+    try{viewer=new BpmnJS({container:tmp});}catch{tmp.remove();return resolve(null);}
+    viewer.importXML(xml)
+      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
+      .then(({svg})=>{try{viewer.destroy();}catch{}tmp.remove();resolve(svg);})
+      .catch(()=>{try{viewer.destroy();}catch{}tmp.remove();resolve(null);});
+  });
+}
+
+// ─── Gera HTML do apêndice de caracterização do processo para o PDF ──────────
+async function _popPdfAnexo(p){
+  const e=p.ent||{};
+  const sections=[];
+  const _esc=v=>esc(String(v||''));
+  const secH=(n,t)=>`<div style="font-size:13px;font-weight:700;color:#1a1a2e;border-bottom:2px solid #1e6bfa;padding-bottom:5px;margin:1.5rem 0 .8rem">${n} ${t}</div>`;
+  const fld=(l,v)=>v?`<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8888aa;margin-bottom:2px">${l}</div><div style="font-size:12px;font-weight:500;color:#1a1a2e">${_esc(v)}</div></div>`:'';
+
+  // ── 6.0 Identificação temporal ────────────────────────────────────────────
+  if(e.dt_inicio||e.dt_prev||e.dt_efetiva||e.equipe){
+    const fmtD=d=>d?d.split('-').reverse().join('/'):'—';
+    sections.push(`${secH('6.0','Identificação Temporal')}
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:.5rem">
+      ${fld('Início',fmtD(e.dt_inicio))}${fld('Previsão de entrega',fmtD(e.dt_prev))}${fld('Entrega efetiva',fmtD(e.dt_efetiva))}
+      ${fld('Produto',p.produto||'')}${fld('Tempo total',e.t_total||'')}${fld('Equipe',e.equipe||'')}
+    </div>`);
+  }
+
+  // ── 7.0 Volumetria ────────────────────────────────────────────────────────
+  if(e.vol?.exec||e.t_ciclo!=null||e.t_real!=null){
+    sections.push(`${secH('7.0','Volumetria')}
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:.5rem">
+      ${fld('Execuções/período',e.vol?.exec||'')}
+      ${fld('Tempo médio de ciclo',e.t_ciclo!=null?e.t_ciclo+' h':'')}
+      ${fld('Tempo real (lead time)',e.t_real!=null?e.t_real+' h':'')}
+      ${fld('Tempo de gaveta',e.t_gaveta!=null?e.t_gaveta+' h':'')}
+    </div>`);
+  }
+
+  // ── 8.0 Índice Lean Processual ────────────────────────────────────────────
+  const ilpData=calcILP(p.mod?.etapas_proc||[]);
+  if(ilpData){
+    const {ilp,total,E,P,C,D,R,A,gxorDiv,nAtores}=ilpData;
+    let ilpBg,ilpColor,ilpLabel,ilpDesc;
+    if(ilp>=75){
+      ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';
+      ilpDesc='As atividades produtivas representam a maior parte do fluxo, com baixo overhead de controle e coordenação. O processo está bem estruturado e com boa eficiência operacional.';
+    }else if(ilp>=50){
+      ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';
+      ilpDesc='Há oportunidades de redução de atividades de controle, handoffs ou fragmentação entre atores. Avaliar quais atividades de revisão, aprovação ou distribuição podem ser eliminadas ou automatizadas.';
+    }else{
+      ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';
+      ilpDesc='O processo possui percentual elevado de atividades de controle (revisão, aprovação, transferência), indicando possível burocracia, retrabalho frequente ou excesso de handoffs. Priorizar simplificação do fluxo.';
+    }
+    const natRow=[['Execução',E,'#0d9488'],['Preparação',P,'#6366f1'],['Comunicação',C,'#f59e0b'],['Distribuição',D,'#8b5cf6'],['Revisão',R,'#ef4444'],['Aprovação',A,'#f97316']]
+      .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
+    sections.push(`${secH('8.0','Índice Lean Processual')}
+    <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:.8rem">
+      <div style="background:${ilpBg};border-left:4px solid ${ilpColor};border-radius:6px;padding:12px 18px;text-align:center;min-width:130px;flex-shrink:0">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:${ilpColor};margin-bottom:4px">Índice Lean</div>
+        <div style="font-size:36px;font-weight:900;color:${ilpColor};line-height:1">${ilp}<span style="font-size:15px">/100</span></div>
+        <div style="font-size:11px;font-weight:700;color:${ilpColor};margin-top:4px">${ilpLabel}</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:12px;color:#4a4a6a;line-height:1.55;margin-bottom:.7rem">${ilpDesc}</div>
+        <div style="flex-wrap:wrap">${natRow}</div>
+        <div style="font-size:10px;color:#8888aa;margin-top:.4rem">Total atividades: <strong>${total}</strong> · Gateways XOR÷: <strong>${gxorDiv}</strong> · Atores distintos: <strong>${nAtores}</strong></div>
+      </div>
+    </div>`);
+  }
+
+  // ── 9.0 Maturidade ────────────────────────────────────────────────────────
+  const matNivel=e.mat||0;
+  if(matNivel>0){
+    const ML2=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
+    const matDescs=['',
+      'O processo é executado de forma ad hoc, sem padronização documentada. Os resultados dependem do esforço individual e do conhecimento tácito dos executores.',
+      'O processo possui rotinas estabelecidas e é repetido com alguma regularidade, mas a padronização ainda é informal ou parcial.',
+      'O processo está formalmente documentado, com responsabilidades, fluxo e critérios de qualidade claros. É um processo estável e ensinável.',
+      'O processo é monitorado com métricas quantitativas. Há coleta sistemática de dados e controle dos resultados com base em indicadores.',
+      'O processo é continuamente aprimorado com base em dados, benchmarks e inovação. Representa o nível máximo de excelência processual.'
+    ];
+    const badges=[1,2,3,4,5].map(n=>{
+      const bg=matNivel===n?'#1e6bfa':matNivel>n?'#d1fae5':'#f4f5f8';
+      const c=matNivel===n?'#fff':matNivel>n?'#065f46':'#8888aa';
+      return `<span style="background:${bg};color:${c};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px">${n} ${ML2[n]}</span>`;
+    }).join('');
+    sections.push(`${secH('9.0',`Maturidade — Nível ${matNivel}/5: ${ML2[matNivel]}`)}
+    <div style="margin-bottom:.5rem">${badges}</div>
+    <div style="font-size:12px;color:#4a4a6a;line-height:1.55">${matDescs[matNivel]}</div>`);
+  }
+
+  // ── 10.0 SIPOC ────────────────────────────────────────────────────────────
+  if(e.fornecedores||e.entradas||e.saidas||e.clientes){
+    const cols=[['S','Fornecedores',e.fornecedores,'#dbeafe','#1d4ed8'],['I','Entradas',e.entradas,'#dcfce7','#166534'],['P','Processo',p.nome,'#ede9fe','#5b21b6'],['O','Saídas',e.saidas,'#fef3c7','#92400e'],['C','Clientes',e.clientes,'#fce7f3','#9d174d']];
+    sections.push(`${secH('10.0','SIPOC')}
+    <table style="width:100%;border-collapse:collapse">
+      <tr>${cols.map(([k,lb,,bg,c])=>`<th style="background:${bg};color:${c};padding:8px;text-align:center;font-size:11px;border:1px solid #e0e0f0"><span style="font-size:18px;font-weight:900;font-family:Georgia,serif;display:block">${k}</span>${lb}</th>`).join('')}</tr>
+      <tr>${cols.map(([,,v,bg])=>`<td style="background:${bg}55;padding:8px;font-size:11px;vertical-align:top;border:1px solid #e0e0f0;white-space:pre-wrap">${_esc(v||'—')}</td>`).join('')}</tr>
+    </table>
+    ${e.atores?`<div style="font-size:11px;color:#4a4a6a;margin-top:.5rem"><strong>Atores/participantes:</strong> ${_esc(e.atores)}</div>`:''}`);
+  }
+
+  // ── 11.0 Matriz de Riscos ─────────────────────────────────────────────────
+  const riscos=e.riscos||[];
+  if(riscos.length){
+    const pS={Alta:3,Media:2,Baixa:1};
+    const iS={Baixo:1,Medio:2,Alto:3,Critico:4};
+    const sev=r=>{const s=(pS[r.prob]||1)*(iS[r.imp]||1);if(s<=2)return['#d1fae5','#065f46','Baixo'];if(s<=4)return['#fef3c7','#92400e','Moderado'];if(s<=8)return['#ffedd5','#9a3412','Alto'];return['#fee2e2','#991b1b','Crítico'];};
+    const rRows=riscos.map(r=>{const[bg,c,lbl]=sev(r);return`<tr><td style="padding:5px 8px;font-size:11px;border-bottom:1px solid #e0e0f0">${_esc(r.desc)}</td><td style="padding:5px 8px;font-size:11px;text-align:center;border-bottom:1px solid #e0e0f0">${r.prob||'—'}</td><td style="padding:5px 8px;font-size:11px;text-align:center;border-bottom:1px solid #e0e0f0">${r.imp||'—'}</td><td style="padding:5px 8px;font-size:10px;text-align:center;border-bottom:1px solid #e0e0f0;background:${bg};color:${c};font-weight:700">${lbl}</td></tr>`;}).join('');
+    sections.push(`${secH('11.0',`Matriz de Riscos (${riscos.length})`)}
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#f4f5f8"><th style="padding:5px 8px;text-align:left;font-size:10px;border-bottom:2px solid #e0e0f0">Risco</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Probabilidade</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Impacto</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Severidade</th></tr></thead>
+      <tbody>${rRows}</tbody>
+    </table>`);
+  }
+
+  // ── 12.0 Desenho do processo (BPMN) ──────────────────────────────────────
+  const hasBpmnA=!!(p.mod?.bpmnAsIs);
+  const hasBpmnT=!!(p.mod?.bpmnToBe);
+  if(hasBpmnA||hasBpmnT){
+    let bpHtml=secH('12.0','Desenho do Processo');
+    if(hasBpmnA){
+      const svg=await _bpmnGetSvg('asis',p);
+      if(svg){
+        const uri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+        bpHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.4rem">AS IS — Situação Atual</div><img src="${uri}" style="max-width:100%;border:1px solid #e0e0f0;border-radius:4px;margin-bottom:1.2rem" alt="Fluxo AS IS">`;
+      }
+    }
+    if(hasBpmnT){
+      const svg=await _bpmnGetSvg('tobe',p);
+      if(svg){
+        const uri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+        bpHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.4rem;margin-top:.5rem">TO BE — Situação Proposta</div><img src="${uri}" style="max-width:100%;border:1px solid #e0e0f0;border-radius:4px" alt="Fluxo TO BE">`;
+      }
+    }
+    sections.push(bpHtml);
+  }
+
+  if(!sections.length)return '';
+  return `<div style="page-break-before:always;padding-top:1.5rem">
+    <div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.5rem;font-family:'Segoe UI',Arial,sans-serif">APÊNDICE — CARACTERIZAÇÃO DO PROCESSO</div>
+    ${sections.join('\n')}
+  </div>`;
+}
+
+async function gerarPopPdf(){
   const el=document.getElementById('tab-form');
   if(!el)return;
   const inner=el.querySelector('.pop-pdf-bar')?el.innerHTML.replace(/<div class="pop-pdf-bar"[\s\S]*?<\/div>/,''):el.innerHTML;
   if(!inner.trim())return;
-  const nome=esc(curProc?.nome||'POP');
+  const p=curProc;
+  const nome=esc(p?.nome||'POP');
+  // Mostra feedback visual enquanto processa BPMN
+  const btn=el.querySelector('.pop-pdf-bar button');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Preparando...';}
+  let anexo='';
+  try{anexo=await _popPdfAnexo(p);}catch(ex){console.warn('_popPdfAnexo:',ex);}
+  if(btn){btn.disabled=false;btn.textContent='⬇ Gerar POP em PDF';}
   const w=window.open('','_blank');
+  if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
   <style>
     :root{--blue:#1e6bfa;--ink:#1a1a2e;--ink2:#4a4a6a;--ink3:#8888aa;--bg2:#f4f5f8;--surf:#fff;--bdr:#e0e0f0;--r:6px;--rl:8px;--fh:'Segoe UI',Arial,sans-serif}
@@ -7216,11 +7382,12 @@ function gerarPopPdf(){
     table{width:100%;border-collapse:collapse;margin-bottom:10px}
     th,td{border:1px solid #ddd;padding:5px 8px;text-align:left}
     th{background:#f4f5f8;font-size:10px}
+    img{max-width:100%}
     @media print{body{padding:10px}.pop-pdf-bar{display:none!important}}
   </style>
-  </head><body>${inner}</body></html>`);
+  </head><body>${inner}${anexo}</body></html>`);
   w.document.close();
-  setTimeout(()=>w.print(),400);
+  setTimeout(()=>w.print(),800);
 }
 function rMon(p){
   const inds=kpis.filter(d=>d.pid===p.id);
