@@ -7523,13 +7523,30 @@ function bpmnEditorHTML(which, existingXml){
 }
 
 function initBpmnMod(which, p){
-  if(bpmnModelers[which]){try{bpmnModelers[which].destroy();}catch{}bpmnModelers[which]=null;}
-  const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
-  if(!canvasEl)return;
   if(typeof BpmnJS==='undefined'){
     const l=document.getElementById('bpmn-'+which+'-loading');
     if(l)l.innerHTML='<div style="text-align:center;padding:2rem"><div style="font-size:28px;margin-bottom:8px">📦</div><div style="font-size:13px;font-weight:600">Editor BPMN não disponível</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Requer conexão com internet</div></div>';
     return;
+  }
+  const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
+  if(!canvasEl)return;
+  // If the modeler already exists, just re-attach to the new canvas element.
+  // This preserves the live diagram state (including unsaved edits) across
+  // navigations between esboco and det_valid (they share bpmnModelers['asis'/'tobe']).
+  if(bpmnModelers[which]){
+    try{
+      bpmnModelers[which].attachTo(canvasEl);
+      const l=document.getElementById('bpmn-'+which+'-loading');
+      if(l)l.style.display='none';
+      if(bpmnDirty[which]){
+        const lbl=document.getElementById('bpmn-'+which+'-dirty');
+        if(lbl)lbl.style.display='inline';
+      }
+      return;
+    }catch{
+      try{bpmnModelers[which].destroy();}catch{}
+      bpmnModelers[which]=null;
+    }
   }
   const mod=new BpmnJS({container:'#bpmn-'+which+'-canvas',keyboard:{bindTo:document}});
   bpmnModelers[which]=mod;
