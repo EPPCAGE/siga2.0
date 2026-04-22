@@ -820,6 +820,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <div class="fg"><label class="fl" for="nkpi-real">Realizado</label><input class="fi" id="nkpi-real" type="number" placeholder="100" oninput="calcPctReal()"></div>
         <div class="fg"><label class="fl" for="nkpi-indice">% Índice</label><input class="fi" id="nkpi-indice" type="number" placeholder="80"></div>
       </div>
+      <div class="fg" style="margin-top:-2px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--ink3)">
+          <input type="checkbox" id="nkpi-sem-dado" onchange="calcPctReal()">
+          <span>Sem medição neste período (N/A) — exclui da análise de desempenho</span>
+        </label>
+      </div>
       <div class="fg"><label class="fl" for="nkpi-pct-real">Desempenho (calculado)</label><input class="fi" id="nkpi-pct-real" readonly placeholder="Calculado automaticamente"></div>
       <div class="fg"><label class="fl" for="nkpi-analise">Análise</label>
         <textarea class="fi" id="nkpi-analise" style="min-height:70px" placeholder="Comentário sobre o resultado..."></textarea>
@@ -9470,16 +9476,27 @@ function populateIndFilters(){
 }
 
 function _kpiGrpStatus(items){
-  const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0)>0);
+  // Exclude periods explicitly marked as "sem medição"
+  const measured = items.filter(i=>!i.sem_dado);
+  // Include periods that have real data: realizado>0, OR both realizado===0 AND meta===0 (meta cumprida = zero ocorrências)
+  const withData = measured.filter(i=>{
+    const r = Number.parseFloat(i.realizado);
+    const m = Number.parseFloat(i.meta);
+    return (r > 0) || (r === 0 && m === 0 && i.realizado != null && i.meta != null);
+  });
   if(!withData.length) return null; // sem dados no período
   const last = withData[withData.length-1];
-  if(Number(last.meta)<=0) return null; // sem meta real (apenas _metaFallback ou sem meta)
+  const r = Number.parseFloat(last.realizado);
+  const m = Number.parseFloat(last.meta);
+  // meta=0 e realizado=0 → meta cumprida (ex: zero ocorrências de incidentes)
+  if(r === 0 && m === 0) return 'ok';
+  if(m <= 0) return null; // sem meta real (apenas _metaFallback ou sem meta)
   const pol = items[0].polaridade||'Maior é melhor';
   let pct;
   if(pol==='Menor é melhor'){
-    pct = Number(last.realizado)>0 ? (Number(last.meta)/Number(last.realizado))*100 : 0;
+    pct = r > 0 ? (m/r)*100 : 0;
   } else {
-    pct = (Number(last.realizado)/Number(last.meta))*100;
+    pct = (r/m)*100;
   }
   return pct>=100?'ok':'nok';
 }
@@ -9552,17 +9569,27 @@ function kpiGrupoCardHTML(key, items){
   const area = items[0].area||'';
   const isPpe = items[0].ppe === 'Sim';
 
-  // Border color based on most recent period WITH data (realizado > 0)
-  const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0) > 0);
+  // Border color based on most recent measured period WITH data (realizado>0, OR meta=0+real=0)
+  const withData = items.filter(i=>{
+    if(i.sem_dado) return false;
+    const r = Number.parseFloat(i.realizado);
+    const m = Number.parseFloat(i.meta);
+    return (r > 0) || (r === 0 && m === 0 && i.realizado != null && i.meta != null);
+  });
   const last = withData.length ? withData[withData.length-1] : null;
-  const hasMeta = last && (last.meta||0) > 0;
+  const lastR = last ? Number.parseFloat(last.realizado) : null;
+  const lastM = last ? Number.parseFloat(last.meta) : null;
+  // meta=0 e realizado=0 → meta cumprida
+  const hasMeta = last && (lastM > 0 || (lastR === 0 && lastM === 0));
   let borderColor = 'var(--bdr)';
   if(hasMeta){
     let pct;
-    if(polaridade==='Menor é melhor'){
-      pct = last.realizado > 0 ? (last.meta/last.realizado)*100 : 0;
+    if(lastR === 0 && lastM === 0){
+      pct = 100; // meta cumprida
+    } else if(polaridade==='Menor é melhor'){
+      pct = lastR > 0 ? (lastM/lastR)*100 : 0;
     } else {
-      pct = (last.realizado/last.meta)*100;
+      pct = (lastR/lastM)*100;
     }
     if(pct>=100) borderColor = 'var(--green)';
     else if(pct>=80) borderColor = 'var(--amber)';
@@ -9588,6 +9615,8 @@ function kpiGrupoCardHTML(key, items){
 }
 // populateGrfkFilters removida (dead code — alias sem chamador; use populateIndFilters())
 function kpiBarColor(r, m, polaridade){
+  // meta=0 e realizado=0 → meta cumprida (ex: zero ocorrências)
+  if(r === 0 && m === 0) return 'rgba(34,197,94,0.75)';
   if(!m) return 'rgba(96,165,250,0.7)';
   let pct;
   if(polaridade==='Menor é melhor'){
@@ -9635,8 +9664,13 @@ function kpiGroupByKey(list){
 function createKpiChart(key, items){
   const canvas = document.getElementById('chart-kpi-'+key.replaceAll(/\W/g,'_'));
   if(!canvas) return;
-  // Only show periods that have data (realizado > 0)
-  const withData = items.filter(i=>(Number.parseFloat(i.realizado)||0) > 0);
+  // Only show measured periods that have data (realizado>0, OR meta=0+real=0)
+  const withData = items.filter(i=>{
+    if(i.sem_dado) return false;
+    const r = Number.parseFloat(i.realizado);
+    const m = Number.parseFloat(i.meta);
+    return (r > 0) || (r === 0 && m === 0 && i.realizado != null && i.meta != null);
+  });
   if(!withData.length){ canvas.parentElement.style.display='none'; return; }
   const polaridade = items[0].polaridade||'Maior é melhor';
   const unidade = items[0].unidade||'';
@@ -9754,10 +9788,12 @@ function _kpiFormSetFields(k){
   fv('nkpi-indice',     k.indice     || '');
   fv('nkpi-meta',       k.meta       || '');
   fv('nkpi-real',       k.realizado  || '');
-  fv('nkpi-pct-real',   k.pct_realizado ? k.pct_realizado+'%' : '');
+  fv('nkpi-pct-real',   k.pct_realizado != null ? k.pct_realizado+'%' : '');
   fv('nkpi-unidade',    k.unidade    || '');
   fv('nkpi-polaridade', k.polaridade || 'Maior é melhor');
   fv('nkpi-analise',    k.analise    || '');
+  const sdEl = document.getElementById('nkpi-sem-dado');
+  if(sdEl) sdEl.checked = !!k.sem_dado;
   // populate process selector
   const procSel = document.getElementById('nkpi-proc');
   if(procSel){
@@ -9817,6 +9853,7 @@ function _kpiNavFlushCurrent(){
     realizado: Number.parseFloat(document.getElementById('nkpi-real')?.value)    || 0,
     indice:    Number.parseFloat(document.getElementById('nkpi-indice')?.value)  || 0,
     analise:   document.getElementById('nkpi-analise')?.value.trim()  || '',
+    sem_dado:  !!(document.getElementById('nkpi-sem-dado')?.checked),
   };
 }
 
@@ -9831,6 +9868,8 @@ function _kpiNavLoadCurrent(){
   fv('nkpi-real',     edits ? edits.realizado  : (k.realizado || ''));
   fv('nkpi-indice',   edits ? edits.indice     : (k.indice    || ''));
   fv('nkpi-analise',  edits ? edits.analise    : (k.analise   || ''));
+  const sdEl2 = document.getElementById('nkpi-sem-dado');
+  if(sdEl2) sdEl2.checked = !!(edits ? edits.sem_dado : k.sem_dado);
   calcPctReal();
   _kpiNavUpdateSelector();
 }
@@ -9857,16 +9896,24 @@ function _kpiNavStep(dir){
 }
 
 function calcPctReal(){
-  const meta = Number.parseFloat(document.getElementById('nkpi-meta').value) || 0;
-  const real = Number.parseFloat(document.getElementById('nkpi-real').value) || 0;
+  const semDado = document.getElementById('nkpi-sem-dado')?.checked;
+  const pctEl   = document.getElementById('nkpi-pct-real');
+  if(semDado){ if(pctEl) pctEl.value = 'N/A'; return; }
+  const metaRaw = document.getElementById('nkpi-meta').value;
+  const realRaw = document.getElementById('nkpi-real').value;
+  const meta = Number.parseFloat(metaRaw);
+  const real = Number.parseFloat(realRaw);
   const pol  = document.getElementById('nkpi-polaridade').value;
   let pct = '';
-  if(pol === 'Menor é melhor'){
+  // meta=0 e realizado=0 → meta cumprida (ex: zero incidentes, meta era zero)
+  if(!Number.isNaN(meta) && meta === 0 && !Number.isNaN(real) && real === 0 && metaRaw !== '' && realRaw !== ''){
+    pct = '100%';
+  } else if(pol === 'Menor é melhor'){
     pct = real > 0 ? Math.round((meta/real)*100)+'%' : '';
   } else {
     pct = meta > 0 ? Math.round((real/meta)*100)+'%' : '';
   }
-  document.getElementById('nkpi-pct-real').value = pct;
+  if(pctEl) pctEl.value = pct;
 }
 
 function editKpi(id){
@@ -9933,12 +9980,17 @@ function salvarNovoKpi(){
         kpis[idx].realizado = edits.realizado;
         kpis[idx].indice    = edits.indice;
         kpis[idx].analise   = edits.analise;
+        kpis[idx].sem_dado  = !!edits.sem_dado;
       }
       // Recalculate pct_realizado
       const pol  = kpis[idx].polaridade;
-      const meta = kpis[idx].meta;
-      const real = kpis[idx].realizado;
-      if(pol === 'Menor é melhor'){
+      const meta = Number.parseFloat(kpis[idx].meta);
+      const real = Number.parseFloat(kpis[idx].realizado);
+      if(kpis[idx].sem_dado){
+        kpis[idx].pct_realizado = null;
+      } else if(real === 0 && meta === 0){
+        kpis[idx].pct_realizado = 100; // meta cumprida
+      } else if(pol === 'Menor é melhor'){
         kpis[idx].pct_realizado = real > 0 ? Math.round((meta/real)*100) : 0;
       } else {
         kpis[idx].pct_realizado = meta > 0 ? Math.round((real/meta)*100) : 0;
@@ -9947,14 +9999,21 @@ function salvarNovoKpi(){
 
   } else if(editId){
     // Single-period edit
-    const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)  || 0;
-    const real      = Number.parseFloat(document.getElementById('nkpi-real').value)  || 0;
+    const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value);
+    const real      = Number.parseFloat(document.getElementById('nkpi-real').value);
+    const metaVal   = Number.isNaN(meta) ? 0 : meta;
+    const realVal   = Number.isNaN(real) ? 0 : real;
+    const semDado   = !!(document.getElementById('nkpi-sem-dado')?.checked);
     const polaridade = document.getElementById('nkpi-polaridade').value;
     let pct;
-    if(polaridade === 'Menor é melhor'){
-      pct = real > 0 ? Math.round((meta/real)*100) : 0;
+    if(semDado){
+      pct = null;
+    } else if(realVal === 0 && metaVal === 0 && document.getElementById('nkpi-meta').value !== '' && document.getElementById('nkpi-real').value !== ''){
+      pct = 100;
+    } else if(polaridade === 'Menor é melhor'){
+      pct = realVal > 0 ? Math.round((metaVal/realVal)*100) : 0;
     } else {
-      pct = meta > 0 ? Math.round((real/meta)*100) : 0;
+      pct = metaVal > 0 ? Math.round((realVal/metaVal)*100) : 0;
     }
     const editIdNum = Number.parseInt(editId);
     const idx = kpis.findIndex(k=>k.id===editIdNum);
@@ -9975,22 +10034,29 @@ function salvarNovoKpi(){
         ppe: document.getElementById('nkpi-ppe').value,
         indice: Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
         unidade: document.getElementById('nkpi-unidade').value.trim(),
-        polaridade, meta, realizado: real,
+        polaridade, meta: metaVal, realizado: realVal,
         analise: document.getElementById('nkpi-analise').value.trim(),
-        pct_realizado: pct,
+        pct_realizado: pct, sem_dado: semDado,
         pid: pidRaw ? Number.parseInt(pidRaw) : null,
       };
     }
   } else {
     // New KPI
-    const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value)  || 0;
-    const real      = Number.parseFloat(document.getElementById('nkpi-real').value)  || 0;
+    const meta      = Number.parseFloat(document.getElementById('nkpi-meta').value);
+    const real      = Number.parseFloat(document.getElementById('nkpi-real').value);
+    const metaVal   = Number.isNaN(meta) ? 0 : meta;
+    const realVal   = Number.isNaN(real) ? 0 : real;
+    const semDado   = !!(document.getElementById('nkpi-sem-dado')?.checked);
     const polaridade = document.getElementById('nkpi-polaridade').value;
     let pct;
-    if(polaridade === 'Menor é melhor'){
-      pct = real > 0 ? Math.round((meta/real)*100) : 0;
+    if(semDado){
+      pct = null;
+    } else if(realVal === 0 && metaVal === 0 && document.getElementById('nkpi-meta').value !== '' && document.getElementById('nkpi-real').value !== ''){
+      pct = 100;
+    } else if(polaridade === 'Menor é melhor'){
+      pct = realVal > 0 ? Math.round((metaVal/realVal)*100) : 0;
     } else {
-      pct = meta > 0 ? Math.round((real/meta)*100) : 0;
+      pct = metaVal > 0 ? Math.round((realVal/metaVal)*100) : 0;
     }
     const newPidRaw = document.getElementById('nkpi-proc')?.value;
     kpis.push({
@@ -10003,9 +10069,9 @@ function salvarNovoKpi(){
       ppe: document.getElementById('nkpi-ppe').value,
       indice: Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
       unidade: document.getElementById('nkpi-unidade').value.trim(),
-      polaridade, meta, realizado: real,
+      polaridade, meta: metaVal, realizado: realVal,
       analise: document.getElementById('nkpi-analise').value.trim(),
-      pct_realizado: pct,
+      pct_realizado: pct, sem_dado: semDado,
       pid: newPidRaw ? Number.parseInt(newPidRaw) : null,
     });
   }
