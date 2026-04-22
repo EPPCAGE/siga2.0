@@ -4274,6 +4274,7 @@ function rAcaoRetro(){
       ${_RESET_MAP[etId]?`<button type="button" class="btn btn-r" style="margin-right:auto" onclick="refazerEtapaConfirm('${etId}')">🗑 Refazer etapa</button>`:''}
       <span style="font-size:12px;color:var(--ink3)">Salva os dados sem avançar o fluxo</span>
       <button type="button" class="btn btn-p" onclick="salvarRetroativo('${etId}')">💾 Salvar dados</button>
+      <button type="button" class="btn btn-p" onclick="salvarEIrProximo('${etId}')">💾 Salvar e ir para próxima →</button>
     </div>`;
   document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
   if(etId==='esboco_asis'||etId==='det_valid_asis'||etId==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
@@ -4480,6 +4481,16 @@ function salvarRetroativo(etId){
   rDetalhe();
   fbAutoSave('retroativo');
   updCounts();
+}
+function salvarEIrProximo(etId){
+  const p=curProc;
+  if(_RS_MAP[etId]) _RS_MAP[etId](p);
+  push(p,etId,'EP','Dados revisados retroativamente pelo EP');
+  fbAutoSave('retroativo');
+  toast('Revisão salva.','var(--blue)');
+  const nx=nextEt(etId);
+  if(!nx||nx===p.etapa){epRetroEtapa=null;rDetalhe();}
+  else{epRetroEtapa=nx;rAcaoRetro();}
 }
 function buildAcaoCardHTML(ac, p, extraNote){
   return `<div class="card">
