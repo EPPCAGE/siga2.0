@@ -1919,7 +1919,7 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
     emailjs.send(ejsConfig.service,ejsConfig.template,{
       to_name:para_nome,to_email:para_email,
       from_name:de_nome||'EP·CAGE',
-      processo:proc_nome,acao,prazo:prazo||'Não definido',
+      processo:proc_nome,acao,prazo:prazo||'',
       link:'https://sigaepp.web.app/',
     }).then(()=>{
       console.info('EmailJS: e-mail enviado para',para_email);
