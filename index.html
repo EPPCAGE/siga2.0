@@ -7138,14 +7138,17 @@ function calcILP(etapas){
   const cnt=nat=>atividades.filter(n=>n.natureza===nat).length;
   const E=cnt('Execucao'), P=cnt('Preparacao'), C=cnt('Comunicacao'), D=cnt('Distribuicao');
   // Gateways XOR divergentes: exclui tipos não-exclusivos (paralelo, inclusivo, complexo).
-  // Dados antigos sem subtipo_gateway são tratados como exclusivo (XOR) por default.
+  // Dados antigos sem subtipo_gateway são tratados como exclusivo (XOR) por default,
+  // EXCETO se o nome do gateway contiver "paralelo" (normalizado, sem acento/caixa).
   // Detecta divergência por estrutura:
   //   a) caminhos.length>1   → estrutura manual OU BPMN novo (extrator popula caminhos)
   //   b) vinculo_gw.gw_ep_id → estrutura BPMN plana (atividades dentro de branches)
   const NON_XOR=new Set(['paralelo','inclusivo','complexo']);
+  const _normGw=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const _isParalelo=n=>NON_XOR.has(n.subtipo_gateway)||_normGw(n.nome).includes('paralelo');
   const gwXorNodes=all.filter(n=>
     n.tipo==='Decisao' &&
-    !NON_XOR.has(n.subtipo_gateway) &&
+    !_isParalelo(n) &&
     (
       (n.caminhos||[]).length>1 ||
       all.some(a=>a.vinculo_gw?.gw_ep_id===n.id)
