@@ -1919,7 +1919,7 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
     emailjs.send(ejsConfig.service,ejsConfig.template,{
       to_name:para_nome,to_email:para_email,
       from_name:de_nome||'EP·CAGE',
-      processo:proc_nome,acao,prazo:prazo||'Não definido',
+      processo:proc_nome,acao,prazo:prazo||'',
       link:'https://sigaepp.web.app/',
     }).then(()=>{
       console.info('EmailJS: e-mail enviado para',para_email);
@@ -3589,7 +3589,7 @@ function reprovarDetValidAsis(){
   if(dt||part||ata){p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};}
   reprovarDono('esboco_asis','Dono','Dono solicitou ajustes no AS IS — '+obs);
 }
-function salvarMelhorias(){
+function salvarMelhorias(avancar=true){
   const p=curProc;
   if(!p.ent.analise)p.ent.analise={};
   const fb={};
@@ -3598,7 +3598,8 @@ function salvarMelhorias(){
     if(val){if(!fb[tipo]){fb[tipo]={};} fb[tipo][texto]=val;}
   });
   p.ent.analise.feedback_dono=fb;
-  av('melhorias','EP','Melhorias e mitigações revisadas pelo EP');
+  if(avancar) av('melhorias','EP','Melhorias e mitigações revisadas pelo EP');
+  else{fbAutoSave('salvarMelhorias');toast('Dados salvos!','var(--teal)');}
 }
 function aprovarDetValidTobe(){
   const p=curProc;
@@ -4645,19 +4646,34 @@ function salvarEIrProximo(etId){
   else{epRetroEtapa=nx;rAcaoRetro();}
 }
 const _ADVANCE_MAP={
-  abertura:    ()=>salvarAbertura(),
-  reuniao:     ()=>salvarReuniao(),
-  riscos:      ()=>salvarRiscos(),
-  analise:     ()=>salvarAnalise(),
-  esboco_asis: ()=>salvarEsboco(),
-  melhorias:   ()=>salvarMelhorias(),
-  esboco_tobe: ()=>salvarEsbocaTobe(),
-  desenho_final:()=>salvarDesenhoFinal(),
+  abertura:         ()=>salvarAbertura(),
+  reuniao:          ()=>salvarReuniao(),
+  riscos:           ()=>salvarRiscos(),
+  analise:          ()=>salvarAnalise(),
+  esboco_asis:      ()=>salvarEsboco(),
+  melhorias:        ()=>salvarMelhorias(),
+  esboco_tobe:      ()=>salvarEsbocaTobe(),
+  desenho_final:    ()=>salvarDesenhoFinal(),
   indicadores_proc: ()=>salvarIndicadoresProc(),
-  pop:         ()=>salvarPOP(),
-  publicacao:  ()=>publicarProcesso(),
-  acompanha:   ()=>av('acompanha','EP','Acompanhamento concluído'),
-  auditoria:   ()=>salvarAuditoria(true),
+  pop:              ()=>salvarPOP(),
+  publicacao:       ()=>publicarProcesso(),
+  acompanha:        ()=>av('acompanha','EP','Acompanhamento concluído'),
+  auditoria:        ()=>salvarAuditoria(true),
+};
+const _SAVE_MAP={
+  abertura:         ()=>salvarAbertura(false),
+  reuniao:          ()=>salvarReuniao(false),
+  riscos:           ()=>salvarRiscos(false),
+  analise:          ()=>salvarAnalise(false),
+  esboco_asis:      ()=>salvarEsboco(false),
+  melhorias:        ()=>salvarMelhorias(false),
+  esboco_tobe:      ()=>salvarEsbocaTobe(false),
+  desenho_final:    ()=>salvarDesenhoFinal(false),
+  indicadores_proc: ()=>salvarIndicadoresProc(false),
+  pop:              ()=>salvarPOP(false),
+  publicacao:       ()=>salvarDadosPublicacao(),
+  acompanha:        ()=>{fbAutoSave('acompanha');toast('Dados salvos!','var(--teal)');},
+  auditoria:        ()=>salvarAuditoria(false),
 };
 function buildAcaoCardHTML(ac, p, extraNote){
   return `<div class="card">
@@ -4883,12 +4899,15 @@ function rAcao(p){
       el.appendChild(epbar);
     }
   }
-  // Barra de salvar e avançar (apenas EP, apenas etapas rk:'ep')
+  // Barra de ações: salvar dados (permanece) + salvar e avançar (apenas EP, etapas rk:'ep')
   if(isEP() && ACOES[p.etapa]?.rk==='ep' && _ADVANCE_MAP[p.etapa]){
     const advBar=document.createElement('div');
-    advBar.style.cssText='margin-top:.8rem;padding:.65rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--blue-l,#eff6ff)';
-    advBar.innerHTML=`<span style="font-size:12px;color:var(--ink2)">Concluiu o preenchimento desta etapa?</span>
-      <button type="button" class="btn btn-p" style="font-size:12.5px;padding:5px 14px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">💾 Salvar e ir para próxima →</button>`;
+    advBar.style.cssText='margin-top:.8rem;padding:.65rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--blue-l,#eff6ff)';
+    advBar.innerHTML=`<span style="font-size:12px;color:var(--ink2)">Ações disponíveis:</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn" style="font-size:12px;padding:4px 12px" onclick="_SAVE_MAP[curProc?.etapa]?.()">💾 Salvar dados</button>
+        <button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">✓ Salvar e ir para próxima →</button>
+      </div>`;
     el.appendChild(advBar);
   }
   _rAcaoInitBpmn(p, false);
@@ -4950,7 +4969,7 @@ function calcVolumetria(){
   const tot=document.getElementById('r-total-mensal');
   if(tot) tot.value=(vol&&real)?+(vol*real).toFixed(1)+' h/mês':'';
 }
-function salvarAbertura(){
+function salvarAbertura(avancar=true){
   if(!_validarCampos([{id:'a-ini',label:'Data de início'},{id:'a-equipe',label:'Equipe de trabalho'}])) return;
   const p=curProc;
   p.ent.dt_inicio=document.getElementById('a-ini')?.value||'';
@@ -4958,7 +4977,8 @@ function salvarAbertura(){
   p.ent.equipe=document.getElementById('a-equipe')?.value||'';
   p.objetivo=document.getElementById('a-obj')?.value||p.objetivo;
   p.ent.escopo=document.getElementById('a-escopo')?.value||p.ent.escopo||'';
-  av('abertura','EP','Dados iniciais confirmados. Reunião de entendimento agendada.');
+  if(avancar) av('abertura','EP','Dados iniciais confirmados. Reunião de entendimento agendada.');
+  else{fbAutoSave('salvarAbertura');toast('Dados salvos!','var(--teal)');}
 }
 function setLikert(qid,val,btn){
   if(!curProc.ent.quest_resp)curProc.ent.quest_resp={};
@@ -5072,7 +5092,7 @@ function remProb(i){
   curProc.ent.prob.splice(i,1);
   document.getElementById('prob-list').innerHTML=rProbList(curProc.ent.prob);
 }
-function salvarReuniao(){
+function salvarReuniao(avancar=true){
   if(!_validarCampos([
     {id:'r-fornec',label:'Fornecedores'},
     {id:'r-atores',label:'Atores'},
@@ -5095,7 +5115,8 @@ function salvarReuniao(){
   else p.ent.total_h_mensal=null;
   p.ent.prob=(p.ent.prob||[]).map(x=>typeof x==='string'?{desc:x,solucao:''}:x).filter(x=>x.desc);
   sincronizarSIPOCArquitetura(p);
-  av('reuniao','EP','Reunião de entendimento concluída. '+prob.length+' problemas identificados.');
+  if(avancar) av('reuniao','EP','Reunião de entendimento concluída. '+(p.ent.prob||[]).length+' problemas identificados.');
+  else{fbAutoSave('salvarReuniao');toast('Dados salvos!','var(--teal)');}
 }
 async function iaGerarRiscos(){
   const p=curProc;if(!p)return;
@@ -5123,9 +5144,10 @@ async function iaGerarRiscos(){
     statusEl.textContent='Erro ao gerar riscos.';
   }
 }
-function salvarRiscos(){
+function salvarRiscos(avancar=true){
   const p=curProc;
-  av('riscos','EP','Riscos identificados: '+(p.ent.riscos||[]).length+' registro(s).');
+  if(avancar) av('riscos','EP','Riscos identificados: '+(p.ent.riscos||[]).length+' registro(s).');
+  else{fbAutoSave('salvarRiscos');toast('Dados salvos!','var(--teal)');}
 }
 
 // ── Etapa: Indicadores do processo ──────────────────────────────────────────
@@ -5313,9 +5335,10 @@ async function iaGerarIndicadores(){
     statusEl.textContent='Erro ao gerar sugestões.';
   }
 }
-function salvarIndicadoresProc(){
+function salvarIndicadoresProc(avancar=true){
   const p=curProc;if(!p)return;
-  av('indicadores_proc','EP','Indicadores definidos: '+(p.form?.indicadores_proc||[]).length+' indicador(es).');
+  if(avancar) av('indicadores_proc','EP','Indicadores definidos: '+(p.form?.indicadores_proc||[]).length+' indicador(es).');
+  else{fbAutoSave('salvarIndicadoresProc');toast('Dados salvos!','var(--teal)');}
 }
 function calcEconomiaAcomp(){
   const volNovo=Number.parseFloat(document.getElementById('ac-vol-novo')?.value)||0;
@@ -5487,11 +5510,11 @@ function publicarProcesso(){
     }
   ),300);
 }
-function salvarAnalise(){
+function salvarAnalise(avancar=true){
   const p=curProc;
   if(!p.ent.analise)p.ent.analise={};
   salvarDadosQuantitativos();
-  av('analise','EP','Análise AS IS concluída');
+  if(avancar) av('analise','EP','Análise AS IS concluída');
 }
 function salvarDadosQuantitativos(){
   const p=curProc;if(!p)return;
@@ -5555,20 +5578,22 @@ async function gerarAnaliseIA(){
     }
   }
 }
-function salvarEsboco(){
+function salvarEsboco(avancar=true){
   const p=curProc;
   p.mod.asIs=document.getElementById('e-asis')?.value||p.mod.asIs||'';
   const mAs=bpmnModelers['asis'];
-  if(mAs){mAs.saveXML({format:true}).then(({xml})=>{p.mod.bpmnAsIs=xml;}).catch(e=>console.warn('bpmn saveXML asis:',e.message));}
-  av('esboco_asis','EP','Esboço AS IS elaborado com BPMN');
+  if(mAs){mAs.saveXML({format:true}).then(({xml})=>{p.mod.bpmnAsIs=xml;if(!avancar)fbAutoSave('salvarEsboco');}).catch(e=>console.warn('bpmn saveXML asis:',e.message));}
+  if(avancar) av('esboco_asis','EP','Esboço AS IS elaborado com BPMN');
+  else{if(!mAs)fbAutoSave('salvarEsboco');toast('Dados salvos!','var(--teal)');}
 }
-function salvarEsbocaTobe(){
+function salvarEsbocaTobe(avancar=true){
   if(!_validarCampos([{id:'e-tobe',label:'Descrição do TO BE'}])) return;
   const p=curProc;
   p.mod.toBe=document.getElementById('e-tobe')?.value||p.mod.toBe||'';
   const mTo=bpmnModelers['tobe'];
-  if(mTo){mTo.saveXML({format:true}).then(({xml})=>{p.mod.bpmnToBe=xml;}).catch(e=>console.warn('bpmn saveXML tobe:',e.message));}
-  av('esboco_tobe','EP','Esboço TO BE elaborado com BPMN');
+  if(mTo){mTo.saveXML({format:true}).then(({xml})=>{p.mod.bpmnToBe=xml;if(!avancar)fbAutoSave('salvarEsbocaTobe');}).catch(e=>console.warn('bpmn saveXML tobe:',e.message));}
+  if(avancar) av('esboco_tobe','EP','Esboço TO BE elaborado com BPMN');
+  else{if(!mTo)fbAutoSave('salvarEsbocaTobe');toast('Dados salvos!','var(--teal)');}
 }
 
 
@@ -5585,7 +5610,7 @@ function pularEtapa(etId){
   if(nx){curProc.etapa=nx;push(curProc,nx,'Sistema','Etapa iniciada');}
   rDetalhe();updCounts();fbAutoSave('pularEtapa');
 }
-function salvarPOP(){
+function salvarPOP(avancar=true){
   const p=curProc;
   if(!p.form)p.form={pop_ok:false,pop:null,apresent:'',bpmnXml:null};
   const etapas=p.mod?.etapas_proc||[];
@@ -5620,8 +5645,8 @@ function salvarPOP(){
   p.form.forms=document.getElementById('aforms')?.value||p.form.forms||'';
   const obsPopSv=document.getElementById('aobs-pop')?.value||'';
   if(obsPopSv) p.form.obs_complement=obsPopSv;
-  av('pop','EP','POP construído no padrão CAGE');
-  fbAutoSave('salvarPOP');
+  if(avancar){av('pop','EP','POP construído no padrão CAGE');fbAutoSave('salvarPOP');}
+  else{fbAutoSave('salvarPOP');toast('Dados salvos!','var(--teal)');}
 }
 function reprovarApresentacao(){
   const ov=document.createElement('div');
@@ -8623,11 +8648,12 @@ function vincularDesenhoFinalArq(){
     img.src=svgUri;
   }).catch(e=>toast('Erro: '+(e.message||e),'var(--red)'));
 }
-function salvarDesenhoFinal(){
+function salvarDesenhoFinal(avancar=true){
   const p=curProc; if(!p) return;
   p.form=p.form||{};
   p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
-  av('desenho_final','EP','Desenho final concluído',null,p.pat);
+  if(avancar) av('desenho_final','EP','Desenho final concluído',null,p.pat);
+  else{fbAutoSave('salvarDesenhoFinal');toast('Dados salvos!','var(--teal)');}
 }
 
 // ─── Sugestão TO BE por IA (Mermaid) ────────────────────────────────────────
