@@ -1505,6 +1505,7 @@ function _aplicarUsuario(user){
   aplicarPermissoes();
   go('fila',document.getElementById('nb-fila'));
   if(user.trocar_senha) setTimeout(abrirModalTrocarSenha, 600);
+  setTimeout(verificarPrazosProximos, 1500);
 }
 function _aplicarToggleEP(user){
   const wrap=document.getElementById('ep-toggle-wrap');
@@ -1974,19 +1975,29 @@ function limparNotifs(){notifs=notifs.filter(n=>!n.lida);updCounts();rNotif();}
 // ═══════════════════════════════════════════
 function getTarefasUsr(){
   if(!usuarioLogado)return[];
-  const p=usuarioLogado.perfil;
+  const perf=usuarioLogado.perfil;
   return processos.filter(proc=>{
-    // Excluir processos suspensos ou cancelados da fila de tarefas
     if(proc.status_ciclo==='suspenso'||proc.status_ciclo==='cancelado') return false;
     const et=proc.etapa,etObj=ETAPAS.find(e=>e.id===et);
     if(!etObj)return false;
-    if(p==='ep')return etObj.resp==='ep';
-    if(p==='dono'){
+    const atrib=(proc.atribuicoes||{})[et];
+    if(perf==='ep'){
+      // EP vê etapas não atribuídas a dono/gestor
+      return !atrib||(atrib.para!=='dono'&&atrib.para!=='gestor');
+    }
+    if(perf==='dono'){
+      // Atribuição explícita ou, para retrocompatibilidade, etapa de resp==='dono' sem atribuicoes
+      const isAssigned=atrib?.para==='dono'||(atrib==null&&etObj.resp==='dono');
+      if(!isAssigned) return false;
       const isDonoProc=proc.dono===usuarioLogado.nome;
       const isVinc=(usuarioLogado.processos_vinculados||[]).includes(proc.arq_id);
-      return etObj.resp==='dono'&&(isDonoProc||isVinc);
+      return isDonoProc||isVinc;
     }
-    if(p==='gestor') return etObj.resp==='gestor' && (proc.pat===usuarioLogado.nome || !proc.pat);
+    if(perf==='gestor'){
+      const isAssigned=atrib?.para==='gestor'||(atrib==null&&etObj.resp==='gestor');
+      if(!isAssigned) return false;
+      return proc.pat===usuarioLogado.nome||!proc.pat;
+    }
     return false;
   });
 }
@@ -2629,14 +2640,6 @@ function salvarMetadados(){
   // Registrar alterações no histórico
   if(novoDono!==donoAnt) push(p, p.etapa, 'EP', 'Dono alterado de "'+donoAnt+'" para "'+novoDono+'"');
   if(novoDonoEmail!==donoEmailAnt && novoDono===donoAnt) push(p, p.etapa, 'EP', 'E-mail do dono atualizado');
-  // Notificar novo dono se e-mail mudou
-  if(novoDonoEmail && novoDonoEmail!==donoEmailAnt)
-    enviarNotif(novoDonoEmail, novoDono, 'Você foi designado como dono do processo "'+p.nome+'" no SIGA.', p.nome, '', usuarioLogado?.nome||'EP');
-  // Notificar novo gestor se mudou
-  if(novoGestor && novoGestor!==p.pat){
-    const gUser=USUARIOS.find(u=>u.nome===novoGestor);
-    if(gUser?.email) enviarNotif(gUser.email, novoGestor, 'Você foi designado como patrocinador do processo "'+p.nome+'" no SIGA.', p.nome, '', usuarioLogado?.nome||'EP');
-  }
   document.getElementById('modal-metadados')?.remove();
   fbAutoSave('editarMetadados');
   rDetalhe();
@@ -2716,9 +2719,6 @@ function confirmarReatribuirEP(){
   fbAutoSave('reatribuirEP');
   rDetalhe();
   toast('EP atualizado para '+novoEP,'var(--teal)');
-  // Notificar novo EP
-  const novoEPUser=USUARIOS.find(u=>u.nome===novoEP);
-  if(novoEPUser?.email) enviarNotif(novoEPUser.email, novoEP, 'Você foi designado como EP responsável por "'+p.nome+'".', p.nome,'',usuarioLogado?.nome||'Sistema');
 }
 function abrirAlterarPrio(){
   const p=curProc;
@@ -2783,6 +2783,8 @@ function confirmarSuspender(){
   fbAutoSave('suspenderProcesso');
   rDetalhe();updCounts();
   toast('Processo suspenso. Os dados estão preservados.','var(--amber)');
+  const _donoEmailSusp=getDonoEmail(p);
+  if(_donoEmailSusp&&p.dono) enviarNotif(_donoEmailSusp,p.dono,'O mapeamento do processo "'+p.nome+'" foi suspenso.',p.nome,'',usuarioLogado?.nome||'EP');
 }
 function cancelarProcesso(){
   if(!isEP()&&usuarioLogado?.perfil!=='gestor'){toast('Ação restrita ao EP ou Gestor.','var(--amber)');return;}
@@ -3001,40 +3003,13 @@ function criarProcesso(){
     mod:{asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,obs:'',etapas_proc:[],etapas_proc_tobe:[]},
     form:{pop_ok:false,pop:null,apresent:'',bpmnXml:null},
     etapa:'abertura',
+    atribuicoes:{},
     hist:[{step:'abertura',role:'EP',acao:'Processo aberto e vinculado à arquitetura',data:now()}],
   };
   processos.push(p);
   updCounts();
   toast('Processo criado com sucesso!');
-  // Pede confirmação antes de notificar o dono
-  setTimeout(()=>{
-    if(!donoEmail||!donoNome) return;
-    const ov=document.createElement('div');
-    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
-    const _inner=document.createElement('div');
-    _inner.style.cssText='background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)';
-    const _title=document.createElement('div');
-    _title.style.cssText='font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem';
-    _title.textContent='Notificar Dono do Processo?';
-    const _msg=document.createElement('div');
-    _msg.style.cssText='font-size:13px;color:var(--ink3);margin-bottom:1.2rem';
-    const _strong=document.createElement('strong'); _strong.textContent=p.dono;
-    const _em=document.createElement('em'); _em.textContent=p.nome;
-    _msg.append('Deseja enviar notificação e e-mail para ',_strong,' informando que o mapeamento de ',_em,' foi iniciado?');
-    const _btnRow=document.createElement('div'); _btnRow.className='btn-row';
-    const _naoBtn=document.createElement('button'); _naoBtn.type='button'; _naoBtn.className='btn'; _naoBtn.textContent='Não agora';
-    _naoBtn.addEventListener('click',()=>ov.remove());
-    const _simBtn=document.createElement('button'); _simBtn.type='button'; _simBtn.className='btn btn-p'; _simBtn.textContent='Sim, notificar →';
-    _simBtn.addEventListener('click',()=>{
-      enviarNotif(donoEmail,p.dono,'Mapeamento iniciado — aguarda questionário de maturidade',p.nome,'','EP·CAGE');
-      toast('Notificação enviada para '+p.dono,'var(--teal)');
-      ov.remove();
-    });
-    _btnRow.append(_naoBtn,_simBtn);
-    _inner.append(_title,_msg,_btnRow);
-    ov.appendChild(_inner);
-    document.body.appendChild(ov);
-  }, 400);
+  if(donoEmail&&donoNome) enviarNotif(donoEmail,donoNome,'O mapeamento do processo "'+p.nome+'" foi iniciado.',p.nome,'','EP·CAGE');
   fbAutoSave('criarProcesso');
   abrirProc(p.id);
 }
@@ -3053,23 +3028,14 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
   if(nx){
     curProc.etapa = nx;
     push(curProc, nx, 'Sistema', 'Etapa iniciada');
-    const nxObj = getEtapas(curProc).find(e=>e.id===nx);
-    if(nxObj?.resp==='dono') curProc.status_workflow='aguardando_dono';
-    else if(nxObj?.resp==='gestor') curProc.status_workflow='aguardando_gestor';
-    else curProc.status_workflow='em_andamento';
+    // status_workflow é 'em_andamento' por default; muda para aguardando_* só ao atribuir
+    curProc.status_workflow='em_andamento';
   } else if(etAtu==='auditoria'){
     // processo concluído (publicacao → acompanha → auditoria)
     curProc.status_workflow='concluido';
   }
   rDetalhe();updCounts();
   fbAutoSave('av');
-  // Notificar dono apenas quando a próxima etapa é dele (tarefa)
-  if(isEP() && curProc?.dono){
-    const etObj = getEtapas(curProc).find(e=>e.id===nx);
-    if(etObj?.resp==='dono'){
-      setTimeout(()=>perguntarNotifDono(nx),200);
-    }
-  }
 }
 // Solicita prazo ao EP antes de passar tarefa ao dono
 function perguntarNotifDono(etapaProxId){
@@ -3323,8 +3289,10 @@ function getDevolverEtapa(p){
   const etapas=getEtapas(p);
   const idx=etapas.findIndex(e=>e.id===p.etapa);
   if(idx<=0)return null;
+  const atribs=p.atribuicoes||{};
   for(let i=idx-1;i>=0;i--){
-    if(etapas[i].resp==='dono') return etapas[i].id;
+    const e=etapas[i];
+    if(atribs[e.id]||e.resp==='dono'||e.resp==='gestor') return e.id;
   }
   return null;
 }
@@ -3332,7 +3300,8 @@ function getDevolverEtapas(p){
   const etapas=getEtapas(p);
   const idx=etapas.findIndex(e=>e.id===p.etapa);
   if(idx<=0) return [];
-  return etapas.slice(0,idx).filter(e=>e.resp==='dono');
+  const atribs=p.atribuicoes||{};
+  return etapas.slice(0,idx).filter(e=>atribs[e.id]||e.resp==='dono'||e.resp==='gestor');
 }
 function devolverAoDono(){
   const p=curProc;
@@ -3346,12 +3315,14 @@ function devolverAoDono(){
     : `<div class="fg" style="margin-bottom:.9rem"><label class="fl">Para qual etapa devolver? <span style="color:var(--red)">*</span></label><select class="fi" id="devolver-etapa-sel">${opHtml}</select><div style="font-size:11px;color:var(--ink3);margin-top:3px">O preenchimento anterior é preservado — o dono ajustará apenas o que você indicar.</div></div>`;
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  const _dvHoje=new Date().toISOString().split('T')[0];
+  const _dvDef=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
   ov.id='devolver-ov';
   ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:480px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.4rem">↩ Devolver ao dono</div>
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.4rem">↩ Devolver para ajustes</div>
     ${selectHtml}
     <div class="fg" style="margin-bottom:.9rem">
-      <label class="fl">O que você quer que o dono faça?</label>
+      <label class="fl">O que você quer que o usuário faça?</label>
       <div style="display:flex;gap:8px;margin-top:4px">
         <label style="flex:1;display:flex;align-items:center;gap:6px;padding:.5rem .7rem;border:1.5px solid var(--bdr);border-radius:var(--r);cursor:pointer;font-size:13px">
           <input type="radio" name="devolver-tipo" value="complementar" checked> Complementar
@@ -3361,9 +3332,13 @@ function devolverAoDono(){
         </label>
       </div>
     </div>
-    <div class="fg" style="margin-bottom:1.2rem">
-      <label class="fl">Instrução para o dono <span style="color:var(--red)">*</span></label>
+    <div class="fg" style="margin-bottom:.9rem">
+      <label class="fl">Instrução para o usuário <span style="color:var(--red)">*</span></label>
       <textarea class="fi" id="devolver-motivo" rows="3" placeholder="Descreva o que precisa ser complementado ou corrigido..."></textarea>
+    </div>
+    <div class="fg" style="margin-bottom:1.2rem">
+      <label class="fl">Prazo para conclusão <span style="color:var(--red)">*</span></label>
+      <input class="fi" type="date" id="devolver-prazo" value="${_dvDef}" min="${_dvHoje}">
     </div>
     <div class="btn-row">
       <button type="button" class="btn" onclick="document.getElementById('devolver-ov').remove()">Cancelar</button>
@@ -3379,30 +3354,135 @@ function confirmarDevolucaoDinamica(){
 }
 function confirmarDevolucao(etRet){
   const motivo=document.getElementById('devolver-motivo')?.value?.trim();
-  if(!motivo){toast('Informe a instrução para o dono.','var(--red)');return;}
+  if(!motivo){toast('Informe a instrução.','var(--red)');return;}
+  const prazo=document.getElementById('devolver-prazo')?.value;
+  if(!prazo){toast('Informe o prazo para conclusão.','var(--red)');return;}
   const tipo=document.querySelector('input[name="devolver-tipo"]:checked')?.value||'complementar';
   const p=curProc;
   const tipoLabel=tipo==='refazer'?'Nova elaboração':'Complementação';
+  const prazoFmt=prazo.split('-').reverse().join('/');
   push(p, p.etapa, 'EP', tipoLabel+' solicitado — '+motivo);
-  // Limpa apenas o registro de "respondido" da etapa de retorno para que o dono possa reenviar
   if(p.ent?.respondido_por_etapa?.[etRet]) delete p.ent.respondido_por_etapa[etRet];
-  // Limpa revisão pendente (EP decidiu devolver em vez de prosseguir)
   if(p.ent?.revisao_ep_pendente) delete p.ent.revisao_ep_pendente;
-  // Armazena instrução para exibir ao dono quando abrir a tarefa
   if(!p.ent)p.ent={};
   p.ent.devolucao_pendente={etapa:etRet,tipo,motivo,por:usuarioLogado?.nome||'EP',dt:now()};
+  // Determina para quem devolver: usa atribuição existente ou resp do ETAPAS
+  const etObj=ETAPAS.find(e=>e.id===etRet);
+  const paraRole=etObj?.resp==='gestor'?'gestor':'dono';
+  const paraNome=paraRole==='gestor'?p.pat:p.dono;
+  const paraEmail=paraRole==='gestor'?(USUARIOS.find(u=>u.nome===p.pat)?.email||''):getDonoEmail(p);
+  // Re-cria atribuição com novo prazo
+  if(!p.atribuicoes)p.atribuicoes={};
+  p.atribuicoes[etRet]={para:paraRole,para_nome:paraNome,para_email:paraEmail,prazo,por:usuarioLogado?.nome||'EP',dt:now(),lembrete_enviado:false};
   p.etapa=etRet;
-  push(p, etRet, 'Sistema', 'Aguardando '+tipoLabel.toLowerCase()+' pelo dono');
+  p.status_workflow=paraRole==='gestor'?'aguardando_gestor':'aguardando_dono';
+  push(p, etRet, 'Sistema', 'Aguardando '+tipoLabel.toLowerCase()+' — prazo: '+prazoFmt);
   document.getElementById('devolver-ov')?.remove();
   rDetalhe();updCounts();
   fbAutoSave('devolverAoDono');
-  const email=getDonoEmail(p);
-  if(email){
-    enviarNotif(email, p.dono, tipoLabel+' solicitado em "'+etLb(etRet)+'": '+motivo, p.nome, '', usuarioLogado?.nome||'EP');
-    toast(tipoLabel+' solicitado. Dono notificado.','var(--teal)');
+  if(paraEmail){
+    enviarNotif(paraEmail, paraNome, tipoLabel+' solicitado em "'+etLb(etRet)+'": '+motivo+' — prazo: '+prazoFmt, p.nome, prazoFmt, usuarioLogado?.nome||'EP');
+    toast(tipoLabel+' solicitado. '+paraNome+' notificado(a).','var(--teal)');
   } else {
-    toast(tipoLabel+' solicitado ao dono.','var(--teal)');
+    toast(tipoLabel+' solicitado.','var(--teal)');
   }
+}
+
+// ═══════════════════════════════════════════
+// ATRIBUIÇÃO DE ETAPA (EP → dono / gestor)
+// ═══════════════════════════════════════════
+function abrirAtribuirEtapa(etapaId){
+  const p=curProc;
+  if(!p||!isEP()){toast('Apenas o EP pode atribuir etapas.','var(--amber)');return;}
+  const hoje=new Date().toISOString().split('T')[0];
+  const defPrazo=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
+  ov.id='modal-atribuir-etapa';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.5rem">👤 Atribuir etapa: ${etLb(etapaId)}</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">Selecione quem irá preencher esta etapa e defina o prazo de resposta.</div>
+    <div class="fg" style="margin-bottom:.9rem">
+      <label class="fl">Atribuir para <span style="color:var(--red)">*</span></label>
+      <select class="fi" id="atrib-para">
+        <option value="dono">Dono do processo — ${esc(p.dono||'—')}</option>
+        <option value="gestor">Gestor / Patrocinador — ${esc(p.pat||'—')}</option>
+      </select>
+    </div>
+    <div class="fg" style="margin-bottom:1.2rem">
+      <label class="fl">Prazo para conclusão <span style="color:var(--red)">*</span></label>
+      <input class="fi" type="date" id="atrib-prazo" value="${defPrazo}" min="${hoje}">
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="document.getElementById('modal-atribuir-etapa').remove()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="confirmarAtribuirEtapa('${etapaId}')">Atribuir e notificar →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function confirmarAtribuirEtapa(etapaId){
+  const para=document.getElementById('atrib-para')?.value;
+  const prazo=document.getElementById('atrib-prazo')?.value;
+  if(!prazo){toast('Informe o prazo.','var(--red)');return;}
+  const p=curProc;
+  let paraNome,paraEmail;
+  if(para==='dono'){
+    paraNome=p.dono;
+    paraEmail=getDonoEmail(p);
+  } else {
+    paraNome=p.pat;
+    const gUser=USUARIOS.find(u=>u.nome===p.pat);
+    paraEmail=gUser?.email||'';
+  }
+  if(!paraEmail){toast('E-mail do destinatário não encontrado.','var(--amber)');return;}
+  if(!p.atribuicoes)p.atribuicoes={};
+  p.atribuicoes[etapaId]={para,para_nome:paraNome,para_email:paraEmail,prazo,por:usuarioLogado?.nome||'EP',dt:now(),lembrete_enviado:false};
+  p.status_workflow=para==='gestor'?'aguardando_gestor':'aguardando_dono';
+  const prazoFmt=prazo.split('-').reverse().join('/');
+  push(p,etapaId,'EP','Etapa atribuída a '+paraNome+' — prazo: '+prazoFmt);
+  document.getElementById('modal-atribuir-etapa')?.remove();
+  fbAutoSave('atribuirEtapa');
+  rDetalhe();updCounts();
+  enviarNotif(paraEmail,paraNome,'Tarefa pendente: "'+etLb(etapaId)+'" no processo "'+p.nome+'" — prazo: '+prazoFmt,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
+  toast('Etapa atribuída a '+paraNome+' com prazo '+prazoFmt,'var(--teal)');
+}
+function retomarEtapaEP(){
+  const p=curProc;
+  if(!p||!isEP()) return;
+  const atrib=(p.atribuicoes||{})[p.etapa];
+  if(!atrib) return;
+  const paraNome=atrib.para_nome||atrib.para;
+  delete p.atribuicoes[p.etapa];
+  p.status_workflow='em_andamento';
+  push(p,p.etapa,'EP','Etapa retomada pelo EP (era atribuída a '+paraNome+')');
+  fbAutoSave('retomarEtapa');
+  rDetalhe();updCounts();
+  toast('Etapa retomada para o EP.','var(--teal)');
+}
+
+// ═══════════════════════════════════════════
+// LEMBRETE DE PRAZO (48h — dispara ao login do admin)
+// ═══════════════════════════════════════════
+function verificarPrazosProximos(){
+  if(!isEP()) return;
+  const agora=Date.now();
+  const limite=agora+48*60*60*1000;
+  let salvou=false;
+  processos.forEach(proc=>{
+    if(proc.status_ciclo==='suspenso'||proc.status_ciclo==='cancelado') return;
+    const atrib=(proc.atribuicoes||{})[proc.etapa];
+    if(!atrib||atrib.lembrete_enviado||!atrib.prazo||!atrib.para_email) return;
+    const prazoTs=new Date(atrib.prazo+'T23:59:59').getTime();
+    if(prazoTs>agora&&prazoTs<=limite){
+      const prazoFmt=atrib.prazo.split('-').reverse().join('/');
+      enviarNotif(atrib.para_email,atrib.para_nome||atrib.para,
+        'Lembrete: falta menos de 48h para o encerramento do prazo da tarefa "'+etLb(proc.etapa)+'" no processo "'+proc.nome+'". Prazo: '+prazoFmt,
+        proc.nome,prazoFmt,'EP·CAGE');
+      atrib.lembrete_enviado=true;
+      salvou=true;
+    }
+  });
+  if(salvou) fbAutoSave('verificarPrazos');
 }
 
 // ─── FEEDBACK DO DONO (etapa melhorias) ───────────────────────────────────────────
@@ -4538,11 +4618,14 @@ function buildAcaoCardHTML(ac, p, extraNote){
   </div>`;
 }
 function _rAcaoPrazoBanner(p){
-  if(!p.prazo_dono) return '';
+  // Prazo: atribuicao explícita > prazos_dono por etapa > prazo_dono legado
+  const atrib=(p.atribuicoes||{})[p.etapa];
+  const prazo=atrib?.prazo||(p.prazos_dono||{})[p.etapa]||p.prazo_dono||'';
+  if(!prazo) return '';
   const hoje=new Date().toISOString().split('T')[0];
-  const atrasado=p.prazo_dono<hoje;
-  const diff=Math.ceil((new Date(p.prazo_dono)-Date.now())/(1000*60*60*24));
-  const pzFmt=p.prazo_dono.split('-').reverse().join('/');
+  const atrasado=prazo<hoje;
+  const diff=Math.ceil((new Date(prazo)-Date.now())/(1000*60*60*24));
+  const pzFmt=prazo.split('-').reverse().join('/');
   let cor;
   if(atrasado) cor='var(--red)';
   else if(diff<=3) cor='var(--amber)';
@@ -4667,10 +4750,12 @@ function _renderChecklist(p){
   return `<div class="card" style="margin-bottom:1rem;border-left:3px solid ${cor}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem"><div class="card-t" style="margin-bottom:0">✔ Checklist da etapa</div><span style="font-size:12px;font-weight:700;color:${cor}">${done}/${total} concluído${done===1?'':'s'}</span></div>${rows}</div>`;
 }
 function _rAcaoHandleDono(el, ac, p){
+  const atrib=(p.atribuicoes||{})[p.etapa];
   const etObj=ETAPAS.find(e=>e.id===p.etapa);
   const isDonoProc=p.dono===usuarioLogado.nome;
   const isVinc=(usuarioLogado.processos_vinculados||[]).includes(p.arq_id);
-  const minhaTarefa=etObj?.resp==='dono'&&(isDonoProc||isVinc);
+  // Tarefa do dono logado: atribuição explícita OU legado resp==='dono'
+  const minhaTarefa=(atrib?.para==='dono'||(atrib==null&&etObj?.resp==='dono'))&&(isDonoProc||isVinc);
   const prazoBanner=_rAcaoPrazoBanner(p);
   if(minhaTarefa){
     const jr=jaFoiRespondido(p.etapa);
@@ -4707,19 +4792,36 @@ function rAcao(p){
   // Q019: checklist de pendências da etapa atual (apenas EP)
   const checklistHtml=isEP()?_renderChecklist(p):'';
   el.innerHTML=skipBarHtml+pendenteBanner+checklistHtml+buildAcaoCardHTML(ac,p,roleNote);
-  // Barra de devolução ao dono (apenas EP, quando há etapa anterior do dono)
   if(isEP()){
+    const atrib=(p.atribuicoes||{})[p.etapa];
+    // Banner de atribuição ativa: mostra quem tem a tarefa e permite retomar
+    if(atrib?.para==='dono'||atrib?.para==='gestor'){
+      const prazoFmt=atrib.prazo?atrib.prazo.split('-').reverse().join('/'):'—';
+      const atribBar=document.createElement('div');
+      atribBar.style.cssText='margin-top:.8rem;padding:.7rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--blue-l,#eff6ff)';
+      atribBar.innerHTML=`<span style="font-size:12px;color:var(--ink2)">📋 Atribuído a <strong>${esc(atrib.para_nome||atrib.para)}</strong> — prazo: ${prazoFmt}</span>
+        <button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="retomarEtapaEP()">↩ Retomar para EP</button>`;
+      el.appendChild(atribBar);
+    } else {
+      // Botão para atribuir a dono/gestor (apenas quando não há atribuição ativa)
+      const atribBtn=document.createElement('div');
+      atribBtn.style.cssText='margin-top:.8rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
+      atribBtn.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa delegar esta etapa?</span>
+        <button type="button" class="btn" style="font-size:12px;padding:4px 10px" onclick="abrirAtribuirEtapa('${p.etapa}')">👤 Atribuir a...</button>`;
+      el.appendChild(atribBtn);
+    }
+    // Barra de devolução para ajustes (quando há etapa anterior atribuída)
     const etRet=getDevolverEtapa(p);
     if(etRet){
       const bar=document.createElement('div');
-      bar.style.cssText='margin-top:.8rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
-      bar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa que o dono refaça <strong>${etLb(etRet)}</strong>?</span>
-        <button type="button" class="btn" style="font-size:12px;padding:4px 10px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="devolverAoDono()">↩ Devolver ao dono</button>`;
+      bar.style.cssText='margin-top:.5rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
+      bar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa que ${etLb(etRet)} seja refeito?</span>
+        <button type="button" class="btn" style="font-size:12px;padding:4px 10px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="devolverAoDono()">↩ Devolver para ajustes</button>`;
       el.appendChild(bar);
     }
     // Q009: barra de prazo da etapa EP
     const acObj=ACOES[p.etapa];
-    if(acObj&&acObj.resp!=='dono'&&acObj.rk==='ep'){
+    if(acObj&&acObj.rk==='ep'&&(!atrib||atrib.para==='ep')){
       const prazoAtual=(p.prazos_ep||{})[p.etapa]||'';
       const epbar=document.createElement('div');
       epbar.style.cssText='margin-top:.6rem;padding:.55rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
@@ -5413,10 +5515,6 @@ function pularEtapa(etId){
   const nx=nextEt(etId);
   if(nx){curProc.etapa=nx;push(curProc,nx,'Sistema','Etapa iniciada');}
   rDetalhe();updCounts();fbAutoSave('pularEtapa');
-  if(isEP()&&curProc?.dono){
-    const etObj=getEtapas(curProc).find(e=>e.id===nx);
-    if(etObj?.resp==='dono')setTimeout(()=>perguntarNotifDono(nx),200);
-  }
 }
 function salvarPOP(){
   const p=curProc;
