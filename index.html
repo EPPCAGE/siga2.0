@@ -8486,9 +8486,12 @@ function _rTobeMermaidSecao(p){
       <details>
         <summary style="font-size:11px;cursor:pointer;color:var(--ink3)">⌥ Ver / editar código Mermaid</summary>
         <textarea class="fi" id="tobe-mermaid-code" style="min-height:140px;font-family:monospace;font-size:11px;margin-top:.4rem">${esc(code)}</textarea>
-        <div style="display:flex;gap:6px;margin-top:4px">
+        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
           <button type="button" class="btn" style="font-size:11px" onclick="_atualizarRenderMermaid()">↻ Atualizar visualização</button>
           <button type="button" class="btn" style="font-size:11px" onclick="_salvarMermaidEditado()">💾 Salvar edição</button>
+          <button type="button" class="btn btn-t" style="font-size:11px" onclick="_downloadMermaid()" title="Baixar código Mermaid como arquivo .mmd">⬇ Baixar .mmd</button>
+          <button type="button" class="btn btn-t" id="tobe-bpmn-export-btn" style="font-size:11px" onclick="_exportarMermaidBpmn(false)" title="Converter para BPMN 2.0 com IA e baixar como .bpmn">⬇ Exportar .bpmn</button>
+          <button type="button" class="btn btn-t" id="tobe-bpmn-import-btn" style="font-size:11px" onclick="_exportarMermaidBpmn(true)" title="Converter para BPMN 2.0 com IA e carregar no editor TO BE">→ Abrir no editor TO BE</button>
         </div>
       </details>`
     :'<div style="font-size:12px;color:var(--ink3);font-style:italic">Nenhuma sugestão gerada. Clique em "Gerar sugestão TO BE com IA" para criar o diagrama automaticamente com base no AS IS e nas melhorias identificadas.</div>'
@@ -8536,6 +8539,93 @@ function _cleanMermaidCode(raw){
   // Ensure it starts with a recognized directive
   if(!code.match(/^(flowchart|graph)\s/i)) code='flowchart TD\n'+code;
   return code;
+}
+
+function _downloadMermaid(){
+  const p=curProc;if(!p)return;
+  const code=document.getElementById('tobe-mermaid-code')?.value||p.mod?.tobe_mermaid||'';
+  if(!code){toast('Nenhum código Mermaid para baixar.','var(--red)');return;}
+  const nome=(p.ent?.abertura?.nome_processo||'processo').replace(/[^a-z0-9]/gi,'_').toLowerCase();
+  const blob=new Blob([code],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`tobe_${nome}.mmd`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
+async function _exportarMermaidBpmn(importarNoBpmn=false){
+  const p=curProc;if(!p)return;
+  const code=document.getElementById('tobe-mermaid-code')?.value||p.mod?.tobe_mermaid||'';
+  if(!code){toast('Nenhum código Mermaid para converter.','var(--red)');return;}
+  const btnExport=document.getElementById('tobe-bpmn-export-btn');
+  const btnImport=document.getElementById('tobe-bpmn-import-btn');
+  const st=document.getElementById('tobe-ia-st');
+  const _setLoading=v=>{
+    if(btnExport)btnExport.disabled=v;
+    if(btnImport)btnImport.disabled=v;
+    if(st)st.textContent=v?'⏳ Convertendo para BPMN...':'';
+  };
+  _setLoading(true);
+  try{
+    const prompt=`Você é um especialista em BPMN 2.0. Converta o fluxograma Mermaid abaixo para XML BPMN 2.0 válido.
+
+REGRAS OBRIGATÓRIAS:
+1. Retorne SOMENTE o XML puro, sem explicações, sem blocos de código, sem markdown.
+2. O XML deve começar exatamente com: <?xml version="1.0" encoding="UTF-8"?>
+3. Use o namespace padrão BPMN 2.0: xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+4. O processo deve ter id="proc1" e isExecutable="false".
+5. Para cada nó do Mermaid: nó inicial → startEvent, nó final → endEvent, tarefas comuns → userTask, losangos (decisão) → exclusiveGateway.
+6. Cada elemento deve ter id único (ex: start1, task1, task2, gw1, end1) e name com o rótulo do Mermaid.
+7. Inclua sequenceFlow para cada aresta do Mermaid, com sourceRef e targetRef corretos.
+8. NÃO inclua BPMNDI (diagramas gráficos) — apenas os elementos de processo.
+
+FLUXOGRAMA MERMAID:
+${code}`;
+
+    const resp=await chamarIA('assistente',prompt,null);
+    if(!resp||!resp.trim()){throw new Error('Resposta vazia da IA.');}
+    // Clean: extract XML starting from <?xml or <definitions
+    let xml=resp.trim();
+    const xStart=xml.search(/<\?xml|<definitions|<bpmn:definitions/i);
+    if(xStart>0) xml=xml.slice(xStart);
+    // Remove possible trailing markdown fences
+    xml=xml.replace(/```\s*$/,'').trim();
+    // Validate minimally
+    if(!xml.includes('startEvent')&&!xml.includes('userTask')){
+      throw new Error('O XML gerado não parece ter elementos BPMN válidos. Tente regenerar.');
+    }
+    if(importarNoBpmn){
+      // Load into the TO BE bpmn-js editor
+      if(!p.mod)p.mod={};
+      p.mod.bpmnToBe=xml;
+      fbAutoSave('salvar');
+      // Expand the TO BE editor section and initialize
+      const wrap=document.getElementById('df-tobe-wrap');
+      if(wrap&&wrap.style.display==='none'){
+        wrap.style.display='block';
+        const chv=document.getElementById('df-tobe-chv');
+        if(chv)chv.textContent='▼';
+      }
+      setTimeout(()=>initBpmnMod('tobe',p),150);
+      toast('Diagrama BPMN carregado no editor TO BE.','var(--teal)');
+    } else {
+      // Download as .bpmn file
+      const nome=(p.ent?.abertura?.nome_processo||'processo').replace(/[^a-z0-9]/gi,'_').toLowerCase();
+      const blob=new Blob([xml],{type:'application/xml;charset=utf-8'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`tobe_${nome}.bpmn`;
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+      toast('Arquivo .bpmn baixado com sucesso.','var(--teal)');
+    }
+  } catch(err){
+    toast('Erro ao converter para BPMN: '+(err.message||err),'var(--red)');
+    console.error('[exportarMermaidBpmn]',err);
+  } finally {
+    _setLoading(false);
+  }
 }
 
 async function iaGerarTobeMermaid(){
