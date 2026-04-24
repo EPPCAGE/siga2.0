@@ -10355,12 +10355,14 @@ function kpiGrupoCardHTML(key, items){
   let trendHtml = '';
   if(last && prev){
     const currR = Number.parseFloat(last.realizado), prevR = Number.parseFloat(prev.realizado);
-    if(!isNaN(currR) && !isNaN(prevR)){
+    if(!Number.isNaN(currR) && !Number.isNaN(prevR)){
       const delta = currR - prevR;
       const isBetter = polaridade==='Menor é melhor' ? delta<0 : delta>0;
       const isWorse  = polaridade==='Menor é melhor' ? delta>0 : delta<0;
-      const arrow = delta>0?'↑':delta<0?'↓':'→';
-      const tColor = delta===0?'var(--ink3)':isBetter?'var(--green)':isWorse?'var(--red)':'var(--ink3)';
+      let arrow;
+      if(delta > 0){ arrow = '↑'; } else if(delta < 0){ arrow = '↓'; } else { arrow = '→'; }
+      let tColor;
+      if(delta === 0){ tColor = 'var(--ink3)'; } else if(isBetter){ tColor = 'var(--green)'; } else if(isWorse){ tColor = 'var(--red)'; } else { tColor = 'var(--ink3)'; }
       const sign = delta>0?'+':'';
       const und = last.unidade?' '+last.unidade:'';
       trendHtml = `<span style="font-size:12px;font-weight:700;color:${tColor}" title="Variação em relação ao período anterior">${arrow} ${sign}${delta.toFixed(delta%1===0?0:1)}${und}</span>`;
@@ -10374,7 +10376,7 @@ function kpiGrupoCardHTML(key, items){
     const allBelow = last3.every(i=>{
       const r=Number.parseFloat(i.realizado), m=Number.parseFloat(i.meta);
       if(r===0&&m===0) return false;
-      if(!(m>0)) return false;
+      if(m<=0) return false;
       return polaridade==='Menor é melhor' ? r>m : r<m;
     });
     if(allBelow) consecAlert = `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:#7f1d1d;background:#fee2e2;border:1px solid #fca5a5;border-radius:20px;padding:1px 7px" title="3 períodos consecutivos abaixo da meta">⚠ 3 períodos abaixo</span>`;
@@ -10388,11 +10390,12 @@ function kpiGrupoCardHTML(key, items){
     const cumRound = Math.round(cumTotal*100)/100;
     const metaAnual = items[0].meta!=null && items[0].meta!=='' ? Number(items[0].meta) : null;
     const cumPct = metaAnual ? Math.round((cumTotal/metaAnual)*100) : null;
-    const cumColor = cumPct==null?'var(--ink3)':cumPct>=100?'var(--green)':cumPct>=80?'var(--amber)':'var(--red)';
+    let cumColor;
+    if(cumPct==null){ cumColor='var(--ink3)'; } else if(cumPct>=100){ cumColor='var(--green)'; } else if(cumPct>=80){ cumColor='var(--amber)'; } else { cumColor='var(--red)'; }
     const und = items[0].unidade?' '+items[0].unidade:'';
     // Override border color for cumulative based on cumulative pct
     if(metaAnual){
-      borderColor = cumPct>=100?'var(--green)':cumPct>=80?'var(--amber)':'var(--red)';
+      if(cumPct>=100){ borderColor='var(--green)'; } else if(cumPct>=80){ borderColor='var(--amber)'; } else { borderColor='var(--red)'; }
     }
     cumSummaryHtml = `<div style="display:flex;gap:10px;align-items:center;margin-top:.4rem;padding:.4rem .6rem;background:var(--bg2);border-radius:6px;font-size:12px">
       <span style="color:var(--ink3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px">Acumulado</span>
@@ -10501,7 +10504,7 @@ function createKpiChart(key, items){
   const unidade = items[0].unidade||'';
   const realizados = withData.map(i=>Number.parseFloat(i.realizado)||0);
   const realMetasData = withData.map(i=>{
-    if(i.meta!==null&&i.meta!==undefined&&i.meta!==''){const m=Number.parseFloat(i.meta);return isNaN(m)?null:m;}
+    if(i.meta!==null&&i.meta!==undefined&&i.meta!==''){const m=Number.parseFloat(i.meta);return Number.isNaN(m)?null:m;}
     return null;
   });
   const avgMetasData = withData.map(i=>(i.meta===null||i.meta===undefined||i.meta==='')?(i._metaFallback||null):null);
@@ -13926,7 +13929,7 @@ async function iaAnalisarIndicadores(){
 
   // Agrupa por indicador para calcular tendência e alerta consecutivo
   const _grpIA = {};
-  listaValida.forEach(k=>{ const g=k.codigo||k.nome; if(!_grpIA[g])_grpIA[g]=[]; _grpIA[g].push(k); });
+  listaValida.forEach(k=>{ const g=k.codigo||k.nome; if(!_grpIA[g]){ _grpIA[g]=[]; } _grpIA[g].push(k); });
   Object.values(_grpIA).forEach(g=>g.sort((a,b)=>periodoToNum(a.periodo)-periodoToNum(b.periodo)));
   const payload = {
     indicadores: Object.values(_grpIA).map(grp=>{
@@ -13939,7 +13942,7 @@ async function iaAnalisarIndicadores(){
       }
       const alerta3 = grp.length>=3 && grp.slice(-3).every(i=>{
         const r=Number(i.realizado),m=Number(i.meta);
-        if(r===0&&m===0)return false; if(!(m>0))return false;
+        if(r===0&&m===0){ return false; } if(m<=0){ return false; }
         return pol==='Menor é melhor'?r>m:r<m;
       });
       return {
