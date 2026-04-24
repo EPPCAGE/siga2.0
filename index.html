@@ -747,6 +747,16 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <select class="fi ind-filtros-avancados" id="ind-ciclo-sel" onchange="rInd()" style="max-width:150px"><option value="">Todos</option></select>
     <span class="fbar-l ind-filtros-avancados">Período</span>
     <select class="fi ind-filtros-avancados" id="ind-periodo-sel" onchange="rInd()" style="max-width:140px"><option value="">Todos</option></select>
+    <span class="fbar-l ind-filtros-avancados">Intervalo</span>
+    <select class="fi ind-filtros-avancados" id="ind-intervalo-sel" onchange="rInd()" style="max-width:130px">
+      <option value="">Todos</option>
+      <option value="T1">T1 (Jan–Mar)</option>
+      <option value="T2">T2 (Abr–Jun)</option>
+      <option value="T3">T3 (Jul–Set)</option>
+      <option value="T4">T4 (Out–Dez)</option>
+      <option value="S1">S1 (Jan–Jun)</option>
+      <option value="S2">S2 (Jul–Dez)</option>
+    </select>
   </div>
   <div id="ind-summary" style="margin-bottom:.8rem"></div>
   <div id="ind-c"></div>
@@ -10221,18 +10231,20 @@ function rInd(){
   _indCharts = [];
 
   populateIndFilters();
-  const area   = document.getElementById('ind-area-sel')?.value   || '';
-  const ciclo  = document.getElementById('ind-ciclo-sel')?.value  || '';
-  const period = document.getElementById('ind-periodo-sel')?.value || '';
-  const nome   = document.getElementById('ind-nome-sel')?.value   || '';
-  const ppe    = document.getElementById('ind-ppe-sel')?.value    || '';
+  const area      = document.getElementById('ind-area-sel')?.value      || '';
+  const ciclo     = document.getElementById('ind-ciclo-sel')?.value     || '';
+  const period    = document.getElementById('ind-periodo-sel')?.value   || '';
+  const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
+  const nome      = document.getElementById('ind-nome-sel')?.value      || '';
+  const ppe       = document.getElementById('ind-ppe-sel')?.value       || '';
 
   const lista = kpis.filter(k=>
-    (!area   || k.area   === area)   &&
-    (!ciclo  || k.ciclo  === ciclo)  &&
-    (!period || k.periodo === period) &&
-    (!nome   || k.nome   === nome)   &&
-    (!ppe    || k.ppe    === ppe)
+    (!area      || k.area   === area)   &&
+    (!ciclo     || k.ciclo  === ciclo)  &&
+    (!period    || k.periodo === period) &&
+    _periodoInIntervalo(k.periodo, intervalo) &&
+    (!nome      || k.nome   === nome)   &&
+    (!ppe       || k.ppe    === ppe)
   );
 
   const grupos = kpiGroupByKey(lista);
@@ -10397,6 +10409,20 @@ function kpiApplyMetaFallback(items){
   const ultimos = items.slice(-12).map(i=>Number.parseFloat(i.realizado)||0);
   const media = ultimos.length ? ultimos.reduce((a,b)=>a+b,0)/ultimos.length : 0;
   semMeta.forEach(i=>{ if(!i._metaFallback) i._metaFallback = Math.round(media*10)/10; });
+}
+function _periodoInIntervalo(periodo, intervalo){
+  if(!intervalo) return true;
+  const mMap = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+  const m = (periodo||'').toLowerCase().match(/^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/);
+  if(!m) return false;
+  const n = mMap[m[1]];
+  if(intervalo==='T1') return n>=1&&n<=3;
+  if(intervalo==='T2') return n>=4&&n<=6;
+  if(intervalo==='T3') return n>=7&&n<=9;
+  if(intervalo==='T4') return n>=10&&n<=12;
+  if(intervalo==='S1') return n>=1&&n<=6;
+  if(intervalo==='S2') return n>=7&&n<=12;
+  return true;
 }
 function periodoToNum(s){
   if(!s) return 0;
@@ -13832,11 +13858,15 @@ function _ehMesNaoFechamento(periodo){
 }
 
 async function iaAnalisarIndicadores(){
-  const area   = document.getElementById('ind-area-sel')?.value  || '';
-  const ciclo  = document.getElementById('ind-ciclo-sel')?.value || '';
+  const area      = document.getElementById('ind-area-sel')?.value      || '';
+  const ciclo     = document.getElementById('ind-ciclo-sel')?.value     || '';
+  const period    = document.getElementById('ind-periodo-sel')?.value   || '';
+  const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const lista  = kpis.filter(k=>
-    (!area  || k.area  === area)  &&
-    (!ciclo || k.ciclo === ciclo)
+    (!area   || k.area  === area)  &&
+    (!ciclo  || k.ciclo === ciclo) &&
+    (!period || k.periodo === period) &&
+    _periodoInIntervalo(k.periodo, intervalo)
   );
   if(!lista.length){ toast('Nenhum indicador visível para analisar.','var(--amber)'); return; }
 
@@ -13928,8 +13958,10 @@ function parsePeriodSort(p){
 function gerarRelatorioIndPdf(){
   if(!_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
 
-  const area  = document.getElementById('ind-area-sel')?.value  || '';
-  const ciclo = document.getElementById('ind-ciclo-sel')?.value || '';
+  const area      = document.getElementById('ind-area-sel')?.value      || '';
+  const ciclo     = document.getElementById('ind-ciclo-sel')?.value     || '';
+  const period    = document.getElementById('ind-periodo-sel')?.value   || '';
+  const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const dtHoje = new Date().toLocaleDateString('pt-BR');
 
   // Apenas indicadores com dados válidos (mesma lógica do prompt)
@@ -14055,7 +14087,7 @@ function gerarRelatorioIndPdf(){
 
   const destS = destTotal > 1 ? 's' : '';
   const critS = critTotal > 1 ? 's' : '';
-  const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
+  const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:'', period?'Período: '+period:'', intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
   const _kpiHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -14184,7 +14216,9 @@ function enviarRelatorioIndEmail(){
   if(!gestores.length){ toast('Nenhum gestor com e-mail cadastrado.','var(--amber)'); return; }
   const area=document.getElementById('ind-area-sel')?.value||'';
   const ciclo=document.getElementById('ind-ciclo-sel')?.value||'';
-  const filtros=[area?'Área: '+area:'',ciclo?'Ciclo: '+ciclo:''].filter(Boolean).join(' · ')||'Todos os indicadores';
+  const period=document.getElementById('ind-periodo-sel')?.value||'';
+  const intervalo=document.getElementById('ind-intervalo-sel')?.value||'';
+  const filtros=[area?'Área: '+area:'',ciclo?'Ciclo: '+ciclo:'',period?'Período: '+period:'',intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ')||'Todos os indicadores';
   const dtHoje=new Date().toLocaleDateString('pt-BR');
   const assunto=`Análise dos Resultados — ${filtros}`;
   const corpo=`Análise dos Resultados — ${filtros}\nData: ${dtHoje}\n\n${_lastIndAnalise}`;
