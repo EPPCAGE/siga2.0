@@ -1599,7 +1599,7 @@ async function doLogin(){
       btn.textContent = 'Entrar'; btn.disabled = false;
       const msgs = {
         'auth/wrong-password':'Senha incorreta.',
-        'auth/user-not-found':'Usuário não encontrado. Use "Primeiro acesso" para criar sua senha.',
+        'auth/user-not-found':'Usuário não encontrado. Verifique se o EP já encaminhou uma tarefa para o seu e-mail.',
         'auth/invalid-credential':'E-mail ou senha incorretos.',
         'auth/too-many-requests':'Muitas tentativas. Tente novamente em alguns minutos.',
       };
@@ -1727,6 +1727,28 @@ function _enviarSenhaAcesso(email, nome, senha){
   } else {
     console.warn('_enviarSenhaAcesso: EmailJS não configurado — e-mail não enviado para', email);
   }
+}
+
+async function _criarUsuarioParaAtribuicao(email, nome, perfil){
+  const SENHA_TEMP = '123456';
+  const palavras = (nome||email).trim().split(/\s+/).filter(Boolean);
+  const iniciais = (palavras.length>=2 ? palavras[0][0]+palavras[palavras.length-1][0] : (palavras[0]||'?').slice(0,2)).toUpperCase();
+  if(fbReady()){
+    try {
+      const {initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
+      const secApp = initializeApp(FIREBASE_CONFIG, 'sec_'+Date.now());
+      const secAuth = getAuth(secApp);
+      try {
+        await createUserWithEmailAndPassword(secAuth, email, SENHA_TEMP);
+      } catch(ce){
+        if(ce.code !== 'auth/email-already-in-use') console.warn('createUser:', ce.message);
+      } finally {
+        await deleteApp(secApp);
+      }
+    } catch(e){ console.warn('secApp:', e.message); }
+  }
+  USUARIOS.push({email, nome: nome||email, perfil: perfil||'dono', iniciais, processos_vinculados:[], trocar_senha:true});
+  await fbSaveAll();
 }
 
 function abrirModalTrocarSenha(){
@@ -3509,7 +3531,7 @@ function abrirAtribuirEtapa(etapaId){
   </div>`;
   document.body.appendChild(ov);
 }
-function confirmarAtribuirEtapa(etapaId){
+async function confirmarAtribuirEtapa(etapaId){
   const para=document.getElementById('atrib-para')?.value;
   const prazo=document.getElementById('atrib-prazo')?.value;
   if(!prazo){toast('Informe o prazo.','var(--red)');return;}
@@ -3524,6 +3546,12 @@ function confirmarAtribuirEtapa(etapaId){
     paraEmail=gUser?.email||'';
   }
   if(!paraEmail){toast('E-mail do destinatário não encontrado.','var(--amber)');return;}
+
+  const usuarioExiste = !!USUARIOS.find(u=>u.email===paraEmail);
+  if(!usuarioExiste){
+    await _criarUsuarioParaAtribuicao(paraEmail, paraNome, para==='dono'?'dono':'gestor');
+  }
+
   if(!p.atribuicoes)p.atribuicoes={};
   p.atribuicoes[etapaId]={para,para_nome:paraNome,para_email:paraEmail,prazo,por:usuarioLogado?.nome||'EP',dt:now(),lembrete_enviado:false};
   p.status_workflow=para==='gestor'?'aguardando_gestor':'aguardando_dono';
@@ -3532,8 +3560,17 @@ function confirmarAtribuirEtapa(etapaId){
   document.getElementById('modal-atribuir-etapa')?.remove();
   fbAutoSave('atribuirEtapa');
   rDetalhe();updCounts();
-  enviarNotif(paraEmail,paraNome,'Tarefa pendente: "'+etLb(etapaId)+'" no processo "'+p.nome+'" — prazo: '+prazoFmt,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
-  toast('Etapa atribuída a '+paraNome+' com prazo '+prazoFmt,'var(--teal)');
+
+  const tarefaMsg='Tarefa pendente: "'+etLb(etapaId)+'" no processo "'+p.nome+'" — prazo: '+prazoFmt;
+  if(!usuarioExiste){
+    enviarNotif(paraEmail,paraNome,
+      tarefaMsg+'\n\nSeu acesso ao EP·CAGE foi criado automaticamente.\nE-mail: '+paraEmail+'\nSenha temporária: 123456\n\nNo primeiro acesso você será solicitado(a) a definir uma nova senha.',
+      p.nome,prazoFmt,usuarioLogado?.nome||'EP');
+    toast('Etapa atribuída a '+paraNome+' — acesso criado e e-mail enviado.','var(--teal)');
+  } else {
+    enviarNotif(paraEmail,paraNome,tarefaMsg,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
+    toast('Etapa atribuída a '+paraNome+' com prazo '+prazoFmt,'var(--teal)');
+  }
 }
 function retomarEtapaEP(){
   const p=curProc;
