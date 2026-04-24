@@ -1512,6 +1512,11 @@ function _aplicarUsuario(user){
   usuarioLogado=user;
   document.getElementById('login-err').style.display='none';
   document.getElementById('login-screen').style.display='none';
+  if(user.bloqueado){
+    if(fbReady()){ const {auth, signOut} = fb(); signOut(auth).catch(()=>{}); }
+    mostrarErrLogin('Seu acesso foi bloqueado. Entre em contato com o EPP.');
+    return;
+  }
   document.getElementById('aside-av').textContent=user.iniciais;
   const mobAv=document.getElementById('mob-user-av');if(mobAv)mobAv.textContent=user.iniciais;
   document.getElementById('aside-name').textContent=user.nome;
@@ -1585,7 +1590,7 @@ async function doLogin(){
 
   // Valida se está na lista de usuários autorizados
   const user = USUARIOS.find(u=>u.email===email);
-  if(!user){mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');return;}
+  if(!user){mostrarErrLogin('Acesso não encontrado. Use "Primeiro acesso" para criar seu cadastro.');return;}
 
   // Autentica via Firebase Auth
   if(fbReady()){
@@ -1638,20 +1643,47 @@ async function _primeiroAcessoExistente(email, showErr, showOk){
 }
 
 async function _primeiroAcessoNovo(email, nome, showErr, showOk){
-  if(!nome){ showErr('Informe seu nome completo para solicitar o primeiro acesso.'); return; }
-  const jaSolicitou = solicitacoes.find(s=>s.email===email && s.status==='pendente');
-  if(jaSolicitou){ showOk('Já existe uma solicitação pendente para este e-mail. Aguarde a aprovação do EPP.'); return; }
+  if(!nome){ showErr('Informe seu nome completo.'); return; }
   if(!fbReady()){ showErr('Firebase não configurado.'); return; }
+
+  const senhaTemp = gerarSenhaTemp();
+
+  // Cria conta no Firebase Auth via app secundária (não desloga o usuário atual)
   try {
-    const {db, doc, setDoc} = fb();
-    const sol = {email, nome, status:'pendente', solicitado_em: now()};
-    await setDoc(doc(db,'solicitacoes',email), sol);
-    solicitacoes.push(sol);
-    _aplicarPermissoesAdminBadge();
-    showOk('Solicitação enviada! O EPP receberá uma notificação e entrará em contato.');
-    if(document.getElementById('pa-nome')) document.getElementById('pa-nome').value='';
-    if(document.getElementById('pa-email')) document.getElementById('pa-email').value='';
-  } catch(e){ showErr('Erro ao enviar solicitação: '+e.message); }
+    const {initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
+    const secApp = initializeApp(FIREBASE_CONFIG, 'sec_'+Date.now());
+    const secAuth = getAuth(secApp);
+    try {
+      await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
+    } catch(ce){
+      await deleteApp(secApp);
+      if(ce.code === 'auth/email-already-in-use'){
+        showErr('Este e-mail já possui acesso. Use suas credenciais para entrar.');
+        return;
+      }
+      throw ce;
+    }
+    await deleteApp(secApp);
+  } catch(e){
+    showErr('Erro ao criar acesso: '+(e.message||e.code||e));
+    return;
+  }
+
+  // Adiciona ao USUARIOS com flag de troca de senha
+  const palavras = nome.trim().split(/\s+/).filter(Boolean);
+  const iniciais = (palavras.length>=2 ? palavras[0][0]+palavras[palavras.length-1][0] : (palavras[0]||'?').slice(0,2)).toUpperCase();
+  USUARIOS.push({email, nome, perfil:'dono', iniciais, processos_vinculados:[], trocar_senha:true});
+  await fbSaveAll();
+
+  // Envia senha temporária ao usuário
+  _enviarSenhaAcesso(email, nome, senhaTemp);
+
+  // Notifica membros do EP
+  USUARIOS.filter(u=>u.perfil==='ep'&&u.email).forEach(ep=>
+    enviarNotif(ep.email, ep.nome, 'Novo usuário registrado: '+nome+' ('+email+'). Acesso liberado automaticamente.', 'Controle de Acesso', '', 'Sistema')
+  );
+
+  showOk('Acesso criado! Enviamos uma senha temporária para '+email+'. Verifique sua caixa de entrada e spam.');
 }
 
 async function processarPrimeiroAcesso(){
@@ -2279,19 +2311,6 @@ function _aplicarPermissoesAdminBadge(){
   const nbAdmin = document.getElementById('nb-admin');
   if(!nbAdmin) return;
   nbAdmin.style.display = isEP() ? '' : 'none';
-  const pendCount = solicitacoes.filter(s=>s.status==='pendente').length;
-  let badgeEl = nbAdmin.querySelector('.sol-badge');
-  if(pendCount>0 && isEP()){
-    if(!badgeEl){
-      badgeEl = document.createElement('span');
-      badgeEl.className = 'nav-cnt hot sol-badge';
-      nbAdmin.appendChild(badgeEl);
-    }
-    badgeEl.textContent = pendCount;
-    badgeEl.style.display = '';
-  } else if(badgeEl){
-    badgeEl.style.display = 'none';
-  }
 }
 function aplicarPermissoes(){
   _aplicarPermissoesNavBtns();
@@ -11344,39 +11363,6 @@ function filtUsr(p, el){
 function renderAdmin(){
   if(!isEP()){document.getElementById('usr-tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:1rem">Acesso restrito ao EPP.</td></tr>';return;}
 
-  // Pending access requests
-  const pendentes = solicitacoes.filter(s=>s.status==='pendente');
-  let solSec = document.getElementById('sol-acesso-sec');
-  if(!solSec){
-    solSec = document.createElement('div');
-    solSec.id = 'sol-acesso-sec';
-    const tbl = document.getElementById('usr-tbody');
-    if(tbl) tbl.closest('table')?.parentElement?.insertBefore(solSec, tbl.closest('table'));
-  }
-  if(pendentes.length){
-    solSec.innerHTML = `<div class="card" style="margin-bottom:1.2rem;border-left:3px solid var(--red)">
-      <div style="font-weight:600;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem">
-        Solicitações de acesso pendentes
-        <span class="badge" style="background:var(--red);color:#fff">${pendentes.length}</span>
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        ${pendentes.map(s=>`<tr style="border-bottom:1px solid var(--bg3)">
-          <td style="padding:6px 8px;font-weight:500">${s.nome}</td>
-          <td style="padding:6px 8px;color:var(--ink3)">${s.email}</td>
-          <td style="padding:6px 8px;color:var(--ink4);font-size:11px">${s.solicitado_em?new Date(s.solicitado_em).toLocaleDateString('pt-BR'):''}</td>
-          <td style="padding:6px 8px;white-space:nowrap">
-            <button type="button" class="btn btn-p" style="font-size:11px;padding:3px 8px;margin-right:4px" onclick="aprovarSolicitacao('${s.email}')">Aprovar</button>
-            <button type="button" class="btn" style="font-size:11px;padding:3px 8px;background:var(--red-l);color:var(--red)" onclick="rejeitarSolicitacao('${s.email}')">Rejeitar</button>
-          </td>
-        </tr>`).join('')}
-      </table>
-    </div>`;
-    solSec.style.display = '';
-  } else {
-    solSec.innerHTML = '';
-    solSec.style.display = 'none';
-  }
-
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
     (!filtUsrPerfil||u.perfil===filtUsrPerfil) &&
@@ -11391,9 +11377,11 @@ function renderAdmin(){
     const isMe = usuarioLogado?.email===u.email;
     const vinculos = (u.processos_vinculados||[]);
     const noVinculoHtml = u.perfil==='ep'?'<span style="color:var(--ink4)">Todos (EP)</span>':'<span style="color:var(--red)">Nenhum vínculo</span>';
-    return `<tr style="${isMe?'background:var(--blue-l)':''}">
+    const bloqStyle = u.bloqueado ? 'background:var(--red-l);color:var(--red);' : '';
+    const bloqLabel = u.bloqueado ? 'Desbloquear' : 'Bloquear';
+    return `<tr style="${isMe?'background:var(--blue-l)':u.bloqueado?'opacity:.6':''}">
       <td><div style="width:28px;height:28px;border-radius:50%;background:${cors[u.perfil]||'#888'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${u.iniciais}</div></td>
-      <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}</td>
+      <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span class="badge" style="background:var(--red-l);color:var(--red);font-size:10px">bloqueado</span>':''}</td>
       <td style="font-size:12px;color:var(--ink3)">${u.email}</td>
       <td>${pBadge(u.perfil)}</td>
       <td style="font-size:11px;color:var(--ink3)">
@@ -11404,79 +11392,22 @@ function renderAdmin(){
             }).join('')
           : noVinculoHtml}
       </td>
-      <td><button type="button" class="btn" style="font-size:11px;padding:3px 8px" onclick="abrirModalUsr(${idx})">Editar</button></td>
+      <td style="white-space:nowrap">
+        <button type="button" class="btn" style="font-size:11px;padding:3px 8px;margin-right:4px" onclick="abrirModalUsr(${idx})">Editar</button>
+        ${!isMe?`<button type="button" class="btn" style="font-size:11px;padding:3px 8px;${bloqStyle}" onclick="bloquearUsuario(${idx})">${bloqLabel}</button>`:''}
+      </td>
     </tr>`;
   }).join('');
 }
 
-async function aprovarSolicitacao(email){
-  const sol = solicitacoes.find(s=>s.email===email);
-  if(!sol) return;
-  if(!fbReady()){toast('Firebase não configurado.','red');return;}
-
-  const nome    = sol.nome||'';
-  const palavras = nome.trim().split(/\s+/).filter(Boolean);
-  const iniciais = (palavras.length>=2 ? palavras[0][0]+palavras[palavras.length-1][0] : (palavras[0]||'?').slice(0,2)).toUpperCase();
-  const senhaTemp = gerarSenhaTemp();
-
-  try {
-    const {db, doc, setDoc, initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
-
-    // 1. Criar conta no Firebase Auth via app secundária (não desloga o admin)
-    let contaCriada = false;
-    try {
-      const secApp  = initializeApp(FIREBASE_CONFIG, 'sec_' + Date.now());
-      const secAuth = getAuth(secApp);
-      try {
-        await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
-        contaCriada = true;
-      } catch(createErr){
-        if(createErr.code === 'auth/email-already-in-use'){
-          contaCriada = true; // conta já existe, senha definida pelo admin via EmailJS abaixo
-        } else {
-          console.warn('createUser:', createErr.message);
-        }
-      } finally {
-        await deleteApp(secApp);
-      }
-    } catch(secErr){ console.warn('secApp:', secErr.message); }
-
-    // 2. Adicionar ao USUARIOS com flag trocar_senha
-    const novoUser = {email, nome, perfil:'dono', iniciais, processos_vinculados:[], trocar_senha:true};
-    USUARIOS.push(novoUser);
-
-    // 3. Persistir no Firestore
-    await setDoc(doc(db,'solicitacoes',email),{...sol, status:'aprovado', aprovado_em: now()});
-    solicitacoes = solicitacoes.map(s=>s.email===email?{...s,status:'aprovado'}:s);
-    await fbSaveAll();
-
-    // 4. Enviar senha temporária por e-mail
-    _enviarSenhaAcesso(email, nome, senhaTemp);
-
-    // 5. Mostrar feedback para o admin (inclui a senha como fallback caso EmailJS não esteja configurado)
-    toast(`✓ ${nome} aprovado(a)! Senha temporária: ${senhaTemp}${contaCriada ? ' (enviada por e-mail)' : ' — configure EmailJS para envio automático'}`, 'var(--green)', 8000);
-    renderAdmin();
-    aplicarPermissoes();
-  } catch(e){
-    const idx = USUARIOS.findIndex(u=>u.email===email);
-    if(idx!==-1) USUARIOS.splice(idx,1);
-    toast('Erro ao aprovar: '+e.message,'red');
-  }
-}
-
-async function rejeitarSolicitacao(email){
-  if(!fbReady()){toast('Firebase não configurado.','red');return;}
-  try {
-    const {db, doc, setDoc} = fb();
-    const sol = solicitacoes.find(s=>s.email===email)||{email, status:'rejeitado'};
-    await setDoc(doc(db,'solicitacoes',email),{...sol, status:'rejeitado'});
-    solicitacoes = solicitacoes.filter(s=>s.email!==email);
-    toast('Solicitação rejeitada.','red');
-    renderAdmin();
-    aplicarPermissoes();
-  } catch(e){
-    toast('Erro ao rejeitar: '+e.message,'red');
-  }
+async function bloquearUsuario(idx){
+  const u = USUARIOS[idx];
+  if(!u) return;
+  if(u.email === usuarioLogado?.email){ toast('Você não pode bloquear sua própria conta.','var(--amber)'); return; }
+  u.bloqueado = !u.bloqueado;
+  await fbSaveAll();
+  renderAdmin();
+  toast(u.bloqueado ? u.nome+' bloqueado(a). O acesso será negado no próximo login.' : u.nome+' desbloqueado(a).', u.bloqueado?'var(--red)':'var(--green)');
 }
 
 function onUsrPerfilChg(){
