@@ -4452,7 +4452,7 @@ function rAcaoRetro(){
   document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
   if(etId==='esboco_asis'||etId==='det_valid_asis'||etId==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
   if(etId==='esboco_tobe'||etId==='det_valid_tobe') setTimeout(()=>initBpmnMod('tobe',p),120);
-  if(etId==='desenho_final'&&p.mod?.tobe_mermaid) setTimeout(()=>_atualizarRenderMermaid(),250);
+  if(etId==='desenho_final'&&p.mod?.tobe_mermaid) setTimeout(()=>{ const ta=document.getElementById('tobe-mermaid-code'); if(ta) ta.textContent=p.mod?.tobe_mermaid||''; _atualizarRenderMermaid(); },250);
 }
 
 // ── salvarRetroativo: handlers por etapa (extraídos para manutenibilidade) ──
@@ -4739,7 +4739,7 @@ const _BPMN_INIT = {
   det_valid_tobe: (p) => { setTimeout(()=>initBpmnMod('tobe',p),120); },
   esboco_asis:    (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); },
   esboco_tobe:    (p)    => { setTimeout(()=>initBpmnMod('tobe',p),120); },
-  desenho_final:  (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); },
+  desenho_final:  (p)    => { setTimeout(()=>{ initBpmnMod('asis',p); const ta=document.getElementById('tobe-mermaid-code'); if(ta) ta.textContent=p.mod?.tobe_mermaid||''; },120); },
   pop:            ()     => { setTimeout(injectIaPop,100); },
 };
 function _rAcaoInitBpmn(p, minhaTarefa){
@@ -8699,7 +8699,7 @@ function _rTobeMermaidSecao(p){
       </div>
       <details>
         <summary style="font-size:11px;cursor:pointer;color:var(--ink3)">⌥ Ver / editar código Mermaid</summary>
-        <textarea class="fi" id="tobe-mermaid-code" style="min-height:140px;font-family:monospace;font-size:11px;margin-top:.4rem">${esc(code)}</textarea>
+        <textarea class="fi" id="tobe-mermaid-code" style="min-height:140px;font-family:monospace;font-size:11px;margin-top:.4rem"></textarea>
         <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
           <button type="button" class="btn" style="font-size:11px" onclick="_atualizarRenderMermaid()">↻ Atualizar visualização</button>
           <button type="button" class="btn" style="font-size:11px" onclick="_salvarMermaidEditado()">💾 Salvar edição</button>
@@ -8920,6 +8920,8 @@ REGRAS OBRIGATÓRIAS para o código Mermaid:
   const outer=document.getElementById('tobe-mermaid-outer');
   if(outer){
     outer.innerHTML=_rTobeMermaidSecao(p);
+    const ta=outer.querySelector('#tobe-mermaid-code');
+    if(ta) ta.textContent=p.mod?.tobe_mermaid||'';
     setTimeout(()=>_atualizarRenderMermaid(),100);
   }
 }
