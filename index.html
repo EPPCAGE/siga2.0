@@ -1978,6 +1978,7 @@ function getTarefasUsr(){
   const perf=usuarioLogado.perfil;
   return processos.filter(proc=>{
     if(proc.status_ciclo==='suspenso'||proc.status_ciclo==='cancelado') return false;
+    if(proc.etapa==='acompanha'||proc.etapa==='auditoria') return false;
     const et=proc.etapa,etObj=ETAPAS.find(e=>e.id===et);
     if(!etObj)return false;
     const atrib=(proc.atribuicoes||{})[et];
