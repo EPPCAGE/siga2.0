@@ -13918,8 +13918,9 @@ function gerarRelatorioIndPdf(){
 
   // ── Totalizador rodapé ───────────────────────────────────────────────
   // Taxa de atingimento geral (sempre 0-100%, não distorcida por outliers)
-  const comMeta    = lista.filter(k=>k.meta !== null && k.meta !== undefined && k.meta !== '');
-  const atingiramG = comMeta.filter(k=>{ const p=calcPct(k); return p!==null&&p>=100; }).length;
+  // Denominador = apenas indicadores com meta E cálculo de % possível (calcPct != null)
+  const comMeta    = lista.filter(k=>calcPct(k)!==null);
+  const atingiramG = comMeta.filter(k=>calcPct(k)>=100).length;
   const taxaGeral  = comMeta.length ? Math.round((atingiramG/comMeta.length)*100) : null;
   const destTotal  = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p>=130; }).length;
   const critTotal  = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p<50; }).length;
