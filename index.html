@@ -830,6 +830,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
           <span>Indicador cumulativo (soma os valores mensais ao longo do ano)</span>
         </label>
       </div>
+      <div class="fg" style="margin-top:-4px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--ink3)">
+          <input type="checkbox" id="nkpi-meta-trimestral">
+          <span>Meta trimestral — cada mês é avaliado com base em 1/3 da meta informada</span>
+        </label>
+      </div>
       <!-- Period-specific values -->
       <div id="kpi-valores-periodo-lbl" style="display:none;font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem;padding-top:.6rem;border-top:1px solid var(--bdr)">Valores do período</div>
       <div class="g3">
@@ -10189,6 +10195,13 @@ function populateIndFilters(){
   if(nomeSel) nomeSel.innerHTML = '<option value="">Todos os indicadores</option>' + nomes.map(a=>`<option ${curNome===a?'selected':''}>${esc(a)}</option>`).join('');
 }
 
+function kpiEffMeta(k){
+  if(k.meta===null||k.meta===undefined||k.meta==='') return null;
+  const m = Number(k.meta);
+  if(isNaN(m)) return null;
+  if(k.frequencia_meta==='trimestral') return Math.round(m/3*100)/100;
+  return m;
+}
 function _kpiGrpStatus(items){
   // Exclude periods explicitly marked as "sem medição"
   const measured = items.filter(i=>!i.sem_dado);
@@ -10201,12 +10214,9 @@ function _kpiGrpStatus(items){
   if(!withData.length) return null; // sem dados no período
   const last = withData[withData.length-1];
   const r = Number.parseFloat(last.realizado);
-  const m = Number.parseFloat(last.meta);
-  // meta=0 e realizado=0 → meta cumprida (ex: zero ocorrências de incidentes)
-  // Só dispara quando meta foi EXPLICITAMENTE definida como 0 (m===0, não NaN)
-  if(r === 0 && m === 0 && !Number.isNaN(m)) return 'ok';
-  // Sem meta definida (null/undefined→NaN) ou meta<=0 → sem análise possível
-  if(Number.isNaN(m) || m <= 0) return null;
+  const m = kpiEffMeta(last);
+  if(r === 0 && m === 0) return 'ok'; // zero target met
+  if(!(m > 0)) return null; // no meta or non-positive
   const pol = items[0].polaridade||'Maior é melhor';
   let pct;
   if(pol==='Menor é melhor'){
@@ -10295,9 +10305,8 @@ function kpiGrupoCardHTML(key, items){
   });
   const last = withData.length ? withData[withData.length-1] : null;
   const lastR = last ? Number.parseFloat(last.realizado) : null;
-  const lastM = last ? Number.parseFloat(last.meta) : null;
-  // hasMeta: meta explícita (>0) OU meta=0 explícita com real=0 (não NaN = não preenchida)
-  const hasMeta = last && !Number.isNaN(lastM) && (lastM > 0 || (lastR === 0 && lastM === 0));
+  const lastM = last ? kpiEffMeta(last) : null;
+  const hasMeta = lastM !== null && (lastM > 0 || (lastR === 0 && lastM === 0));
   let borderColor = 'var(--bdr)';
   if(hasMeta){
     let pct;
@@ -10335,7 +10344,7 @@ function kpiGrupoCardHTML(key, items){
   if(hasMeta && withData.length >= 3){
     const last3 = withData.slice(-3);
     const allBelow = last3.every(i=>{
-      const r=Number.parseFloat(i.realizado), m=Number.parseFloat(i.meta);
+      const r=Number.parseFloat(i.realizado), m=kpiEffMeta(i);
       if(r===0&&m===0) return false;
       if(!(m>0)) return false;
       return polaridade==='Menor é melhor' ? r>m : r<m;
@@ -10463,10 +10472,7 @@ function createKpiChart(key, items){
   const polaridade = items[0].polaridade||'Maior é melhor';
   const unidade = items[0].unidade||'';
   const realizados = withData.map(i=>Number.parseFloat(i.realizado)||0);
-  const realMetasData = withData.map(i=>{
-    if(i.meta!==null&&i.meta!==undefined&&i.meta!==''){const m=Number.parseFloat(i.meta);return isNaN(m)?null:m;}
-    return null;
-  });
+  const realMetasData = withData.map(i=>kpiEffMeta(i));
   const avgMetasData = withData.map(i=>(i.meta===null||i.meta===undefined||i.meta==='')?(i._metaFallback||null):null);
   const allMetas = withData.map((_,idx)=>realMetasData[idx]??avgMetasData[idx]??null);
   const hasRealMeta = realMetasData.some(m=>m!==null);
@@ -10499,7 +10505,7 @@ function createKpiChart(key, items){
       datasets: [
         { label:'Realizado'+und, data:realizados, borderRadius:4, order:2,
           backgroundColor: realizados.map((r,i)=>kpiBarColor(r,allMetas[i],polaridade)) },
-        ...(hasRealMeta&&!isCum?[{ label:'Meta'+und, data:realMetasData, type:'line', order:1,
+        ...(hasRealMeta&&!isCum?[{ label:(items[0].frequencia_meta==='trimestral'?'Meta ÷3'+und:'Meta'+und), data:realMetasData, type:'line', order:1,
           borderColor:'rgba(99,102,241,0.9)', backgroundColor:'transparent',
           borderWidth:2, borderDash:[5,4], pointRadius:3 }]:[]),
         ...(hasAvgFallback&&!isCum?[{ label:'Média histórica'+und, data:avgMetasData, type:'line', order:1,
@@ -10531,7 +10537,7 @@ function kpiCard(k){
 
   let pct = null, color, status, barW;
   if(hasMeta){
-    const _r = Number(k.realizado), _m = Number(k.meta);
+    const _r = Number(k.realizado), _m = kpiEffMeta(k) ?? 0;
     if(_r === 0 && _m === 0){
       pct = 100;
     } else if(polaridade === 'Menor é melhor'){
@@ -10571,7 +10577,7 @@ function kpiCard(k){
         <div style="font-weight:700;color:var(--ink)">${k.indice}%</div>
       </div>
       <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
-        <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Meta</div>
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Meta${k.frequencia_meta==='trimestral'?' <span style="font-size:9px">(trim.)</span>':''}</div>
         <div style="font-weight:700;color:var(--ink)">${hasMeta ? k.meta+unidade : '—'}</div>
       </div>
       <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
@@ -10615,6 +10621,8 @@ function _kpiFormSetFields(k){
   if(sdEl) sdEl.checked = !!k.sem_dado;
   const cumEl = document.getElementById('nkpi-cumulativo');
   if(cumEl) cumEl.checked = !!k.cumulativo;
+  const trimEl = document.getElementById('nkpi-meta-trimestral');
+  if(trimEl) trimEl.checked = k.frequencia_meta === 'trimestral';
   // populate process selector
   const procSel = document.getElementById('nkpi-proc');
   if(procSel){
@@ -10785,7 +10793,8 @@ function salvarNovoKpi(){
       meta:         (()=>{ const v=Number.parseFloat(document.getElementById('nkpi-meta').value); return Number.isNaN(v)?null:v; })(),
       ppe:          document.getElementById('nkpi-ppe').value,
       pid:          _pid,
-      cumulativo:   !!(document.getElementById('nkpi-cumulativo')?.checked),
+      cumulativo:        !!(document.getElementById('nkpi-cumulativo')?.checked),
+      frequencia_meta:   document.getElementById('nkpi-meta-trimestral')?.checked ? 'trimestral' : 'mensal',
     };
 
     periodos.forEach(p => {
@@ -10806,18 +10815,18 @@ function salvarNovoKpi(){
       }
       // Recalculate pct_realizado
       const pol  = kpis[idx].polaridade;
-      const meta = Number.parseFloat(kpis[idx].meta);
+      const effM = kpiEffMeta(kpis[idx]);
       const real = Number.parseFloat(kpis[idx].realizado);
       if(kpis[idx].sem_dado){
         kpis[idx].pct_realizado = null;
-      } else if(Number.isNaN(meta) || kpis[idx].meta === null || kpis[idx].meta === ''){
+      } else if(effM === null){
         kpis[idx].pct_realizado = null; // sem meta → sem análise
-      } else if(real === 0 && meta === 0){
+      } else if(real === 0 && effM === 0){
         kpis[idx].pct_realizado = 100; // meta cumprida
       } else if(pol === 'Menor é melhor'){
-        kpis[idx].pct_realizado = real > 0 ? Math.round((meta/real)*100) : 0;
+        kpis[idx].pct_realizado = real > 0 ? Math.round((effM/real)*100) : 0;
       } else {
-        kpis[idx].pct_realizado = meta > 0 ? Math.round((real/meta)*100) : 0;
+        kpis[idx].pct_realizado = effM > 0 ? Math.round((real/effM)*100) : 0;
       }
     });
 
@@ -10829,17 +10838,19 @@ function salvarNovoKpi(){
     const realVal   = Number.isNaN(real) ? 0 : real;
     const semDado   = !!(document.getElementById('nkpi-sem-dado')?.checked);
     const polaridade = document.getElementById('nkpi-polaridade').value;
+    const isTrimestral = !!(document.getElementById('nkpi-meta-trimestral')?.checked);
+    const effMeta = (metaVal !== null && isTrimestral) ? Math.round(metaVal/3*100)/100 : metaVal;
     let pct;
     if(semDado){
       pct = null;
-    } else if(metaVal === null){
+    } else if(effMeta === null){
       pct = null; // sem meta → sem análise
-    } else if(realVal === 0 && metaVal === 0){
+    } else if(realVal === 0 && effMeta === 0){
       pct = 100; // meta=0, real=0 → meta cumprida
     } else if(polaridade === 'Menor é melhor'){
-      pct = realVal > 0 ? Math.round((metaVal/realVal)*100) : 0;
+      pct = realVal > 0 ? Math.round((effMeta/realVal)*100) : 0;
     } else {
-      pct = metaVal > 0 ? Math.round((realVal/metaVal)*100) : 0;
+      pct = effMeta > 0 ? Math.round((realVal/effMeta)*100) : 0;
     }
     const editIdNum = Number.parseInt(editId);
     const idx = kpis.findIndex(k=>k.id===editIdNum);
@@ -10864,7 +10875,8 @@ function salvarNovoKpi(){
         analise: document.getElementById('nkpi-analise').value.trim(),
         pct_realizado: pct, sem_dado: semDado,
         pid: pidRaw ? Number.parseInt(pidRaw) : null,
-        cumulativo: !!(document.getElementById('nkpi-cumulativo')?.checked),
+        cumulativo:      !!(document.getElementById('nkpi-cumulativo')?.checked),
+        frequencia_meta: isTrimestral ? 'trimestral' : 'mensal',
       };
     }
   } else {
@@ -10875,17 +10887,19 @@ function salvarNovoKpi(){
     const realVal   = Number.isNaN(real) ? 0 : real;
     const semDado   = !!(document.getElementById('nkpi-sem-dado')?.checked);
     const polaridade = document.getElementById('nkpi-polaridade').value;
+    const isTrimestralNew = !!(document.getElementById('nkpi-meta-trimestral')?.checked);
+    const effMetaNew = (metaVal !== null && isTrimestralNew) ? Math.round(metaVal/3*100)/100 : metaVal;
     let pct;
     if(semDado){
       pct = null;
-    } else if(metaVal === null){
+    } else if(effMetaNew === null){
       pct = null; // sem meta → sem análise
-    } else if(realVal === 0 && metaVal === 0){
+    } else if(realVal === 0 && effMetaNew === 0){
       pct = 100; // meta=0, real=0 → meta cumprida
     } else if(polaridade === 'Menor é melhor'){
-      pct = realVal > 0 ? Math.round((metaVal/realVal)*100) : 0;
+      pct = realVal > 0 ? Math.round((effMetaNew/realVal)*100) : 0;
     } else {
-      pct = metaVal > 0 ? Math.round((realVal/metaVal)*100) : 0;
+      pct = effMetaNew > 0 ? Math.round((realVal/effMetaNew)*100) : 0;
     }
     const newPidRaw = document.getElementById('nkpi-proc')?.value;
     kpis.push({
@@ -10902,7 +10916,8 @@ function salvarNovoKpi(){
       analise: document.getElementById('nkpi-analise').value.trim(),
       pct_realizado: pct, sem_dado: semDado,
       pid: newPidRaw ? Number.parseInt(newPidRaw) : null,
-      cumulativo: !!(document.getElementById('nkpi-cumulativo')?.checked),
+      cumulativo:      !!(document.getElementById('nkpi-cumulativo')?.checked),
+      frequencia_meta: isTrimestralNew ? 'trimestral' : 'mensal',
     });
   }
 
@@ -13921,8 +13936,6 @@ async function iaAnalisarIndicadores(){
     _lastIndAnalise = result;
     const pdfBtn = document.getElementById('ia-ind-pdf-btn');
     if(pdfBtn) pdfBtn.style.display = '';
-    const emailBtn = document.getElementById('ia-ind-email-btn');
-    if(emailBtn) emailBtn.style.display = '';
     el.innerHTML = `<div class="ai-result">
       <div class="ai-result-lbl">✦ Análise IA dos indicadores</div>
       <div style="line-height:1.7">${esc(result)}</div>
@@ -13974,11 +13987,10 @@ function gerarRelatorioIndPdf(){
   // ── Calcula pct e classifica cada indicador ──────────────────────────
   function calcPct(k){
     const r = Number(k.realizado);
-    const m = Number(k.meta);
-    if(r === 0 && k.meta !== null && k.meta !== undefined && k.meta !== '' && m === 0) return 100;
+    const m = kpiEffMeta(k);
+    if(r === 0 && m === 0) return 100; // zero target met
     const pol = k.polaridade||'Maior é melhor';
-    const hasMeta = m > 0;
-    if(!hasMeta) return null;
+    if(!(m > 0)) return null;
     if(pol==='Menor é melhor'){
       return r > 0 ? Math.round((m/r)*100) : 0;
     }
@@ -14202,34 +14214,6 @@ function injectIaPop(){
 }
 
 // Indicadores page — inject IA analysis button
-function enviarRelatorioIndEmail(){
-  if(!_lastIndAnalise){ toast('Execute a análise antes de enviar.','var(--amber)'); return; }
-  if(!ejsConfig.service||!ejsConfig.template||!ejsConfig.pubkey||typeof emailjs==='undefined'){
-    toast('Configure o EmailJS em Notificações → Credenciais.','var(--amber)'); return;
-  }
-  const gestores=(USUARIOS||[]).filter(u=>u.perfil==='gestor'&&u.email);
-  if(!gestores.length){ toast('Nenhum gestor com e-mail cadastrado.','var(--amber)'); return; }
-  const area=document.getElementById('ind-area-sel')?.value||'';
-  const ciclo=document.getElementById('ind-ciclo-sel')?.value||'';
-  const period=document.getElementById('ind-periodo-sel')?.value||'';
-  const intervalo=document.getElementById('ind-intervalo-sel')?.value||'';
-  const filtros=[area?'Área: '+area:'',ciclo?'Ciclo: '+ciclo:'',period?'Período: '+period:'',intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ')||'Todos os indicadores';
-  const dtHoje=new Date().toLocaleDateString('pt-BR');
-  const assunto=`Análise dos Resultados — ${filtros}`;
-  const corpo=`Análise dos Resultados — ${filtros}\nData: ${dtHoje}\n\n${_lastIndAnalise}`;
-  let sent=0,errs=0;
-  const total=gestores.length;
-  gestores.forEach(u=>{
-    emailjs.send(ejsConfig.service,ejsConfig.template,{
-      to_name:u.nome,to_email:u.email,
-      from_name:'EP·CAGE — Indicadores',
-      processo:assunto,acao:corpo,prazo:'',
-      link:'https://sigaepp.web.app/',
-    }).then(()=>{ sent++; if(sent+errs===total) toast(`Análise enviada para ${sent} gestor(es).`); })
-      .catch(()=>{ errs++; if(sent+errs===total) toast(`Enviado: ${sent}. Falha: ${errs}.`,'var(--amber)'); });
-  });
-  toast(`Enviando para ${total} gestor(es)...`);
-}
 
 function injectIaIndicadores(){
   const el = document.getElementById('ind-c');
@@ -14242,7 +14226,6 @@ function injectIaIndicadores(){
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button type="button" id="ia-ind-btn" class="ai-btn" onclick="iaAnalisarIndicadores()">Analisar indicadores visíveis com IA</button>
       <button type="button" id="ia-ind-pdf-btn" class="btn btn-a" onclick="gerarRelatorioIndPdf()" style="display:none;font-size:12px;padding:5px 12px">⬇ Relatório PDF</button>
-      <button type="button" id="ia-ind-email-btn" class="btn" onclick="enviarRelatorioIndEmail()" style="display:none;font-size:12px;padding:5px 12px">📧 Enviar aos gestores</button>
       <span style="font-size:11px;color:var(--ink3)">Analisa os indicadores do filtro atual e gera um comentário executivo.</span>
     </div>
     <div id="ia-ind-result"></div>`;
