@@ -3451,11 +3451,11 @@ function _abrirModalNotifInformativa(titulo, descricao, destinos, onConfirm){
   globalThis._notifInfoCallback={destinos:validos,onConfirm};
 }
 function _confirmarNotifInformativa(){
-  const selecionados=Array.from(document.querySelectorAll('input[name="notif-dest"]:checked')).map(el=>el.value);
+  const selecionados=new Set(Array.from(document.querySelectorAll('input[name="notif-dest"]:checked')).map(el=>el.value));
   const {destinos,onConfirm}=globalThis._notifInfoCallback||{};
   document.getElementById('modal-notif-info')?.remove();
   if(destinos&&onConfirm){
-    const alvos=destinos.filter(d=>selecionados.includes(d.id));
+    const alvos=destinos.filter(d=>selecionados.has(d.id));
     if(alvos.length) onConfirm(alvos);
   }
 }
@@ -4612,7 +4612,7 @@ const _RESET_MAP={
   melhorias:     p=>{ if(p.ent?.analise) p.ent.analise.feedback_dono={}; },
   esboco_tobe:   p=>{ if(p.mod){p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];} },
   det_valid_tobe:p=>{ if(p.ent?.evidencias) p.ent.evidencias.det_valid_tobe=[]; },
-  desenho_final: p=>{ if(p.mod) p.mod.desenho_final=null; if(p.form) p.form.obs_final=''; },
+  desenho_final: p=>{ if(p.mod){p.mod.desenho_final=null;} if(p.form){p.form.obs_final='';} },
   indicadores_proc: p=>{ if(p.form) p.form.indicadores_proc=[]; },
   pop:           p=>{ if(p.form){p.form.pop=null;p.form.faq='';p.form.excecoes='';p.form.contatos='';p.form.forms='';p.form.obs_complement='';} },
   apresentacao:  p=>{ if(p.ent?.evidencias) p.ent.evidencias.apresentacao=[]; },
@@ -5215,7 +5215,7 @@ function rKpisVinculados(procId){
         <input type="checkbox" ${inPop?'checked':''} onchange="toggleKpiVinculadoPop(${idx})" style="width:14px;height:14px;cursor:pointer;accent-color:var(--blue)">
       </label>
       <span style="font-size:12px;font-weight:600;color:${inPop?'var(--ink)':'var(--ink3)'}">${esc(k.nome)}</span>
-      <span style="font-size:11px;color:var(--ink2)">${k.meta!=null?esc(String(k.meta)):'—'}</span>
+      <span style="font-size:11px;color:var(--ink2)">${k.meta==null?'—':esc(String(k.meta))}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(k.unidade||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(k.periodicidade||'—')}</span>
     </div>`;
@@ -5231,7 +5231,7 @@ function rKpisVinculados(procId){
 function toggleIndProcPop(i){
   const ind=(curProc?.form?.indicadores_proc||[])[i];
   if(!ind) return;
-  ind.incluir_pop=(ind.incluir_pop===false)?true:false;
+  ind.incluir_pop=(ind.incluir_pop===false);
   atualizarIndProcUI();
   fbAutoSave('toggleIndProcPop');
 }
@@ -5240,7 +5240,8 @@ function toggleKpiVinculadoPop(idx){
   const vinculados=(kpis||[]).filter(k=>k.pid===p.id);
   const seen=new Set();
   const unicos=vinculados.filter(k=>{const key=k.codigo||k.nome||'';if(seen.has(key))return false;seen.add(key);return true;});
-  const k=unicos[idx]; if(!k) return;
+  const k=unicos[idx];
+  if(!k) return;
   const key=k.codigo||k.nome||'';
   if(!p.form) p.form={};
   if(!p.form.kpis_pop_ids) p.form.kpis_pop_ids=[];
@@ -5603,7 +5604,7 @@ function salvarEsboco(avancar=true){
   const mAs=bpmnModelers['asis'];
   if(mAs){mAs.saveXML({format:true}).then(({xml})=>{p.mod.bpmnAsIs=xml;if(!avancar)fbAutoSave('salvarEsboco');}).catch(e=>console.warn('bpmn saveXML asis:',e.message));}
   if(avancar) av('esboco_asis','EP','Esboço AS IS elaborado com BPMN');
-  else{if(!mAs)fbAutoSave('salvarEsboco');toast('Dados salvos!','var(--teal)');}
+  else{if(!mAs){fbAutoSave('salvarEsboco');}toast('Dados salvos!','var(--teal)');}
 }
 function salvarEsbocaTobe(avancar=true){
   if(!_validarCampos([{id:'e-tobe',label:'Descrição do TO BE'}])) return;
@@ -5612,7 +5613,7 @@ function salvarEsbocaTobe(avancar=true){
   const mTo=bpmnModelers['tobe'];
   if(mTo){mTo.saveXML({format:true}).then(({xml})=>{p.mod.bpmnToBe=xml;if(!avancar)fbAutoSave('salvarEsbocaTobe');}).catch(e=>console.warn('bpmn saveXML tobe:',e.message));}
   if(avancar) av('esboco_tobe','EP','Esboço TO BE elaborado com BPMN');
-  else{if(!mTo)fbAutoSave('salvarEsbocaTobe');toast('Dados salvos!','var(--teal)');}
+  else{if(!mTo){fbAutoSave('salvarEsbocaTobe');}toast('Dados salvos!','var(--teal)');}
 }
 
 
@@ -6720,7 +6721,7 @@ function popAtivCards(p){
   if(!etapas.length) return '<div class="ib iba">Nenhuma etapa cadastrada na modelagem. Complete a etapa "Detalhamento de etapas" primeiro.</div>';
   const TIPOS=['Atividade','Decisão','Observação','Evento'];
   // normTipo retorna '' para entrada falsa, permitindo que o || avance para o fallback correto
-  const normTipo=t=>{if(!t)return '';if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t;};
+  const normTipo=t=>{if(!t){return '';}if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t;};
   const normModo=m=>{if(m==='Automatica'){return 'Automática';}if(m==='Semi-automatica'){return 'Semi-automática';}return m||'Manual';};
   return etapas.map((e,i)=>{
     const d=det[e.id]||{};
@@ -6729,10 +6730,12 @@ function popAtivCards(p){
     const tipo=isStructural?normTipo(e.tipo)||e.tipo:(normTipo(d.tipo)||normTipo(e.tipo)||'Atividade');
     const desc=(d.desc!==undefined&&d.desc!=='')?d.desc:(e.desc||'');
     // Eventos não têm executor real — só usa d.resp se explicitamente preenchido pelo usuário
-    const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:(isStructural?'':(e.executor||''));
+    const execDefault=isStructural?'':(e.executor||'');
+    const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:execDefault;
     const modo=normModo(e.modo);
     const gw=e.vinculo_gw?.gw_ep_id?etapas.find(x=>x.id===e.vinculo_gw.gw_ep_id):null;
-    const gwHtml=gw?`<div style="font-size:10px;color:var(--teal);margin-top:2px;display:flex;align-items:center;gap:4px"><span style="background:var(--teal-l);border-radius:3px;padding:1px 6px">⤷ ${esc(gw.nome||'Gateway')}${e.vinculo_gw.label?' · '+esc(e.vinculo_gw.label):''}</span></div>`:'';
+    const gwLabel=gw&&e.vinculo_gw.label?' · '+esc(e.vinculo_gw.label):'';
+    const gwHtml=gw?`<div style="font-size:10px;color:var(--teal);margin-top:2px;display:flex;align-items:center;gap:4px"><span style="background:var(--teal-l);border-radius:3px;padding:1px 6px">⤷ ${esc(gw.nome||'Gateway')}${gwLabel}</span></div>`:'';
     return `<div style="border:1px solid var(--bdr);border-left:3px solid var(--blue);border-radius:var(--r);padding:.7rem .9rem;margin-bottom:.6rem;background:var(--surf)">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:.4rem">
         <span style="font-size:10px;font-weight:700;color:var(--ink3);background:var(--bg2);border-radius:4px;padding:1px 7px;flex-shrink:0">${i+1}</span>
@@ -7360,7 +7363,7 @@ function calcILP(etapas){
   //   a) caminhos.length>1   → estrutura manual OU BPMN novo (extrator popula caminhos)
   //   b) vinculo_gw.gw_ep_id → estrutura BPMN plana (atividades dentro de branches)
   const NON_XOR=new Set(['paralelo','inclusivo','complexo']);
-  const _normGw=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const _normGw=s=>(s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
   const _isParalelo=n=>NON_XOR.has(n.subtipo_gateway)||_normGw(n.nome).includes('paralelo');
   const gwXorNodes=all.filter(n=>
     n.tipo==='Decisao' &&
@@ -7372,7 +7375,7 @@ function calcILP(etapas){
   );
   const gxorDiv=gwXorNodes.length;
   // Atores distintos: normaliza caixa e acentuação antes de deduplicar
-  const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
   const atoresMap=new Map(); // key=normalizado → value=primeira ocorrência original
   atividades.forEach(n=>{
     const raw=(n.executor||'').trim();
@@ -7385,7 +7388,7 @@ function calcILP(etapas){
   // Peso por modo de execução: automação reduz overhead no denominador
   // Manual=1.0 | Semi-automática=0.75 | Automática=0.5
   const PESO_MODO={'Automatica':0.5,'Semi-automatica':0.75};
-  const _pesoModo=n=>PESO_MODO[n.modo]??1.0;
+  const _pesoModo=n=>PESO_MODO[n.modo]??1;
   // Atividades agrupadas por natureza e por modo (para auditoria)
   const _byNat=nat=>atividades.filter(n=>n.natureza===nat).map(n=>n.nome||'?');
   const _byModo=modo=>atividades.filter(n=>n.modo===modo).map(n=>n.nome||'?');
@@ -7492,12 +7495,12 @@ function abrirIlpAuditoria(p){
   ):'';
   // Atores
   const atoresHtml=_sec(
-    `${atoresList.length} ator${atoresList.length!==1?'es':''} distinto${atoresList.length!==1?'s':''}`,
+    `${atoresList.length} ator${atoresList.length===1?'':'es'} distinto${atoresList.length===1?'':'s'}`,
     atoresList.length?atoresList.map(a=>_tag(a,'#1e6bfa')).join(''):_vazia('Nenhum executor definido nas atividades')
   );
   // Gateways XOR
   const gwHtml=_sec(
-    `${gxorDiv} gateway${gxorDiv!==1?'s':''} XOR divergente${gxorDiv!==1?'s':''}`,
+    `${gxorDiv} gateway${gxorDiv===1?'':'s'} XOR divergente${gxorDiv===1?'':'s'}`,
     gxorDiv?gwXorList.map(g=>_tag(`${g.nome}${g.caminhos>1?' ('+g.caminhos+' caminhos)':''}${g.subtipo&&g.subtipo!=='exclusivo'?' ['+g.subtipo+']':''}`, '#f59e0b')).join('')
            :_vazia('Nenhum gateway XOR divergente detectado')
   );
@@ -7725,7 +7728,7 @@ function rForm(p){
       ${(()=>{
         const etapas=curProc?.mod?.etapas_proc||[];
         const det=pd.ativ_detalhes||{};
-        const normTipo=t=>{if(!t)return '';if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t;};
+        const normTipo=t=>{if(!t){return '';}if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t;};
         const normModo=m=>{if(m==='Automatica'){return 'Automática';}if(m==='Semi-automatica'){return 'Semi-automática';}return m||'Manual';};
         const linhas=etapas.map((e,i)=>{
           const d=det[e.id]||{};
@@ -7733,11 +7736,13 @@ function rForm(p){
           // Eventos e Gateways: tipo sempre do modelo; resp nunca do executor (pode estar desatualizado)
           const isStructural=e.tipo==='Evento'||e.tipo==='Decisao'||e.tipo==='Decisão';
           const tipo=isStructural?(normTipo(e.tipo)||e.tipo):(normTipo(d.tipo)||normTipo(e.tipo)||'Atividade');
-          const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:(isStructural?'':(e.executor||''));
+          const execDefault=isStructural?'':(e.executor||'');
+    const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:execDefault;
           const modo=normModo(e.modo);
           const nat=e.natureza||'';
           const gw=e.vinculo_gw?.gw_ep_id?etapas.find(x=>x.id===e.vinculo_gw.gw_ep_id):null;
-          const gwCell=gw?`<div style="font-size:10px;color:var(--ink3)">⤷ ${esc(gw.nome||'Gateway')}${e.vinculo_gw.label?' · '+esc(e.vinculo_gw.label):''}</div>`:'';
+          const gwCellLabel=gw&&e.vinculo_gw.label?' · '+esc(e.vinculo_gw.label):'';
+          const gwCell=gw?`<div style="font-size:10px;color:var(--ink3)">⤷ ${esc(gw.nome||'Gateway')}${gwCellLabel}</div>`:'';
           return `<tr style="border-bottom:1px solid var(--bdr)">
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3);white-space:nowrap">${i+1}</td>
             <td style="padding:5px 8px;font-size:12px;font-weight:600">${esc(e.nome||'')}${gwCell}</td>
@@ -7792,7 +7797,7 @@ function rForm(p){
           </tr>`),
           ...indsVinc.map(k=>`<tr style="border-bottom:1px solid var(--bdr)">
             <td style="padding:5px 8px;font-size:12px;font-weight:600">${esc(k.nome)}</td>
-            <td style="padding:5px 8px;font-size:11px;color:var(--ink2)">${k.meta!=null?esc(String(k.meta)):'—'}</td>
+            <td style="padding:5px 8px;font-size:11px;color:var(--ink2)">${k.meta==null?'—':esc(String(k.meta))}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(k.unidade||'—')}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(k.periodicidade||'—')}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">—</td>
@@ -7857,9 +7862,9 @@ async function _popPdfAnexo(p){
     sections.push(`${secH('6.0','Volumetria')}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:.5rem">
       ${fld('Execuções/período',e.vol?.exec||'')}
-      ${fld('Tempo médio de ciclo',e.t_ciclo!=null?e.t_ciclo+' h':'')}
-      ${fld('Tempo real (lead time)',e.t_real!=null?e.t_real+' h':'')}
-      ${fld('Tempo de gaveta',e.t_gaveta!=null?e.t_gaveta+' h':'')}
+      ${fld('Tempo médio de ciclo',e.t_ciclo==null?'':e.t_ciclo+' h')}
+      ${fld('Tempo real (lead time)',e.t_real==null?'':e.t_real+' h')}
+      ${fld('Tempo de gaveta',e.t_gaveta==null?'':e.t_gaveta+' h')}
     </div>`);
   }
 
@@ -7907,11 +7912,14 @@ async function _popPdfAnexo(p){
       'O processo é continuamente aprimorado com base em dados, benchmarks e inovação. Representa o nível máximo de excelência processual.'
     ];
     const badges=[1,2,3,4,5].map(n=>{
-      const bg=matNivel===n?'#1e6bfa':matNivel>n?'#d1fae5':'#f4f5f8';
-      const c=matNivel===n?'#fff':matNivel>n?'#065f46':'#8888aa';
+      let bg,c;
+      if(matNivel===n){bg='#1e6bfa';c='#fff';}
+      else if(matNivel>n){bg='#d1fae5';c='#065f46';}
+      else{bg='#f4f5f8';c='#8888aa';}
       return `<span style="background:${bg};color:${c};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px">${n} ${ML2[n]}</span>`;
     }).join('');
-    sections.push(`${secH('8.0',`Maturidade — Nível ${matNivel}/5: ${ML2[matNivel]}`)}
+    const matTitle=`Maturidade — Nível ${matNivel}/5: ${ML2[matNivel]}`;
+    sections.push(`${secH('8.0',matTitle)}
     <div style="margin-bottom:.5rem">${badges}</div>
     <div style="font-size:12px;color:#4a4a6a;line-height:1.55">${matDescs[matNivel]}</div>`);
   }
@@ -7919,12 +7927,13 @@ async function _popPdfAnexo(p){
   // ── 9.0 SIPOC ────────────────────────────────────────────────────────────
   if(e.fornecedores||e.entradas||e.saidas||e.clientes){
     const cols=[['S','Fornecedores',e.fornecedores,'#dbeafe','#1d4ed8'],['I','Entradas',e.entradas,'#dcfce7','#166534'],['P','Processo',p.nome,'#ede9fe','#5b21b6'],['O','Saídas',e.saidas,'#fef3c7','#92400e'],['C','Clientes',e.clientes,'#fce7f3','#9d174d']];
+    const atoresHtmlSipoc=e.atores?`<div style="font-size:11px;color:#4a4a6a;margin-top:.5rem"><strong>Atores/participantes:</strong> ${_esc(e.atores)}</div>`:'';
     sections.push(`${secH('9.0','SIPOC')}
     <table style="width:100%;border-collapse:collapse">
       <tr>${cols.map(([k,lb,,bg,c])=>`<th style="background:${bg};color:${c};padding:8px;text-align:center;font-size:11px;border:1px solid #e0e0f0"><span style="font-size:18px;font-weight:900;font-family:Georgia,serif;display:block">${k}</span>${lb}</th>`).join('')}</tr>
       <tr>${cols.map(([,,v,bg])=>`<td style="background:${bg}55;padding:8px;font-size:11px;vertical-align:top;border:1px solid #e0e0f0;white-space:pre-wrap">${_esc(v||'—')}</td>`).join('')}</tr>
     </table>
-    ${e.atores?`<div style="font-size:11px;color:#4a4a6a;margin-top:.5rem"><strong>Atores/participantes:</strong> ${_esc(e.atores)}</div>`:''}`);
+    ${atoresHtmlSipoc}`);
   }
 
   // ── 10.0 Matriz de Riscos ─────────────────────────────────────────────────
@@ -7932,9 +7941,10 @@ async function _popPdfAnexo(p){
   if(riscos.length){
     const pS={Alta:3,Media:2,Baixa:1};
     const iS={Baixo:1,Medio:2,Alto:3,Critico:4};
-    const sev=r=>{const s=(pS[r.prob]||1)*(iS[r.imp]||1);if(s<=2)return['#d1fae5','#065f46','Baixo'];if(s<=4)return['#fef3c7','#92400e','Moderado'];if(s<=8)return['#ffedd5','#9a3412','Alto'];return['#fee2e2','#991b1b','Crítico'];};
+    const sev=r=>{const s=(pS[r.prob]||1)*(iS[r.imp]||1);if(s<=2){return['#d1fae5','#065f46','Baixo'];}if(s<=4){return['#fef3c7','#92400e','Moderado'];}if(s<=8){return['#ffedd5','#9a3412','Alto'];}return['#fee2e2','#991b1b','Crítico'];};
+    const matrizTitle=`Matriz de Riscos (${riscos.length})`;
     const rRows=riscos.map(r=>{const[bg,c,lbl]=sev(r);return`<tr><td style="padding:5px 8px;font-size:11px;border-bottom:1px solid #e0e0f0">${_esc(r.desc)}</td><td style="padding:5px 8px;font-size:11px;text-align:center;border-bottom:1px solid #e0e0f0">${r.prob||'—'}</td><td style="padding:5px 8px;font-size:11px;text-align:center;border-bottom:1px solid #e0e0f0">${r.imp||'—'}</td><td style="padding:5px 8px;font-size:10px;text-align:center;border-bottom:1px solid #e0e0f0;background:${bg};color:${c};font-weight:700">${lbl}</td></tr>`;}).join('');
-    sections.push(`${secH('10.0',`Matriz de Riscos (${riscos.length})`)}
+    sections.push(`${secH('10.0',matrizTitle)}
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="background:#f4f5f8"><th style="padding:5px 8px;text-align:left;font-size:10px;border-bottom:2px solid #e0e0f0">Risco</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Probabilidade</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Impacto</th><th style="padding:5px 8px;text-align:center;font-size:10px;border-bottom:2px solid #e0e0f0">Severidade</th></tr></thead>
       <tbody>${rRows}</tbody>
@@ -7971,7 +7981,7 @@ async function _popPdfAnexo(p){
     const _svgForPdf=svg=>{
       // Substitui width/height fixos por 100%/auto para escalar ao container
       return svg.replace(/<svg([^>]*)>/,(m,a)=>{
-        let at=a.replace(/\bwidth="[^"]*"/g,'width="100%"').replace(/\bheight="[^"]*"/g,'height="auto"');
+        let at=a.replaceAll(/\bwidth="[^"]*"/g,'width="100%"').replaceAll(/\bheight="[^"]*"/g,'height="auto"');
         if(!/\bwidth=/.test(at)) at+=' width="100%"';
         if(!/\bheight=/.test(at)) at+=' height="auto"';
         return `<svg${at}>`;
@@ -8678,9 +8688,9 @@ function salvarDesenhoFinal(avancar=true){
 // ─── Sugestão TO BE por IA (Mermaid) ────────────────────────────────────────
 function _initMermaid(){
   if(typeof mermaid==='undefined') return false;
-  if(!window._mermaidInited){
+  if(!globalThis._mermaidInited){
     mermaid.initialize({startOnLoad:false,theme:'default',securityLevel:'strict',fontFamily:'Arial, sans-serif'});
-    window._mermaidInited=true;
+    globalThis._mermaidInited=true;
   }
   return true;
 }
@@ -8761,7 +8771,7 @@ function _downloadMermaid(){
   const p=curProc;if(!p)return;
   const code=document.getElementById('tobe-mermaid-code')?.value||p.mod?.tobe_mermaid||'';
   if(!code){toast('Nenhum código Mermaid para baixar.','var(--red)');return;}
-  const nome=(p.ent?.abertura?.nome_processo||'processo').replace(/[^a-z0-9]/gi,'_').toLowerCase();
+  const nome=(p.ent?.abertura?.nome_processo||'processo').replaceAll(/[^a-z0-9]/gi,'_').toLowerCase();
   const blob=new Blob([code],{type:'text/plain;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -8827,7 +8837,7 @@ ${code}`;
       toast('Diagrama BPMN carregado no editor TO BE.','var(--teal)');
     } else {
       // Download as .bpmn file
-      const nome=(p.ent?.abertura?.nome_processo||'processo').replace(/[^a-z0-9]/gi,'_').toLowerCase();
+      const nome=(p.ent?.abertura?.nome_processo||'processo').replaceAll(/[^a-z0-9]/gi,'_').toLowerCase();
       const blob=new Blob([xml],{type:'application/xml;charset=utf-8'});
       const a=document.createElement('a');
       a.href=URL.createObjectURL(blob);
@@ -10475,7 +10485,7 @@ function _kpiFormSetFields(k){
   fv('nkpi-indice',     k.indice     || '');
   fv('nkpi-meta',       k.meta       || '');
   fv('nkpi-real',       k.realizado  || '');
-  fv('nkpi-pct-real',   k.pct_realizado != null ? k.pct_realizado+'%' : '');
+  fv('nkpi-pct-real',   k.pct_realizado == null ? '' : k.pct_realizado+'%');
   fv('nkpi-unidade',    k.unidade    || '');
   fv('nkpi-polaridade', k.polaridade || 'Maior é melhor');
   fv('nkpi-analise',    k.analise    || '');
@@ -10585,7 +10595,7 @@ function _kpiNavStep(dir){
 function calcPctReal(){
   const semDado = document.getElementById('nkpi-sem-dado')?.checked;
   const pctEl   = document.getElementById('nkpi-pct-real');
-  if(semDado){ if(pctEl) pctEl.value = 'N/A'; return; }
+  if(semDado){ if(pctEl){pctEl.value = 'N/A';} return; }
   const metaRaw = document.getElementById('nkpi-meta').value;
   const realRaw = document.getElementById('nkpi-real').value;
   const meta = Number.parseFloat(metaRaw);
