@@ -15,7 +15,7 @@
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js" integrity="sha384-/cXAMbzovUIKbBERjPmR3SnPTh8siWr5lsvFYj1Uq4XP0yaJUZJmsh0YXyGv5P0y" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" integrity="sha384-Cck14aA9cifjYolcnjebXRfWGkz5ltHMBiG4px/j8GS+xQcb7OhNQWZYyWjQ+UwQ" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.5/dist/mermaid.min.js" integrity="sha384-enVdc7lTHDGtpROV85t9+VqPC2EyyB0hsRD0MrvQnHUsHmTHIz2D8SPP4EnBkstH" crossorigin="anonymous"></script>
 <!-- Config: loaded synchronously so globalThis.CONFIG is available immediately -->
 <script src="config.deploy.js" onerror="console.info('config.deploy.js not found')"></script>
 <script src="config.local.js" onerror="console.info('config.local.js not found')"></script>
@@ -4855,17 +4855,57 @@ function _rAcaoHandleDono(el, ac, p){
     :`<div class="card"><div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>Esta etapa — <strong>${ac.titulo}</strong> — aguarda ação de <strong>${p.dono||'dono'}</strong>.</span>${prazoBanner}</div><div style="font-size:13px;color:var(--ink2)">${ac.sub}</div></div>`;
   _rAcaoInitBpmn(p, minhaTarefa);
 }
+function _rAcaoAppendEPBars(el, p){
+  const atrib=(p.atribuicoes||{})[p.etapa];
+  if(atrib?.para==='dono'||atrib?.para==='gestor'){
+    const prazoFmt=atrib.prazo?atrib.prazo.split('-').reverse().join('/'):'—';
+    const atribBar=document.createElement('div');
+    atribBar.style.cssText='margin-top:.8rem;padding:.7rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--blue-l,#eff6ff)';
+    atribBar.innerHTML=`<span style="font-size:12px;color:var(--ink2)">📋 Atribuído a <strong>${esc(atrib.para_nome||atrib.para)}</strong> — prazo: ${prazoFmt}</span>
+      <button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="retomarEtapaEP()">↩ Retomar para EP</button>`;
+    el.appendChild(atribBar);
+  } else {
+    const atribBtn=document.createElement('div');
+    atribBtn.style.cssText='margin-top:.8rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
+    atribBtn.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa delegar esta etapa?</span>
+      <button type="button" class="btn" style="font-size:12px;padding:4px 10px" onclick="abrirAtribuirEtapa('${p.etapa}')">👤 Atribuir a...</button>`;
+    el.appendChild(atribBtn);
+  }
+  const etRet=getDevolverEtapa(p);
+  if(etRet){
+    const bar=document.createElement('div');
+    bar.style.cssText='margin-top:.5rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
+    bar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa que ${etLb(etRet)} seja refeito?</span>
+      <button type="button" class="btn" style="font-size:12px;padding:4px 10px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="devolverAoDono()">↩ Devolver para ajustes</button>`;
+    el.appendChild(bar);
+  }
+  const acObj=ACOES[p.etapa];
+  if(acObj&&acObj.rk==='ep'&&(!atrib||atrib.para==='ep')){
+    const prazoAtual=(p.prazos_ep||{})[p.etapa]||'';
+    const epbar=document.createElement('div');
+    epbar.style.cssText='margin-top:.6rem;padding:.55rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
+    epbar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">⏱ Prazo desta etapa EP: <strong style="color:var(--ink)">${prazoAtual?prazoAtual.split('-').reverse().join('/'):'Não definido'}</strong></span>
+      <button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="definirPrazoEP('${p.etapa}')">✎ Definir prazo</button>`;
+    el.appendChild(epbar);
+  }
+  if(ACOES[p.etapa]?.rk==='ep' && _ADVANCE_MAP[p.etapa]){
+    const advBar=document.createElement('div');
+    advBar.style.cssText='margin-top:.8rem;padding:.65rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--blue-l,#eff6ff)';
+    advBar.innerHTML=`<span style="font-size:12px;color:var(--ink2)">Ações disponíveis:</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn" style="font-size:12px;padding:4px 12px" onclick="_SAVE_MAP[curProc?.etapa]?.()">💾 Salvar dados</button>
+        <button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">✓ Salvar e ir para próxima →</button>
+      </div>`;
+    el.appendChild(advBar);
+  }
+}
 function rAcao(p){
   const role=usuarioLogado?.perfil||'ep';
   const el=document.getElementById('tab-acao');
   const ac=ACOES[p.etapa];
   if(!ac){el.innerHTML='<div class="ib ibsl">Etapa não configurada.</div>';return;}
   if(role==='dono'){ _rAcaoHandleDono(el,ac,p); return; }
-  // Se EP tem revisão de entrega do dono pendente, mostrar tela de revisão antes do fluxo normal
-  if(isEP() && p.ent?.revisao_ep_pendente){
-    _rAcaoRevisaoDono(el, p);
-    return;
-  }
+  if(isEP() && p.ent?.revisao_ep_pendente){ _rAcaoRevisaoDono(el, p); return; }
   const roleNote=role===ac.rk?'':`<div class="ib iba" style="margin-top:.7rem">Esta etapa aguarda: <strong>${ac.role}</strong>. Troque o perfil para interagir.</div>`;
   const isPulada=isEP()&&(p.etapas_puladas||[]).includes(p.etapa);
   const pendenteBanner=isPulada?`<div style="background:var(--amber-l);border:1.5px solid var(--amber);border-radius:var(--r);padding:.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.7rem">
@@ -4877,58 +4917,9 @@ function rAcao(p){
     <span style="font-size:12px;color:var(--ink3)">Precisa avançar sem concluir esta etapa agora?</span>
     <button type="button" class="btn btn-a" style="font-size:12px;padding:4px 10px" onclick="pularEtapaConfirm('${p.etapa}')">⏭ Pular etapa</button>
   </div>`:'';
-  // Q019: checklist de pendências da etapa atual (apenas EP)
   const checklistHtml=isEP()?_renderChecklist(p):'';
   el.innerHTML=skipBarHtml+pendenteBanner+checklistHtml+buildAcaoCardHTML(ac,p,roleNote);
-  if(isEP()){
-    const atrib=(p.atribuicoes||{})[p.etapa];
-    // Banner de atribuição ativa: mostra quem tem a tarefa e permite retomar
-    if(atrib?.para==='dono'||atrib?.para==='gestor'){
-      const prazoFmt=atrib.prazo?atrib.prazo.split('-').reverse().join('/'):'—';
-      const atribBar=document.createElement('div');
-      atribBar.style.cssText='margin-top:.8rem;padding:.7rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--blue-l,#eff6ff)';
-      atribBar.innerHTML=`<span style="font-size:12px;color:var(--ink2)">📋 Atribuído a <strong>${esc(atrib.para_nome||atrib.para)}</strong> — prazo: ${prazoFmt}</span>
-        <button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="retomarEtapaEP()">↩ Retomar para EP</button>`;
-      el.appendChild(atribBar);
-    } else {
-      // Botão para atribuir a dono/gestor (apenas quando não há atribuição ativa)
-      const atribBtn=document.createElement('div');
-      atribBtn.style.cssText='margin-top:.8rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
-      atribBtn.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa delegar esta etapa?</span>
-        <button type="button" class="btn" style="font-size:12px;padding:4px 10px" onclick="abrirAtribuirEtapa('${p.etapa}')">👤 Atribuir a...</button>`;
-      el.appendChild(atribBtn);
-    }
-    // Barra de devolução para ajustes (quando há etapa anterior atribuída)
-    const etRet=getDevolverEtapa(p);
-    if(etRet){
-      const bar=document.createElement('div');
-      bar.style.cssText='margin-top:.5rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
-      bar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa que ${etLb(etRet)} seja refeito?</span>
-        <button type="button" class="btn" style="font-size:12px;padding:4px 10px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="devolverAoDono()">↩ Devolver para ajustes</button>`;
-      el.appendChild(bar);
-    }
-    // Q009: barra de prazo da etapa EP
-    const acObj=ACOES[p.etapa];
-    if(acObj&&acObj.rk==='ep'&&(!atrib||atrib.para==='ep')){
-      const prazoAtual=(p.prazos_ep||{})[p.etapa]||'';
-      const epbar=document.createElement('div');
-      epbar.style.cssText='margin-top:.6rem;padding:.55rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
-      epbar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">⏱ Prazo desta etapa EP: <strong style="color:var(--ink)">${prazoAtual?prazoAtual.split('-').reverse().join('/'):'Não definido'}</strong></span>
-        <button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="definirPrazoEP('${p.etapa}')">✎ Definir prazo</button>`;
-      el.appendChild(epbar);
-    }
-  }
-  // Barra de ações: salvar dados (permanece) + salvar e avançar (apenas EP, etapas rk:'ep')
-  if(isEP() && ACOES[p.etapa]?.rk==='ep' && _ADVANCE_MAP[p.etapa]){
-    const advBar=document.createElement('div');
-    advBar.style.cssText='margin-top:.8rem;padding:.65rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--blue-l,#eff6ff)';
-    advBar.innerHTML=`<span style="font-size:12px;color:var(--ink2)">Ações disponíveis:</span>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button type="button" class="btn" style="font-size:12px;padding:4px 12px" onclick="_SAVE_MAP[curProc?.etapa]?.()">💾 Salvar dados</button>
-        <button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">✓ Salvar e ir para próxima →</button>
-      </div>`;
-    el.appendChild(advBar);
-  }
+  if(isEP()){ _rAcaoAppendEPBars(el, p); }
   _rAcaoInitBpmn(p, false);
 }
 
@@ -5498,6 +5489,9 @@ function salvarDadosPublicacao(){
   fbAutoSave('salvarDadosPublicacao');
   toast('Dados salvos!','var(--teal)');
 }
+function _notifInteressadosPub(interessados, acao, procNome){
+  interessados.filter(Boolean).forEach(email=>enviarNotif(email,email,acao,procNome,'',usuarioLogado?.nome||'EP'));
+}
 function publicarProcesso(){
   const p=curProc;
   const _efetPub=document.getElementById('pub-efet')?.value||p.ent.dt_efetiva;
@@ -5519,15 +5513,13 @@ function publicarProcesso(){
     'Notificar sobre publicação',
     'Selecione quem deve receber o aviso de publicação do processo "'+_pPub.nome+'".',
     _destPub,
-    alvos=>{
-      alvos.forEach(d=>{
-        if(d.id==='interessados'){
-          (_pPub.interessados||[]).forEach(email=>{if(email)enviarNotif(email,email,_acaoPub,_pPub.nome,'',usuarioLogado?.nome||'EP');});
-        } else {
-          enviarNotif(d.email,d.nome||d.email,_acaoPub,_pPub.nome,'',usuarioLogado?.nome||'EP');
-        }
-      });
-    }
+    alvos=>alvos.forEach(d=>{
+      if(d.id==='interessados'){
+        _notifInteressadosPub(_pPub.interessados||[], _acaoPub, _pPub.nome);
+      } else {
+        enviarNotif(d.email,d.nome||d.email,_acaoPub,_pPub.nome,'',usuarioLogado?.nome||'EP');
+      }
+    })
   ),300);
 }
 function salvarAnalise(avancar=true){
@@ -8758,7 +8750,7 @@ function _salvarMermaidEditado(){
 function _cleanMermaidCode(raw){
   let code=raw.trim();
   // Strip markdown code fences
-  code=code.replace(/^```(?:mermaid)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+  code=code.replace(/^```(?:mermaid)?\s*/i,'').replace(/```\s*$/,'').trim();
   // If there are multiple sections, grab the first flowchart/graph block
   const m=code.match(/((?:flowchart|graph)\s[\s\S]+)/i);
   if(m) code=m[1].trim();
