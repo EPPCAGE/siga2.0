@@ -10383,7 +10383,7 @@ function kpiGrupoCardHTML(key, items){
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0">${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button><button type="button" class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${items[0].id})" aria-label="Excluir indicador">×</button>`:''}</div>
     </div>
-    <div style="position:relative;height:200px"><canvas id="chart-kpi-${key.replaceAll(/\W/g,'_')}"></canvas></div>
+    <div style="position:relative;height:${isCumCard?260:200}px"><canvas id="chart-kpi-${key.replaceAll(/\W/g,'_')}"></canvas></div>
     ${cumSummaryHtml}
     ${analises?`<div style="margin-top:.5rem;padding:.4rem .6rem;background:var(--bg2);border-radius:5px;border-left:2px solid var(--bdr2)">${analises}</div>`:''}
   </div>`;
@@ -10474,19 +10474,19 @@ function createKpiChart(key, items){
   const und = unidade?' ('+unidade+')':'';
   const isCum = !!(items[0].cumulativo);
 
-  // Cumulative datasets (only when isCum)
+  // Cumulative line (only when isCum) — same axis as bars
   let cumDatasets = [];
   if(isCum){
     let running=0;
     const cumData = realizados.map(r=>{ running+=r; return Math.round(running*100)/100; });
-    const metaAnual = items[0].meta!=null && items[0].meta!=='' ? Number(items[0].meta) : null;
+    const metaVal = items[0].meta!=null && items[0].meta!=='' ? Number(items[0].meta) : null;
     cumDatasets = [
-      { label:'Acumulado'+und, data:cumData, type:'line', order:0, yAxisID:'yRight',
+      { label:'Acumulado'+und, data:cumData, type:'line', order:0,
         borderColor:'rgba(16,185,129,0.9)', backgroundColor:'rgba(16,185,129,0.08)',
         fill:true, borderWidth:2.5, pointRadius:3 },
-      ...(metaAnual!=null?[{ label:'Meta'+und,
-        data:Array(realizados.length).fill(metaAnual),
-        type:'line', order:0, yAxisID:'yRight',
+      ...(metaVal!=null?[{ label:'Meta'+und,
+        data:Array(realizados.length).fill(metaVal),
+        type:'line', order:0,
         borderColor:'rgba(239,68,68,0.75)', backgroundColor:'transparent',
         borderWidth:2, borderDash:[6,4], pointRadius:0 }]:[]),
     ];
@@ -10498,7 +10498,6 @@ function createKpiChart(key, items){
       labels: withData.map(i=>i.periodo||'?'),
       datasets: [
         { label:'Realizado'+und, data:realizados, borderRadius:4, order:2,
-          ...(isCum?{yAxisID:'yLeft'}:{}),
           backgroundColor: realizados.map((r,i)=>kpiBarColor(r,allMetas[i],polaridade)) },
         ...(hasRealMeta&&!isCum?[{ label:'Meta'+und, data:realMetasData, type:'line', order:1,
           borderColor:'rgba(99,102,241,0.9)', backgroundColor:'transparent',
@@ -10515,11 +10514,7 @@ function createKpiChart(key, items){
         legend:{ position:'bottom', labels:{ font:{size:11} } },
         tooltip:{ callbacks:{ label: ctx=>ctx.dataset.label+': '+ctx.parsed.y+(unidade?' '+unidade:'') } }
       },
-      scales: isCum ? {
-        yLeft:  { type:'linear', position:'left',  min:0, ticks:{font:{size:10}}, title:{display:true,text:'Por período',font:{size:9}} },
-        yRight: { type:'linear', position:'right', min:0, ticks:{font:{size:10}}, grid:{drawOnChartArea:false}, title:{display:true,text:'Acumulado',font:{size:9}} },
-        x: { ticks:{font:{size:10}} }
-      } : {
+      scales: {
         y:{min:0,ticks:{font:{size:10}}}, x:{ticks:{font:{size:10}}}
       }
     }
