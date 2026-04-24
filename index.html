@@ -13743,6 +13743,7 @@ async function iaAnalisarIndicadores(){
   // Indicadores aguardando fechamento do trimestre também são excluídos — a IA não deve vê-los
   // Exceção: meta=0 e realizado=0 é resultado válido (ex: zero ocorrências de incidentes)
   const listaValida = lista.filter(k => {
+    if(k.sem_dado) return false;
     const r = Number(k.realizado);
     const isMetaZero = r === 0 && k.meta !== null && k.meta !== undefined && k.meta !== '' && Number(k.meta) === 0;
     const aguardando = !isMetaZero && (!k.realizado || r === 0) && _ehMesNaoFechamento(k.periodo);
@@ -13808,6 +13809,7 @@ function gerarRelatorioIndPdf(){
   // Apenas indicadores com dados válidos (mesma lógica do prompt)
   // Exceção: meta=0 e realizado=0 é resultado válido (ex: zero ocorrências de incidentes)
   const lista = _lastIndLista.filter(k => {
+    if(k.sem_dado) return false;
     const r = Number(k.realizado);
     const isMetaZero = r === 0 && k.meta !== null && k.meta !== undefined && k.meta !== '' && Number(k.meta) === 0;
     const aguardando = !isMetaZero && (!k.realizado || r === 0) && _ehMesNaoFechamento(k.periodo);
