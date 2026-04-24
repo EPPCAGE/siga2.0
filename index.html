@@ -13741,11 +13741,14 @@ async function iaAnalisarIndicadores(){
 
   // Filtra antes de enviar: remove indicadores sem dados (realizado nulo, vazio ou zero)
   // Indicadores aguardando fechamento do trimestre também são excluídos — a IA não deve vê-los
+  // Exceção: meta=0 e realizado=0 é resultado válido (ex: zero ocorrências de incidentes)
   const listaValida = lista.filter(k => {
-    const aguardando = (!k.realizado || Number(k.realizado) === 0) && _ehMesNaoFechamento(k.periodo);
-    if(aguardando) return false;
     const r = Number(k.realizado);
-    return k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && r !== 0;
+    const m = Number(k.meta);
+    const isMetaZero = r === 0 && !Number.isNaN(m) && m === 0;
+    const aguardando = !isMetaZero && (!k.realizado || r === 0) && _ehMesNaoFechamento(k.periodo);
+    if(aguardando) return false;
+    return k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && (r !== 0 || isMetaZero);
   });
 
   if(!listaValida.length){
@@ -13804,22 +13807,29 @@ function gerarRelatorioIndPdf(){
   const dtHoje = new Date().toLocaleDateString('pt-BR');
 
   // Apenas indicadores com dados válidos (mesma lógica do prompt)
+  // Exceção: meta=0 e realizado=0 é resultado válido (ex: zero ocorrências de incidentes)
   const lista = _lastIndLista.filter(k => {
-    const aguardando = (!k.realizado || k.realizado===0) && _ehMesNaoFechamento(k.periodo);
-    return !aguardando && k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && Number(k.realizado) !== 0;
+    const r = Number(k.realizado);
+    const m = Number(k.meta);
+    const isMetaZero = r === 0 && !Number.isNaN(m) && m === 0;
+    const aguardando = !isMetaZero && (!k.realizado || r === 0) && _ehMesNaoFechamento(k.periodo);
+    return !aguardando && k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && (r !== 0 || isMetaZero);
   });
 
   if(!lista.length){ toast('Nenhum indicador com dados para o relatório.','var(--amber)'); return; }
 
   // ── Calcula pct e classifica cada indicador ──────────────────────────
   function calcPct(k){
+    const r = Number(k.realizado);
+    const m = Number(k.meta);
+    if(r === 0 && !Number.isNaN(m) && m === 0) return 100;
     const pol = k.polaridade||'Maior é melhor';
-    const hasMeta = Number(k.meta)>0;
+    const hasMeta = m > 0;
     if(!hasMeta) return null;
     if(pol==='Menor é melhor'){
-      return Number(k.realizado)>0 ? Math.round((Number(k.meta)/Number(k.realizado))*100) : 0;
+      return r > 0 ? Math.round((m/r)*100) : 0;
     }
-    return Math.round((Number(k.realizado)/Number(k.meta))*100);
+    return Math.round((r/m)*100);
   }
 
   // ── Agregador por área ───────────────────────────────────────────────
