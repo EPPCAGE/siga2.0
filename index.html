@@ -817,7 +817,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="fg" style="margin-top:-4px">
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--ink3)">
           <input type="checkbox" id="nkpi-cumulativo">
-          <span>Indicador cumulativo — a meta representa o total acumulado no ano</span>
+          <span>Indicador cumulativo (soma os valores mensais ao longo do ano)</span>
         </label>
       </div>
       <!-- Period-specific values -->
@@ -10458,7 +10458,7 @@ function createKpiChart(key, items){
       { label:'Acumulado'+und, data:cumData, type:'line', order:0, yAxisID:'yRight',
         borderColor:'rgba(16,185,129,0.9)', backgroundColor:'rgba(16,185,129,0.08)',
         fill:true, borderWidth:2.5, pointRadius:3 },
-      ...(metaAnual!=null?[{ label:'Meta anual'+und,
+      ...(metaAnual!=null?[{ label:'Meta'+und,
         data:Array(realizados.length).fill(metaAnual),
         type:'line', order:0, yAxisID:'yRight',
         borderColor:'rgba(239,68,68,0.75)', backgroundColor:'transparent',
