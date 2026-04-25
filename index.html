@@ -9532,9 +9532,19 @@ function _subArqItemHTML(mid, pid, s){
   const slNoLink = isEP()
     ? `<button type="button" class="badge" style="font-size:10px;background:${sMapeadoBg};color:${sMapeadoTxt};border:1px solid ${sMapeadoBorderColor};cursor:pointer" onclick="event.stopPropagation();toggleMapeadoManual('${s.id}',event)">${sMapeadoLabel}</button>`
     : `<span class="badge ${sMapeadoCls}" style="font-size:10px">${sMapeadoLabel}</span>`;
-  const slBadge=sl
-    ?`<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button type="button" class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`
-    : slNoLink;
+  const canOpenMap = isEP() || usuarioLogado?.perfil === 'gestor';
+  let slBadge;
+  if(sl){
+    if(canOpenMap){
+      slBadge = `<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button type="button" class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`;
+    } else if(['acompanha','auditoria'].includes(sl.etapa)){
+      slBadge = '';
+    } else {
+      slBadge = '<span class="badge ba" style="font-size:10px">Em mapeamento</span>';
+    }
+  } else {
+    slBadge = slNoLink;
+  }
   const sCriticoBg = sCritico ? '#dc2626' : 'var(--bg3)';
   const sCriticoFg = sCritico ? '#fff' : 'var(--ink3)';
   const sCriticoBorder = sCritico ? '#dc2626' : 'var(--bdr2)';
@@ -9625,7 +9635,10 @@ function _metaFieldsMapeamentoHTML(item, proc){
       <span style="font-size:11px;font-weight:600;color:var(--ink2)">Mapeamento vinculado</span>
       <span class="badge ${EBADGE[proc.etapa]||'bgr'}" style="font-size:10px">${etLb(proc.etapa)}</span>
       <span class="badge ${FASE_COR[etFase(proc.etapa)]||'bgr'}" style="font-size:10px">${etFase(proc.etapa)}</span>
-      <button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="abrirProc(${proc.id})">Abrir mapeamento →</button>
+      ${(isEP()||usuarioLogado?.perfil==='gestor')
+        ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="abrirProc(${proc.id})">Abrir mapeamento →</button>`
+        : (['acompanha','auditoria'].includes(proc.etapa) ? '' : '<span class="badge ba" style="font-size:10px;margin-left:auto">Em mapeamento</span>')
+      }
       <button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="verFluxoBizagi('${item.id}',event)">🗺 Ver fluxo Bizagi</button>
       ${isEP()?`<label class="btn" style="font-size:10px;padding:2px 8px;cursor:pointer" title="Carregar imagem de fluxo Bizagi">📎 Alterar imagem<input type="file" accept="image/*" style="display:none" onchange="uploadFluxoArq('${item.id}',this)"></label>`:''}
     </div>
