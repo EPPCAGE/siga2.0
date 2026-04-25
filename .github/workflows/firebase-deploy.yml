@@ -15,10 +15,18 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Substituir API key no index.html
+      - name: Gerar config.deploy.js com secrets
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        run: sed -i "s|__FIREBASE_API_KEY__|$FIREBASE_API_KEY|g" index.html
+          AI_FUNCTION_URL: ${{ secrets.AI_FUNCTION_URL }}
+        run: |
+          node -e "
+            const cfg = {
+              FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || '',
+              AI_FUNCTION_URL: process.env.AI_FUNCTION_URL || ''
+            };
+            require('fs').writeFileSync('config.deploy.js', 'window.CONFIG = ' + JSON.stringify(cfg) + ';');
+          "
 
       - name: Deploy para Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@0cbcac4740c2bfb00d632f0b863b57713124eb5a  # v0.9.0

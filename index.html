@@ -1459,8 +1459,8 @@ let usuarioLogado = null;
 let curProc = null;
 let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
-let mapeadosManual = new Set(JSON.parse(lsGet('mapeadosManual','[]')));
-let criticosManual = new Set(JSON.parse(lsGet('criticosManual','[]')));
+let mapeadosManual = new Set((() => { try { return JSON.parse(lsGet('mapeadosManual','[]')); } catch(_){ return []; } })());
+let criticosManual = new Set((() => { try { return JSON.parse(lsGet('criticosManual','[]')); } catch(_){ return []; } })());
 let fluxosCache = {};
 let bpmnModelers = {};
 let bpmnDirty = {};
@@ -12873,27 +12873,31 @@ async function fbLoad(){
     // arquitetura
     const arqDoc = await getDoc(doc(db,'config','arquitetura'));
     if(arqDoc.exists() && arqDoc.data().data){
-      ARQUITETURA = JSON.parse(arqDoc.data().data);
+      try { ARQUITETURA = JSON.parse(arqDoc.data().data); } catch(e){ console.error('Erro ao parsear arquitetura:', e); }
     }
 
     // usuarios
     const usrDoc = await getDoc(doc(db,'config','usuarios'));
     if(usrDoc.exists() && usrDoc.data().data){
-      USUARIOS = JSON.parse(usrDoc.data().data);
+      try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(e){ console.error('Erro ao parsear usuarios:', e); }
     }
 
     // mapeados manualmente
     const mapDoc = await getDoc(doc(db,'config','mapeados'));
     if(mapDoc.exists() && mapDoc.data().data){
-      mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
-      lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
+      try {
+        mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
+        lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
+      } catch(e){ console.error('Erro ao parsear mapeados:', e); }
     }
 
     // críticos manualmente
     const critDoc = await getDoc(doc(db,'config','criticos'));
     if(critDoc.exists() && critDoc.data().data){
-      criticosManual = new Set(JSON.parse(critDoc.data().data));
-      lsSet('criticosManual', JSON.stringify([...criticosManual]));
+      try {
+        criticosManual = new Set(JSON.parse(critDoc.data().data));
+        lsSet('criticosManual', JSON.stringify([...criticosManual]));
+      } catch(e){ console.error('Erro ao parsear criticos:', e); }
     }
 
     // emailjs config
@@ -13708,17 +13712,19 @@ document.getElementById('login-screen').style.display='flex';
 const AI_FUNCTION_URL = (globalThis.CONFIG?.AI_FUNCTION_URL || 'https://ai-kvhsbvnxhq-uc.a.run.app');
 
 async function chamarIA(mode, payload, targetEl){
-  const url = lsGet('epcage_ai_url') || AI_FUNCTION_URL;
+  const url = AI_FUNCTION_URL;
   if(!url || url === '__AI_FUNCTION_URL__'){
-    const msg = 'URL da função IA não configurada. Acesse Notificações → Configuração da IA e informe a URL do Firebase Function.';
+    const msg = 'URL da função IA não configurada.';
     if(targetEl) targetEl.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">⚠ IA não configurada</div>${esc(msg)}</div>`;
     return null;
   }
   if(targetEl) targetEl.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA analisando...</div>';
   try {
+    const {auth} = fb();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
     const resp = await fetch(url, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: Object.assign({'Content-Type':'application/json'}, token ? {'Authorization':'Bearer '+token} : {}),
       body: JSON.stringify({mode, payload}),
     });
     if(!resp.ok){
