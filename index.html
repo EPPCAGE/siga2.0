@@ -1765,25 +1765,29 @@ function _enviarSenhaAcesso(email, nome, senha){
 }
 
 async function _criarUsuarioParaAtribuicao(email, nome, perfil){
-  const SENHA_TEMP = '123456';
+  const senhaTemp = gerarSenhaTemp();
   const palavras = (nome||email).trim().split(/\s+/).filter(Boolean);
   const iniciais = (palavras.length>=2 ? palavras[0][0]+palavras[palavras.length-1][0] : (palavras[0]||'?').slice(0,2)).toUpperCase();
+  let senhaEnviada = senhaTemp;
   if(fbReady()){
+    const {initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
+    const secApp = initializeApp(FIREBASE_CONFIG, 'sec_'+Date.now());
+    const secAuth = getAuth(secApp);
     try {
-      const {initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
-      const secApp = initializeApp(FIREBASE_CONFIG, 'sec_'+Date.now());
-      const secAuth = getAuth(secApp);
-      try {
-        await createUserWithEmailAndPassword(secAuth, email, SENHA_TEMP);
-      } catch(ce){
-        if(ce.code !== 'auth/email-already-in-use') console.warn('createUser:', ce.message);
-      } finally {
-        await deleteApp(secApp);
+      await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
+    } catch(ce){
+      await deleteApp(secApp);
+      if(ce.code === 'auth/email-already-in-use'){
+        senhaEnviada = null; // já tem conta Auth — não enviar senha
+      } else {
+        throw ce; // erro real — sobe para o chamador
       }
-    } catch(e){ console.warn('secApp:', e.message); }
+    }
+    if(senhaEnviada !== null) await deleteApp(secApp);
   }
-  USUARIOS.push({email, nome: nome||email, perfil: perfil||'dono', iniciais, processos_vinculados:[], trocar_senha:true});
+  USUARIOS.push({email, nome: nome||email, perfil: perfil||'dono', iniciais, processos_vinculados:[], trocar_senha: senhaEnviada !== null});
   await fbSaveAll();
+  return senhaEnviada; // null se usuário já tinha conta Auth
 }
 
 function abrirModalTrocarSenha(){
@@ -3570,8 +3574,14 @@ async function confirmarAtribuirEtapa(etapaId){
   if(!paraEmail){toast('E-mail do destinatário não encontrado.','var(--amber)');return;}
 
   const usuarioExiste = !!USUARIOS.find(u=>u.email===paraEmail);
+  let senhaTemp = null;
   if(!usuarioExiste){
-    await _criarUsuarioParaAtribuicao(paraEmail, paraNome, para==='dono'?'dono':'gestor');
+    try {
+      senhaTemp = await _criarUsuarioParaAtribuicao(paraEmail, paraNome, para==='dono'?'dono':'gestor');
+    } catch(e){
+      toast('Não foi possível criar o acesso para '+paraNome+': '+(e.message||e.code||e),'var(--red)');
+      return;
+    }
   }
 
   if(!p.atribuicoes)p.atribuicoes={};
@@ -3585,9 +3595,10 @@ async function confirmarAtribuirEtapa(etapaId){
 
   const tarefaMsg='Tarefa pendente: "'+etLb(etapaId)+'" no processo "'+p.nome+'" — prazo: '+prazoFmt;
   if(!usuarioExiste){
-    enviarNotif(paraEmail,paraNome,
-      tarefaMsg+'\n\nSeu acesso ao EP·CAGE foi criado automaticamente.\nE-mail: '+paraEmail+'\nSenha temporária: 123456\n\nNo primeiro acesso você será solicitado(a) a definir uma nova senha.',
-      p.nome,prazoFmt,usuarioLogado?.nome||'EP');
+    const acessoInfo = senhaTemp
+      ? '\n\nSeu acesso ao EP·CAGE foi criado automaticamente.\nE-mail: '+paraEmail+'\nSenha temporária: '+senhaTemp+'\n\nNo primeiro acesso você será solicitado(a) a definir uma nova senha.'
+      : '\n\nVocê já possui acesso ao EP·CAGE. Use suas credenciais habituais para entrar.';
+    enviarNotif(paraEmail,paraNome,tarefaMsg+acessoInfo,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
     toast('Etapa atribuída a '+paraNome+' — acesso criado e e-mail enviado.','var(--teal)');
   } else {
     enviarNotif(paraEmail,paraNome,tarefaMsg,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
@@ -14146,18 +14157,46 @@ function gerarRelatorioIndPdf(){
 
 // ── RELATÓRIOS OFICIAIS DE INDICADORES ───────────────────────────────────────
 
+function _relNomeClick(id){
+  const span = document.getElementById('rel-nome-'+id);
+  if(!span) return;
+  const atual = span.textContent;
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = atual;
+  inp.style.cssText = 'font-size:13px;font-weight:600;color:var(--ink);border:1px solid var(--blue);border-radius:4px;padding:2px 6px;width:100%;box-sizing:border-box;outline:none';
+  span.replaceWith(inp);
+  inp.focus();
+  inp.select();
+  async function salvar(){
+    const novo = inp.value.trim() || atual;
+    const r = RELATORIOS_IND.find(x=>x.id===id);
+    if(r && novo !== r.filtros){
+      r.filtros = novo;
+      if(fbReady()){
+        const {db,doc,setDoc}=fb();
+        await setDoc(doc(db,'relatorios_ind',String(id)),_fsClean(r));
+      }
+    }
+    renderRelatoriosOficiais();
+  }
+  inp.addEventListener('blur', salvar);
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); } if(e.key==='Escape'){ inp.value=atual; inp.blur(); } });
+}
+
 function renderRelatoriosOficiais(){
   const el = document.getElementById('ind-relatorios-panel');
   if(!el) return;
   if(!RELATORIOS_IND.length){ el.innerHTML = ''; return; }
+  const ep = isEP();
   const cards = RELATORIOS_IND.map(r => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card);border:1px solid var(--bord);border-radius:var(--rl)">
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.filtros)}</div>
+        <span id="rel-nome-${r.id}" style="font-size:13px;font-weight:600;color:var(--ink);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis${ep?';cursor:text;' : ''}"${ep ? ` onclick="_relNomeClick(${r.id})" title="Clique para renomear"` : ''}>${esc(r.filtros)}</span>
         <div style="font-size:11px;color:var(--ink3)">Publicado em ${esc(r.data)} por ${esc(r.publicadoPor)}</div>
       </div>
       <button type="button" class="btn btn-p" onclick="verRelatorioOficial(${r.id})" style="font-size:11px;padding:4px 10px;white-space:nowrap">↗ Ver</button>
-      ${isEP()?`<button type="button" class="btn btn-a" onclick="excluirRelatorioOficial(${r.id})" style="font-size:11px;padding:4px 10px">✕</button>`:''}
+      ${ep?`<button type="button" class="btn btn-a" onclick="excluirRelatorioOficial(${r.id})" style="font-size:11px;padding:4px 10px">✕</button>`:''}
     </div>`).join('');
   el.innerHTML = `<div style="border:1px solid var(--blue-b);border-radius:var(--rl);overflow:hidden;margin-bottom:1rem">
     <div style="padding:8px 14px;background:var(--blue-l);border-bottom:1px solid var(--blue-b);font-size:12px;font-weight:700;color:var(--blue)">
@@ -14268,9 +14307,8 @@ function injectIaIndicadores(){
     renderRelatoriosOficiais();
   }
 
-  const pubBtnHtml = isEP()
-    ? `<button type="button" id="ia-ind-pub-btn" class="btn" onclick="publicarRelatorioOficial()" style="display:none;font-size:12px;padding:5px 12px;background:var(--green);color:#fff;border-color:var(--green)">★ Publicar como oficial</button>`
-    : '';
+  // Painel de análise IA: apenas para EP
+  if(!isEP()) return;
 
   const panel = document.createElement('div');
   panel.id = 'ia-ind-panel';
@@ -14280,7 +14318,7 @@ function injectIaIndicadores(){
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button type="button" id="ia-ind-btn" class="ai-btn" onclick="iaAnalisarIndicadores()">Analisar indicadores visíveis com IA</button>
       <button type="button" id="ia-ind-pdf-btn" class="btn btn-a" onclick="gerarRelatorioIndPdf()" style="display:none;font-size:12px;padding:5px 12px">⬇ Relatório PDF</button>
-      ${pubBtnHtml}
+      <button type="button" id="ia-ind-pub-btn" class="btn" onclick="publicarRelatorioOficial()" style="display:none;font-size:12px;padding:5px 12px;background:var(--green);color:#fff;border-color:var(--green)">★ Publicar como oficial</button>
       <span style="font-size:11px;color:var(--ink3)">Analisa os indicadores do filtro atual e gera um comentário executivo.</span>
     </div>
     <div id="ia-ind-result"></div>`;
