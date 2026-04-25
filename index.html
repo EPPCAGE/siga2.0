@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.emailjs.com https://*.a.run.app https://docs.google.com https://*.googleusercontent.com https://api.allorigins.win; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.emailjs.com https://*.a.run.app https://*.cloudfunctions.net https://docs.google.com https://*.googleusercontent.com https://api.allorigins.win; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'">
 <title>SIGA 2.0 — Sistema Integrado de Gestão Estratégica e Alinhamento</title>
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css" integrity="sha384-2WPRuHNLlqer/8fKQLOMZSWVINTz4vDTnIB1SXm75ubMI3oBGJyfvuOcPPc0Pfjh" crossorigin="anonymous">
@@ -13749,11 +13749,9 @@ async function chamarIA(mode, payload, targetEl){
   }
   if(targetEl) targetEl.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA analisando...</div>';
   try {
-    const {auth} = fb();
-    const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
     const resp = await fetch(url, {
       method: 'POST',
-      headers: Object.assign({'Content-Type':'application/json'}, token ? {'Authorization':'Bearer '+token} : {}),
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify({mode, payload}),
     });
     if(!resp.ok){
