@@ -346,6 +346,21 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   .arq-filtros-avancados{display:none!important}
   .ind-filtros-avancados{display:none!important}
   .plano-filtros-avancados{display:none!important}
+  /* maturidade 5 colunas → 2 colunas */
+  .mat-wrap{grid-template-columns:1fr 1fr}
+  /* audit report stats 4 cols → 2x2 */
+  .aud-rep-stats{grid-template-columns:1fr 1fr}
+  /* audit report header: badge não fica espremido */
+  .aud-rep-header{flex-direction:column;gap:.7rem}
+  .aud-rep-section{padding:.7rem .9rem}
+  /* tabelas com scroll horizontal */
+  .pop-tbl{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
+  /* stats span-2 card em 2 colunas ocupa a linha toda */
+  .stats [style*="grid-column:span 2"]{grid-column:span 2}
+  /* arq-stats: não colapsar em 1 coluna — manter 2 */
+  #arq-stats{grid-template-columns:1fr 1fr}
+  /* pipeline: mais legível em 1 coluna */
+  .pipeline-phases{grid-template-columns:1fr}
 }
 @keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .page.on .prc{animation:fu .16s ease both}
@@ -541,9 +556,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-dashboard" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Painel geral</div><div class="ph-s" id="dash-dt"></div></div>
   <div id="btn-novo-proc-dash"></div></div>
-  <div class="stats" id="dash-stats"></div>
   <div class="card" style="margin-bottom:1rem"><div class="card-t">Pipeline por fase</div><div class="pipeline-phases" id="dash-pipe"></div></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem">
+  <div class="g2" style="gap:12px;margin-bottom:1rem">
     <div><div class="card-t" style="margin-bottom:.6rem">Aguardando ação</div><div id="dash-pend"></div></div>
     <div><div class="card-t" style="margin-bottom:.6rem;color:var(--red)">⚠ Prazo vencido</div><div id="dash-vencidos"></div></div>
   </div>
@@ -674,6 +688,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-arq" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Arquitetura de processos</div><div class="ph-s" id="arq-sub">Macroprocesso → Processo → Subprocesso</div></div>
   <div id="btn-arq-actions"></div></div>
+  <div class="stats" id="arq-stats"></div>
 
   <!-- Filtros e busca -->
   <div class="fbar" style="flex-direction:column;align-items:stretch;gap:10px;margin-bottom:.9rem">
@@ -2329,14 +2344,12 @@ function aplicarPermissoes(){
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
 }
 
-function rDash(){
-  aplicarPermissoes();
-  document.getElementById('dash-dt').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+function buildArqStatsHTML(){
   updCounts();
   const mx=getMetricasArq();
   const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
-  document.getElementById('dash-stats').innerHTML=
-    `<div class="stat cb" style="grid-column:span 2;cursor:pointer" onclick="go('arq',document.getElementById('nb-arq'))" title="Ver arquitetura">
+  const eco=processos.reduce((s,p)=>{const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);return s+(r.length?r[r.length-1].economia_h:0);},0);
+  return `<div class="stat cb" style="grid-column:span 2">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <div><div class="stat-n">${pct}%</div><div class="stat-l">Processos mapeados</div></div>
         <div style="flex:1;min-width:120px">
@@ -2351,7 +2364,12 @@ function rDash(){
     '<div class="stat cb"><div class="stat-n">'+mx.nProc+'</div><div class="stat-l">Processos</div></div>'+
     '<div class="stat cg"><div class="stat-n">'+mx.nSub+'</div><div class="stat-l">Subprocessos</div></div>'+
     '<div class="stat cr"><div class="stat-n">'+processos.filter(p=>p.prio==='Critica').length+'</div><div class="stat-l">Prioridade crítica</div></div>'+
-    (()=>{const eco=processos.reduce((s,p)=>{const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);return s+(r.length?r[r.length-1].economia_h:0);},0);if(eco===0){return '';}const ecoSign=eco>=0?'+':'';return `<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${ecoSign}${eco.toFixed(1)}h</div><div class="stat-l">Economia de horas/mês estimada</div></div>`;})();
+    (eco===0?'': `<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${eco>=0?'+':''}${eco.toFixed(1)}h</div><div class="stat-l">Economia de horas/mês estimada</div></div>`);
+}
+
+function rDash(){
+  aplicarPermissoes();
+  document.getElementById('dash-dt').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
@@ -7939,7 +7957,7 @@ async function _popPdfAnexo(p){
   // ── 6.0 Volumetria ────────────────────────────────────────────────────────
   if(e.vol?.exec||e.t_ciclo!=null||e.t_real!=null){
     sections.push(`${secH('6.0','Volumetria')}
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:.5rem">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:.5rem">
       ${fld('Execuções/período',e.vol?.exec||'')}
       ${fld('Tempo médio de ciclo',e.t_ciclo==null?'':e.t_ciclo+' h')}
       ${fld('Tempo real (lead time)',e.t_real==null?'':e.t_real+' h')}
@@ -9378,21 +9396,14 @@ function rArq(){
   const el = document.getElementById('arq-content');
   if(!el) return;
 
+  // Cards de métricas no topo
+  const arqStatsEl = document.getElementById('arq-stats');
+  if(arqStatsEl) arqStatsEl.innerHTML = buildArqStatsHTML();
+
   if(!ARQUITETURA.length){
     el.innerHTML='<div class="ib ibb">Nenhum macroprocesso cadastrado. Importe uma planilha ou clique em "+ Macroprocesso".</div>';
     return;
   }
-
-  // Métricas no topo da arquitetura
-  const mx=getMetricasArq();
-  const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
-  let pctColor;
-  if(pct>=80) pctColor='var(--teal)';
-  else if(pct>=50) pctColor='var(--amber)';
-  else pctColor='var(--red)';
-  document.getElementById('arq-sub').innerHTML=
-    `${mx.nMacros} macroprocesso${mx.nMacros===1?'':'s'} · ${mx.nProc} processo${mx.nProc===1?'':'s'} · ${mx.nSub} subprocesso${mx.nSub===1?'':'s'} &nbsp;—&nbsp; `+
-    `<strong style="color:${pctColor}">${pct}% mapeados</strong> (${mx.nMap}/${mx.nUnid})`;
 
   const f = getArqFilters();
   const hasFilter = f.srch || f.macro || f.area || f.nat || f.obje || f.mapeado || f.critico;
@@ -9481,7 +9492,7 @@ function resultCardHTML(r, srch){
         ${isEP() ? `<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editSubArqFull('${r.macroId}','${r.procId}','${item.id}')" aria-label="Editar item">✎</button>` : ''}
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;font-size:11px">
       ${item.area ? `<div><span style="font-weight:600;color:var(--ink2)">Área:</span> <span style="color:var(--ink3)">${highlight(item.area, srch)}</span></div>` : ''}
       ${item.gerente ? `<div><span style="font-weight:600;color:var(--ink2)">Gerente:</span> <span style="color:var(--ink3)">${highlight(item.gerente, srch)}</span></div>` : ''}
       ${item.objetivo_estrategico ? `<div style="grid-column:span 2"><span style="font-weight:600;color:var(--ink2)">Obj. estratégico:</span> <span style="color:var(--ink3)">${highlight(item.objetivo_estrategico, srch)}</span></div>` : ''}
@@ -9643,7 +9654,7 @@ function _metaFieldsMapeamentoHTML(item, proc){
       ${isEP()?`<label class="btn" style="font-size:10px;padding:2px 8px;cursor:pointer" title="Carregar imagem de fluxo Bizagi">📎 Alterar imagem<input type="file" accept="image/*" style="display:none" onchange="uploadFluxoArq('${item.id}',this)"></label>`:''}
     </div>
     <div style="display:flex;gap:2px;margin-bottom:.6rem">${progBar}</div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;font-size:11px">
       <div><span style="font-weight:600;color:var(--ink2)">Dono:</span> <span style="color:var(--ink3)">${proc.dono||'—'}</span></div>
       <div><span style="font-weight:600;color:var(--ink2)">Resp. EP:</span> <span style="color:var(--ink3)">${proc.resp_ep||'—'}</span></div>
       <div><span style="font-weight:600;color:var(--ink2)">Maturidade:</span> <span style="color:var(--ink3)">${matNivel?matNivel+'/5 — '+ML_[matNivel]:'Não avaliada'}</span></div>
@@ -10655,7 +10666,7 @@ function kpiCard(k){
         ${k.ppe==='Sim' ? '<span class="badge bb" style="font-size:10px">PPE</span>' : ''}
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:${hasMeta?'repeat(4,1fr)':'repeat(3,1fr)'};gap:8px;margin-bottom:.6rem;font-size:12px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:8px;margin-bottom:.6rem;font-size:12px">
       <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
         <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">% Índice</div>
         <div style="font-weight:700;color:var(--ink)">${k.indice}%</div>
@@ -12070,7 +12081,7 @@ function planoStatsTrimestrais(lista){
   else trimAtual='T4';
   const triF = document.getElementById('plano-filt-tri')?.value||'';
   const trimestres = ['T1','T2','T3','T4'];
-  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:.8rem">
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:.8rem">
     ${trimestres.map(tri=>{
       const items=lista.filter(a=>a.trimestre===tri);
       const isCur=tri===trimAtual;
