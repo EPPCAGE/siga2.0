@@ -1658,13 +1658,13 @@ async function _primeiroAcessoNovo(email, nome, showErr, showOk){
     const secAuth = getAuth(secApp);
     try {
       await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
-    } catch(ce){
+    } catch(error_){
       await deleteApp(secApp);
-      if(ce.code === 'auth/email-already-in-use'){
+      if(error_.code === 'auth/email-already-in-use'){
         showErr('Este e-mail já possui acesso. Use suas credenciais para entrar.');
         return;
       }
-      throw ce;
+      throw error_;
     }
     await deleteApp(secApp);
   } catch(e){
@@ -1775,12 +1775,12 @@ async function _criarUsuarioParaAtribuicao(email, nome, perfil){
     const secAuth = getAuth(secApp);
     try {
       await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
-    } catch(ce){
+    } catch(error_){
       await deleteApp(secApp);
-      if(ce.code === 'auth/email-already-in-use'){
+      if(error_.code === 'auth/email-already-in-use'){
         senhaEnviada = null; // já tem conta Auth — não enviar senha
       } else {
-        throw ce; // erro real — sobe para o chamador
+        throw error_; // erro real — sobe para o chamador
       }
     }
     if(senhaEnviada !== null) await deleteApp(secApp);
@@ -3573,7 +3573,7 @@ async function confirmarAtribuirEtapa(etapaId){
   }
   if(!paraEmail){toast('E-mail do destinatário não encontrado.','var(--amber)');return;}
 
-  const usuarioExiste = !!USUARIOS.find(u=>u.email===paraEmail);
+  const usuarioExiste = USUARIOS.some(u=>u.email===paraEmail);
   let senhaTemp = null;
   if(!usuarioExiste){
     try {
@@ -3594,15 +3594,15 @@ async function confirmarAtribuirEtapa(etapaId){
   rDetalhe();updCounts();
 
   const tarefaMsg='Tarefa pendente: "'+etLb(etapaId)+'" no processo "'+p.nome+'" — prazo: '+prazoFmt;
-  if(!usuarioExiste){
+  if(usuarioExiste){
+    enviarNotif(paraEmail,paraNome,tarefaMsg,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
+    toast('Etapa atribuída a '+paraNome+' com prazo '+prazoFmt,'var(--teal)');
+  } else {
     const acessoInfo = senhaTemp
       ? '\n\nSeu acesso ao EP·CAGE foi criado automaticamente.\nE-mail: '+paraEmail+'\nSenha temporária: '+senhaTemp+'\n\nNo primeiro acesso você será solicitado(a) a definir uma nova senha.'
       : '\n\nVocê já possui acesso ao EP·CAGE. Use suas credenciais habituais para entrar.';
     enviarNotif(paraEmail,paraNome,tarefaMsg+acessoInfo,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
     toast('Etapa atribuída a '+paraNome+' — acesso criado e e-mail enviado.','var(--teal)');
-  } else {
-    enviarNotif(paraEmail,paraNome,tarefaMsg,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
-    toast('Etapa atribuída a '+paraNome+' com prazo '+prazoFmt,'var(--teal)');
   }
 }
 function retomarEtapaEP(){
@@ -10388,7 +10388,7 @@ function kpiGrupoCardHTML(key, items){
   let trendHtml = '';
   if(last && prev){
     const currR = Number.parseFloat(last.realizado), prevR = Number.parseFloat(prev.realizado);
-    if(!Number.isNaN(currR) && !Number.isNaN(prevR)){
+    if(Number.isFinite(currR) && Number.isFinite(prevR)){
       const delta = currR - prevR;
       const isBetter = polaridade==='Menor é melhor' ? delta<0 : delta>0;
       const isWorse  = polaridade==='Menor é melhor' ? delta>0 : delta<0;
@@ -10517,7 +10517,7 @@ function kpiGroupByKey(list){
   const grupos = {};
   source.forEach(k=>{
     const key = (k.codigo||k.nome||'').trim() || k.nome;
-    if(!grupos[key]){ grupos[key] = []; }
+    grupos[key] = grupos[key] || [];
     grupos[key].push(k);
   });
   Object.values(grupos).forEach(g => g.sort((a,b)=>periodoToNum(a.periodo)-periodoToNum(b.periodo)));
@@ -10558,7 +10558,7 @@ function createKpiChart(key, items){
         borderColor:'rgba(16,185,129,0.9)', backgroundColor:'rgba(16,185,129,0.08)',
         fill:true, borderWidth:2.5, pointRadius:3 },
       ...(metaVal!=null?[{ label:'Meta'+und,
-        data:Array(realizados.length).fill(metaVal),
+        data:new Array(realizados.length).fill(metaVal),
         type:'line', order:0,
         borderColor:'rgba(239,68,68,0.75)', backgroundColor:'transparent',
         borderWidth:2, borderDash:[6,4], pointRadius:0 }]:[]),
@@ -11393,7 +11393,9 @@ function renderAdmin(){
     const noVinculoHtml = u.perfil==='ep'?'<span style="color:var(--ink4)">Todos (EP)</span>':'<span style="color:var(--red)">Nenhum vínculo</span>';
     const bloqStyle = u.bloqueado ? 'background:var(--red-l);color:var(--red);' : '';
     const bloqLabel = u.bloqueado ? 'Desbloquear' : 'Bloquear';
-    return `<tr style="${isMe?'background:var(--blue-l)':u.bloqueado?'opacity:.6':''}">
+    let trStyle = '';
+    if(isMe){ trStyle = 'background:var(--blue-l)'; } else if(u.bloqueado){ trStyle = 'opacity:.6'; }
+    return `<tr style="${trStyle}">
       <td><div style="width:28px;height:28px;border-radius:50%;background:${cors[u.perfil]||'#888'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${u.iniciais}</div></td>
       <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span class="badge" style="background:var(--red-l);color:var(--red);font-size:10px">bloqueado</span>':''}</td>
       <td style="font-size:12px;color:var(--ink3)">${u.email}</td>
