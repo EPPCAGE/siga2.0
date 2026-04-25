@@ -10614,8 +10614,8 @@ function createKpiChart(key, items){
         ...(hasRealMeta&&!isCum?[{ label:'Meta'+und, data:realMetasData, type:'line', order:1,
           borderColor:'rgba(99,102,241,0.9)', backgroundColor:'transparent',
           borderWidth:2, borderDash:[5,4], pointRadius:3 }]:[]),
-        // Média histórica: sempre exibida como referência quando há ≥2 períodos
-        ...(avgVal!==null&&!isCum?[{ label:'Média histórica'+und,
+        // Média histórica: exibida apenas quando não há meta definida (≥2 períodos)
+        ...(avgVal!==null&&!isCum&&!hasRealMeta?[{ label:'Média histórica'+und,
           data:new Array(realizados.length).fill(avgVal),
           type:'line', order:1,
           borderColor:'rgba(251,146,60,0.85)', backgroundColor:'transparent',
