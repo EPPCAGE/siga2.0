@@ -1434,6 +1434,9 @@ let nextProcId = 1;
 let kpis = [];
 let _lastIndAnalise = '';
 let _lastIndLista   = [];
+let _lastRelatorioIndHtml    = '';
+let _lastRelatorioIndFiltros = '';
+let RELATORIOS_IND = [];
 
 let TRILHAS = [];
 let _trilhaIdC = 1;
@@ -12898,6 +12901,14 @@ async function fbLoad(){
       _metaIdC = Math.max(...PLANO_METAS.map(m => m.id), 0) + 1;
     }
 
+    // relatórios oficiais de indicadores
+    const relIndSnap = await getDocs(collection(db,'relatorios_ind'));
+    if(!relIndSnap.empty){
+      RELATORIOS_IND = [];
+      relIndSnap.forEach(d => RELATORIOS_IND.push(d.data()));
+      RELATORIOS_IND.sort((a,b) => b.id - a.id);
+    }
+
     console.info('Firebase: dados carregados');
     return true;
   } catch(e){
@@ -14121,10 +14132,83 @@ function gerarRelatorioIndPdf(){
 </div>
 <script>setTimeout(()=>window.print(),500);</scri\u0070t>
 </body></html>`;
+  _lastRelatorioIndHtml    = _kpiHtml;
+  _lastRelatorioIndFiltros = filtros;
+  if(isEP()){
+    const pubBtn = document.getElementById('ia-ind-pub-btn');
+    if(pubBtn) pubBtn.style.display = '';
+  }
   const _kpiBlob=new Blob([_kpiHtml],{type:'text/html;charset=utf-8'});
   const _kpiUrl=URL.createObjectURL(_kpiBlob);
   const w=window.open(_kpiUrl,'_blank');
   if(w) w.addEventListener('load',()=>URL.revokeObjectURL(_kpiUrl),{once:true});
+}
+
+// ── RELATÓRIOS OFICIAIS DE INDICADORES ───────────────────────────────────────
+
+function renderRelatoriosOficiais(){
+  const el = document.getElementById('ind-relatorios-panel');
+  if(!el) return;
+  if(!RELATORIOS_IND.length){ el.innerHTML = ''; return; }
+  const cards = RELATORIOS_IND.map(r => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card);border:1px solid var(--bord);border-radius:var(--rl)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.filtros)}</div>
+        <div style="font-size:11px;color:var(--ink3)">Publicado em ${esc(r.data)} por ${esc(r.publicadoPor)}</div>
+      </div>
+      <button type="button" class="btn btn-p" onclick="verRelatorioOficial(${r.id})" style="font-size:11px;padding:4px 10px;white-space:nowrap">↗ Ver</button>
+      ${isEP()?`<button type="button" class="btn btn-a" onclick="excluirRelatorioOficial(${r.id})" style="font-size:11px;padding:4px 10px">✕</button>`:''}
+    </div>`).join('');
+  el.innerHTML = `<div style="border:1px solid var(--blue-b);border-radius:var(--rl);overflow:hidden;margin-bottom:1rem">
+    <div style="padding:8px 14px;background:var(--blue-l);border-bottom:1px solid var(--blue-b);font-size:12px;font-weight:700;color:var(--blue)">
+      ★ Relatórios Oficiais publicados (${RELATORIOS_IND.length})
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:8px">${cards}</div>
+  </div>`;
+}
+
+function verRelatorioOficial(id){
+  const r = RELATORIOS_IND.find(x => x.id === id);
+  if(!r || !r.html){ toast('Relatório não encontrado.','var(--amber)'); return; }
+  const blob = new Blob([r.html],{type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url,'_blank');
+  if(w) w.addEventListener('load',()=>URL.revokeObjectURL(url),{once:true});
+}
+
+async function excluirRelatorioOficial(id){
+  if(!isEP()) return;
+  confirmar('Excluir este relatório oficial? Esta ação não pode ser desfeita.', async ()=>{
+    if(fbReady()){
+      const {db,doc,deleteDoc}=fb();
+      await deleteDoc(doc(db,'relatorios_ind',String(id))).catch(e=>console.warn(e.message));
+    }
+    RELATORIOS_IND = RELATORIOS_IND.filter(r=>r.id!==id);
+    renderRelatoriosOficiais();
+    toast('Relatório excluído.','var(--ink3)');
+  },'Excluir',true);
+}
+
+async function publicarRelatorioOficial(){
+  if(!isEP()){ toast('Apenas membros do EP podem publicar relatórios oficiais.','var(--amber)'); return; }
+  if(!_lastRelatorioIndHtml){ toast('Gere o relatório PDF primeiro.','var(--amber)'); return; }
+  confirmar('Publicar este relatório como oficial? Ele ficará acessível para todos os usuários do módulo de indicadores.', async ()=>{
+    const rel = {
+      id: Date.now(),
+      filtros: _lastRelatorioIndFiltros || 'Todos os indicadores',
+      data: new Date().toLocaleDateString('pt-BR'),
+      publicadoPor: usuarioLogado?.nome || 'EP',
+      publicadoEm: new Date().toISOString(),
+      html: _lastRelatorioIndHtml
+    };
+    if(fbReady()){
+      const {db,doc,setDoc}=fb();
+      await setDoc(doc(db,'relatorios_ind',String(rel.id)),_fsClean(rel));
+    }
+    RELATORIOS_IND.unshift(rel);
+    renderRelatoriosOficiais();
+    toast('Relatório publicado como oficial!','var(--green)');
+  },'Publicar',false);
 }
 
 // ── INJECT IA BUTTONS INTO PAGES ─────────
@@ -14175,6 +14259,19 @@ function injectIaPop(){
 function injectIaIndicadores(){
   const el = document.getElementById('ind-c');
   if(!el || document.getElementById('ia-ind-panel')) return;
+
+  // Painel de relatórios oficiais (visível para todos)
+  if(!document.getElementById('ind-relatorios-panel')){
+    const relPanel = document.createElement('div');
+    relPanel.id = 'ind-relatorios-panel';
+    el.before(relPanel);
+    renderRelatoriosOficiais();
+  }
+
+  const pubBtnHtml = isEP()
+    ? `<button type="button" id="ia-ind-pub-btn" class="btn" onclick="publicarRelatorioOficial()" style="display:none;font-size:12px;padding:5px 12px;background:var(--green);color:#fff;border-color:var(--green)">★ Publicar como oficial</button>`
+    : '';
+
   const panel = document.createElement('div');
   panel.id = 'ia-ind-panel';
   panel.className = 'ai-panel';
@@ -14183,6 +14280,7 @@ function injectIaIndicadores(){
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button type="button" id="ia-ind-btn" class="ai-btn" onclick="iaAnalisarIndicadores()">Analisar indicadores visíveis com IA</button>
       <button type="button" id="ia-ind-pdf-btn" class="btn btn-a" onclick="gerarRelatorioIndPdf()" style="display:none;font-size:12px;padding:5px 12px">⬇ Relatório PDF</button>
+      ${pubBtnHtml}
       <span style="font-size:11px;color:var(--ink3)">Analisa os indicadores do filtro atual e gera um comentário executivo.</span>
     </div>
     <div id="ia-ind-result"></div>`;
