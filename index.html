@@ -13749,10 +13749,12 @@ async function chamarIA(mode, payload, targetEl){
   }
   if(targetEl) targetEl.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA analisando...</div>';
   try {
+    const {auth} = fb();
+    const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
     const resp = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({mode, payload}),
+      body: JSON.stringify({mode, payload, ...(token ? {_token: token} : {})}),
     });
     if(!resp.ok){
       const err = await resp.json().catch(()=>({error:'Erro desconhecido'}));

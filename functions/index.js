@@ -29,6 +29,19 @@ exports.ai = onRequest(
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
+    // Verify Firebase ID token (sent in body to avoid CORS preflight with Authorization header)
+    const idToken = req.body?._token;
+    if (!idToken) {
+      res.status(401).json({ error: "Autenticação necessária" });
+      return;
+    }
+    try {
+      await admin.auth().verifyIdToken(idToken);
+    } catch (_e) {
+      res.status(401).json({ error: "Token inválido ou expirado" });
+      return;
+    }
+
     // Validate payload size
     if (JSON.stringify(req.body).length > MAX_PAYLOAD_BYTES) {
       res.status(413).json({ error: "Payload muito grande" });
