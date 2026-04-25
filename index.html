@@ -14279,9 +14279,8 @@ function injectIaIndicadores(){
     renderRelatoriosOficiais();
   }
 
-  const pubBtnHtml = isEP()
-    ? `<button type="button" id="ia-ind-pub-btn" class="btn" onclick="publicarRelatorioOficial()" style="display:none;font-size:12px;padding:5px 12px;background:var(--green);color:#fff;border-color:var(--green)">★ Publicar como oficial</button>`
-    : '';
+  // Painel de análise IA: apenas para EP
+  if(!isEP()) return;
 
   const panel = document.createElement('div');
   panel.id = 'ia-ind-panel';
@@ -14291,7 +14290,7 @@ function injectIaIndicadores(){
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button type="button" id="ia-ind-btn" class="ai-btn" onclick="iaAnalisarIndicadores()">Analisar indicadores visíveis com IA</button>
       <button type="button" id="ia-ind-pdf-btn" class="btn btn-a" onclick="gerarRelatorioIndPdf()" style="display:none;font-size:12px;padding:5px 12px">⬇ Relatório PDF</button>
-      ${pubBtnHtml}
+      <button type="button" id="ia-ind-pub-btn" class="btn" onclick="publicarRelatorioOficial()" style="display:none;font-size:12px;padding:5px 12px;background:var(--green);color:#fff;border-color:var(--green)">★ Publicar como oficial</button>
       <span style="font-size:11px;color:var(--ink3)">Analisa os indicadores do filtro atual e gera um comentário executivo.</span>
     </div>
     <div id="ia-ind-result"></div>`;
