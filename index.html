@@ -621,8 +621,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="chip" onclick="filtFase('Entendimento',this)">Entendimento</button>
       <button type="button" class="chip" onclick="filtFase('Modelagem',this)">Modelagem</button>
       <button type="button" class="chip" onclick="filtFase('Formalizacao',this)">Formalização</button>
-      <button type="button" class="chip" onclick="filtFase('Operacao',this)">Operação</button>
-      <button type="button" class="chip" onclick="filtFase('Auditoria',this)">Auditoria</button>
     </div>
     <input class="srch" id="srch-p" placeholder="Buscar..." oninput="renderProcs()">
     <select class="fi" id="filt-ep" onchange="renderProcs()" style="max-width:160px;font-size:12px"></select>
@@ -1974,8 +1972,8 @@ function pbBadge(p){return '<span class="badge '+({Baixa:'bg',Media:'ba',Alta:'b
 function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'br',Critico:'br'}[v]||'bgr')+'"'+(v==='Critico'?' style="background:var(--red);color:#fff"':'')+'>'+v+'</span>';}
 function mBadge(s){return '<span class="badge '+({Identificada:'bsl','Em analise':'bp','Em execucao':'bb',Concluida:'bg'}[s]||'bgr')+'">'+s+'</span>';}
 function updCounts(){
-  document.getElementById('nb-total').textContent=processos.length;
-  document.getElementById('nb-pend').textContent=processos.filter(p=>['det_valid_asis','det_valid_tobe','apresentacao'].includes(p.etapa)).length;
+  document.getElementById('nb-total').textContent=processos.filter(isProcessoEmAndamento).length;
+  document.getElementById('nb-pend').textContent=getPendenciasDashboard().length;
   document.getElementById('nb-fila-cnt').textContent=getTarefasUsr().length;
   const mobFilaCnt=document.getElementById('mob-fila-cnt');if(mobFilaCnt){const c=getTarefasUsr().length;mobFilaCnt.textContent=c;mobFilaCnt.style.display=c>0?'inline-flex':'none';}
   document.getElementById('nb-notif-cnt').textContent=notifs.filter(n=>!n.lida).length;
@@ -2441,7 +2439,8 @@ function rDash(){
   const alertasEl=document.getElementById('dash-alertas-ep');
   if(alertasEl) alertasEl.innerHTML=isEP()?buildPainelAlertasEPHTML():'';
   // Pipeline
-  const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
+  const processosAtivos=processos.filter(isProcessoAtivo);
+  const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processosAtivos.filter(p=>p.etapa===e.id).length;});
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
   const pend=getPendenciasDashboard();
   document.getElementById('dash-pend').innerHTML=buildPendentesHTML(pend);
@@ -2471,7 +2470,7 @@ function getPendenciasDashboard(){
     if(p.status_ciclo==='suspenso'||p.status_ciclo==='cancelado') return;
     const atribuicoes=p.atribuicoes||{};
     Object.entries(atribuicoes).forEach(([etapaId,atrib])=>{
-      if(!atrib) return;
+      if(!atrib||etapaId!==p.etapa) return;
       pendencias.push({proc:p,etapaId,atrib,tipo:'atribuicao'});
     });
     if(aprovacoesLegadas.includes(p.etapa)&&!atribuicoes[p.etapa]){
@@ -2483,6 +2482,9 @@ function getPendenciasDashboard(){
     const prazoB=b.atrib?.prazo||'9999-12-31';
     return prazoA.localeCompare(prazoB)||String(a.proc?.nome||'').localeCompare(String(b.proc?.nome||''));
   });
+}
+function isProcessoAtivo(p){
+  return p.status_ciclo!=='suspenso'&&p.status_ciclo!=='cancelado';
 }
 function buildPendentesHTML(pend){
   if(!pend.length) return '<div class="ib ibg">Nenhuma ação pendente.</div>';
@@ -2505,11 +2507,12 @@ function buildVencidosHTML(venc){
 }
 // Q036: analytics gerenciais
 function buildAnalyticsHTML(){
-  if(!processos.length) return '';
+  const processosAtivos=processos.filter(isProcessoAtivo);
+  if(!processosAtivos.length) return '';
   // Tempo médio por etapa (dias entre dt_etapas registradas)
   const tempoEtapa={};
   const contEtapa={};
-  processos.forEach(p=>{
+  processosAtivos.forEach(p=>{
     const dts=p.dt_etapas||{};
     ETAPAS.forEach((et,i)=>{
       if(i===0||!dts[et.id]) return;
@@ -2524,7 +2527,7 @@ function buildAnalyticsHTML(){
   });
   // Taxa de devolução por etapa
   const devEtapa={};
-  processos.forEach(p=>{
+  processosAtivos.forEach(p=>{
     (p.hist||[]).forEach(h=>{
       if(h.acao&&h.acao.includes('Retornado para ajustes')){
         devEtapa[h.step]=(devEtapa[h.step]||0)+1;
@@ -2534,12 +2537,12 @@ function buildAnalyticsHTML(){
   // Concluídos no mês
   const hoje=new Date();
   const mesAtual=hoje.toISOString().slice(0,7);
-  const conclMes=processos.filter(p=>{
+  const conclMes=processosAtivos.filter(p=>{
     const ef=p.ent?.dt_efetiva||'';
     return ef && ef.slice(0,7)===mesAtual;
   }).length;
   // Desvio médio de prazo
-  const desvios=processos.map(p=>_desviosPrazo(p)).filter(d=>d!==null);
+  const desvios=processosAtivos.map(p=>_desviosPrazo(p)).filter(d=>d!==null);
   const desvMedio=desvios.length?Math.round(desvios.reduce((a,b)=>a+b,0)/desvios.length):null;
   // Top etapas com mais devoluções
   const topDev=Object.entries(devEtapa).sort((a,b)=>b[1]-a[1]).slice(0,3);
@@ -2566,7 +2569,7 @@ function buildAnalyticsHTML(){
         <div style="font-size:11px;color:var(--ink3)">Devoluções totais</div>
       </div>
       <div style="background:var(--bg2);border-radius:var(--r);padding:.8rem;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:var(--blue)">${processos.filter(p=>isVencido(p)).length}</div>
+        <div style="font-size:22px;font-weight:700;color:var(--blue)">${processosAtivos.filter(p=>isVencido(p)).length}</div>
         <div style="font-size:11px;color:var(--ink3)">Processos vencidos</div>
       </div>
     </div>
@@ -2640,28 +2643,32 @@ async function removerEvidencia(etapa, idx){
 // ═══════════════════════════════════════════
 // LISTA DE PROCESSOS
 // ═══════════════════════════════════════════
+function isProcessoEmAndamento(p){
+  return ['Entendimento','Modelagem','Formalizacao'].includes(etFase(p.etapa));
+}
 function filtFase(fase,el){filtFaseAtual=fase;document.querySelectorAll('#fase-chips .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');renderProcs();}
 function renderProcs(){
   aplicarPermissoes();
   const srch=(document.getElementById('srch-p')?.value||'').toLowerCase();
   const isDono=usuarioLogado?.perfil==='dono';
+  const processosEmAndamento=processos.filter(isProcessoEmAndamento);
   // Q034: popular selects de EP e dono dinamicamente
   const epSel=document.getElementById('filt-ep');
   const donoSel=document.getElementById('filt-dono');
   if(epSel){
     const prevEP=epSel.value;
-    const eps=[...new Set(processos.map(p=>p.resp_ep).filter(Boolean))].sort();
+    const eps=[...new Set(processosEmAndamento.map(p=>p.resp_ep).filter(Boolean))].sort();
     epSel.innerHTML='<option value="">EP: Todos</option>'+eps.map(v=>`<option${v===prevEP?' selected':''}>${v}</option>`).join('');
   }
   if(donoSel){
     const prevDono=donoSel.value;
-    const donos=[...new Set(processos.map(p=>p.dono).filter(Boolean))].sort();
+    const donos=[...new Set(processosEmAndamento.map(p=>p.dono).filter(Boolean))].sort();
     donoSel.innerHTML='<option value="">Dono: Todos</option>'+donos.map(v=>`<option${v===prevDono?' selected':''}>${v}</option>`).join('');
   }
   const filtEP=epSel?.value||'';
   const filtDono=donoSel?.value||'';
   const filtProd=document.getElementById('filt-produto')?.value||'';
-  const lista=processos.filter(p=>{
+  const lista=processosEmAndamento.filter(p=>{
     if(isDono){
       const isDonoProc=(p.dono===usuarioLogado.nome);
       const isInteressado=(p.interessados||[]).includes(usuarioLogado.email);
@@ -3227,6 +3234,7 @@ function criarProcesso(){
 function av(etAtu, role, acao, _prazoEl, notifDest){
   push(curProc, etAtu, role, acao);
   if(curProc.etapas_puladas) curProc.etapas_puladas=curProc.etapas_puladas.filter(id=>id!==etAtu);
+  if(curProc.atribuicoes?.[etAtu]) delete curProc.atribuicoes[etAtu];
   const nx = nextEt(etAtu);
   // Q027: registrar data efetiva de conclusão da etapa atual
   if(!curProc.dt_etapas) curProc.dt_etapas={};
@@ -5645,6 +5653,7 @@ function pularEtapaConfirm(etId){
 function pularEtapa(etId){
   if(!curProc.etapas_puladas) curProc.etapas_puladas=[];
   if(!curProc.etapas_puladas.includes(etId)) curProc.etapas_puladas.push(etId);
+  if(curProc.atribuicoes?.[etId]) delete curProc.atribuicoes[etId];
   push(curProc,etId,'EP','Etapa pulada — pendente');
   const nx=nextEt(etId);
   if(nx){curProc.etapa=nx;push(curProc,nx,'Sistema','Etapa iniciada');}
@@ -9647,12 +9656,12 @@ function _procIntelSnapshot(proc){
 }
 
 function buildPainelAlertasEPHTML(){
-  const vinculados = processos.filter(p=>p.arq_id);
+  const vinculados = processos.filter(p=>p.arq_id&&isProcessoAtivo(p));
   const itens = vinculados.map(proc=>({proc, intel:_procIntelSnapshot(proc)}))
     .filter(x=>x.intel.sinais.length || x.intel.recomendacoes.length);
 
   if(!itens.length){
-    return `<div class="ib ibg" style="margin-bottom:1rem;font-size:12px">Atenção requerida: nenhum alerta nos processos mapeados.</div>`;
+    return `<div class="ib ibg" style="margin-bottom:1rem;font-size:12px">Atenção requerida: nenhum alerta nos processos vinculados à arquitetura.</div>`;
   }
 
   const totalVencidos = itens.filter(x=>x.intel.vencido).length;
@@ -9672,14 +9681,20 @@ function buildPainelAlertasEPHTML(){
     const peso = x => (x.intel.vencido?30:0) + (x.intel.atividadesAbertas.length?15:0) + x.intel.sinais.length*5 + x.intel.recomendacoes.length;
     return peso(b) - peso(a);
   }).slice(0,6);
+  const totalAlertas = itens.length;
+  const exibidosAlertas = rank.length;
+  const badgeAlertas = totalAlertas > exibidosAlertas
+    ? exibidosAlertas+' de '+totalAlertas+' processos com alerta'
+    : totalAlertas+' processo'+(totalAlertas===1?'':'s')+' com alerta';
+  const contextoAlertas = totalAlertas > exibidosAlertas ? ' · exibindo principais alertas' : '';
 
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--rl);padding:1rem 1.1rem;margin:-.4rem 0 1rem;box-shadow:var(--sh)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:.75rem">
       <div>
         <div style="font-family:var(--fh);font-size:14px;font-weight:700;color:var(--ink)">Atenção requerida</div>
-        <div style="font-size:11.5px;color:var(--ink3);margin-top:2px">${resumo.length?resumo.join(' · '):'Alertas contextuais dos processos mapeados'}</div>
+        <div style="font-size:11.5px;color:var(--ink3);margin-top:2px">${resumo.length?resumo.join(' · '):'Alertas contextuais dos processos vinculados à arquitetura'}${contextoAlertas}</div>
       </div>
-      <span class="badge ba" style="font-size:10px">${itens.length} processo${itens.length===1?'':'s'} com alerta</span>
+      <span class="badge ba" style="font-size:10px">${badgeAlertas}</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px">
       ${rank.map(({proc,intel})=>{
