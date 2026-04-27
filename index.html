@@ -4103,6 +4103,13 @@ const ACOES = {
       <div class="fg"><label class="fl">Data de vigência <small style="font-weight:400;color:var(--ink3)">(2 anos após entrega)</small></label><input class="fi" type="date" id="a-vig" value="${p.form?.vig||''}" readonly style="background:var(--bg2);color:var(--ink3)"></div>
       <div class="fg"><label class="fl">Entrega efetiva</label><input class="fi" type="date" id="pub-efet" value="${p.ent?.dt_efetiva||''}" oninput="_onEfetChange(this.value)"></div>
     </div>
+    <div style="margin-top:.6rem;padding:.8rem 1rem;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--ink)">📄 POP em PDF</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">Gera o documento PDF completo do POP (fluxo, atividades, SIPOC, riscos e indicadores)</div>
+      </div>
+      <button type="button" class="btn btn-a" onclick="gerarPopPdfDireto()">⬇ Gerar PDF do POP</button>
+    </div>
     <div class="btn-row">
       <button type="button" class="btn" onclick="salvarDadosPublicacao()">💾 Salvar dados</button>
     </div>`},
@@ -7951,15 +7958,12 @@ async function gerarPopPdf(){
   if(!inner.trim())return;
   const p=curProc;
   const nome=esc(p?.nome||'POP');
-  // Mostra feedback visual enquanto processa BPMN
   const btn=el.querySelector('.pop-pdf-bar button');
   if(btn){btn.disabled=true;btn.textContent='⏳ Preparando...';}
   let anexo='';
   try{anexo=await _popPdfAnexo(p);}catch(ex){console.warn('_popPdfAnexo:',ex);}
   if(btn){btn.disabled=false;btn.textContent='⬇ Gerar POP em PDF';}
-  const w=window.open('','_blank');
-  if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
+  const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
   <style>
     :root{--blue:#1e6bfa;--ink:#1a1a2e;--ink2:#4a4a6a;--ink3:#8888aa;--bg2:#f4f5f8;--surf:#fff;--bdr:#e0e0f0;--r:6px;--rl:8px;--fh:'Segoe UI',Arial,sans-serif}
     *{box-sizing:border-box}
@@ -7974,7 +7978,49 @@ async function gerarPopPdf(){
     .bpmn-landscape{page:landscape-page;page-break-before:always}
     @media print{body{padding:0}.pop-pdf-bar{display:none!important}}
   </style>
-  </head><body>${inner}${anexo}</body></html>`);
+  </head><body>${inner}${anexo}</body></html>`;
+  const w=window.open('','_blank');
+  if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
+  w.document.write(fullHtml);
+  w.document.close();
+  setTimeout(()=>w.print(),800);
+}
+// Gera o PDF do POP a partir dos dados salvos — pode ser chamada de qualquer etapa
+async function gerarPopPdfDireto(){
+  const p=curProc;
+  if(!p){return;}
+  if(!p.form?.pop&&!(p.mod?.etapas_proc||[]).length){
+    toast('O POP ainda não foi preenchido.','var(--amber)');return;
+  }
+  const nome=esc(p?.nome||'POP');
+  // Renderiza o formulário POP em div oculto para capturar o HTML
+  const tmpDiv=document.createElement('div');
+  tmpDiv.style.cssText='position:fixed;left:-9999px;top:0;width:900px;visibility:hidden;';
+  tmpDiv.innerHTML=ACOES.pop.form(p);
+  document.body.appendChild(tmpDiv);
+  let anexo='';
+  try{anexo=await _popPdfAnexo(p);}catch(ex){console.warn('_popPdfAnexo:',ex);}
+  const inner=tmpDiv.innerHTML;
+  tmpDiv.remove();
+  const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
+  <style>
+    :root{--blue:#1e6bfa;--ink:#1a1a2e;--ink2:#4a4a6a;--ink3:#8888aa;--bg2:#f4f5f8;--surf:#fff;--bdr:#e0e0f0;--r:6px;--rl:8px;--fh:'Segoe UI',Arial,sans-serif}
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;background:#fff;margin:0;padding:24px 28px;color:#1a1a2e}
+    table{width:100%;border-collapse:collapse;margin-bottom:10px}
+    th,td{border:1px solid #ddd;padding:5px 8px;text-align:left}
+    th{background:#f4f5f8;font-size:10px}
+    img{max-width:100%}
+    svg{max-width:100%;display:block}
+    @page{size:A4 portrait;margin:22mm 20mm}
+    @page landscape-page{size:A4 landscape;margin:15mm 18mm}
+    .bpmn-landscape{page:landscape-page;page-break-before:always}
+    @media print{body{padding:0}.pop-pdf-bar{display:none!important}}
+  </style>
+  </head><body>${inner}${anexo}</body></html>`;
+  const w=window.open('','_blank');
+  if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
+  w.document.write(fullHtml);
   w.document.close();
   setTimeout(()=>w.print(),800);
 }
