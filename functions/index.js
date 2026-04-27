@@ -37,7 +37,7 @@ exports.ai = onRequest(
     }
     try {
       await admin.auth().verifyIdToken(idToken);
-    } catch (_e) {
+    } catch {
       res.status(401).json({ error: "Token inválido ou expirado" });
       return;
     }

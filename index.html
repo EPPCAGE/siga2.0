@@ -321,7 +321,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   .page>div{padding:.85rem!important}
   .stats{grid-template-columns:1fr 1fr}
   .g2,.g3,.g4{grid-template-columns:1fr}
-  .pipeline-phases{grid-template-columns:1fr 1fr}
   .ph{flex-direction:column;align-items:flex-start;gap:.5rem}
   .card{padding:.85rem .9rem}
   .fi,select.fi{font-size:16px!important;min-height:44px}
@@ -1474,8 +1473,8 @@ let usuarioLogado = null;
 let curProc = null;
 let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
-let mapeadosManual = new Set((() => { try { return JSON.parse(lsGet('mapeadosManual','[]')); } catch(_){ return []; } })());
-let criticosManual = new Set((() => { try { return JSON.parse(lsGet('criticosManual','[]')); } catch(_){ return []; } })());
+let mapeadosManual = new Set((() => { try { return JSON.parse(lsGet('mapeadosManual','[]')); } catch{ return []; } })());
+let criticosManual = new Set((() => { try { return JSON.parse(lsGet('criticosManual','[]')); } catch{ return []; } })());
 let fluxosCache = {};
 let bpmnModelers = {};
 let bpmnDirty = {};
@@ -2349,6 +2348,7 @@ function buildArqStatsHTML(){
   const mx=getMetricasArq();
   const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
   const eco=processos.reduce((s,p)=>{const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);return s+(r.length?r[r.length-1].economia_h:0);},0);
+  const ecoSign = eco > 0 ? '+' : '';
   return `<div class="stat cb" style="grid-column:span 2">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <div><div class="stat-n">${pct}%</div><div class="stat-l">Processos mapeados</div></div>
@@ -2364,7 +2364,7 @@ function buildArqStatsHTML(){
     '<div class="stat cb"><div class="stat-n">'+mx.nProc+'</div><div class="stat-l">Processos</div></div>'+
     '<div class="stat cg"><div class="stat-n">'+mx.nSub+'</div><div class="stat-l">Subprocessos</div></div>'+
     '<div class="stat cr"><div class="stat-n">'+processos.filter(p=>p.prio==='Critica').length+'</div><div class="stat-l">Prioridade crítica</div></div>'+
-    (eco===0?'': `<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${eco>=0?'+':''}${eco.toFixed(1)}h</div><div class="stat-l">Economia de horas/mês estimada</div></div>`);
+    (eco===0?'': `<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${ecoSign}${eco.toFixed(1)}h</div><div class="stat-l">Economia de horas/mês estimada</div></div>`);
 }
 
 function rDash(){
@@ -9640,6 +9640,7 @@ function _metaFieldsMapeamentoHTML(item, proc){
   const matNivel = proc.ent?.mat||0;
   const progBar = _metaFieldsProgBar(proc);
   const opElipsis = analise&&analise.oportunidades&&analise.oportunidades.length>2 ? ' …' : '';
+  const mapeandoBadge = ['acompanha','auditoria'].includes(proc.etapa) ? '' : '<span class="badge ba" style="font-size:10px;margin-left:auto">Em mapeamento</span>';
   return `
   <div style="margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem;flex-wrap:wrap">
@@ -9648,7 +9649,7 @@ function _metaFieldsMapeamentoHTML(item, proc){
       <span class="badge ${FASE_COR[etFase(proc.etapa)]||'bgr'}" style="font-size:10px">${etFase(proc.etapa)}</span>
       ${(isEP()||usuarioLogado?.perfil==='gestor')
         ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="abrirProc(${proc.id})">Abrir mapeamento →</button>`
-        : (['acompanha','auditoria'].includes(proc.etapa) ? '' : '<span class="badge ba" style="font-size:10px;margin-left:auto">Em mapeamento</span>')
+        : mapeandoBadge
       }
       <button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="verFluxoBizagi('${item.id}',event)">🗺 Ver fluxo Bizagi</button>
       ${isEP()?`<label class="btn" style="font-size:10px;padding:2px 8px;cursor:pointer" title="Carregar imagem de fluxo Bizagi">📎 Alterar imagem<input type="file" accept="image/*" style="display:none" onchange="uploadFluxoArq('${item.id}',this)"></label>`:''}
@@ -10270,7 +10271,7 @@ function _kpiPeriodoToIntervalo(periodo){
   const mMatch = str.match(/^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/);
   if(mMatch){
     const n = mMap[mMatch[1]];
-    const t = n<=3?1:n<=6?2:n<=9?3:4;
+    let t; if(n<=3) t=1; else if(n<=6) t=2; else if(n<=9) t=3; else t=4;
     const s = n<=6?1:2;
     return {trims:[`T${t}/${y}`], sems:[`S${s}/${y}`]};
   }
@@ -10321,8 +10322,10 @@ function populateIndFilters(){
     const labelT = v=>{ const [c,y]=v.split('/'); const lbls={T1:'Jan–Mar',T2:'Abr–Jun',T3:'Jul–Set',T4:'Out–Dez'}; return `${c}/${y} (${lbls[c]})`; };
     const labelS = v=>{ const [c,y]=v.split('/'); return `${c}/${y} (${c==='S1'?'Jan–Jun':'Jul–Dez'})`; };
     let html = '<option value="">Todos</option>';
-    if(trims.length) html += `<optgroup label="— Trimestres">${trims.map(v=>`<option value="${v}"${curIntervalo===v?' selected':''}>${labelT(v)}</option>`).join('')}</optgroup>`;
-    if(sems.length)  html += `<optgroup label="— Semestres">${sems.map(v=>`<option value="${v}"${curIntervalo===v?' selected':''}>${labelS(v)}</option>`).join('')}</optgroup>`;
+    const trimsHtml = trims.map(v=>`<option value="${v}"${curIntervalo===v?' selected':''}>${labelT(v)}</option>`).join('');
+    const semsHtml  = sems.map(v=>`<option value="${v}"${curIntervalo===v?' selected':''}>${labelS(v)}</option>`).join('');
+    if(trims.length) html += `<optgroup label="— Trimestres">${trimsHtml}</optgroup>`;
+    if(sems.length)  html += `<optgroup label="— Semestres">${semsHtml}</optgroup>`;
     intervaloSel.innerHTML = html;
   }
 }
@@ -10505,7 +10508,7 @@ function kpiGrupoCardHTML(key, items){
     cumSummaryHtml = `<div style="display:flex;gap:10px;align-items:center;margin-top:.4rem;padding:.4rem .6rem;background:var(--bg2);border-radius:6px;font-size:12px">
       <span style="color:var(--ink3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px">Acumulado</span>
       <span style="font-weight:700;color:${cumColor}">${cumRound}${und}</span>
-      ${metaAnual!=null?`<span style="color:var(--ink3)">/ ${metaAnual}${und}</span><span style="font-weight:700;color:${cumColor}">(${cumPct}%)</span>`:''}
+      ${metaAnual==null?'':`<span style="color:var(--ink3)">/ ${metaAnual}${und}</span><span style="font-weight:700;color:${cumColor}">(${cumPct}%)</span>`}
     </div>`;
   }
 
@@ -10628,7 +10631,7 @@ function createKpiChart(key, items){
     let running=0;
     const cumData = realizados.map(r=>{ running+=r; return Math.round(running*100)/100; });
     const metaVal = withData.find(i=>i.meta!=null&&i.meta!=='')?.meta;
-    const metaNum = metaVal!=null ? Number(metaVal) : null;
+    const metaNum = metaVal==null ? null : Number(metaVal);
     cumDatasets = [
       { label:'Acumulado'+und, data:cumData, type:'line', order:0,
         borderColor:'rgba(16,185,129,0.9)', backgroundColor:'rgba(16,185,129,0.08)',
@@ -10845,7 +10848,7 @@ function _kpiNavLoadCurrent(){
   fv('nkpi-indice',   edits ? edits.indice     : (k.indice    || ''));
   fv('nkpi-analise',  edits ? edits.analise    : (k.analise   || ''));
   const metaVal = edits ? edits.meta : k.meta;
-  fv('nkpi-meta', metaVal != null ? metaVal : '');
+  fv('nkpi-meta', metaVal == null ? '' : metaVal);
   const sdEl2 = document.getElementById('nkpi-sem-dado');
   if(sdEl2) sdEl2.checked = !!(edits ? edits.sem_dado : k.sem_dado);
   calcPctReal();
@@ -11494,7 +11497,7 @@ function renderAdmin(){
       </td>
       <td style="white-space:nowrap">
         <button type="button" class="btn" style="font-size:11px;padding:3px 8px;margin-right:4px" onclick="abrirModalUsr(${idx})">Editar</button>
-        ${!isMe?`<button type="button" class="btn" style="font-size:11px;padding:3px 8px;${bloqStyle}" onclick="bloquearUsuario(${idx})">${bloqLabel}</button>`:''}
+        ${isMe?'':`<button type="button" class="btn" style="font-size:11px;padding:3px 8px;${bloqStyle}" onclick="bloquearUsuario(${idx})">${bloqLabel}</button>`}
       </td>
     </tr>`;
   }).join('');
@@ -13852,6 +13855,7 @@ async function iaAnalisarBpmn(which){
 }
 
 // ── 2. GERAR POP ─────────────────────────
+function _confirmadosDeFeedback(fb, tipo){ return Object.entries(fb[tipo]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k); }
 async function iaGerarPop(){
   const p = curProc;
   if(!p) return;
@@ -13865,11 +13869,10 @@ async function iaGerarPop(){
   // Itens confirmados na etapa Melhorias (excluindo descartados)
   const a = p.ent?.analise || {};
   const fb = a.feedback_dono || {};
-  function confirmados(tipo){ return Object.entries(fb[tipo]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k); }
   const hasFeedback = Object.keys(fb).length > 0;
-  const gargalosConf    = hasFeedback ? confirmados('gargalos')         : (a.gargalos||[]);
-  const oportunidadesConf = hasFeedback ? confirmados('oportunidades')  : (a.oportunidades||[]);
-  const solucoesConf    = hasFeedback ? confirmados('solucoes_problemas') : (a.solucoes_problemas||[]);
+  const gargalosConf      = hasFeedback ? _confirmadosDeFeedback(fb,'gargalos')           : (a.gargalos||[]);
+  const oportunidadesConf = hasFeedback ? _confirmadosDeFeedback(fb,'oportunidades')      : (a.oportunidades||[]);
+  const solucoesConf      = hasFeedback ? _confirmadosDeFeedback(fb,'solucoes_problemas') : (a.solucoes_problemas||[]);
 
   const payload = {
     nome: p.nome,
@@ -14033,6 +14036,52 @@ function parsePeriodSort(p){
   return y ? Number.parseInt(y[1])*100 : 0;
 }
 
+function _calcKpiPct(k){
+  const r = Number(k.realizado);
+  const m = Number(k.meta);
+  if(r===0 && k.meta!==null && k.meta!==undefined && k.meta!=='' && m===0) return 100;
+  if(m<=0) return null;
+  return (k.polaridade||'Maior é melhor')==='Menor é melhor' ? (r>0 ? Math.round((m/r)*100) : 0) : Math.round((r/m)*100);
+}
+
+function _buildKpiAreaCards(lista){
+  const areaMap = {};
+  lista.forEach(k=>{
+    const a = k.area||'(sem área)';
+    if(!areaMap[a]) areaMap[a]={total:0,comMeta:0,atingiram:0,destaque:0,critico:0};
+    const pct = _calcKpiPct(k);
+    areaMap[a].total++;
+    if(pct!==null){
+      areaMap[a].comMeta++;
+      if(pct>=100) areaMap[a].atingiram++;
+      if(pct>=130) areaMap[a].destaque++;
+      if(pct<50)   areaMap[a].critico++;
+    }
+  });
+  return Object.entries(areaMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([nome,d])=>{
+    const taxa = d.comMeta ? Math.round((d.atingiram/d.comMeta)*100) : null;
+    let cl, bg, border;
+    if(taxa===null){ cl='#6b7280'; bg='#f3f4f6'; border='#d1d5db'; }
+    else if(taxa>=80){ cl='#16a34a'; bg='#f0fdf4'; border='#4ade80'; }
+    else if(taxa>=60){ cl='#d97706'; bg='#fffbeb'; border='#fbbf24'; }
+    else if(taxa>=40){ cl='#dc2626'; bg='#fff5f5'; border='#f87171'; }
+    else { cl='#991b1b'; bg='#fee2e2'; border='#ef4444'; }
+    const destaqueS = d.destaque > 1 ? 's' : '';
+    const criticoS = d.critico > 1 ? 's' : '';
+    const extras = [
+      d.destaque ? `<span style="font-size:10px;color:#065f46">⭐ ${d.destaque} destaque${destaqueS}</span>` : '',
+      d.critico  ? `<span style="font-size:10px;color:#7f1d1d">⚠ ${d.critico} crítico${criticoS}</span>` : '',
+    ].filter(Boolean).join(' ');
+    return `<div style="background:${bg};border:1.5px solid ${border};border-radius:8px;padding:10px 14px;min-width:140px;flex:1">
+      <div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">${esc(nome)}</div>
+      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${taxa===null?'—':taxa+'%'}</div>
+      <div style="font-size:10px;color:#6b7280;margin-top:2px">${d.atingiram} de ${d.comMeta} atingiram a meta</div>
+      <div style="font-size:10px;color:#9ca3af">${d.total} indicador${d.total===1?'':'es'} no total</div>
+      ${extras?`<div style="margin-top:4px;display:flex;gap:8px">${extras}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
 function gerarRelatorioIndPdf(){
   if(!_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
 
@@ -14054,65 +14103,7 @@ function gerarRelatorioIndPdf(){
 
   if(!lista.length){ toast('Nenhum indicador com dados para o relatório.','var(--amber)'); return; }
 
-  // ── Calcula pct e classifica cada indicador ──────────────────────────
-  function calcPct(k){
-    const r = Number(k.realizado);
-    const m = Number(k.meta);
-    if(r === 0 && k.meta !== null && k.meta !== undefined && k.meta !== '' && m === 0) return 100;
-    const pol = k.polaridade||'Maior é melhor';
-    const hasMeta = m > 0;
-    if(!hasMeta) return null;
-    if(pol==='Menor é melhor'){
-      return r > 0 ? Math.round((m/r)*100) : 0;
-    }
-    return Math.round((r/m)*100);
-  }
-
-  // ── Agregador por área ───────────────────────────────────────────────
-  // Métrica: taxa de atingimento = (nº atingiram meta / nº com meta) * 100
-  // Legível e sempre 0-100%; não é distorcida por outliers extremos
-  const areaMap = {};
-  lista.forEach(k=>{
-    const a = k.area||'(sem área)';
-    if(!areaMap[a]) areaMap[a]={total:0,comMeta:0,atingiram:0,destaque:0,critico:0};
-    const pct = calcPct(k);
-    areaMap[a].total++;
-    if(pct!==null){
-      areaMap[a].comMeta++;
-      if(pct>=100) areaMap[a].atingiram++;
-      if(pct>=130) areaMap[a].destaque++;
-      if(pct<50)   areaMap[a].critico++;
-    }
-  });
-  const areaCards = Object.entries(areaMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([nome,d])=>{
-    // taxa 0-100%: quantos indicadores (com meta) atingiram a meta
-    const taxa = d.comMeta ? Math.round((d.atingiram/d.comMeta)*100) : null;
-    let cl, bg, border;
-    if(taxa===null){
-      cl='#6b7280'; bg='#f3f4f6'; border='#d1d5db';
-    } else if(taxa>=80){
-      cl='#16a34a'; bg='#f0fdf4'; border='#4ade80';
-    } else if(taxa>=60){
-      cl='#d97706'; bg='#fffbeb'; border='#fbbf24';
-    } else if(taxa>=40){
-      cl='#dc2626'; bg='#fff5f5'; border='#f87171';
-    } else {
-      cl='#991b1b'; bg='#fee2e2'; border='#ef4444';
-    }
-    const destaqueS = d.destaque > 1 ? 's' : '';
-    const criticoS = d.critico > 1 ? 's' : '';
-    const extras = [
-      d.destaque ? `<span style="font-size:10px;color:#065f46">⭐ ${d.destaque} destaque${destaqueS}</span>` : '',
-      d.critico  ? `<span style="font-size:10px;color:#7f1d1d">⚠ ${d.critico} crítico${criticoS}</span>` : '',
-    ].filter(Boolean).join(' ');
-    return `<div style="background:${bg};border:1.5px solid ${border};border-radius:8px;padding:10px 14px;min-width:140px;flex:1">
-      <div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">${esc(nome)}</div>
-      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${taxa===null?'—':taxa+'%'}</div>
-      <div style="font-size:10px;color:#6b7280;margin-top:2px">${d.atingiram} de ${d.comMeta} atingiram a meta</div>
-      <div style="font-size:10px;color:#9ca3af">${d.total} indicador${d.total===1?'':'es'} no total</div>
-      ${extras?`<div style="margin-top:4px;display:flex;gap:8px">${extras}</div>`:''}
-    </div>`;
-  }).join('');
+  const areaCards = _buildKpiAreaCards(lista);
 
   // ── Ordena por área → nome → período cronológico ─────────────────
   lista.sort((a,b)=>{
@@ -14127,7 +14118,7 @@ function gerarRelatorioIndPdf(){
   const rows = lista.map(k => {
     const und     = k.unidade ? ' '+k.unidade : '';
     const hasMeta = k.meta !== null && k.meta !== undefined && k.meta !== '';
-    const pct     = calcPct(k);
+    const pct     = _calcKpiPct(k);
     const st      = statusInfo(pct, hasMeta);
     // Fonte maior para extremos
     let pctStyle;
@@ -14152,11 +14143,11 @@ function gerarRelatorioIndPdf(){
   // ── Totalizador rodapé ───────────────────────────────────────────────
   // Taxa de atingimento geral (sempre 0-100%, não distorcida por outliers)
   // Denominador = apenas indicadores com meta E cálculo de % possível (calcPct != null)
-  const comMeta    = lista.filter(k=>calcPct(k)!==null);
-  const atingiramG = comMeta.filter(k=>calcPct(k)>=100).length;
+  const comMeta    = lista.filter(k=>_calcKpiPct(k)!==null);
+  const atingiramG = comMeta.filter(k=>_calcKpiPct(k)>=100).length;
   const taxaGeral  = comMeta.length ? Math.round((atingiramG/comMeta.length)*100) : null;
-  const destTotal  = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p>=130; }).length;
-  const critTotal  = lista.filter(k=>{ const p=calcPct(k); return p!==null&&p<50; }).length;
+  const destTotal  = lista.filter(k=>{ const p=_calcKpiPct(k); return p!==null&&p>=130; }).length;
+  const critTotal  = lista.filter(k=>{ const p=_calcKpiPct(k); return p!==null&&p<50; }).length;
   let taxaCl;
   if(taxaGeral===null) taxaCl='#6b7280';
   else if(taxaGeral>=80) taxaCl='#16a34a';
