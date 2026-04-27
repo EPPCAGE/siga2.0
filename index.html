@@ -7644,10 +7644,10 @@ function sModTab(id,el){
   if(id==='vm-tobe'||id==='sm-tobe'){setTimeout(()=>initBpmnMod('tobe',curProc),80);}
   if(id==='vm-asis'||id==='sm-asis'){if(!curProc?._hasBizagi)setTimeout(()=>initBpmnMod('asis',curProc),80);}
 }
-function rForm(p){
+function _rFormHtml(p){
   const pd=p.form?.pop;
-  if(!pd){document.getElementById('tab-form').innerHTML='<div class="ib iba">POP não construído ainda.</div>';return;}
-  document.getElementById('tab-form').innerHTML=`<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--rl);overflow:hidden">
+  if(!pd)return '<div class="ib iba">POP não construído ainda.</div>';
+  return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--rl);overflow:hidden">
     <div style="background:var(--ink);color:#fff;padding:1.2rem 1.5rem">
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:.8rem">
         <span style="background:rgba(255,255,255,.1);border-radius:5px;padding:3px 9px;font-family:var(--fh);font-size:11px">EPP</span>
@@ -7761,10 +7761,9 @@ function rForm(p){
       })()}
       ${p.form.apresent?`<div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">6.0 Aprovações</div><div style="font-size:12.5px">${p.form.apresent}</div></div>`:''}
     </div>
-  </div>
-  <div class="pop-pdf-bar" style="margin-top:1rem;text-align:right">
-    <button type="button" class="btn btn-a" onclick="gerarPopPdf()">⬇ Gerar POP em PDF</button>
-  </div>`;
+  </div>`;}
+function rForm(p){
+  document.getElementById('tab-form').innerHTML=_rFormHtml(p)+(p.form?.pop?`<div class="pop-pdf-bar" style="margin-top:1rem;text-align:right"><button type="button" class="btn btn-a" onclick="gerarPopPdf()">⬇ Gerar POP em PDF</button></div>`:'');
 }
 // ─── Retorna SVG string do diagrama BPMN; usa modeler carregado ou renderiza
 // o XML num container temporário invisível como fallback ─────────────────────
@@ -7993,15 +7992,9 @@ async function gerarPopPdfDireto(){
     toast('O POP ainda não foi preenchido.','var(--amber)');return;
   }
   const nome=esc(p?.nome||'POP');
-  // Renderiza o formulário POP em div oculto para capturar o HTML
-  const tmpDiv=document.createElement('div');
-  tmpDiv.style.cssText='position:fixed;left:-9999px;top:0;width:900px;visibility:hidden;';
-  tmpDiv.innerHTML=ACOES.pop.form(p);
-  document.body.appendChild(tmpDiv);
+  const inner=_rFormHtml(p);
   let anexo='';
   try{anexo=await _popPdfAnexo(p);}catch(ex){console.warn('_popPdfAnexo:',ex);}
-  const inner=tmpDiv.innerHTML;
-  tmpDiv.remove();
   const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
   <style>
     :root{--blue:#1e6bfa;--ink:#1a1a2e;--ink2:#4a4a6a;--ink3:#8888aa;--bg2:#f4f5f8;--surf:#fff;--bdr:#e0e0f0;--r:6px;--rl:8px;--fh:'Segoe UI',Arial,sans-serif}
