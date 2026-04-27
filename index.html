@@ -602,6 +602,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-dashboard" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Painel geral</div><div class="ph-s" id="dash-dt"></div></div>
   <div id="btn-novo-proc-dash"></div></div>
+  <div id="dash-alertas-ep"></div>
   <div class="card" style="margin-bottom:1rem"><div class="card-t">Pipeline por fase</div><div class="pipeline-phases" id="dash-pipe"></div></div>
   <div class="g2" style="gap:12px;margin-bottom:1rem">
     <div><div class="card-t" style="margin-bottom:.6rem">Aguardando ação</div><div id="dash-pend"></div></div>
@@ -733,7 +734,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="ph"><div><div class="ph-t">Arquitetura de processos</div><div class="ph-s" id="arq-sub">Macroprocesso → Processo → Subprocesso</div></div>
   <div id="btn-arq-actions"></div></div>
   <div class="stats" id="arq-stats"></div>
-  <div id="arq-alertas-ep"></div>
 
   <!-- Filtros e busca -->
   <div class="fbar" style="flex-direction:column;align-items:stretch;gap:10px;margin-bottom:.9rem">
@@ -2436,7 +2436,10 @@ function buildArqStatsHTML(){
 
 function rDash(){
   aplicarPermissoes();
+  syncArquiteturaProcessos();
   document.getElementById('dash-dt').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const alertasEl=document.getElementById('dash-alertas-ep');
+  if(alertasEl) alertasEl.innerHTML=isEP()?buildPainelAlertasEPHTML():'';
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
@@ -8137,7 +8140,7 @@ async function baixarFluxogramas(btn){
     let pngToBe=null;
     if(p.mod?.bpmnToBe){pngToBe=await renderBpmnToPng(p.mod.bpmnToBe);}
     if(!pngAsIs&&!pngToBe){toast('Nenhum fluxograma disponível para este processo.','var(--amber)');return;}
-    const nome=(p.nome||'fluxo').replace(/[^\w\s\-]/g,'').trim().replace(/\s+/g,'_');
+    const nome=(p.nome||'fluxo').replaceAll(/[^\w\s-]/g,'').trim().replaceAll(/\s+/g,'_');
     const dl=(href,filename)=>{const a=document.createElement('a');a.href=href;a.download=filename;document.body.appendChild(a);a.click();a.remove();};
     if(pngAsIs){dl(pngAsIs,nome+'_AS_IS.png');}
     if(pngToBe){await new Promise(r=>setTimeout(r,400));dl(pngToBe,nome+'_TO_BE.png');}
@@ -9297,8 +9300,6 @@ function rArq(){
   // Cards de métricas no topo
   const arqStatsEl = document.getElementById('arq-stats');
   if(arqStatsEl) arqStatsEl.innerHTML = buildArqStatsHTML();
-  const arqAlertasEl = document.getElementById('arq-alertas-ep');
-  if(arqAlertasEl) arqAlertasEl.innerHTML = isEP() ? buildArqAlertasEPHTML() : '';
 
   if(!ARQUITETURA.length){
     el.innerHTML='<div class="ib ibb">Nenhum macroprocesso cadastrado. Importe uma planilha ou clique em "+ Macroprocesso".</div>';
@@ -9576,6 +9577,10 @@ function _procPlanoVinculado(proc){
   return plano.filter(a=>a.vinculo_id===proc.id || _normIntel(a.vinculo_nome)===_normIntel(proc.nome));
 }
 
+function _planoAtividadeConcluida(at){
+  return ['concluida','concluida_em_dia','concluida_com_atraso'].includes(planoStatusEfetivo(at));
+}
+
 function _procIntelSnapshot(proc){
   const riscos = proc.ent?.riscos || [];
   const indicadores = kpis.filter(k => k.pid === proc.id);
@@ -9586,29 +9591,32 @@ function _procIntelSnapshot(proc){
   const temAnalise = !!((analise.gargalos||[]).length || (analise.oportunidades||[]).length || (analise.gaps||[]).length);
   const temPop = !!(proc.form?.pop || proc.ent?.dt_efetiva || ['publicacao','acompanha','auditoria'].includes(proc.etapa));
   const vencido = isVencido(proc);
-  const atividadesAbertas = atividadesPlano.filter(a=>!['concluida','concluida_em_dia','concluida_com_atraso'].includes(planoStatusEfetivo(a)));
-  const sinais = [
-    vencido ? {txt:'Prazo global vencido', cls:'br'} : null,
-    !indicadores.length ? {txt:'Sem indicador vinculado', cls:'ba'} : null,
-    !riscos.length ? {txt:'Sem riscos registrados', cls:'bgr'} : null,
-    !temAnalise ? {txt:'Análise inteligente pendente', cls:'bp'} : null,
-    !temPop ? {txt:'POP/publicação pendente', cls:'bb'} : null,
-    !trilhasProc.length ? {txt:'Sem trilha vinculada', cls:'bgr'} : null,
-    atividadesAbertas.length ? {txt:atividadesAbertas.length+' ação(ões) aberta(s) no PAT', cls:'ba'} : null
-  ].filter(Boolean);
-  const recomendacoes = [
-    !indicadores.length ? 'Vincular ao menos um indicador para acompanhar desempenho.' : null,
-    !riscos.length ? 'Registrar riscos operacionais antes de avançar para melhoria ou publicação.' : null,
-    !temAnalise ? 'Executar a análise inteligente para revelar gargalos, gaps e oportunidades.' : null,
-    !pubs.length && temPop ? 'Cadastrar a publicação correspondente em Metodologias e Publicações.' : null,
-    !trilhasProc.length ? 'Vincular uma trilha de capacitação para apoiar a sustentação do processo.' : null,
-    vencido ? 'Revisar prazo global ou justificar suspensão/cancelamento do mapeamento.' : null,
-    atividadesAbertas.length ? 'Atualizar as ações abertas do PAT relacionadas a este processo.' : null
-  ].filter(Boolean);
+  const semIndicadores = indicadores.length === 0;
+  const semRiscos = riscos.length === 0;
+  const semTrilhas = trilhasProc.length === 0;
+  const semPublicacao = pubs.length === 0;
+  const atividadesAbertas = atividadesPlano.filter(a=>_planoAtividadeConcluida(a) === false);
+  const sinais = [];
+  if(vencido) sinais.push({txt:'Prazo global vencido', cls:'br'});
+  if(semIndicadores) sinais.push({txt:'Sem indicador vinculado', cls:'ba'});
+  if(semRiscos) sinais.push({txt:'Sem riscos registrados', cls:'bgr'});
+  if(temAnalise === false) sinais.push({txt:'Análise inteligente pendente', cls:'bp'});
+  if(temPop === false) sinais.push({txt:'POP/publicação pendente', cls:'bb'});
+  if(semTrilhas) sinais.push({txt:'Sem trilha vinculada', cls:'bgr'});
+  if(atividadesAbertas.length) sinais.push({txt:atividadesAbertas.length+' ação(ões) aberta(s) no PAT', cls:'ba'});
+
+  const recomendacoes = [];
+  if(semIndicadores) recomendacoes.push('Vincular ao menos um indicador para acompanhar desempenho.');
+  if(semRiscos) recomendacoes.push('Registrar riscos operacionais antes de avançar para melhoria ou publicação.');
+  if(temAnalise === false) recomendacoes.push('Executar a análise inteligente para revelar gargalos, gaps e oportunidades.');
+  if(semPublicacao && temPop) recomendacoes.push('Cadastrar a publicação correspondente em Metodologias e Publicações.');
+  if(semTrilhas) recomendacoes.push('Vincular uma trilha de capacitação para apoiar a sustentação do processo.');
+  if(vencido) recomendacoes.push('Revisar prazo global ou justificar suspensão/cancelamento do mapeamento.');
+  if(atividadesAbertas.length) recomendacoes.push('Atualizar as ações abertas do PAT relacionadas a este processo.');
   return {riscos, indicadores, pubs, trilhasProc, atividadesPlano, atividadesAbertas, analise, vencido, sinais, recomendacoes};
 }
 
-function buildArqAlertasEPHTML(){
+function buildPainelAlertasEPHTML(){
   const vinculados = processos.filter(p=>p.arq_id);
   const itens = vinculados.map(proc=>({proc, intel:_procIntelSnapshot(proc)}))
     .filter(x=>x.intel.sinais.length || x.intel.recomendacoes.length);
@@ -9666,12 +9674,12 @@ function buildArqAlertasEPHTML(){
 }
 
 function _procCentralInteligenciaHTML(proc){
-  const {riscos, indicadores, pubs, trilhasProc, atividadesPlano, atividadesAbertas, analise, vencido, sinais, recomendacoes} = _procIntelSnapshot(proc);
+  const {riscos, indicadores, pubs, trilhasProc, atividadesPlano, analise, vencido, sinais, recomendacoes} = _procIntelSnapshot(proc);
   const topGargalos = (analise.gargalos||[]).slice(0,2);
   const topOportunidades = (analise.oportunidades||[]).slice(0,2);
-  const statusPrazo = vencido
-    ? 'Vencido'
-    : (proc.ent?.dt_prev ? proc.ent.dt_prev.split('-').reverse().join('/') : 'Sem previsão');
+  let statusPrazo = 'Sem previsão';
+  if(proc.ent?.dt_prev) statusPrazo = proc.ent.dt_prev.split('-').reverse().join('/');
+  if(vencido) statusPrazo = 'Vencido';
 
   return `<div style="margin-top:.75rem;padding:.75rem .85rem;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r)">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:.65rem">
