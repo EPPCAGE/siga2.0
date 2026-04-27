@@ -2443,7 +2443,7 @@ function rDash(){
   // Pipeline
   const cnt={};ETAPAS.forEach(e=>{cnt[e.id]=processos.filter(p=>p.etapa===e.id).length;});
   document.getElementById('dash-pipe').innerHTML=buildPipelineHTML(cnt);
-  const pend=processos.filter(p=>['det_valid_asis','det_valid_tobe','apresentacao'].includes(p.etapa));
+  const pend=getPendenciasDashboard();
   document.getElementById('dash-pend').innerHTML=buildPendentesHTML(pend);
   // Q035: destacar processos vencidos
   const vencidos=processos.filter(p=>isVencido(p));
@@ -2464,9 +2464,39 @@ function buildPipelineHTML(cnt){
       </div>`).join('')}
     </div></div>`).join('');
 }
+function getPendenciasDashboard(){
+  const pendencias=[];
+  const aprovacoesLegadas=['det_valid_asis','det_valid_tobe','apresentacao'];
+  processos.forEach(p=>{
+    if(p.status_ciclo==='suspenso'||p.status_ciclo==='cancelado') return;
+    const atribuicoes=p.atribuicoes||{};
+    Object.entries(atribuicoes).forEach(([etapaId,atrib])=>{
+      if(!atrib) return;
+      pendencias.push({proc:p,etapaId,atrib,tipo:'atribuicao'});
+    });
+    if(aprovacoesLegadas.includes(p.etapa)&&!atribuicoes[p.etapa]){
+      pendencias.push({proc:p,etapaId:p.etapa,atrib:{para_nome:p.dono||p.resp_ep||'Responsável não informado',prazo:p.ent?.dt_prev||''},tipo:'legado'});
+    }
+  });
+  return pendencias.sort((a,b)=>{
+    const prazoA=a.atrib?.prazo||'9999-12-31';
+    const prazoB=b.atrib?.prazo||'9999-12-31';
+    return prazoA.localeCompare(prazoB)||String(a.proc?.nome||'').localeCompare(String(b.proc?.nome||''));
+  });
+}
 function buildPendentesHTML(pend){
-  if(!pend.length) return '<div class="ib ibg">Nenhuma aprovação pendente.</div>';
-  return pend.map(p=>`<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:7px"><div><div class="prc-t">${esc(p.nome)}</div><div class="prc-m">${esc(p.dono)}</div></div><div>${eBadge(p.etapa)}</div></div>`).join('');
+  if(!pend.length) return '<div class="ib ibg">Nenhuma ação pendente.</div>';
+  const hoje=new Date().toISOString().slice(0,10);
+  return pend.map(item=>{
+    const p=item.proc;
+    const atrib=item.atrib||{};
+    const prazo=atrib.prazo||'';
+    const prazoFmt=prazo?prazo.split('-').reverse().join('/'):'sem prazo';
+    const vencida=prazo&&prazo<hoje;
+    const resp=atrib.para_nome||atrib.para_email||atrib.para||p.dono||'Responsável não informado';
+    const tipo=item.tipo==='legado'?'Aprovação pendente':'Ação atribuída';
+    return `<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:7px${vencida?';border-left:3px solid var(--red)':''}"><div><div class="prc-t">${esc(p.nome)}</div><div class="prc-m">${esc(resp)} · ${tipo} · prazo: ${esc(prazoFmt)}</div></div><div>${eBadge(item.etapaId)}${vencida?' <span class="badge br">Vencida</span>':''}</div></div>`;
+  }).join('');
 }
 // Q035
 function buildVencidosHTML(venc){
