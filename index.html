@@ -3216,27 +3216,6 @@ function salvarPrazoEP(etapaId){
   rAcao(curProc);
   toast('Prazo EP registrado para '+etLb(etapaId),'var(--teal)');
 }
-function reprovar(voltaEt, role, acao){
-  const obs = document.getElementById('aobs')?.value?.trim()||'';
-  if(!obs){
-    toast('Informe o motivo da solicitação de revisão antes de confirmar.','var(--red)');
-    document.getElementById('aobs')?.focus();
-    return;
-  }
-  push(curProc, curProc.etapa, role, acao+' — '+obs);
-  curProc.etapa = voltaEt;
-  // Q008: marcar status_workflow como devolvido
-  curProc.status_workflow = 'devolvido';
-  push(curProc, voltaEt, 'Sistema', 'Retornado para ajustes');
-  // Notificar o dono quando a devolução é para etapa dele
-  const etVoltaObj = ETAPAS.find(e=>e.id===voltaEt);
-  if(etVoltaObj?.resp==='dono'){
-    const email = getDonoEmail(curProc);
-    if(email) enviarNotif(email, curProc.dono, 'Solicitação de revisão em "'+etLb(voltaEt)+'": '+obs, curProc.nome, '', usuarioLogado?.nome||role);
-  }
-  rDetalhe();
-  fbAutoSave('reprovar');
-}
 function popupConclusaoDono(msg){
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
@@ -3251,8 +3230,6 @@ function popupConclusaoDono(msg){
 }
 function avDono(etAtu,role,acao,prazoEl){
   registrarRespondidoPor(etAtu);
-  // Limpa devolução pendente ao dono quando ele resubmete
-  if(curProc?.ent?.devolucao_pendente?.etapa===etAtu) delete curProc.ent.devolucao_pendente;
   // Sinaliza ao EP que há uma entrega do dono aguardando revisão antes de prosseguir
   if(!curProc.ent) curProc.ent={};
   curProc.ent.revisao_ep_pendente={etapa_dono:etAtu,dt:now()};
@@ -3280,11 +3257,6 @@ function jaFoiRespondido(etapa){
   if(jr.nome===usuarioLogado?.nome) return false;
   return jr; // retorna o objeto {nome, email, dt}
 }
-function reprovarDono(voltaEt,role,acao){
-  reprovar(voltaEt,role,acao);
-  setTimeout(()=>popupConclusaoDono('Ajuste solicitado com sucesso! O EP foi notificado e revisará o material antes de encaminhar novamente.'),200);
-}
-
 // ── Salva os dados do formulário do dono sem avançar etapa (usado pelo EP ao editar) ──
 function _salvarDonoQuestionario(p){
   const resp=p.ent.quest_resp||{};
@@ -3364,7 +3336,6 @@ function _rAcaoRevisaoDono(el, p){
     </div>
     <div style="display:flex;gap:.6rem;margin-top:.6rem;flex-wrap:wrap">
       <button type="button" class="btn btn-p" style="flex:1;min-width:160px;padding:.65rem;font-size:13px" onclick="prosseguirFluxo()">✓ Prosseguir com o fluxo</button>
-      <button type="button" class="btn" style="padding:.65rem 1.1rem;font-size:13px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="devolverAoDono()">↩ Devolver para ajustes</button>
     </div>`;
   _rAcaoInitBpmn(p, true);
 }
@@ -3378,110 +3349,6 @@ function prosseguirFluxo(){
     rDetalhe();
     updCounts();
   });
-}
-
-// ── Devolver tarefa ao dono (EP → dono) ──
-function getDevolverEtapa(p){
-  const etapas=getEtapas(p);
-  const idx=etapas.findIndex(e=>e.id===p.etapa);
-  if(idx<=0)return null;
-  const atribs=p.atribuicoes||{};
-  for(let i=idx-1;i>=0;i--){
-    const e=etapas[i];
-    if(atribs[e.id]||e.resp==='dono'||e.resp==='gestor') return e.id;
-  }
-  return null;
-}
-function getDevolverEtapas(p){
-  const etapas=getEtapas(p);
-  const idx=etapas.findIndex(e=>e.id===p.etapa);
-  if(idx<=0) return [];
-  const atribs=p.atribuicoes||{};
-  return etapas.slice(0,idx).filter(e=>atribs[e.id]||e.resp==='dono'||e.resp==='gestor');
-}
-function devolverAoDono(){
-  const p=curProc;
-  const opcoes=getDevolverEtapas(p);
-  if(!opcoes.length){toast('Nenhuma etapa anterior do dono encontrada.','var(--amber)');return;}
-  // Default: última etapa do dono antes da atual (comportamento anterior)
-  const etRetDefault=opcoes[opcoes.length-1].id;
-  const opHtml=opcoes.map(e=>'<option value="'+e.id+'"'+(e.id===etRetDefault?' selected':'')+'>'+etLb(e.id)+'</option>').join('');
-  const selectHtml=opcoes.length===1
-    ? `<input type="hidden" id="devolver-etapa-sel" value="${etRetDefault}"><div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">A tarefa voltará para <strong>${etLb(etRetDefault)}</strong>. O preenchimento anterior será mantido — o dono só precisará ajustar o que você indicar.</div>`
-    : `<div class="fg" style="margin-bottom:.9rem"><label class="fl">Para qual etapa devolver? <span style="color:var(--red)">*</span></label><select class="fi" id="devolver-etapa-sel">${opHtml}</select><div style="font-size:11px;color:var(--ink3);margin-top:3px">O preenchimento anterior é preservado — o dono ajustará apenas o que você indicar.</div></div>`;
-  const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
-  const _dvHoje=new Date().toISOString().split('T')[0];
-  const _dvDef=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
-  ov.id='devolver-ov';
-  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:480px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.4rem">↩ Devolver para ajustes</div>
-    ${selectHtml}
-    <div class="fg" style="margin-bottom:.9rem">
-      <label class="fl">O que você quer que o usuário faça?</label>
-      <div style="display:flex;gap:8px;margin-top:4px">
-        <label style="flex:1;display:flex;align-items:center;gap:6px;padding:.5rem .7rem;border:1.5px solid var(--bdr);border-radius:var(--r);cursor:pointer;font-size:13px">
-          <input type="radio" name="devolver-tipo" value="complementar" checked> Complementar
-        </label>
-        <label style="flex:1;display:flex;align-items:center;gap:6px;padding:.5rem .7rem;border:1.5px solid var(--bdr);border-radius:var(--r);cursor:pointer;font-size:13px">
-          <input type="radio" name="devolver-tipo" value="refazer"> Nova elaboração
-        </label>
-      </div>
-    </div>
-    <div class="fg" style="margin-bottom:.9rem">
-      <label class="fl">Instrução para o usuário <span style="color:var(--red)">*</span></label>
-      <textarea class="fi" id="devolver-motivo" rows="3" placeholder="Descreva o que precisa ser complementado ou corrigido..."></textarea>
-    </div>
-    <div class="fg" style="margin-bottom:1.2rem">
-      <label class="fl">Prazo para conclusão <span style="color:var(--red)">*</span></label>
-      <input class="fi" type="date" id="devolver-prazo" value="${_dvDef}" min="${_dvHoje}">
-    </div>
-    <div class="btn-row">
-      <button type="button" class="btn" onclick="document.getElementById('devolver-ov').remove()">Cancelar</button>
-      <button type="button" class="btn" style="background:#fef3c7;color:#92400e;border-color:#f59e0b" onclick="confirmarDevolucaoDinamica()">Confirmar →</button>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-}
-function confirmarDevolucaoDinamica(){
-  const etRet=document.getElementById('devolver-etapa-sel')?.value;
-  if(!etRet){toast('Selecione a etapa de retorno.','var(--red)');return;}
-  confirmarDevolucao(etRet);
-}
-function confirmarDevolucao(etRet){
-  const motivo=document.getElementById('devolver-motivo')?.value?.trim();
-  if(!motivo){toast('Informe a instrução.','var(--red)');return;}
-  const prazo=document.getElementById('devolver-prazo')?.value;
-  if(!prazo){toast('Informe o prazo para conclusão.','var(--red)');return;}
-  const tipo=document.querySelector('input[name="devolver-tipo"]:checked')?.value||'complementar';
-  const p=curProc;
-  const tipoLabel=tipo==='refazer'?'Nova elaboração':'Complementação';
-  const prazoFmt=prazo.split('-').reverse().join('/');
-  push(p, p.etapa, 'EP', tipoLabel+' solicitado — '+motivo);
-  if(p.ent?.respondido_por_etapa?.[etRet]) delete p.ent.respondido_por_etapa[etRet];
-  if(p.ent?.revisao_ep_pendente) delete p.ent.revisao_ep_pendente;
-  if(!p.ent)p.ent={};
-  p.ent.devolucao_pendente={etapa:etRet,tipo,motivo,por:usuarioLogado?.nome||'EP',dt:now()};
-  // Determina para quem devolver: usa atribuição existente ou resp do ETAPAS
-  const etObj=ETAPAS.find(e=>e.id===etRet);
-  const paraRole=etObj?.resp==='gestor'?'gestor':'dono';
-  const paraNome=paraRole==='gestor'?p.pat:p.dono;
-  const paraEmail=paraRole==='gestor'?(USUARIOS.find(u=>u.nome===p.pat)?.email||''):getDonoEmail(p);
-  // Re-cria atribuição com novo prazo
-  if(!p.atribuicoes)p.atribuicoes={};
-  p.atribuicoes[etRet]={para:paraRole,para_nome:paraNome,para_email:paraEmail,prazo,por:usuarioLogado?.nome||'EP',dt:now(),lembrete_enviado:false};
-  p.etapa=etRet;
-  p.status_workflow=paraRole==='gestor'?'aguardando_gestor':'aguardando_dono';
-  push(p, etRet, 'Sistema', 'Aguardando '+tipoLabel.toLowerCase()+' — prazo: '+prazoFmt);
-  document.getElementById('devolver-ov')?.remove();
-  rDetalhe();updCounts();
-  fbAutoSave('devolverAoDono');
-  if(paraEmail){
-    enviarNotif(paraEmail, paraNome, tipoLabel+' solicitado em "'+etLb(etRet)+'": '+motivo+' — prazo: '+prazoFmt, p.nome, prazoFmt, usuarioLogado?.nome||'EP');
-    toast(tipoLabel+' solicitado. '+paraNome+' notificado(a).','var(--teal)');
-  } else {
-    toast(tipoLabel+' solicitado.','var(--teal)');
-  }
 }
 
 // ═══════════════════════════════════════════
@@ -3701,17 +3568,6 @@ function aprovarDetValidAsis(){
   if(dt||part||ata){p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};}
   avDono('det_valid_asis','Dono do processo','Detalhamento e validação AS IS concluídos pelo dono',null);
 }
-function reprovarDetValidAsis(){
-  const p=curProc;
-  const obs=document.getElementById('aobs')?.value?.trim()||'';
-  if(!obs){toast('Descreva os ajustes necessários antes de solicitar.','var(--red)');document.getElementById('aobs')?.focus();return;}
-  if(!p.ent.analise)p.ent.analise={};
-  const dt=document.getElementById('va-dt')?.value||'';
-  const part=document.getElementById('va-part')?.value||'';
-  const ata=document.getElementById('va-ata')?.value||'';
-  if(dt||part||ata){p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};}
-  reprovarDono('esboco_asis','Dono','Dono solicitou ajustes no AS IS — '+obs);
-}
 function salvarMelhorias(avancar=true){
   const p=curProc;
   if(!p.ent.analise)p.ent.analise={};
@@ -3734,17 +3590,6 @@ function aprovarDetValidTobe(){
   const ata=document.getElementById('vtb-ata')?.value||'';
   p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
   avDono('det_valid_tobe','Dono do processo','Detalhamento e validação TO BE concluídos pelo dono',null);
-}
-function reprovarDetValidTobe(){
-  const p=curProc;
-  const obs=document.getElementById('aobs')?.value?.trim()||document.getElementById('vtb-obs')?.value?.trim()||'';
-  if(!obs){toast('Descreva os ajustes necessários antes de solicitar.','var(--red)');(document.getElementById('aobs')||document.getElementById('vtb-obs'))?.focus();return;}
-  if(!p.mod)p.mod={};
-  const dt=document.getElementById('vtb-dt')?.value||'';
-  const part=document.getElementById('vtb-part')?.value||'';
-  const ata=document.getElementById('vtb-ata')?.value||'';
-  p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
-  reprovarDono('esboco_tobe','Dono','Dono solicitou ajustes no TO BE — '+obs);
 }
 function renderFeedbackEP(analise){
   const fb=analise.feedback_dono||{};
@@ -3973,12 +3818,7 @@ const ACOES = {
           <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Passe o cursor sobre uma etapa para iluminá-la no diagrama. Expanda cada uma (✎ Detalhar) para preencher os detalhes.</div>
           <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
 
-          <hr style="margin:.8rem 0">
-          <div class="fg"><label class="fl">Comentários / ajustes solicitados ao EP</label>
-            <textarea class="fi" id="aobs" style="min-height:70px" placeholder="Descreva ajustes necessários ou deixe em branco se aprovado..."></textarea>
-          </div>
           <div class="btn-row">
-            <button type="button" class="btn btn-a" onclick="reprovarDetValidAsis()">Solicitar ajustes no AS IS</button>
             <button type="button" class="btn btn-g" onclick="aprovarDetValidAsis()">Aprovar AS IS ✓</button>
           </div>
           ${_renderEvidencias(p,'det_valid_asis')}
@@ -4026,12 +3866,7 @@ const ACOES = {
           <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Passe o cursor sobre uma etapa para iluminá-la no diagrama. Expanda cada uma (✎ Detalhar) para preencher os detalhes.</div>
           <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc_tobe||[])}</div>
 
-          <hr style="margin:.8rem 0">
-          <div class="fg"><label class="fl">Comentários / ajustes solicitados ao EP</label>
-            <textarea class="fi" id="vtb-obs" style="min-height:70px" placeholder="Descreva ajustes necessários ou deixe em branco se aprovado..."></textarea>
-          </div>
           <div class="btn-row">
-            <button type="button" class="btn btn-a" onclick="reprovarDetValidTobe()">Solicitar ajustes no TO BE</button>
             <button type="button" class="btn btn-g" onclick="aprovarDetValidTobe()">Aprovar TO BE ✓</button>
           </div>
           ${_renderEvidencias(p,'det_valid_tobe')}
@@ -4184,7 +4019,6 @@ const ACOES = {
     <div class="fg"><label class="fl">Ata / encaminhamentos</label><textarea class="fi" id="apr-ata" style="min-height:70px" placeholder="Registre os encaminhamentos da reunião...">${p.form?.reuniao_apresentacao?.ata||''}</textarea></div>
     <div class="fg"><label class="fl">Decisão / observações do gestor</label><textarea class="fi" id="aobs" style="min-height:60px" placeholder="Decisão do gestor..."></textarea></div>
     <div class="btn-row">
-      <button type="button" class="btn btn-a" onclick="reprovarApresentacao()">Solicitar revisão</button>
       <button type="button" class="btn btn-g" onclick="salvarApresentacao()">Autorizar publicação ✓</button>
     </div>
     ${_renderEvidencias(p,'apresentacao')}`},
@@ -4592,18 +4426,13 @@ function _rsEsbocaTobe(p){
   const txt=document.getElementById('e-tobe')?.value;
   if(txt!=null) p.mod.toBe=txt;
 }
-function _rsDetValidAsis(p){
-  const obs=document.getElementById('aobs')?.value||'';
-  if(obs){if(!p.ent.analise){p.ent.analise={};} p.ent.analise.obs_valid_asis=obs;}
-}
+function _rsDetValidAsis(p){}
 function _rsDetValidTobe(p){
   if(!p.mod)p.mod={};
   const dt=document.getElementById('vtb-dt')?.value||'';
   const part=document.getElementById('vtb-part')?.value||'';
   const ata=document.getElementById('vtb-ata')?.value||'';
-  const obs=document.getElementById('vtb-obs')?.value||'';
   if(dt||part||ata){p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};}
-  if(obs){if(!p.mod.obs_valid_tobe){p.mod.obs_valid_tobe='';} p.mod.obs_valid_tobe=obs;}
 }
 function _rsApresentacao(p){
   if(!p.form)p.form={};
@@ -4848,24 +4677,6 @@ const _BPMN_INIT = {
 function _rAcaoInitBpmn(p, minhaTarefa){
   _BPMN_INIT[p.etapa]?.(p, minhaTarefa);
 }
-function _rAcaoDevolucaoBanner(p, minhaTarefa){
-  const dv=p.ent?.devolucao_pendente;
-  if(!minhaTarefa || !dv || dv.etapa!==p.etapa) return '';
-  const isRefazer=dv.tipo==='refazer';
-  const tipoLabel=isRefazer?'Nova elaboração solicitada':'Complementação solicitada';
-  const corBg =isRefazer?'#fef2f2':'#fffbeb';
-  const corBrd=isRefazer?'#fca5a5':'#fcd34d';
-  const corTxt=isRefazer?'#991b1b':'#92400e';
-  const icon  =isRefazer?'🔄':'📝';
-  return `<div style="background:${corBg};border:1.5px solid ${corBrd};border-radius:var(--r);padding:.8rem 1rem;margin-bottom:1rem;display:flex;gap:.7rem;align-items:flex-start">
-    <span style="font-size:1.3rem">${icon}</span>
-    <div>
-      <div style="font-weight:700;font-size:13px;color:${corTxt};margin-bottom:3px">${tipoLabel} pelo EP</div>
-      <div style="font-size:12.5px;color:var(--ink2)">${esc(dv.motivo)}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:4px">Solicitado por ${esc(dv.por)} em ${dv.dt}</div>
-    </div>
-  </div>`;
-}
 // Q019: Checklist de pendências por etapa em tempo real
 const _CHECKLIST_DEFS={
   abertura:(p,e)=>[
@@ -4952,9 +4763,8 @@ function _rAcaoHandleDono(el, ac, p){
     const jr=jaFoiRespondido(p.etapa);
     if(jr){ el.innerHTML=_rAcaoTarefaRespondidaHTML(jr); return; }
   }
-  const devolucaoBanner=_rAcaoDevolucaoBanner(p, minhaTarefa);
   el.innerHTML=minhaTarefa
-    ?`<div class="ib ibt" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</span>${prazoBanner}</div>${devolucaoBanner}${buildAcaoCardHTML(ac,p,'')}`
+    ?`<div class="ib ibt" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</span>${prazoBanner}</div>${buildAcaoCardHTML(ac,p,'')}`
     :`<div class="card"><div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>Esta etapa — <strong>${ac.titulo}</strong> — aguarda ação de <strong>${p.dono||'dono'}</strong>.</span>${prazoBanner}</div><div style="font-size:13px;color:var(--ink2)">${ac.sub}</div></div>`;
   _rAcaoInitBpmn(p, minhaTarefa);
 }
@@ -4973,14 +4783,6 @@ function _rAcaoAppendEPBars(el, p){
     atribBtn.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa delegar esta etapa?</span>
       <button type="button" class="btn" style="font-size:12px;padding:4px 10px" onclick="abrirAtribuirEtapa('${p.etapa}')">👤 Atribuir a...</button>`;
     el.appendChild(atribBtn);
-  }
-  const etRet=getDevolverEtapa(p);
-  if(etRet){
-    const bar=document.createElement('div');
-    bar.style.cssText='margin-top:.5rem;padding:.6rem 1rem;border:1px dashed var(--bdr);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2)';
-    bar.innerHTML=`<span style="font-size:12px;color:var(--ink3)">Precisa que ${etLb(etRet)} seja refeito?</span>
-      <button type="button" class="btn" style="font-size:12px;padding:4px 10px;color:#92400e;border-color:#f59e0b;background:#fef3c7" onclick="devolverAoDono()">↩ Devolver para ajustes</button>`;
-    el.appendChild(bar);
   }
   const acObj=ACOES[p.etapa];
   if(acObj&&acObj.rk==='ep'&&(!atrib||atrib.para==='ep')){
@@ -5762,38 +5564,6 @@ function salvarPOP(avancar=true){
   if(obsPopSv) p.form.obs_complement=obsPopSv;
   if(avancar){av('pop','EP','POP construído no padrão CAGE');fbAutoSave('salvarPOP');}
   else{fbAutoSave('salvarPOP');toast('Dados salvos!','var(--teal)');}
-}
-function reprovarApresentacao(){
-  const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
-  ov.id='reprovar-apres-ov';
-  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:440px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.4rem">↩ Solicitar revisão ao EP</div>
-    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">O processo voltará para <strong>Construção do POP</strong>. Descreva o que precisa ser ajustado antes da publicação.</div>
-    <div class="fg" style="margin-bottom:1.2rem">
-      <label class="fl">Instrução para o EP / dono <span style="color:var(--red)">*</span></label>
-      <textarea class="fi" id="reprovar-apres-motivo" rows="3" placeholder="Ex: Falta detalhar os formulários utilizados..."></textarea>
-    </div>
-    <div class="btn-row">
-      <button type="button" class="btn" onclick="document.getElementById('reprovar-apres-ov').remove()">Cancelar</button>
-      <button type="button" class="btn btn-a" onclick="confirmarReprovarApresentacao()">Confirmar revisão →</button>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-}
-function confirmarReprovarApresentacao(){
-  const motivo=document.getElementById('reprovar-apres-motivo')?.value?.trim();
-  if(!motivo){toast('Informe o motivo da revisão.','var(--red)');return;}
-  const p=curProc;
-  const obs=document.getElementById('aobs')?.value||'';
-  const dt=document.getElementById('adt')?.value||'';
-  const part=document.getElementById('apart')?.value||'';
-  const ata=document.getElementById('apr-ata')?.value||'';
-  if(!p.form) p.form={};
-  if(dt||part||ata) p.form.reuniao_apresentacao={data:dt,participantes:part,ata};
-  if(obs) p.form.obs_apresentacao=obs;
-  document.getElementById('reprovar-apres-ov')?.remove();
-  reprovar('pop','Gestor','Gestor solicitou revisão — '+motivo);
 }
 function salvarApresentacao(){
   const obs=document.getElementById('aobs')?.value||'';
