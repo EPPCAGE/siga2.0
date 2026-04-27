@@ -2418,7 +2418,7 @@ function buildArqStatsHTML(){
   const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
   const eco=processos.reduce((s,p)=>{const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);return s+(r.length?r[r.length-1].economia_h:0);},0);
   const ecoSign = eco > 0 ? '+' : '';
-  return `<div class="stat cb" style="grid-column:span 2">
+  return `<div class="stat cb">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <div><div class="stat-n">${pct}%</div><div class="stat-l">Processos mapeados</div></div>
         <div style="flex:1;min-width:120px">
@@ -2432,7 +2432,6 @@ function buildArqStatsHTML(){
     '<div class="stat ca"><div class="stat-n">'+mx.nMacros+'</div><div class="stat-l">Macroprocessos</div></div>'+
     '<div class="stat cb"><div class="stat-n">'+mx.nProc+'</div><div class="stat-l">Processos</div></div>'+
     '<div class="stat cg"><div class="stat-n">'+mx.nSub+'</div><div class="stat-l">Subprocessos</div></div>'+
-    '<div class="stat cr"><div class="stat-n">'+processos.filter(p=>p.prio==='Critica').length+'</div><div class="stat-l">Prioridade crítica</div></div>'+
     (eco===0?'': `<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${ecoSign}${eco.toFixed(1)}h</div><div class="stat-l">Economia de horas/mês estimada</div></div>`);
 }
 
@@ -9309,6 +9308,7 @@ function highlight(text, srch){
 function resultCardHTML(r, srch){
   const item = r.item;
   const proc = processos.find(pr=>pr.arq_id===item.id)||null;
+  const mapeado = isMapeado(item.id);
   const path = r.isSub ? `${r.macroNome} › ${r.procNome} › ${item.nome}` : `${r.macroNome} › ${item.nome}`;
 
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem 1rem;margin-bottom:.5rem">
@@ -9319,7 +9319,7 @@ function resultCardHTML(r, srch){
       </div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0">
         ${item.natureza ? `<span class="badge bgr" style="font-size:10px">${highlight(item.natureza, srch)}</span>` : ''}
-        <span class="badge ${proc?'bg':'bgr'}" style="font-size:10px">${proc?'Mapeado':'Não mapeado'}</span>
+        <span class="badge ${mapeado?'bg':'bgr'}" style="font-size:10px">${mapeado?'Mapeado':'Não mapeado'}</span>
         ${proc ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px" onclick="abrirProc(${proc.id})">Abrir →</button>` : ''}
         ${isEP() ? `<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editSubArqFull('${r.macroId}','${r.procId}','${item.id}')" aria-label="Editar item">✎</button>` : ''}
       </div>
