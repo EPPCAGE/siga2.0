@@ -562,19 +562,19 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="fila-content"></div>
 
   <!-- Fale Conosco — visível apenas para perfil dono -->
-  <div id="fale-conosco-panel" style="display:none;margin-top:2rem">
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.2rem">
-        <span style="font-size:22px">💬</span>
+  <div id="fale-conosco-panel" style="display:none;margin-top:1rem;max-width:620px">
+    <div class="card" style="padding:.85rem 1rem;border-radius:12px;box-shadow:none;background:rgba(255,255,255,.72)">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:.65rem">
+        <span style="font-size:14px;opacity:.65">💬</span>
         <div>
-          <div style="font-size:15px;font-weight:700;color:var(--ink)">Fale com o Escritório de Processos</div>
-          <div style="font-size:12px;color:var(--ink3);margin-top:2px">Envie ideias, dúvidas ou sugestões diretamente para a equipe EP·CAGE</div>
+          <div style="font-size:12px;font-weight:700;color:var(--ink)">Fale com o Escritório de Processos</div>
+          <div style="font-size:10.5px;color:var(--ink3);margin-top:1px">Ideias, dúvidas ou sugestões para a equipe EP·CAGE</div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
-        <div class="fg" style="grid-column:1/-1">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem .55rem">
+        <div class="fg" style="margin-bottom:0">
           <label class="fl" for="fc-tipo">Tipo de mensagem <span>*</span></label>
-          <select class="fi" id="fc-tipo">
+          <select class="fi" id="fc-tipo" style="font-size:11px;padding:6px 9px;min-height:32px">
             <option value="">Selecione...</option>
             <option value="Ideia de melhoria de processo">💡 Ideia de melhoria de processo</option>
             <option value="Dúvida">❓ Dúvida</option>
@@ -582,18 +582,18 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
             <option value="Outro">📌 Outro</option>
           </select>
         </div>
-        <div class="fg" style="grid-column:1/-1">
+        <div class="fg" style="margin-bottom:0">
           <label class="fl" for="fc-assunto">Assunto <span>*</span></label>
-          <input class="fi" id="fc-assunto" type="text" placeholder="Resumo em uma linha">
+          <input class="fi" id="fc-assunto" type="text" style="font-size:11px;padding:6px 9px;min-height:32px" placeholder="Resumo em uma linha">
         </div>
-        <div class="fg" style="grid-column:1/-1">
+        <div class="fg" style="grid-column:1/-1;margin-bottom:0">
           <label class="fl" for="fc-msg">Mensagem <span>*</span></label>
-          <textarea class="fi" id="fc-msg" rows="5" style="resize:vertical" placeholder="Descreva em detalhes sua ideia, dúvida ou sugestão..."></textarea>
+          <textarea class="fi" id="fc-msg" rows="2" style="resize:vertical;font-size:11px;padding:7px 9px;min-height:58px" placeholder="Descreva brevemente sua ideia, dúvida ou sugestão..."></textarea>
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:1rem;border-top:1px solid var(--bdr);padding-top:1rem">
-        <button type="button" class="btn" onclick="resetFaleConosco()">Limpar</button>
-        <button type="button" class="btn btn-p" onclick="enviarFaleConosco()">✉ Enviar mensagem</button>
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:.6rem;border-top:1px solid var(--bdr);padding-top:.55rem">
+        <button type="button" class="btn" onclick="resetFaleConosco()" style="font-size:11px;padding:5px 10px;min-height:30px">Limpar</button>
+        <button type="button" class="btn btn-p" onclick="enviarFaleConosco()" style="font-size:11px;padding:5px 11px;min-height:30px">✉ Enviar</button>
       </div>
     </div>
   </div>
