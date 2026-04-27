@@ -303,6 +303,16 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 .sec-lbl{font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem}
 .ri-item{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:6px 10px;border-radius:7px;border:1px solid var(--bdr);margin-bottom:5px;font-size:12px}
 .ri-del{cursor:pointer;color:var(--ink4);font-size:16px;border:none;background:none;font-family:var(--f);padding:0 4px}.ri-del:hover{color:var(--red)}
+/* faq */
+.faq-proc{margin-bottom:1rem}
+.faq-proc-btn{width:100%;display:flex;align-items:center;gap:.7rem;padding:.85rem 1rem;border:1px solid var(--bdr);border-radius:var(--r);background:var(--surf2);cursor:pointer;text-align:left;font-family:var(--f);transition:all .14s}
+.faq-proc-btn:hover{border-color:var(--blue-b);background:var(--blue-l)}
+.faq-proc-btn[aria-expanded="true"]{border-color:var(--blue-b);background:var(--blue-l);border-bottom-left-radius:0;border-bottom-right-radius:0}
+.faq-proc-icon{width:13px;height:13px;flex-shrink:0;color:var(--blue);transition:transform .18s ease}
+.faq-proc-btn[aria-expanded="true"] .faq-proc-icon{transform:rotate(90deg)}
+.faq-proc-title{font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px}
+.faq-proc-count{font-size:10px;font-weight:400;color:var(--ink3);text-transform:none;letter-spacing:0}
+.faq-proc-body{background:var(--surf);border:1px solid var(--bdr);border-top:none;border-bottom-left-radius:var(--r);border-bottom-right-radius:var(--r);padding:.2rem 1rem}
 /* ── MOBILE ─── */
 .mob-top-bar{display:none}
 .mob-drawer-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;padding:0;border:none;cursor:pointer;width:100%}
@@ -9016,19 +9026,33 @@ function _rFaqItemHTML({p, r}, srch){
     ${r ? `<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;padding-left:1.1rem">${_rFaqHl(r, srch)}</div>` : ''}
   </div>`;
 }
-function _rFaqProcHTML(procNome, pares, srch){
+function _faqProcKey(macro, procNome){
+  return `${macro}::${procNome}`;
+}
+function toggleFaqProc(macro, procNome){
+  if(!globalThis._faqOpenProcKeys) globalThis._faqOpenProcKeys = new Set();
+  const key = _faqProcKey(macro, procNome);
+  if(globalThis._faqOpenProcKeys.has(key)) globalThis._faqOpenProcKeys.delete(key);
+  else globalThis._faqOpenProcKeys.add(key);
+  rFaq();
+}
+function _rFaqProcHTML(macro, procNome, pares, srch){
+  const key = _faqProcKey(macro, procNome);
+  const expanded = !!srch || !!globalThis._faqOpenProcKeys?.has(key);
+  const macroArg = encodeURIComponent(macro);
+  const procArg = encodeURIComponent(procNome);
   return `
-    <div style="margin-bottom:1rem">
-      <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;display:flex;align-items:center;gap:6px">
-        <svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        ${esc(procNome)}
-        <span style="font-size:10px;font-weight:400;color:var(--ink3);text-transform:none;letter-spacing:0">${pares.length} pergunta${pares.length===1?'':'s'}</span>
-      </div>
-      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.2rem 1rem">${pares.map(par=>_rFaqItemHTML(par, srch)).join('')}</div>
+    <div class="faq-proc">
+      <button type="button" class="faq-proc-btn" aria-expanded="${expanded?'true':'false'}" onclick="toggleFaqProc(decodeURIComponent('${macroArg}'), decodeURIComponent('${procArg}'))">
+        <svg viewBox="0 0 16 16" fill="none" class="faq-proc-icon" aria-hidden="true"><path d="M5 3l6 5-6 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="faq-proc-title">${esc(procNome)}</span>
+        <span class="faq-proc-count">${pares.length} pergunta${pares.length===1?'':'s'}</span>
+      </button>
+      ${expanded ? `<div class="faq-proc-body">${pares.map(par=>_rFaqItemHTML(par, srch)).join('')}</div>` : ''}
     </div>`;
 }
 function _rFaqMacroHTML(macro, procs, srch){
-  const procHtml = Object.keys(procs).sort().map(nome => _rFaqProcHTML(nome, procs[nome], srch)).join('');
+  const procHtml = Object.keys(procs).sort().map(nome => _rFaqProcHTML(macro, nome, procs[nome], srch)).join('');
   return `
     <div style="margin-bottom:1.8rem">
       <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:2px solid var(--blue)">
