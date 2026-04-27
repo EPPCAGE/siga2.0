@@ -15,7 +15,6 @@
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js" integrity="sha384-/cXAMbzovUIKbBERjPmR3SnPTh8siWr5lsvFYj1Uq4XP0yaJUZJmsh0YXyGv5P0y" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" integrity="sha384-Cck14aA9cifjYolcnjebXRfWGkz5ltHMBiG4px/j8GS+xQcb7OhNQWZYyWjQ+UwQ" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.5/dist/mermaid.min.js" integrity="sha384-enVdc7lTHDGtpROV85t9+VqPC2EyyB0hsRD0MrvQnHUsHmTHIz2D8SPP4EnBkstH" crossorigin="anonymous"></script>
 <!-- Config: loaded synchronously so globalThis.CONFIG is available immediately -->
 <script src="config.deploy.js" onerror="console.info('config.deploy.js not found')"></script>
 <script src="config.local.js" onerror="console.info('config.local.js not found')"></script>
@@ -4086,8 +4085,8 @@ const ACOES = {
       ${descartadosBanner}
       <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:.5rem">AS IS — Fluxo validado pelo dono</div>
       ${bpmnEditorHTML('asis',p.mod?.bpmnAsIs)}
-      <div id="tobe-mermaid-outer" style="margin-top:1rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
-        ${_rTobeMermaidSecao(p)}
+      <div id="tobe-relatorio-outer" style="margin-top:1rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
+        ${_rTobeRelatorioSecao(p)}
       </div>
       <div style="margin-top:.8rem">
         <button type="button" class="btn" style="width:100%;text-align:left;font-size:12px;justify-content:flex-start" onclick="toggleEl('df-tobe-wrap','df-tobe-chv');if(document.getElementById('df-tobe-wrap').style.display!=='none')setTimeout(()=>initBpmnMod('tobe',curProc),80)"><span id="df-tobe-chv">▶</span> TO BE — Processo futuro (expandir para editar)</button>
@@ -4557,7 +4556,6 @@ function rAcaoRetro(){
   document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
   if(etId==='esboco_asis'||etId==='det_valid_asis'||etId==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
   if(etId==='esboco_tobe'||etId==='det_valid_tobe') setTimeout(()=>initBpmnMod('tobe',p),120);
-  if(etId==='desenho_final'&&p.mod?.tobe_mermaid) setTimeout(()=>{ const ta=document.getElementById('tobe-mermaid-code'); if(ta){ ta.textContent=p.mod?.tobe_mermaid||''; _atualizarRenderMermaid(); } },250);
 }
 
 // ── salvarRetroativo: handlers por etapa (extraídos para manutenibilidade) ──
@@ -4717,7 +4715,7 @@ const _RESET_MAP={
   melhorias:     p=>{ if(p.ent?.analise) p.ent.analise.feedback_dono={}; },
   esboco_tobe:   p=>{ if(p.mod){p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];} },
   det_valid_tobe:p=>{ if(p.ent?.evidencias) p.ent.evidencias.det_valid_tobe=[]; },
-  desenho_final: p=>{ if(p.mod){p.mod.desenho_final=null;} if(p.form){p.form.obs_final='';} },
+  desenho_final: p=>{ if(p.mod){p.mod.desenho_final=null;p.mod.tobe_relatorio=null;} if(p.form){p.form.obs_final='';} },
   indicadores_proc: p=>{ if(p.form) p.form.indicadores_proc=[]; },
   pop:           p=>{ if(p.form){p.form.pop=null;p.form.faq='';p.form.excecoes='';p.form.contatos='';p.form.forms='';p.form.obs_complement='';} },
   apresentacao:  p=>{ if(p.ent?.evidencias) p.ent.evidencias.apresentacao=[]; },
@@ -4844,7 +4842,7 @@ const _BPMN_INIT = {
   det_valid_tobe: (p) => { setTimeout(()=>initBpmnMod('tobe',p),120); },
   esboco_asis:    (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); },
   esboco_tobe:    (p)    => { setTimeout(()=>initBpmnMod('tobe',p),120); },
-  desenho_final:  (p)    => { setTimeout(()=>{ initBpmnMod('asis',p); const ta=document.getElementById('tobe-mermaid-code'); if(ta) ta.textContent=p.mod?.tobe_mermaid||''; },120); },
+  desenho_final:  (p)    => { setTimeout(()=>{ initBpmnMod('asis',p); },120); },
   pop:            ()     => { setTimeout(injectIaPop,100); },
 };
 function _rAcaoInitBpmn(p, minhaTarefa){
@@ -8782,238 +8780,102 @@ function salvarDesenhoFinal(avancar=true){
   else{fbAutoSave('salvarDesenhoFinal');toast('Dados salvos!','var(--teal)');}
 }
 
-// ─── Sugestão TO BE por IA (Mermaid) ────────────────────────────────────────
-function _initMermaid(){
-  if(typeof mermaid==='undefined') return false;
-  if(!globalThis._mermaidInited){
-    mermaid.initialize({startOnLoad:false,theme:'default',securityLevel:'strict',fontFamily:'Arial, sans-serif'});
-    globalThis._mermaidInited=true;
-  }
-  return true;
-}
-
-function _rTobeMermaidSecao(p){
-  const code=p.mod?.tobe_mermaid||'';
+// ─── Sugestão TO BE em texto — gerada por IA ────────────────────────────────
+function _rTobeRelatorioSecao(p){
+  const texto=p.mod?.tobe_relatorio||'';
   return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:.6rem;flex-wrap:wrap">
-    <div style="font-size:12px;font-weight:700;color:var(--ink2)">✦ Sugestão TO BE — gerada por IA</div>
-    <button type="button" class="btn btn-t" id="tobe-ia-btn" onclick="iaGerarTobeMermaid()" style="font-size:12px">${code?'↻ Regenerar com IA':'✦ Gerar sugestão TO BE com IA'}</button>
+    <div style="font-size:12px;font-weight:700;color:var(--ink2)">✦ Sugestões TO BE — geradas por IA</div>
+    <button type="button" class="btn btn-t" id="tobe-ia-btn" onclick="iaGerarTobeRelatorio()" style="font-size:12px">${texto?'↻ Regenerar com IA':'✦ Gerar sugestões TO BE com IA'}</button>
     <span id="tobe-ia-st" style="font-size:11px;color:var(--ink3)"></span>
-  </div>${code
-    ?`<div id="tobe-mermaid-render" style="background:#fff;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;margin-bottom:.6rem;overflow-x:auto;text-align:center;min-height:60px">
-        <div class="spin" style="margin:.5rem auto"></div>
-      </div>
-      <details>
-        <summary style="font-size:11px;cursor:pointer;color:var(--ink3)">⌥ Ver / editar código Mermaid</summary>
-        <textarea class="fi" id="tobe-mermaid-code" style="min-height:140px;font-family:monospace;font-size:11px;margin-top:.4rem"></textarea>
-        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
-          <button type="button" class="btn" style="font-size:11px" onclick="_atualizarRenderMermaid()">↻ Atualizar visualização</button>
-          <button type="button" class="btn" style="font-size:11px" onclick="_salvarMermaidEditado()">💾 Salvar edição</button>
-          <button type="button" class="btn btn-t" style="font-size:11px" onclick="_downloadMermaid()" title="Baixar código Mermaid como arquivo .mmd">⬇ Baixar .mmd</button>
-          <button type="button" class="btn btn-t" id="tobe-bpmn-export-btn" style="font-size:11px" onclick="_exportarMermaidBpmn(false)" title="Converter para BPMN 2.0 com IA e baixar como .bpmn">⬇ Exportar .bpmn</button>
-          <button type="button" class="btn btn-t" id="tobe-bpmn-import-btn" style="font-size:11px" onclick="_exportarMermaidBpmn(true)" title="Converter para BPMN 2.0 com IA e carregar no editor TO BE">→ Abrir no editor TO BE</button>
-        </div>
-      </details>`
-    :'<div style="font-size:12px;color:var(--ink3);font-style:italic">Nenhuma sugestão gerada. Clique em "Gerar sugestão TO BE com IA" para criar o diagrama automaticamente com base no AS IS e nas melhorias identificadas.</div>'
+  </div>${texto
+    ?`<div id="tobe-relatorio-texto" style="white-space:pre-wrap;font-size:12px;line-height:1.7;color:var(--ink2);background:var(--bg);border-radius:var(--r);padding:.8rem;border:1px solid var(--bdr)">${esc(texto)}</div>
+      <div style="display:flex;gap:6px;margin-top:.5rem;flex-wrap:wrap">
+        <button type="button" class="btn" style="font-size:11px" onclick="_editarTobeRelatorio()">✎ Editar</button>
+        <button type="button" class="btn btn-t" style="font-size:11px" onclick="_baixarTobeRelatorio()">⬇ Baixar .txt</button>
+      </div>`
+    :'<div style="font-size:12px;color:var(--ink3);font-style:italic">Nenhuma sugestão gerada. Clique em "Gerar sugestões TO BE com IA" para criar as recomendações automaticamente com base no AS IS e nas melhorias identificadas.</div>'
   }`;
 }
 
-async function _atualizarRenderMermaid(codeOverride){
-  const renderEl=document.getElementById('tobe-mermaid-render');
-  if(!renderEl)return;
-  const src=codeOverride||document.getElementById('tobe-mermaid-code')?.value||curProc?.mod?.tobe_mermaid||'';
-  if(!src){renderEl.innerHTML='';return;}
-  if(!_initMermaid()){
-    renderEl.innerHTML='<div style="font-size:12px;color:var(--ink3)">Mermaid.js não disponível.</div>';
-    return;
-  }
-  try{
-    const uid='mm-tobe-'+Date.now();
-    const {svg}=await mermaid.render(uid,src);
-    const svgDoc=new DOMParser().parseFromString(svg,'image/svg+xml');
-    const svgNode=document.adoptNode(svgDoc.documentElement);
-    svgNode.querySelectorAll('script,foreignObject').forEach(el=>el.remove());
-    svgNode.querySelectorAll('*').forEach(el=>{
-      Array.from(el.attributes).forEach(a=>{
-        if(a.name.startsWith('on')||((a.name==='href'||a.name==='xlink:href')&&/^javascript:/i.test(a.value)))el.removeAttribute(a.name);
-      });
-    });
-    renderEl.replaceChildren(svgNode);
-    // Remove fixed width/height so SVG scales with container
-    if(svgNode){svgNode.style.maxWidth='100%';svgNode.removeAttribute('height');svgNode.style.height='auto';}
-  }catch(err){
-    const errDiv=document.createElement('div');
-    errDiv.style.cssText='color:var(--red);font-size:12px;white-space:pre-wrap';
-    errDiv.textContent='⚠ Erro no diagrama Mermaid:\n'+(err.message||String(err));
-    renderEl.replaceChildren(errDiv);
-  }
+function _editarTobeRelatorio(){
+  const p=curProc;if(!p)return;
+  const outer=document.getElementById('tobe-relatorio-outer');
+  if(!outer)return;
+  const texto=p.mod?.tobe_relatorio||'';
+  outer.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:.6rem;flex-wrap:wrap">
+    <div style="font-size:12px;font-weight:700;color:var(--ink2)">✦ Sugestões TO BE — edição manual</div>
+    <span id="tobe-ia-st" style="font-size:11px;color:var(--ink3)"></span>
+  </div>
+  <textarea class="fi" id="tobe-relatorio-edit" style="min-height:220px;font-size:12px;line-height:1.6;white-space:pre-wrap">${esc(texto)}</textarea>
+  <div style="display:flex;gap:6px;margin-top:.5rem">
+    <button type="button" class="btn btn-p" style="font-size:11px" onclick="_salvarTobeRelatorioEditado()">💾 Salvar</button>
+    <button type="button" class="btn" style="font-size:11px" onclick="_recarregarTobeRelatorio()">✕ Cancelar</button>
+  </div>`;
 }
 
-function _salvarMermaidEditado(){
+function _salvarTobeRelatorioEditado(){
   const p=curProc;if(!p)return;
-  const code=document.getElementById('tobe-mermaid-code')?.value||'';
+  const ta=document.getElementById('tobe-relatorio-edit');
+  if(!ta)return;
   if(!p.mod)p.mod={};
-  p.mod.tobe_mermaid=code;
+  p.mod.tobe_relatorio=ta.value;
   fbAutoSave('salvar');
-  toast('Código Mermaid salvo.','var(--teal)');
-  _atualizarRenderMermaid(code);
+  toast('Sugestões TO BE salvas.','var(--teal)');
+  _recarregarTobeRelatorio();
 }
 
-function _cleanMermaidCode(raw){
-  let code=raw.trim();
-  // Strip markdown code fences
-  code=code.replace(/^```(?:mermaid)?\s*/i,'').replace(/```\s*$/,'').trim();
-  // If there are multiple sections, grab the first flowchart/graph block
-  const m=code.match(/((?:flowchart|graph)\s[\s\S]+)/i);
-  if(m) code=m[1].trim();
-  // Ensure it starts with a recognized directive
-  if(!code.match(/^(flowchart|graph)\s/i)) code='flowchart TD\n'+code;
-  return code;
-}
-
-function _downloadMermaid(){
+function _recarregarTobeRelatorio(){
   const p=curProc;if(!p)return;
-  const code=document.getElementById('tobe-mermaid-code')?.value||p.mod?.tobe_mermaid||'';
-  if(!code){toast('Nenhum código Mermaid para baixar.','var(--red)');return;}
-  const nome=(p.ent?.abertura?.nome_processo||'processo').replaceAll(/[^a-z0-9]/gi,'_').toLowerCase();
-  const blob=new Blob([code],{type:'text/plain;charset=utf-8'});
+  const outer=document.getElementById('tobe-relatorio-outer');
+  if(outer) outer.innerHTML=_rTobeRelatorioSecao(p);
+}
+
+function _baixarTobeRelatorio(){
+  const p=curProc;if(!p)return;
+  const texto=p.mod?.tobe_relatorio||'';
+  if(!texto){toast('Nenhum relatório para baixar.','var(--red)');return;}
+  const nome=(p.nome||'processo').replaceAll(/[^a-z0-9]/gi,'_').toLowerCase();
+  const blob=new Blob([texto],{type:'text/plain;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`tobe_${nome}.mmd`;
+  a.download=`sugestoes_tobe_${nome}.txt`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 }
 
-async function _exportarMermaidBpmn(importarNoBpmn=false){
-  const p=curProc;if(!p)return;
-  const code=document.getElementById('tobe-mermaid-code')?.value||p.mod?.tobe_mermaid||'';
-  if(!code){toast('Nenhum código Mermaid para converter.','var(--red)');return;}
-  const btnExport=document.getElementById('tobe-bpmn-export-btn');
-  const btnImport=document.getElementById('tobe-bpmn-import-btn');
-  const st=document.getElementById('tobe-ia-st');
-  const _setLoading=v=>{
-    if(btnExport)btnExport.disabled=v;
-    if(btnImport)btnImport.disabled=v;
-    if(st)st.textContent=v?'⏳ Convertendo para BPMN...':'';
-  };
-  _setLoading(true);
-  try{
-    const prompt=`Você é um especialista em BPMN 2.0. Converta o fluxograma Mermaid abaixo para XML BPMN 2.0 válido.
-
-REGRAS OBRIGATÓRIAS:
-1. Retorne SOMENTE o XML puro, sem explicações, sem blocos de código, sem markdown.
-2. O XML deve começar exatamente com: <?xml version="1.0" encoding="UTF-8"?>
-3. Use o namespace padrão BPMN 2.0: xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
-4. O processo deve ter id="proc1" e isExecutable="false".
-5. Para cada nó do Mermaid: nó inicial → startEvent, nó final → endEvent, tarefas comuns → userTask, losangos (decisão) → exclusiveGateway.
-6. Cada elemento deve ter id único (ex: start1, task1, task2, gw1, end1) e name com o rótulo do Mermaid.
-7. Inclua sequenceFlow para cada aresta do Mermaid, com sourceRef e targetRef corretos.
-8. NÃO inclua BPMNDI (diagramas gráficos) — apenas os elementos de processo.
-
-FLUXOGRAMA MERMAID:
-${code}`;
-
-    const resp=await chamarIA('assistente',prompt,null);
-    if(!resp||!resp.trim()){throw new Error('Resposta vazia da IA.');}
-    // Clean: extract XML starting from <?xml or <definitions
-    let xml=resp.trim();
-    const xStart=xml.search(/<\?xml|<definitions|<bpmn:definitions/i);
-    if(xStart>0) xml=xml.slice(xStart);
-    // Remove possible trailing markdown fences
-    xml=xml.replace(/```\s*$/,'').trim();
-    // Validate minimally
-    if(!xml.includes('startEvent')&&!xml.includes('userTask')){
-      throw new Error('O XML gerado não parece ter elementos BPMN válidos. Tente regenerar.');
-    }
-    if(importarNoBpmn){
-      // Load into the TO BE bpmn-js editor
-      if(!p.mod)p.mod={};
-      p.mod.bpmnToBe=xml;
-      fbAutoSave('salvar');
-      // Expand the TO BE editor section and initialize
-      const wrap=document.getElementById('df-tobe-wrap');
-      if(wrap&&wrap.style.display==='none'){
-        wrap.style.display='block';
-        const chv=document.getElementById('df-tobe-chv');
-        if(chv)chv.textContent='▼';
-      }
-      setTimeout(()=>initBpmnMod('tobe',p),150);
-      toast('Diagrama BPMN carregado no editor TO BE.','var(--teal)');
-    } else {
-      // Download as .bpmn file
-      const nome=(p.ent?.abertura?.nome_processo||'processo').replaceAll(/[^a-z0-9]/gi,'_').toLowerCase();
-      const blob=new Blob([xml],{type:'application/xml;charset=utf-8'});
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download=`tobe_${nome}.bpmn`;
-      a.click();
-      setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-      toast('Arquivo .bpmn baixado com sucesso.','var(--teal)');
-    }
-  } catch(err){
-    toast('Erro ao converter para BPMN: '+(err.message||err),'var(--red)');
-    console.error('[exportarMermaidBpmn]',err);
-  } finally {
-    _setLoading(false);
-  }
-}
-
-async function iaGerarTobeMermaid(){
+async function iaGerarTobeRelatorio(){
   const p=curProc;if(!p)return;
   const btn=document.getElementById('tobe-ia-btn');
   const st=document.getElementById('tobe-ia-st');
   if(btn)btn.disabled=true;
   if(st)st.textContent='⏳ Gerando com IA...';
 
-  // AS IS steps
+  // Etapas AS IS
   const etapas=(p.mod?.etapas_proc||[]).map((e,i)=>
     `${i+1}. ${e.nome||e.desc||'?'} (tipo: ${e.tipo||'Atividade'}, resp: ${e.executor||e.resp||'—'}, modo: ${e.modo||'Manual'})`
   ).join('\n');
 
-  // Confirmed improvements from melhorias step (fallback to raw analise arrays)
+  // Melhorias confirmadas (fallback para arrays brutos da análise)
   const fb=p.ent?.analise?.feedback_dono||{};
   const _conf=cat=>Object.entries(fb[cat]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k);
   const gargalos=_conf('gargalos').length?_conf('gargalos'):(p.ent?.analise?.gargalos||[]);
   const retrabalhos=_conf('retrabalhos').length?_conf('retrabalhos'):(p.ent?.analise?.retrabalhos||[]);
   const oportunidades=_conf('oportunidades').length?_conf('oportunidades'):(p.ent?.analise?.oportunidades||[]);
   const solucoes=_conf('solucoes_problemas').length?_conf('solucoes_problemas'):(p.ent?.analise?.solucoes_problemas||[]);
-
   const _lst=arr=>arr.length?arr.map(x=>'• '+(typeof x==='string'?x:x.desc||x)).join('\n'):'(nenhum)';
 
-  const payload=`Você é especialista em BPM, Lean e mapeamento de processos. Com base no fluxo AS IS e nas melhorias identificadas abaixo, gere um diagrama TO BE em sintaxe Mermaid que represente o processo futuro otimizado.
+  const payload={
+    processo: p.nome,
+    area: p.area||'—',
+    objetivo: p.objetivo||'—',
+    etapas_asis: etapas||(p.mod?.asIs?.substring(0,1500)||'(não informadas)'),
+    gargalos: _lst(gargalos),
+    retrabalhos: _lst(retrabalhos),
+    oportunidades: _lst(oportunidades),
+    solucoes: _lst(solucoes),
+  };
 
-PROCESSO: ${p.nome}
-ÁREA: ${p.area||'—'}
-OBJETIVO: ${p.objetivo||'—'}
-
-ETAPAS DO FLUXO AS IS:
-${etapas||(p.mod?.asIs?.substring(0,1500)||'(não informadas)')}
-
-GARGALOS A ELIMINAR OU MITIGAR:
-${_lst(gargalos)}
-
-RETRABALHOS A ELIMINAR:
-${_lst(retrabalhos)}
-
-OPORTUNIDADES DE MELHORIA:
-${_lst(oportunidades)}
-
-SOLUÇÕES PROPOSTAS:
-${_lst(solucoes)}
-
-REGRAS OBRIGATÓRIAS para o código Mermaid:
-• A PRIMEIRA linha deve ser exatamente: flowchart TD
-• IDs de nós: somente letras e dígitos sem espaços (ex: A, B, GW1, DEC2)
-• Atividades: A[Descrição da atividade]
-• Decisões/gateways: GW1{Condição?}
-• Início: START([Início])   Fim: END([Fim])
-• Setas simples: A --> B
-• Setas com rótulo: GW1 -->|Sim| B   e   GW1 -->|Não| C
-• Máximo de 20 nós no total
-• Incorpore as melhorias no fluxo (remova redundâncias, automatize, elimine retrabalhos, simplifique)
-• NÃO use blocos de código markdown, NÃO use \`\`\`, NÃO escreva explicações
-• Responda SOMENTE com o código Mermaid, começando com a linha "flowchart TD"`;
-
-  const result=await chamarIA('assistente',payload,null);
+  const result=await chamarIA('sugerir_tobe',payload,null);
   if(btn)btn.disabled=false;
 
   if(!result){
@@ -9021,20 +8883,13 @@ REGRAS OBRIGATÓRIAS para o código Mermaid:
     return;
   }
 
-  const code=_cleanMermaidCode(result);
   if(!p.mod)p.mod={};
-  p.mod.tobe_mermaid=code;
+  p.mod.tobe_relatorio=result.trim();
   fbAutoSave('salvar');
-  if(st)st.textContent='✓ Diagrama gerado';
+  if(st)st.textContent='✓ Sugestões geradas';
 
-  // Update mermaid section in DOM and render
-  const outer=document.getElementById('tobe-mermaid-outer');
-  if(outer){
-    outer.innerHTML=_rTobeMermaidSecao(p);
-    const ta=outer.querySelector('#tobe-mermaid-code');
-    if(ta) ta.textContent=p.mod?.tobe_mermaid||'';
-    setTimeout(()=>_atualizarRenderMermaid(),100);
-  }
+  const outer=document.getElementById('tobe-relatorio-outer');
+  if(outer) outer.innerHTML=_rTobeRelatorioSecao(p);
 }
 
 // ═══════════════════════════════════════════
