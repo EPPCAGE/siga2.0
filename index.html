@@ -2465,7 +2465,7 @@ function buildPipelineHTML(cnt){
 }
 function getPendenciasDashboard(){
   const pendencias=[];
-  const aprovacoesLegadas=['det_valid_asis','det_valid_tobe','apresentacao'];
+  const aprovacoesLegadas=new Set(['det_valid_asis','det_valid_tobe','apresentacao']);
   processos.forEach(p=>{
     if(p.status_ciclo==='suspenso'||p.status_ciclo==='cancelado') return;
     const atribuicoes=p.atribuicoes||{};
@@ -2473,7 +2473,7 @@ function getPendenciasDashboard(){
       if(!atrib||etapaId!==p.etapa) return;
       pendencias.push({proc:p,etapaId,atrib,tipo:'atribuicao'});
     });
-    if(aprovacoesLegadas.includes(p.etapa)&&!atribuicoes[p.etapa]){
+    if(aprovacoesLegadas.has(p.etapa)&&!atribuicoes[p.etapa]){
       pendencias.push({proc:p,etapaId:p.etapa,atrib:{para_nome:p.dono||p.resp_ep||'Responsável não informado',prazo:p.ent?.dt_prev||''},tipo:'legado'});
     }
   });
@@ -4557,7 +4557,9 @@ function _rsEsbocaTobe(p){
   const txt=document.getElementById('e-tobe')?.value;
   if(txt!=null) p.mod.toBe=txt;
 }
-function _rsDetValidAsis(p){}
+function _rsDetValidAsis(p){
+  return p;
+}
 function _rsDetValidTobe(p){
   if(!p.mod)p.mod={};
   const dt=document.getElementById('vtb-dt')?.value||'';
@@ -9680,12 +9682,16 @@ function buildPainelAlertasEPHTML(){
   const rank = itens.sort((a,b)=>{
     const peso = x => (x.intel.vencido?30:0) + (x.intel.atividadesAbertas.length?15:0) + x.intel.sinais.length*5 + x.intel.recomendacoes.length;
     return peso(b) - peso(a);
-  }).slice(0,6);
+  }).slice(0,10);
   const totalAlertas = itens.length;
   const exibidosAlertas = rank.length;
-  const badgeAlertas = totalAlertas > exibidosAlertas
-    ? exibidosAlertas+' de '+totalAlertas+' processos com alerta'
-    : totalAlertas+' processo'+(totalAlertas===1?'':'s')+' com alerta';
+  let badgeAlertas;
+  if(totalAlertas > exibidosAlertas){
+    badgeAlertas = exibidosAlertas+' de '+totalAlertas+' processos com alerta';
+  } else {
+    const plural = totalAlertas===1 ? '' : 's';
+    badgeAlertas = totalAlertas+' processo'+plural+' com alerta';
+  }
   const contextoAlertas = totalAlertas > exibidosAlertas ? ' · exibindo principais alertas' : '';
 
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--rl);padding:1rem 1.1rem;margin:-.4rem 0 1rem;box-shadow:var(--sh)">
