@@ -1191,7 +1191,7 @@ Não responda este e-mail.</pre>
     <input class="srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
   </div>
   <div class="card" style="padding:0;overflow:hidden">
-    <table class="pop-tbl"><thead><tr><th></th><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Processos vinculados</th><th>Ações</th></tr></thead>
+    <table class="pop-tbl"><thead><tr><th></th><th>Nome</th><th>Cargo</th><th>E-mail</th><th>Perfil</th><th>Processos vinculados</th><th>Ações</th></tr></thead>
     <tbody id="usr-tbody"></tbody></table>
   </div>
 
@@ -1204,6 +1204,7 @@ Não responda este e-mail.</pre>
         <div class="fg"><label class="fl" for="usr-nome">Nome<span>*</span></label><input class="fi" id="usr-nome"></div>
         <div class="fg"><label class="fl" for="usr-ini">Iniciais</label><input class="fi" id="usr-ini" maxlength="2"></div>
       </div>
+      <div class="fg"><label class="fl" for="usr-cargo">Cargo</label><input class="fi" id="usr-cargo" placeholder="Ex: Auditor Fiscal, Gestor, Analista..."></div>
       <div class="fg"><label class="fl" for="usr-email">E-mail<span>*</span></label><input class="fi" id="usr-email" type="email"></div>
       <div class="fg"><label class="fl" for="usr-perfil">Perfil<span>*</span></label>
         <select class="fi" id="usr-perfil" onchange="onUsrPerfilChg()">
@@ -2654,8 +2655,10 @@ function excluirMapeamento(id){
   const p=processos.find(x=>x.id===id);
   if(!p)return;
   confirmar('Excluir o mapeamento "'+p.nome+'" permanentemente?\nEsta ação não pode ser desfeita.', () => {
+    unsyncDonoProcessoUsuario({ nome: p.dono, email: p.dono_email, arqId: p.arq_id });
     processos=processos.filter(x=>x.id!==id);
     renderProcs();
+    renderAdmin();
     updCounts();
     // Apaga o documento do Firestore imediatamente (não basta só salvar os restantes)
     if(fbReady()){
@@ -2779,6 +2782,10 @@ function salvarMetadados(){
   const donoAnt=p.dono, donoEmailAnt=p.dono_email;
   const novoDono=document.getElementById('em-dono')?.value.trim()||p.dono;
   const novoDonoEmail=document.getElementById('em-dono-email')?.value.trim()||p.dono_email;
+  const mudouDono = novoDono!==donoAnt || novoDonoEmail!==donoEmailAnt;
+  if(mudouDono){
+    unsyncDonoProcessoUsuario({ nome: donoAnt, email: donoEmailAnt, arqId: p.arq_id });
+  }
   p.dono=novoDono;
   p.dono_email=novoDonoEmail;
   p.produto=document.getElementById('em-produto')?.value||p.produto;
@@ -2788,10 +2795,12 @@ function salvarMetadados(){
   const novoGestor=document.getElementById('em-gestor')?.value||p.pat;
   if(novoGestor && novoGestor!==p.pat) push(p, p.etapa, 'EP', 'Patrocinador alterado para "'+novoGestor+'"');
   if(novoGestor) p.pat=novoGestor;
+  syncDonoProcessoUsuario({ nome: p.dono, email: p.dono_email, arqId: p.arq_id });
   // Registrar alterações no histórico
   if(novoDono!==donoAnt) push(p, p.etapa, 'EP', 'Dono alterado de "'+donoAnt+'" para "'+novoDono+'"');
   if(novoDonoEmail!==donoEmailAnt && novoDono===donoAnt) push(p, p.etapa, 'EP', 'E-mail do dono atualizado');
   document.getElementById('modal-metadados')?.remove();
+  renderAdmin();
   fbAutoSave('editarMetadados');
   rDetalhe();
   toast('Dados atualizados!','var(--teal)');
@@ -3164,8 +3173,10 @@ function criarProcesso(){
     atribuicoes:{},
     hist:[{step:'abertura',role:'EP',acao:'Processo aberto e vinculado à arquitetura',data:now()}],
   };
+  syncDonoProcessoUsuario({ nome: p.dono, email: p.dono_email, arqId: p.arq_id });
   processos.push(p);
   updCounts();
+  renderAdmin();
   toast('Processo criado com sucesso!');
   fbAutoSave('criarProcesso');
   const _gestorUserCriar=USUARIOS.find(u=>u.nome===p.pat);
@@ -5860,6 +5871,94 @@ function _pptIndsText(indsProc){
     `${k.enunciado||k.indicador}${k.ciclo?' ('+k.ciclo+')':''}${k.meta?' — meta: '+k.meta:''}`
   ).join('\n');
 }
+function _pptTryParseIA(raw){
+  if(!raw) return null;
+  const txt = String(raw).trim().replaceAll(/```json?/g,'').replaceAll('```','').trim();
+  try { return JSON.parse(txt); } catch {}
+  const start = txt.indexOf('{');
+  const end = txt.lastIndexOf('}');
+  if(start === -1 || end <= start) return null;
+  try { return JSON.parse(txt.slice(start, end + 1)); } catch { return null; }
+}
+function _pptBulletList(text, fallback){
+  const lines = String(text||'').split('\n').map(s=>s.trim()).filter(Boolean).map(s=>s.replace(/^\d+\.\s*/,''));
+  return lines.length ? lines : fallback;
+}
+function _pptPairsFromProb(p){
+  return (p.ent?.prob || []).map(item => {
+    if(typeof item === 'string') return {problema:item, solucao:''};
+    return {problema:item.desc || '', solucao:item.solucao || ''};
+  }).filter(x=>x.problema || x.solucao);
+}
+function _pptBuildFallbackSlides(p, indsProc, dimText, gargalosFinal, gapsFinal, oportunidadesFinal, solucoesFinal){
+  const riscos = (p.ent?.riscos || []).map((r,i)=>{
+    const desc = typeof r === 'string' ? r : (r.desc || '');
+    const det = typeof r === 'string' ? '' : [r.prob ? 'Prob: '+r.prob : '', r.impacto ? 'Impacto: '+r.impacto : ''].filter(Boolean).join(' | ');
+    return `${i+1}. ${desc}${det ? ' — ' + det : ''}`;
+  }).filter(Boolean);
+  const probPairs = _pptPairsFromProb(p);
+  const faqItens = _parseFaq(p.form?.faq || '').slice(0,5).map(item => ({
+    pergunta: item.p ? `P: ${item.p}` : '',
+    resposta: item.r ? `R: ${item.r}` : 'R: A resposta deve ser validada pela equipe do processo.'
+  }));
+  const indicadorItens = indsProc.slice(0,8).map(k => ({
+    label: k.enunciado || k.indicador || k.nome || 'Indicador',
+    valor: [k.ciclo || k.periodicidade, k.meta ? 'Meta: ' + k.meta : ''].filter(Boolean).join(' — ') || '—'
+  }));
+  return {
+    slides: [
+      {id:'apresentacao',titulo:'Apresentação do Processo',tipo:'dados',
+        dados:[
+          {label:'Macroprocesso',valor:p.macro||'—'},
+          {label:'Processo / Subprocesso',valor:p.nome||'—'},
+          {label:'Área responsável',valor:p.area||'—'},
+          {label:'Gestor do processo',valor:p.dono||'—'},
+          {label:'Prioridade',valor:p.prio||'—'},
+          {label:'Produto do mapeamento',valor:p.produto||'—'},
+        ]},
+      {id:'sipoc_volumetria',titulo:'SIPOC, Volumetria e Maturidade',tipo:'sipoc',
+        sipoc:{S:p.ent?.fornecedores||'—',I:p.ent?.entradas||'—',P:p.nome||'—',O:p.ent?.saidas||'—',C:p.ent?.clientes||'—'},
+        volumetria:[
+          {label:'Execuções / período',valor:p.ent?.vol?.exec||'—'},
+          {label:'Tempo de ciclo médio',valor:p.ent?.t_ciclo == null ? (p.ent?.vol?.tempo||'—') : (p.ent.t_ciclo + ' h')},
+          {label:'Lead time (tempo real)',valor:p.ent?.t_real == null ? '—' : (p.ent.t_real + ' h')},
+          {label:'Tempo de gaveta',valor:p.ent?.t_gaveta == null ? '—' : (p.ent.t_gaveta + ' h')},
+        ],
+        maturidade: dimText.split(';').map(s=>s.trim()).filter(Boolean).slice(0,6).map(item=>{
+          const [eixo, nota] = item.split(':');
+          return {eixo:(eixo||'').trim(),nota:(nota||'-').trim()};
+        })
+      },
+      {id:'objetivo_problemas',titulo:'Objetivo do Mapeamento e Problemas Relatados',tipo:'objetivo',
+        objetivo:p.form?.pop?.obj || p.objetivo || 'Documentar o processo, explicitar responsabilidades e apoiar a padronização da execução.',
+        problemas:_pptBulletList((p.ent?.prob||[]).map((x,i)=>`${i+1}. ${typeof x==='string'?x:(x.desc||'')}`).join('\n'), ['Nenhum problema relatado no processo.'])
+      },
+      {id:'asis',titulo:'Desenho AS IS — Situação Atual',tipo:'bpmn_asis',
+        resumo:p.mod?.asIs || 'Fluxo atual documentado conforme execução observada junto à equipe do processo.'},
+      {id:'riscos',titulo:'Riscos Identificados',tipo:'bullets',
+        bullets:riscos.length ? riscos : ['Nenhum risco registrado para este processo.']},
+      {id:'solucoes',titulo:'Propostas de Soluções',tipo:'solucoes',
+        itens:(solucoesFinal.length ? solucoesFinal.map((sol,i)=>({problema:probPairs[i]?.problema || gargalosFinal[i] || gapsFinal[i] || `Ponto de melhoria ${i+1}`, solucao:sol})) : probPairs).slice(0,6)},
+      {id:'tobe',titulo:'Desenho TO BE — Situação Proposta',tipo:'bpmn_tobe',
+        resumo:p.mod?.toBe || 'Fluxo proposto com ajustes de padronização, clarificação de papéis e melhoria de desempenho.'},
+      {id:'comparativo',titulo:'Comparativo AS IS → TO BE',tipo:'bullets',
+        bullets:[
+          ...gargalosFinal.slice(0,2).map(x=>`Gargalo atual: ${x}`),
+          ...oportunidadesFinal.slice(0,2).map(x=>`Oportunidade priorizada: ${x}`),
+          ...gapsFinal.slice(0,2).map(x=>`Gap a tratar: ${x}`),
+        ].slice(0,6).filter(Boolean).length
+          ? [...gargalosFinal.slice(0,2).map(x=>`Gargalo atual: ${x}`), ...oportunidadesFinal.slice(0,2).map(x=>`Oportunidade priorizada: ${x}`), ...gapsFinal.slice(0,2).map(x=>`Gap a tratar: ${x}`)].slice(0,6).filter(Boolean)
+          : ['Comparativo consolidado a partir do mapeamento AS IS e da proposta TO BE.']
+      },
+      {id:'faq',titulo:'Perguntas Frequentes — FAQ',tipo:'faq',
+        itens:faqItens.length ? faqItens : [{pergunta:'P: Quais são os principais cuidados na execução deste processo?', resposta:'R: Seguir o fluxo validado, os responsáveis definidos e os controles descritos no POP.'}]},
+      {id:'indicadores',titulo:'Indicadores Vinculados ao Processo',tipo:'indicadores',
+        itens:indicadorItens},
+      {id:'encerramento',titulo:'Encerramento',tipo:'encerramento',
+        mensagem:'POP estruturado automaticamente a partir dos dados cadastrados no processo. Recomenda-se revisão final antes da publicação oficial.'},
+    ]
+  };
+}
 async function gerarPOPPPT() {
   const p = curProc;
   if (!p) { toast('Nenhum processo selecionado.','var(--amber)'); return; }
@@ -5887,18 +5986,22 @@ async function gerarPOPPPT() {
     const ctx = _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, {gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText});
     const prompt = _pptPromptStr(ctx);
 
+    let pptData = null;
     if (st) st.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA elaborando conteúdo do POP...</div>';
     const raw = await chamarIA('gerar_ppt', prompt, st);
-    if (!raw) return;
-    const _start = raw.indexOf('{');
-    const _end = raw.lastIndexOf('}');
-    const jsonMatch = _start !== -1 && _end > _start ? [raw.slice(_start, _end + 1)] : null;
-    if (!jsonMatch) throw new Error('Resposta da IA não contém JSON válido.');
-    const iaContent = JSON.parse(jsonMatch[0]);
+    const iaContent = _pptTryParseIA(raw);
+    if (iaContent?.slides?.length) {
+      pptData = iaContent;
+    } else {
+      if (st) st.textContent = 'IA indisponível ou resposta inválida. Gerando PPT com os dados do processo...';
+      pptData = _pptBuildFallbackSlides(p, indsProc, dimText, gargalosFinal, gapsFinal, oportunidadesFinal, solucoesFinal);
+    }
 
     if (st) st.textContent = 'Montando arquivo PowerPoint...';
-    await montarPOPPPT(p, iaContent, logoB64, bpmnAsisPng, bpmnTobePng, indsProc);
-    if (st) st.textContent = '✓ POP gerado e baixado com sucesso!';
+    await montarPOPPPT(p, pptData, logoB64, bpmnAsisPng, bpmnTobePng, indsProc);
+    if (st) st.textContent = iaContent?.slides?.length
+      ? '✓ POP gerado e baixado com sucesso!'
+      : '✓ POP gerado com fallback local e baixado com sucesso!';
   } catch(e) {
     console.error('gerarPOPPPT:', e);
     if (st) st.textContent = '⚠ Erro: ' + e.message;
@@ -11191,12 +11294,12 @@ function filtUsr(p, el){
 }
 
 function renderAdmin(){
-  if(!isEP()){document.getElementById('usr-tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--ink3);padding:1rem">Acesso restrito ao EPP.</td></tr>';return;}
+  if(!isEP()){document.getElementById('usr-tbody').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--ink3);padding:1rem">Acesso restrito ao EPP.</td></tr>';return;}
 
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
     (!filtUsrPerfil||u.perfil===filtUsrPerfil) &&
-    (!srch||u.nome.toLowerCase().includes(srch)||u.email.toLowerCase().includes(srch))
+    (!srch||u.nome.toLowerCase().includes(srch)||u.email.toLowerCase().includes(srch)||(u.cargo||'').toLowerCase().includes(srch))
   );
   const tbody = document.getElementById('usr-tbody');
   if(!tbody) return;
@@ -11214,6 +11317,7 @@ function renderAdmin(){
     return `<tr style="${trStyle}">
       <td><div style="width:28px;height:28px;border-radius:50%;background:${cors[u.perfil]||'#888'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${u.iniciais}</div></td>
       <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span class="badge" style="background:var(--red-l);color:var(--red);font-size:10px">bloqueado</span>':''}</td>
+      <td style="font-size:12px;color:var(--ink3)">${u.cargo||'—'}</td>
       <td style="font-size:12px;color:var(--ink3)">${u.email}</td>
       <td>${pBadge(u.perfil)}</td>
       <td style="font-size:11px;color:var(--ink3)">
@@ -11262,7 +11366,7 @@ function abrirModalUsr(idx){
   if(idx===null){
     document.getElementById('usr-modal-t').textContent = 'Novo usuário';
     document.getElementById('usr-idx').value = '';
-    ['usr-nome','usr-ini','usr-email'].forEach(id=>document.getElementById(id).value='');
+    ['usr-nome','usr-ini','usr-cargo','usr-email'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('usr-perfil').value = 'dono';
     document.getElementById('usr-vinculos-list').innerHTML = '';
     document.getElementById('usr-proc-section').style.display = 'block';
@@ -11273,6 +11377,7 @@ function abrirModalUsr(idx){
     document.getElementById('usr-idx').value = idx;
     document.getElementById('usr-nome').value = u.nome;
     document.getElementById('usr-ini').value = u.iniciais;
+    document.getElementById('usr-cargo').value = u.cargo||'';
     document.getElementById('usr-email').value = u.email;
     document.getElementById('usr-perfil').value = u.perfil;
     document.getElementById('usr-proc-section').style.display = u.perfil==='dono' ? 'block' : 'none';
@@ -11319,8 +11424,83 @@ function remVinculo(i){
   renderVinculos(_tempVinculos);
 }
 
+function gerarIniciaisUsuario(nome=''){
+  return nome
+    .split(' ')
+    .map(p=>p.trim()[0])
+    .filter(Boolean)
+    .join('')
+    .toUpperCase()
+    .slice(0,2);
+}
+
+function normalizarTextoUsuario(v=''){
+  return String(v||'').trim().toLowerCase();
+}
+
+function findUsuarioIdxByNomeEmail({ nome, email }){
+  const nomeNorm = normalizarTextoUsuario(nome);
+  const emailNorm = normalizarTextoUsuario(email);
+  return USUARIOS.findIndex(u =>
+    normalizarTextoUsuario(u.email) === emailNorm ||
+    normalizarTextoUsuario(u.nome) === nomeNorm
+  );
+}
+
+function syncDonoProcessoUsuario({ nome, email, arqId }){
+  const nomeLimpo = (nome||'').trim();
+  const emailLimpo = (email||'').trim().toLowerCase();
+  const arqIdLimpo = (arqId||'').trim();
+  if(!nomeLimpo || !emailLimpo || !arqIdLimpo) return false;
+
+  const idx = findUsuarioIdxByNomeEmail({ nome: nomeLimpo, email: emailLimpo });
+
+  if(idx === -1){
+    USUARIOS.push({
+      email: emailLimpo,
+      nome: nomeLimpo,
+      cargo: '',
+      perfil: 'dono',
+      iniciais: gerarIniciaisUsuario(nomeLimpo),
+      processos_vinculados: [arqIdLimpo]
+    });
+    return true;
+  }
+
+  const usuario = USUARIOS[idx];
+  usuario.email = emailLimpo;
+  usuario.nome = nomeLimpo;
+  if(!usuario.iniciais) usuario.iniciais = gerarIniciaisUsuario(nomeLimpo);
+  if(!Array.isArray(usuario.processos_vinculados)) usuario.processos_vinculados = [];
+  if(!usuario.processos_vinculados.includes(arqIdLimpo)) usuario.processos_vinculados.push(arqIdLimpo);
+  if(!usuario.perfil) usuario.perfil = 'dono';
+
+  if(usuarioLogado?.email && usuarioLogado.email.toLowerCase() === emailLimpo){
+    usuarioLogado = usuario;
+  }
+  return true;
+}
+
+function unsyncDonoProcessoUsuario({ nome, email, arqId }){
+  const arqIdLimpo = (arqId||'').trim();
+  if(!arqIdLimpo) return false;
+  const idx = findUsuarioIdxByNomeEmail({ nome, email });
+  if(idx === -1) return false;
+
+  const usuario = USUARIOS[idx];
+  if(!Array.isArray(usuario.processos_vinculados)) return false;
+  const origLen = usuario.processos_vinculados.length;
+  usuario.processos_vinculados = usuario.processos_vinculados.filter(id => id !== arqIdLimpo);
+
+  if(usuarioLogado?.email && normalizarTextoUsuario(usuarioLogado.email) === normalizarTextoUsuario(usuario.email)){
+    usuarioLogado = usuario;
+  }
+  return usuario.processos_vinculados.length !== origLen;
+}
+
 async function salvarUsr(){
   const nome = document.getElementById('usr-nome').value.trim();
+  const cargo = document.getElementById('usr-cargo').value.trim();
   const email = document.getElementById('usr-email').value.trim().toLowerCase();
   const perfil = document.getElementById('usr-perfil').value;
   if(!nome||!email){ toast('Preencha nome e e-mail.','var(--amber)'); return; }
@@ -11330,11 +11510,11 @@ async function salvarUsr(){
 
   if(idxStr===''){
     if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
-    USUARIOS.push({email, nome, perfil, iniciais:ini, processos_vinculados:vinculos});
+    USUARIOS.push({email, nome, cargo, perfil, iniciais:ini, processos_vinculados:vinculos});
   } else {
     const idx = Number.parseInt(idxStr);
     if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
-    USUARIOS[idx] = {...USUARIOS[idx], email, nome, perfil, iniciais:ini, processos_vinculados:vinculos};
+    USUARIOS[idx] = {...USUARIOS[idx], email, nome, cargo, perfil, iniciais:ini, processos_vinculados:vinculos};
     if(usuarioLogado?.email===email){
       usuarioLogado = USUARIOS[idx];
       document.getElementById('aside-name').textContent = nome;
@@ -13528,7 +13708,7 @@ document.getElementById('login-screen').style.display='flex';
 const AI_FUNCTION_URL = (globalThis.CONFIG?.AI_FUNCTION_URL || 'https://ai-kvhsbvnxhq-uc.a.run.app');
 
 async function chamarIA(mode, payload, targetEl){
-  const url = AI_FUNCTION_URL;
+  const url = globalThis._aiUrl || AI_FUNCTION_URL;
   if(!url || url === '__AI_FUNCTION_URL__'){
     const msg = 'URL da função IA não configurada.';
     if(targetEl) targetEl.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">⚠ IA não configurada</div>${esc(msg)}</div>`;
@@ -13538,11 +13718,16 @@ async function chamarIA(mode, payload, targetEl){
   try {
     const {auth} = fb();
     const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+    const ctrl = new AbortController();
+    const timeoutMs = 120000;
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     const resp = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
+      signal: ctrl.signal,
       body: JSON.stringify({mode, payload, ...(token ? {_token: token} : {})}),
     });
+    clearTimeout(timer);
     if(!resp.ok){
       const err = await resp.json().catch(()=>({error:'Erro desconhecido'}));
       throw new Error(err.error || 'Erro '+resp.status);
@@ -13554,7 +13739,10 @@ async function chamarIA(mode, payload, targetEl){
     const data = JSON.parse(text);
     return data.result || '';
   } catch(e){
-    if(targetEl) targetEl.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">⚠ Erro</div>${esc(e.message)}</div>`;
+    const msg = e?.name === 'AbortError'
+      ? 'Tempo limite excedido ao aguardar a IA.'
+      : e.message;
+    if(targetEl) targetEl.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">⚠ Erro</div>${esc(msg)}</div>`;
     return null;
   }
 }
