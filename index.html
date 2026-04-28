@@ -5545,6 +5545,34 @@ function publicarProcesso(){
   p.form.link_pub=document.getElementById('a-link')?.value||p.form.link_pub||'';
   p.form.vig=_efetPub?_calcVig(_efetPub):(document.getElementById('a-vig')?.value||p.form.vig||'');
   av('publicacao','EP','Processo publicado. Início da operação.');
+
+  // Marcar automaticamente como MAPEADO na arquitetura
+  if(p.arq_id && !mapeadosManual.has(p.arq_id)){
+    mapeadosManual.add(p.arq_id);
+    lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
+    fbAutoSave('mapeados');
+  }
+
+  // Criar publicação tipo POP automaticamente se ainda não existir para este processo
+  const jaTemPop = publicacoes.some(pub=>(pub.proc_ids||[]).includes(p.id) && pub.categoria==='POPs');
+  if(!jaTemPop){
+    const popPub = {
+      id: _pubIdC++,
+      titulo: p.nome,
+      categoria: 'POPs',
+      versao: 'v1.0',
+      desc: p.form?.obj||'',
+      url: p.form.link_pub||'',
+      data: new Date().toISOString().slice(0,10),
+      responsavel: p.dono||'',
+      tags: '',
+      thumb_url: '',
+      proc_ids: [p.id],
+    };
+    publicacoes.push(popPub);
+    fbAutoSave('publicarProcesso_pub');
+  }
+
   const _pPub=p;
   const _acaoPub='Processo "'+_pPub.nome+'" publicado! O POP está disponível no repositório.';
   const _gestorUserPub=USUARIOS.find(u=>u.nome===_pPub.pat);
