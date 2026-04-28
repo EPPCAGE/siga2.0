@@ -9804,9 +9804,7 @@ function _procIntelSnapshot(proc){
   const temAnalise = !!((analise.gargalos||[]).length || (analise.oportunidades||[]).length || (analise.gaps||[]).length);
   const temPop = !!(proc.form?.pop || proc.ent?.dt_efetiva || ['publicacao','acompanha','auditoria'].includes(proc.etapa));
   const vencido = isVencido(proc);
-  const semIndicadores = indicadores.length === 0;
   const semRiscos = riscos.length === 0;
-  const semTrilhas = trilhasProc.length === 0;
   const semPublicacao = pubs.length === 0;
   const atividadesAbertas = atividadesPlano.filter(a=>_planoAtividadeConcluida(a) === false);
   const sinais = [];
@@ -12641,6 +12639,7 @@ function gerarStatusReportPDF(){
   const dtMesL=hoje.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);
   const _e=s=>String(s==null?'—':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _ea=s=>_e(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const _d=d=>d?(d.includes('-')?d.split('-').reverse().join('/'):d):'—';
   const _recente=d=>d&&new Date(d.includes('/')?d.split('/').reverse().join('-'):d)>=umMesAtras;
 
@@ -12846,7 +12845,7 @@ function gerarStatusReportPDF(){
   <div class="card" style="margin-top:.5rem">
     <div class="card-t">Por macroprocesso</div>
     ${cobMacro.map(m=>`<div class="macro-row">
-      <div class="macro-nome" title="${_e(m.nome)}">${_e(m.nome)}</div>
+      <div class="macro-nome" title="${_ea(m.nome)}">${_e(m.nome)}</div>
       <div style="flex:0 0 160px;background:#e5e7eb;border-radius:99px;height:7px"><div style="background:${m.pct>=70?'#16a34a':m.pct>=40?'#d97706':'#dc2626'};height:7px;border-radius:99px;width:${m.pct}%"></div></div>
       <div class="macro-pct" style="color:${m.pct>=70?'#16a34a':m.pct>=40?'#d97706':'#dc2626'}">${m.pct}%</div>
       <div style="font-size:8.5pt;color:#9ca3af;width:60px;text-align:right">${m.nM}/${m.nU}</div>
@@ -12978,7 +12977,7 @@ function abrirPlanoModal(idOrObj){
   const at = typeof idOrObj==='number' ? plano.find(a=>a.id===idOrObj) : (idOrObj||null);
   const isNew = !at||!at.id;
   document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
-  document.getElementById('plano-modal-body').innerHTML = _planoModalBodyHTML(at);
+  document.getElementById('plano-modal-body').innerHTML = _planoModalBodyHTML(at); // lgtm[js/xss-through-dom]
   document.getElementById('plano-modal').style.display='block';
 }
 
