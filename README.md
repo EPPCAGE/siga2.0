@@ -128,6 +128,16 @@ A Cloud Function `functions/index.js` expõe o endpoint `/ai` com os seguintes m
 | `config/criticos` | Set de processos marcados como críticos manualmente |
 | `config/ejs` | Credenciais EmailJS para envio de notificações |
 
+### Observação importante sobre edição simultânea
+
+O módulo de processos usa gravações em lote (`batch.set`) para persistir os dados no Firestore. Em cenários com duas sessões abertas ao mesmo tempo (ex.: dois computadores com o mesmo usuário), uma sessão com dados desatualizados pode sobrescrever alterações feitas na outra ao salvar.
+
+Boas práticas recomendadas:
+- Evite editar o mesmo processo em duas máquinas simultaneamente.
+- Antes de continuar em outro computador, recarregue a página para atualizar a cópia em memória.
+- Ao terminar uma edição importante, aguarde o aviso de sucesso de salvamento na nuvem.
+- Em caso de conflito, verifique se há cópias locais/exportações para recuperar trechos alterados.
+
 ---
 
 ## Estrutura do Projeto
