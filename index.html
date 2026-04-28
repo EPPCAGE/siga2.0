@@ -488,7 +488,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </button>
   <button type="button" class="nav-btn" onclick="go('processos',this)" id="nb-proc">
     <svg viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-    Processos em andamento <span class="nav-cnt" id="nb-total">0</span>
+    Mapeamentos <span class="nav-cnt" id="nb-total">0</span>
   </button>
   <div class="nav-sec">Módulos</div>
   <button type="button" class="nav-btn" onclick="go('arq',this)" id="nb-arq">
@@ -612,15 +612,16 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 </div></div>
 
 <div id="page-processos" class="page"><div style="padding:2rem">
-  <div class="ph"><div><div class="ph-t">Processos em andamento</div><div class="ph-s">Apenas processos vinculados à arquitetura podem ser mapeados</div></div>
+  <div class="ph"><div><div class="ph-t">Mapeamentos</div><div class="ph-s">Processos em mapeamento e mapeamentos concluídos vinculados à arquitetura</div></div>
   <div style="display:flex;gap:8px"><div id="btn-novo-proc"></div><button type="button" class="btn ep-only" onclick="abrirImportPOP()" style="font-size:12px">⬆ Importar POP</button></div></div>
   <div class="fbar">
     <span class="fbar-l">Fase</span>
     <div class="chips" id="fase-chips">
-      <button type="button" class="chip on" onclick="filtFase('',this)">Todos</button>
+      <button type="button" class="chip on" onclick="filtFase('',this)">Em andamento</button>
       <button type="button" class="chip" onclick="filtFase('Entendimento',this)">Entendimento</button>
       <button type="button" class="chip" onclick="filtFase('Modelagem',this)">Modelagem</button>
       <button type="button" class="chip" onclick="filtFase('Formalizacao',this)">Formalização</button>
+      <button type="button" class="chip" onclick="filtFase('Concluidos',this)" style="border-color:var(--green-b,#bbf7d0);color:var(--green,#16a34a)">✓ Concluídos</button>
     </div>
     <input class="srch" id="srch-p" placeholder="Buscar..." oninput="renderProcs()">
     <select class="fi" id="filt-ep" onchange="renderProcs()" style="max-width:160px;font-size:12px"></select>
@@ -2658,24 +2659,27 @@ function renderProcs(){
   aplicarPermissoes();
   const srch=(document.getElementById('srch-p')?.value||'').toLowerCase();
   const isDono=usuarioLogado?.perfil==='dono';
-  const processosEmAndamento=processos.filter(isProcessoEmAndamento);
+  const isConcluidos=filtFaseAtual==='Concluidos';
+  const baseProcs=isConcluidos
+    ? processos.filter(p=>['acompanha','auditoria'].includes(p.etapa)&&p.status_ciclo!=='cancelado')
+    : processos.filter(isProcessoEmAndamento);
   // Q034: popular selects de EP e dono dinamicamente
   const epSel=document.getElementById('filt-ep');
   const donoSel=document.getElementById('filt-dono');
   if(epSel){
     const prevEP=epSel.value;
-    const eps=[...new Set(processosEmAndamento.map(p=>p.resp_ep).filter(Boolean))].sort();
+    const eps=[...new Set(baseProcs.map(p=>p.resp_ep).filter(Boolean))].sort();
     epSel.innerHTML='<option value="">EP: Todos</option>'+eps.map(v=>`<option${v===prevEP?' selected':''}>${v}</option>`).join('');
   }
   if(donoSel){
     const prevDono=donoSel.value;
-    const donos=[...new Set(processosEmAndamento.map(p=>p.dono).filter(Boolean))].sort();
+    const donos=[...new Set(baseProcs.map(p=>p.dono).filter(Boolean))].sort();
     donoSel.innerHTML='<option value="">Dono: Todos</option>'+donos.map(v=>`<option${v===prevDono?' selected':''}>${v}</option>`).join('');
   }
   const filtEP=epSel?.value||'';
   const filtDono=donoSel?.value||'';
   const filtProd=document.getElementById('filt-produto')?.value||'';
-  const lista=processosEmAndamento.filter(p=>{
+  const lista=baseProcs.filter(p=>{
     if(isDono){
       const isDonoProc=(p.dono===usuarioLogado.nome);
       const isInteressado=(p.interessados||[]).includes(usuarioLogado.email);
@@ -2683,17 +2687,35 @@ function renderProcs(){
       const isVinculado=(usuarioLogado.processos_vinculados||[]).includes(p.arq_id);
       if(!isDonoProc&&!isInteressado&&!isVinculado)return false;
     }
-    return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)&&(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch))
-      &&(!filtEP||p.resp_ep===filtEP)&&(!filtDono||p.dono===filtDono)&&(!filtProd||p.produto===filtProd);
+    if(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch)){
+      if(isConcluidos) return(!filtEP||p.resp_ep===filtEP)&&(!filtDono||p.dono===filtDono);
+      return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)
+        &&(!filtEP||p.resp_ep===filtEP)&&(!filtDono||p.dono===filtDono)&&(!filtProd||p.produto===filtProd);
+    }
+    return false;
   });
   const el=document.getElementById('proc-list'),em=document.getElementById('proc-empty');
   if(!lista.length){el.innerHTML='';em.style.display='block';return;}
   em.style.display='none';
-  el.innerHTML=lista.map(p=>`<div class="prc ${p.prio==='Critica'?'urg':''} ${isVencido(p)?'venc':''}" onclick="abrirProc(${p.id})" style="${isVencido(p)?'border-left:3px solid var(--red);':''}">
-    <div><div class="prc-t">${esc(p.nome)}</div>
-    <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div></div>
-    <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${_statusBadge(p)}${isVencido(p)?'<span class="badge" style="background:var(--red-l);color:var(--red);margin-left:3px">⚠ Vencido</span>':''}${pBadge(p.prio)}${isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
-  </div>`).join('');
+  el.innerHTML=lista.map(p=>{
+    if(isConcluidos){
+      const _fmtD=d=>d?d.split('-').reverse().join('/'):'—';
+      const _dtProx=p.dt_proximo_acompanhamento;
+      const _acompVenc=_dtProx&&_dtProx<new Date().toISOString().slice(0,10);
+      return `<div class="prc" onclick="abrirProc(${p.id})" style="border-left:3px solid var(--green,#16a34a)">
+        <div><div class="prc-t">${esc(p.nome)}</div>
+        <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div>
+        ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_acompVenc?'var(--red)':'var(--ink3)'}">Ciclo encerrado em ${_fmtD(p.dt_ciclo_fim||'')} · Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_acompVenc?' ⚠':''}</div>`:''}
+        </div>
+        <div class="prc-r"><span class="badge bg" style="font-size:10px">✓ Mapeado</span>${eBadge(p.etapa)}</div>
+      </div>`;
+    }
+    return `<div class="prc ${p.prio==='Critica'?'urg':''} ${isVencido(p)?'venc':''}" onclick="abrirProc(${p.id})" style="${isVencido(p)?'border-left:3px solid var(--red);':''}">
+      <div><div class="prc-t">${esc(p.nome)}</div>
+      <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div></div>
+      <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${_statusBadge(p)}${isVencido(p)?'<span class="badge" style="background:var(--red-l);color:var(--red);margin-left:3px">⚠ Vencido</span>':''}${pBadge(p.prio)}${isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
+    </div>`;
+  }).join('');
 }
 function excluirMapeamento(id){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
@@ -4207,7 +4229,24 @@ const ACOES = {
           </div>
         </div>`;
       }).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma reunião registrada ainda.</div>';
-      return `<div class="ib ibb">Registre todas as reuniões de acompanhamento da implementação.</div>
+      const _fmtDtAcomp = d => d ? d.split('-').reverse().join('/') : '—';
+      const _dtProx = p.dt_proximo_acompanhamento;
+      const _dtFim  = p.dt_ciclo_fim;
+      const _diasAteAcomp = _dtProx ? Math.round((new Date(_dtProx) - new Date()) / (1000*60*60*24)) : null;
+      const _acompVencido = _diasAteAcomp !== null && _diasAteAcomp < 0;
+      const _acompBanner = _dtProx ? `
+        <div style="margin-bottom:1rem;padding:.8rem 1rem;border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:${_acompVencido?'var(--red-l,#fef2f2)':'var(--green-l,#f0fdf4)'};border:1px solid ${_acompVencido?'var(--red-b,#fecaca)':'var(--green-b,#bbf7d0)'}">
+          <div style="font-size:1.4rem">${_acompVencido?'⚠':'📅'}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:700;color:${_acompVencido?'var(--red)':'var(--green,#16a34a)'}">${_acompVencido?'Acompanhamento em atraso':'Próximo acompanhamento agendado'}</div>
+            <div style="font-size:12px;color:var(--ink2);margin-top:2px">
+              ${_dtFim?`Ciclo encerrado em <strong>${_fmtDtAcomp(_dtFim)}</strong> · `:''}
+              Acompanhamento previsto em <strong>${_fmtDtAcomp(_dtProx)}</strong>
+              ${_diasAteAcomp !== null ? ` (${_acompVencido ? Math.abs(_diasAteAcomp)+' dias em atraso' : _diasAteAcomp === 0 ? 'hoje' : _diasAteAcomp+' dias'})` : ''}
+            </div>
+          </div>
+        </div>` : '';
+      return `${_acompBanner}<div class="ib ibb">Registre todas as reuniões de acompanhamento da implementação.</div>
         <div style="margin-bottom:1rem">${listaHtml}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Nova reunião de acompanhamento</div>
         <div class="g2">
@@ -5552,6 +5591,15 @@ function publicarProcesso(){
     lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
     fbAutoSave('mapeados');
   }
+
+  // Registrar fim do ciclo de mapeamento e agendar próximo acompanhamento
+  const _hoje = new Date().toISOString().slice(0,10);
+  p.dt_ciclo_fim = _hoje;
+  if(p.ent.dt_inicio){
+    const _diasCiclo = Math.round((new Date(_hoje) - new Date(p.ent.dt_inicio)) / (1000*60*60*24));
+    if(_diasCiclo > 0) p.ent.t_total = _diasCiclo + ' dias';
+  }
+  p.dt_proximo_acompanhamento = _addDias(_hoje, 180);
 
   // Criar publicação tipo POP automaticamente se ainda não existir para este processo
   const jaTemPop = publicacoes.some(pub=>(pub.proc_ids||[]).includes(p.id) && pub.categoria==='POPs');
@@ -7703,7 +7751,7 @@ function rEnt(p){
     <div class="card">
       <div class="card-t">Identificação temporal</div>
       <div class="g2">
-        ${[['Início',e.dt_inicio||'—'],['Prev. entrega',e.dt_prev||'—'],['Entrega efetiva',e.dt_efetiva||'—'],['Produto',p.produto||'—'],['Tempo total',e.t_total||'—'],['Tempo sem fila',e.t_sem_fila||'—']].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
+        ${[['Início',e.dt_inicio||'—'],['Prev. entrega',e.dt_prev||'—'],['Entrega efetiva',e.dt_efetiva||'—'],['Fim do ciclo',p.dt_ciclo_fim||'—'],['Próx. acompanhamento',p.dt_proximo_acompanhamento||'—'],['Produto',p.produto||'—'],['Tempo total',e.t_total||'—'],['Tempo sem fila',e.t_sem_fila||'—']].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
         ${desvioHtml}
         ${prazoEpHtml}
       </div>
