@@ -1159,7 +1159,7 @@ Não responda este e-mail.</pre>
       </div>
       <div class="fg"><label class="fl" for="pub-tags">Tags (separadas por vírgula)</label><input class="fi" id="pub-tags" placeholder="Ex: bpmn, mapeamento, tutorial"></div>
       <div class="fg" id="pub-procs-wrap">
-        <label class="fl">Processos vinculados</label>
+        <label class="fl" for="pub-procs">Processos vinculados</label>
         <select class="fi" id="pub-procs" multiple style="min-height:90px;padding:4px 8px"></select>
         <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">Segure Ctrl (Windows) ou ⌘ (Mac) para selecionar múltiplos processos</div>
       </div>
@@ -2702,10 +2702,12 @@ function renderProcs(){
       const _fmtD=d=>d?d.split('-').reverse().join('/'):'—';
       const _dtProx=p.dt_proximo_acompanhamento;
       const _acompVenc=_dtProx&&_dtProx<new Date().toISOString().slice(0,10);
+      const _concCor=_acompVenc?'var(--red)':'var(--ink3)';
+      const _concWarn=_acompVenc?' ⚠':'';
       return `<div class="prc" onclick="abrirProc(${p.id})" style="border-left:3px solid var(--green,#16a34a)">
         <div><div class="prc-t">${esc(p.nome)}</div>
         <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div>
-        ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_acompVenc?'var(--red)':'var(--ink3)'}">Ciclo encerrado em ${_fmtD(p.dt_ciclo_fim||'')} · Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_acompVenc?' ⚠':''}</div>`:''}
+        ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_concCor}">Ciclo encerrado em ${_fmtD(p.dt_ciclo_fim||'')} · Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_concWarn}</div>`:''}
         </div>
         <div class="prc-r"><span class="badge bg" style="font-size:10px">✓ Mapeado</span>${eBadge(p.etapa)}</div>
       </div>`;
@@ -4232,17 +4234,27 @@ const ACOES = {
       const _fmtDtAcomp = d => d ? d.split('-').reverse().join('/') : '—';
       const _dtProx = p.dt_proximo_acompanhamento;
       const _dtFim  = p.dt_ciclo_fim;
-      const _diasAteAcomp = _dtProx ? Math.round((new Date(_dtProx) - new Date()) / (1000*60*60*24)) : null;
+      const _diasAteAcomp = _dtProx ? Math.round((new Date(_dtProx) - Date.now()) / (1000*60*60*24)) : null;
       const _acompVencido = _diasAteAcomp !== null && _diasAteAcomp < 0;
+      const _bgCor   = _acompVencido ? 'var(--red-l,#fef2f2)'  : 'var(--green-l,#f0fdf4)';
+      const _bdrCor  = _acompVencido ? 'var(--red-b,#fecaca)'  : 'var(--green-b,#bbf7d0)';
+      const _icon    = _acompVencido ? '⚠'                    : '📅';
+      const _txtCor  = _acompVencido ? 'var(--red)'            : 'var(--green,#16a34a)';
+      const _titulo  = _acompVencido ? 'Acompanhamento em atraso' : 'Próximo acompanhamento agendado';
+      const _cicloTx = _dtFim ? 'Ciclo encerrado em <strong>' + _fmtDtAcomp(_dtFim) + '</strong> · ' : '';
+      let _diasLabel = '';
+      if (_diasAteAcomp !== null) {
+        if (_acompVencido) _diasLabel = ' (' + Math.abs(_diasAteAcomp) + ' dias em atraso)';
+        else if (_diasAteAcomp === 0) _diasLabel = ' (hoje)';
+        else _diasLabel = ' (' + _diasAteAcomp + ' dias)';
+      }
       const _acompBanner = _dtProx ? `
-        <div style="margin-bottom:1rem;padding:.8rem 1rem;border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:${_acompVencido?'var(--red-l,#fef2f2)':'var(--green-l,#f0fdf4)'};border:1px solid ${_acompVencido?'var(--red-b,#fecaca)':'var(--green-b,#bbf7d0)'}">
-          <div style="font-size:1.4rem">${_acompVencido?'⚠':'📅'}</div>
+        <div style="margin-bottom:1rem;padding:.8rem 1rem;border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:${_bgCor};border:1px solid ${_bdrCor}">
+          <div style="font-size:1.4rem">${_icon}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:700;color:${_acompVencido?'var(--red)':'var(--green,#16a34a)'}">${_acompVencido?'Acompanhamento em atraso':'Próximo acompanhamento agendado'}</div>
+            <div style="font-size:12px;font-weight:700;color:${_txtCor}">${_titulo}</div>
             <div style="font-size:12px;color:var(--ink2);margin-top:2px">
-              ${_dtFim?`Ciclo encerrado em <strong>${_fmtDtAcomp(_dtFim)}</strong> · `:''}
-              Acompanhamento previsto em <strong>${_fmtDtAcomp(_dtProx)}</strong>
-              ${_diasAteAcomp !== null ? ` (${_acompVencido ? Math.abs(_diasAteAcomp)+' dias em atraso' : _diasAteAcomp === 0 ? 'hoje' : _diasAteAcomp+' dias'})` : ''}
+              ${_cicloTx}Acompanhamento previsto em <strong>${_fmtDtAcomp(_dtProx)}</strong>${_diasLabel}
             </div>
           </div>
         </div>` : '';
@@ -4966,17 +4978,21 @@ function _rAcaoAppendEPBars(el, p, isPulada){
   const prazoAtual=showPrazo?((p.prazos_ep||{})[p.etapa]||''):'';
   const bar=document.createElement('div');
   bar.style.cssText='margin-top:.8rem;padding:.65rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--blue-l,#eff6ff)';
+  const _prazoFmt = prazoAtual ? prazoAtual.split('-').reverse().join('/') : 'Não definido';
+  const _prazoHtml = showPrazo ? `<span style="font-size:11.5px;color:var(--ink3)">⏱ Prazo EP: <strong style="color:var(--ink)">${_prazoFmt}</strong></span>` : '';
   const leftHtml=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span style="font-size:12px;color:var(--ink2);font-weight:500">Ações disponíveis:</span>
-    ${showPrazo?`<span style="font-size:11.5px;color:var(--ink3)">⏱ Prazo EP: <strong style="color:var(--ink)">${prazoAtual?prazoAtual.split('-').reverse().join('/'):'Não definido'}</strong></span>`:''}
+    ${_prazoHtml}
   </div>`;
   const btns=[];
   btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="abrirAtribuirEtapa('${p.etapa}')">👤 Atribuir a...</button>`);
   if(showPrazo) btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="definirPrazoEP('${p.etapa}')">✎ Definir prazo</button>`);
   if(!isPulada&&nextEt(p.etapa)) btns.push(`<button type="button" class="btn btn-a" style="font-size:11px;padding:3px 9px" onclick="pularEtapaConfirm('${p.etapa}')">⏭ Pular etapa</button>`);
   if(hasAdvance){
-    btns.push(`<button type="button" class="btn" style="font-size:12px;padding:4px 12px" onclick="_SAVE_MAP[curProc?.etapa]?.()">💾 Salvar dados</button>`);
-    btns.push(`<button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">✓ Salvar e ir para próxima →</button>`);
+    btns.push(
+      `<button type="button" class="btn" style="font-size:12px;padding:4px 12px" onclick="_SAVE_MAP[curProc?.etapa]?.()">💾 Salvar dados</button>`,
+      `<button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">✓ Salvar e ir para próxima →</button>`
+    );
   }
   bar.innerHTML=leftHtml+`<div style="display:flex;gap:6px;flex-wrap:wrap">${btns.join('')}</div>`;
   el.appendChild(bar);
@@ -6853,8 +6869,11 @@ function salvarRelatorioAuditoria(concluir){
 function exportarAuditoriaWord(){
   const p=curProc;if(!p){toast('Processo não encontrado.','var(--red)');return;}
   const aud=p.auditoria||{};
-  const _e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const _d=d=>d?(d.includes('-')?d.split('-').reverse().join('/'):d):'—';
+  const _e=s=>(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+  const _d=d=>{
+    if(!d) return '—';
+    return d.includes('-') ? d.split('-').reverse().join('/') : d;
+  };
   const _confCor={Conforme:'#16a34a','Conforme com ressalvas':'#d97706','Não conforme':'#dc2626'};
   const _achadoCor={'Não conformidade':'#dc2626','Observação':'#d97706','Conformidade':'#16a34a','Ponto de melhoria':'#2563eb'};
   const _statusCor={Pendente:'#d97706','Em andamento':'#2563eb','Concluída':'#16a34a'};
@@ -6865,10 +6884,9 @@ function exportarAuditoriaWord(){
 
   const tabela=(colunas,linhas)=>{
     if(!linhas.length) return '<p style="color:#888;font-style:italic">Nenhum registro.</p>';
-    return `<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt">
-      <tr>${colunas.map(c=>`<th style="background:#1E3A5F;color:#fff;padding:6px 8px;text-align:left;border:1px solid #1E3A5F">${c}</th>`).join('')}</tr>
-      ${linhas.map((row,i)=>`<tr style="background:${i%2?'#f5f7fa':'#fff'}">${row.map(c=>`<td style="border:1px solid #ddd;padding:5px 8px;vertical-align:top">${c}</td>`).join('')}</tr>`).join('')}
-    </table>`;
+    const _ths=colunas.map(c=>'<th style="background:#1E3A5F;color:#fff;padding:6px 8px;text-align:left;border:1px solid #1E3A5F">'+c+'</th>').join('');
+    const _trs=linhas.map((row,i)=>'<tr style="background:'+(i%2?'#f5f7fa':'#fff')+'">'+row.map(c=>'<td style="border:1px solid #ddd;padding:5px 8px;vertical-align:top">'+c+'</td>').join('')+'</tr>').join('');
+    return '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt"><tr>'+_ths+'</tr>'+_trs+'</table>';
   };
 
   // 1. CABEÇALHO
@@ -6944,8 +6962,8 @@ function exportarAuditoriaWord(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
-  a.download='Auditoria_'+(p.nome||'processo').replace(/[^a-zA-Z0-9]/g,'_').slice(0,50)+'.doc';
-  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  a.download='Auditoria_'+(p.nome||'processo').replaceAll(/[^a-zA-Z0-9]/g,'_').slice(0,50)+'.doc';
+  document.body.appendChild(a);a.click();a.remove();
   URL.revokeObjectURL(url);
   toast('Relatório Word exportado!','var(--teal)');
 }
@@ -11549,6 +11567,12 @@ function filtPub(cat, el){
   rPub();
 }
 
+function _pubProcsHtml(p){
+  const procs=(p.proc_ids||[]).map(pid=>processos.find(x=>x.id===pid)).filter(Boolean);
+  if(!procs.length) return '';
+  const chips=procs.map(x=>'<span style="font-size:10px;background:var(--green-b,#dcfce7);color:var(--green,#16a34a);padding:1px 7px;border-radius:99px;font-weight:600">'+esc(x.nome)+'</span>').join('');
+  return '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">'+chips+'</div>';
+}
 function rPub(){
   const lista = _pubFiltro ? publicacoes.filter(p=>p.categoria===_pubFiltro) : publicacoes;
   const el = document.getElementById('pub-list');
@@ -11578,7 +11602,7 @@ function rPub(){
         <div style="display:flex;flex-wrap:wrap;gap:4px">
           ${tags.map(t=>`<span style="font-size:10px;background:var(--bg3);color:var(--ink3);padding:1px 6px;border-radius:99px">${esc(t)}</span>`).join('')}
         </div>
-        ${(()=>{const procs=(p.proc_ids||[]).map(pid=>processos.find(x=>x.id===pid)).filter(Boolean);return procs.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${procs.map(x=>`<span style="font-size:10px;background:var(--green-b,#dcfce7);color:var(--green,#16a34a);padding:1px 7px;border-radius:99px;font-weight:600">${esc(x.nome)}</span>`).join('')}</div>`:'';})()}
+        ${_pubProcsHtml(p)}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--bdr)">
           <div style="font-size:10.5px;color:var(--ink3)">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div style="display:flex;gap:5px">
@@ -12638,8 +12662,10 @@ function gerarStatusReportPDF(){
   const dtFmt=hoje.toLocaleDateString('pt-BR');
   const dtMesL=hoje.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);
-  const _e=s=>String(s==null?'—':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const _ea=s=>_e(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const _e=s=>{const v=s==null?'—':s;return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');};
+  const _ea=s=>_e(s).replaceAll('"','&quot;').replaceAll("'",'&#39;');
+  const _corPct=(p,hi=70,mid=40)=>p>=hi?'#16a34a':p>=mid?'#d97706':'#dc2626';
+  const _corPct80=(p)=>p>=80?'#16a34a':p>=60?'#d97706':'#dc2626';
   const _d=d=>d?(d.includes('-')?d.split('-').reverse().join('/'):d):'—';
   const _recente=d=>d&&new Date(d.includes('/')?d.split('/').reverse().join('-'):d)>=umMesAtras;
 
@@ -12654,6 +12680,9 @@ function gerarStatusReportPDF(){
   const comStatus=doAno.filter(a=>planoStatusEfetivo(a)==='concluida'&&a.entrega_status);
   const emDia=comStatus.filter(a=>a.entrega_status==='em_dia').length;
   const pctPont=comStatus.length?Math.round(emDia/comStatus.length*100):null;
+  let _pontCor='#dc2626';
+  if(pctPont!==null){if(pctPont>=80)_pontCor='#16a34a';else if(pctPont>=60)_pontCor='#d97706';}
+  const _pontHtml=pctPont===null?'':`<p style="font-size:9pt;color:#6b7280;margin-top:4px">Pontualidade nas entregas: <strong style="color:${_pontCor}">${pctPont}%</strong> (${emDia} em dia de ${comStatus.length} concluídas com prazo)</p>`;
   const doTri=doAno.filter(a=>a.trimestre===trimAtual);
   const triConcl=doTri.filter(a=>planoStatusEfetivo(a)==='concluida').length;
   const triExec=doTri.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
@@ -12694,7 +12723,10 @@ function gerarStatusReportPDF(){
   const metasRows=metasAno.map(m=>{
     const real=_metaRealizado(m);
     const pct=m.meta?Math.min(100,Math.round(real/m.meta*100)):null;
-    const cor=pct===null?'#888':pct>=100?'#16a34a':pct>=70?'#d97706':'#dc2626';
+    let cor='#dc2626';
+    if(pct===null) cor='#888';
+    else if(pct>=100) cor='#16a34a';
+    else if(pct>=70) cor='#d97706';
     return{titulo:m.titulo,meta:m.meta,real,unidade:m.unidade,pct,cor,obs:m.obs};
   });
 
@@ -12702,7 +12734,12 @@ function gerarStatusReportPDF(){
   const SEC=(n,t)=>`<h2 class="sec">${n}. ${t}</h2>`;
   const SUB=t=>`<h3 class="sub">${t}</h3>`;
   const EMPTY=`<p class="vazio">Nenhum registro.</p>`;
-  const tbl=(heads,rows)=>rows.length?`<table><thead><tr>${heads.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr class="${i%2?'alt':''}">${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`:EMPTY;
+  const tbl=(heads,rows)=>{
+    if(!rows.length) return EMPTY;
+    const _th=heads.map(h=>'<th>'+h+'</th>').join('');
+    const _tr=rows.map((r,i)=>'<tr class="'+(i%2?'alt':'')+'">'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('');
+    return '<table><thead><tr>'+_th+'</tr></thead><tbody>'+_tr+'</tbody></table>';
+  };
   const badge=(v,cor)=>`<span style="color:${cor};font-weight:700">${_e(v)}</span>`;
   const pbar=(pct,cor)=>`<div style="background:#e5e7eb;border-radius:99px;height:7px;margin-top:3px"><div style="background:${cor};height:7px;border-radius:99px;width:${pct||0}%"></div></div>`;
   const kpi=(label,val,sub,cor)=>`<div class="kpi"><div class="kpi-val" style="color:${cor||'#2B485F'}">${val}</div><div class="kpi-lbl">${label}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
@@ -12817,28 +12854,28 @@ function gerarStatusReportPDF(){
     <div class="card">
       <div class="card-t">Por categoria — ${ano}</div>
       ${tbl(['Categoria','Total','Concluídas','%'],
-        catMetrics.map(c=>[_e(c.cat),c.total,c.concl,badge(c.pct+'%',c.pct>=70?'#16a34a':c.pct>=40?'#d97706':'#dc2626')])
+        catMetrics.map(c=>[_e(c.cat),c.total,c.concl,badge(c.pct+'%',_corPct(c.pct))])
       )}
     </div>
   </div>
-  ${pctPont!==null?`<p style="font-size:9pt;color:#6b7280;margin-top:4px">Pontualidade nas entregas: <strong style="color:${pctPont>=80?'#16a34a':pctPont>=60?'#d97706':'#dc2626'}">${pctPont}%</strong> (${emDia} em dia de ${comStatus.length} concluídas com prazo)</p>`:''}
+  ${_pontHtml}
 
   ${SEC(5,'Metas do Escritório — '+ano)}
   ${metasRows.length?metasRows.map(m=>`<div class="meta-row">
     <div class="meta-header">
       <span><strong>${_e(m.titulo)}</strong>${m.obs?` <span style="color:#9ca3af;font-size:8.5pt">— ${_e(m.obs)}</span>`:''}</span>
-      <span style="font-weight:700;color:${m.cor}">${m.real??'—'} / ${m.meta??'—'} ${_e(m.unidade)}${m.pct!==null?' ('+m.pct+'%)':''}</span>
+      <span style="font-weight:700;color:${m.cor}">${m.real??'—'} / ${m.meta??'—'} ${_e(m.unidade)}${m.pct===null?'':' ('+m.pct+'%)'}</span>
     </div>
-    ${m.pct!==null?pbar(m.pct,m.cor):''}
+    ${m.pct===null?'':pbar(m.pct,m.cor)}
   </div>`).join(''):`<p class="vazio">Nenhuma meta cadastrada para ${ano}.</p>`}
 
   ${SEC(6,'Cobertura da Arquitetura de Processos')}
   <div class="grid2">
     <div class="kpi" style="grid-column:span 1;text-align:center;padding:14px">
-      <div class="kpi-val" style="color:${pctCob>=70?'#16a34a':pctCob>=40?'#d97706':'#dc2626'}">${pctCob}%</div>
+      <div class="kpi-val" style="color:${_corPct(pctCob)}">${pctCob}%</div>
       <div class="kpi-lbl">Cobertura total</div>
       <div class="kpi-sub">${mx.nMap} de ${mx.nUnid} processos/subprocessos mapeados</div>
-      ${pbar(pctCob,pctCob>=70?'#16a34a':pctCob>=40?'#d97706':'#dc2626')}
+      ${pbar(pctCob,_corPct(pctCob))}
     </div>
     <div></div>
   </div>
@@ -12846,8 +12883,8 @@ function gerarStatusReportPDF(){
     <div class="card-t">Por macroprocesso</div>
     ${cobMacro.map(m=>`<div class="macro-row">
       <div class="macro-nome" title="${_ea(m.nome)}">${_e(m.nome)}</div>
-      <div style="flex:0 0 160px;background:#e5e7eb;border-radius:99px;height:7px"><div style="background:${m.pct>=70?'#16a34a':m.pct>=40?'#d97706':'#dc2626'};height:7px;border-radius:99px;width:${m.pct}%"></div></div>
-      <div class="macro-pct" style="color:${m.pct>=70?'#16a34a':m.pct>=40?'#d97706':'#dc2626'}">${m.pct}%</div>
+      <div style="flex:0 0 160px;background:#e5e7eb;border-radius:99px;height:7px"><div style="background:${_corPct(m.pct)};height:7px;border-radius:99px;width:${m.pct}%"></div></div>
+      <div class="macro-pct" style="color:${_corPct(m.pct)}">${m.pct}%</div>
       <div style="font-size:8.5pt;color:#9ca3af;width:60px;text-align:right">${m.nM}/${m.nU}</div>
     </div>`).join('')}
   </div>
