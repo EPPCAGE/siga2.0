@@ -1120,6 +1120,7 @@ Não responda este e-mail.</pre>
     <span class="fbar-l">Categoria</span>
     <div class="chips" id="pub-chips">
       <button type="button" class="chip on" onclick="filtPub('',this)">Todas</button>
+      <button type="button" class="chip" onclick="filtPub('POPs',this)">POPs</button>
       <button type="button" class="chip" onclick="filtPub('Manual',this)">Manual</button>
       <button type="button" class="chip" onclick="filtPub('Drop',this)">Drop</button>
       <button type="button" class="chip" onclick="filtPub('Metodologia',this)">Metodologia</button>
@@ -1138,7 +1139,8 @@ Não responda este e-mail.</pre>
       <div class="fg"><label class="fl" for="pub-titulo">Título<span>*</span></label><input class="fi" id="pub-titulo" placeholder="Ex: Manual de Mapeamento de Processos v2"></div>
       <div class="g2">
         <div class="fg"><label class="fl" for="pub-cat">Categoria</label>
-          <select class="fi" id="pub-cat">
+          <select class="fi" id="pub-cat" onchange="_pubCatChange(this.value)">
+            <option>POPs</option>
             <option>Manual</option>
             <option>Drop</option>
             <option>Metodologia</option>
@@ -1155,6 +1157,11 @@ Não responda este e-mail.</pre>
         <div class="fg"><label class="fl" for="pub-resp">Responsável</label><input class="fi" id="pub-resp" placeholder="Ex: EP·CAGE"></div>
       </div>
       <div class="fg"><label class="fl" for="pub-tags">Tags (separadas por vírgula)</label><input class="fi" id="pub-tags" placeholder="Ex: bpmn, mapeamento, tutorial"></div>
+      <div class="fg" id="pub-procs-wrap">
+        <label class="fl">Processos vinculados</label>
+        <select class="fi" id="pub-procs" multiple style="min-height:90px;padding:4px 8px"></select>
+        <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">Segure Ctrl (Windows) ou ⌘ (Mac) para selecionar múltiplos processos</div>
+      </div>
       <div class="fg">
         <label class="fl" for="pub-thumb">Capa / Thumbnail</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -9596,10 +9603,11 @@ function _normIntel(v=''){
 }
 
 function _procPublicacoesVinculadas(proc){
-  const nome = _normIntel(proc.nome);
-  const arqId = _normIntel(proc.arq_id);
-  if(!nome && !arqId) return [];
   return publicacoes.filter(pub=>{
+    if((pub.proc_ids||[]).length) return pub.proc_ids.includes(proc.id);
+    const nome = _normIntel(proc.nome);
+    const arqId = _normIntel(proc.arq_id);
+    if(!nome && !arqId) return false;
     const alvo = _normIntel([pub.titulo, pub.desc, pub.tags, pub.responsavel].filter(Boolean).join(' '));
     return (nome && alvo.includes(nome)) || (arqId && alvo.includes(arqId));
   });
@@ -11384,7 +11392,7 @@ function rPub(){
     el.innerHTML = '<div class="ib ibsl">Nenhuma publicação encontrada. Clique em "+ Nova publicação" para adicionar.</div>';
     return;
   }
-  const catColor = {Manual:'var(--blue)',Drop:'var(--teal)',Metodologia:'var(--purple,#7c3aed)',Formulário:'var(--amber)',Outro:'var(--ink3)'};
+  const catColor = {POPs:'var(--green,#16a34a)',Manual:'var(--blue)',Drop:'var(--teal)',Metodologia:'var(--purple,#7c3aed)',Formulário:'var(--amber)',Outro:'var(--ink3)'};
   el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">` +
     lista.map(p=>{
       const cor = catColor[p.categoria]||'var(--ink3)';
@@ -11403,6 +11411,7 @@ function rPub(){
         <div style="display:flex;flex-wrap:wrap;gap:4px">
           ${tags.map(t=>`<span style="font-size:10px;background:var(--bg3);color:var(--ink3);padding:1px 6px;border-radius:99px">${esc(t)}</span>`).join('')}
         </div>
+        ${(()=>{const procs=(p.proc_ids||[]).map(pid=>processos.find(x=>x.id===pid)).filter(Boolean);return procs.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${procs.map(x=>`<span style="font-size:10px;background:var(--green-b,#dcfce7);color:var(--green,#16a34a);padding:1px 7px;border-radius:99px;font-weight:600">${esc(x.nome)}</span>`).join('')}</div>`:'';})()}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--bdr)">
           <div style="font-size:10.5px;color:var(--ink3)">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div style="display:flex;gap:5px">
@@ -11416,6 +11425,16 @@ function rPub(){
     }).join('') + '</div>';
 }
 
+function _pubPopularSelectProcs(selectedIds){
+  const sel = document.getElementById('pub-procs');
+  if(!sel) return;
+  const arqProcs = processos.filter(p=>p.arq_id).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  sel.innerHTML = arqProcs.map(p=>`<option value="${p.id}"${(selectedIds||[]).includes(p.id)?' selected':''}>${esc(p.nome)}</option>`).join('');
+}
+function _pubCatChange(cat){
+  const wrap = document.getElementById('pub-procs-wrap');
+  if(wrap) wrap.style.display = cat==='POPs' ? '' : 'none';
+}
 function abrirModalPub(){
   if(!isEP()){toast('Ação restrita ao EPP.','var(--amber)');return;}
   document.getElementById('pub-modal-titulo').textContent = 'Nova publicação';
@@ -11431,6 +11450,8 @@ function abrirModalPub(){
   document.getElementById('pub-tags').value    = '';
   document.getElementById('pub-thumb').value   = '';
   document.getElementById('pub-thumb-preview').style.display = 'none';
+  _pubPopularSelectProcs([]);
+  _pubCatChange('Manual');
   document.getElementById('pub-modal').style.display = 'flex';
 }
 
@@ -11452,12 +11473,16 @@ function editarPub(id){
   const prev = document.getElementById('pub-thumb-preview');
   const img  = document.getElementById('pub-thumb-img');
   if(p.thumb_url){ img.src=p.thumb_url; prev.style.display='block'; } else { prev.style.display='none'; }
+  _pubPopularSelectProcs(p.proc_ids||[]);
+  _pubCatChange(p.categoria||'Manual');
   document.getElementById('pub-modal').style.display = 'flex';
 }
 
 function salvarPub(){
   const titulo = document.getElementById('pub-titulo').value.trim();
   if(!titulo){ toast('Informe o título da publicação.','var(--amber)'); return; }
+  const selProcs = document.getElementById('pub-procs');
+  const procIds = selProcs ? Array.from(selProcs.selectedOptions).map(o=>Number(o.value)) : [];
   const obj = {
     id: null,
     titulo,
@@ -11469,6 +11494,7 @@ function salvarPub(){
     responsavel: document.getElementById('pub-resp').value.trim(),
     tags:        document.getElementById('pub-tags').value.trim(),
     thumb_url:   document.getElementById('pub-thumb').value.trim(),
+    proc_ids:    procIds,
   };
   const editId = document.getElementById('pub-edit-id').value;
   if(editId){
