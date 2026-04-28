@@ -12664,9 +12664,8 @@ function gerarStatusReportPDF(){
   const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);
   const _e=s=>{const v=s==null?'—':s;return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');};
   const _ea=s=>_e(s).replaceAll('"','&quot;').replaceAll("'",'&#39;');
-  const _corPct=(p,hi=70,mid=40)=>p>=hi?'#16a34a':p>=mid?'#d97706':'#dc2626';
-  const _corPct80=(p)=>p>=80?'#16a34a':p>=60?'#d97706':'#dc2626';
-  const _d=d=>d?(d.includes('-')?d.split('-').reverse().join('/'):d):'—';
+  const _corPct=(p,hi=70,mid=40)=>{if(p>=hi)return '#16a34a';if(p>=mid)return '#d97706';return '#dc2626';};
+  const _d=d=>{if(!d)return '—';return d.includes('-')?d.split('-').reverse().join('/'):d;};
   const _recente=d=>d&&new Date(d.includes('/')?d.split('/').reverse().join('-'):d)>=umMesAtras;
 
   // ── PAT métricas ──────────────────────────────────────────────────────────────
@@ -12742,7 +12741,7 @@ function gerarStatusReportPDF(){
   };
   const badge=(v,cor)=>`<span style="color:${cor};font-weight:700">${_e(v)}</span>`;
   const pbar=(pct,cor)=>`<div style="background:#e5e7eb;border-radius:99px;height:7px;margin-top:3px"><div style="background:${cor};height:7px;border-radius:99px;width:${pct||0}%"></div></div>`;
-  const kpi=(label,val,sub,cor)=>`<div class="kpi"><div class="kpi-val" style="color:${cor||'#2B485F'}">${val}</div><div class="kpi-lbl">${label}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
+  const kpi=(label,val,sub,cor)=>{const _sub=sub?'<div class="kpi-sub">'+sub+'</div>':'';return `<div class="kpi"><div class="kpi-val" style="color:${cor||'#2B485F'}">${val}</div><div class="kpi-lbl">${label}</div>${_sub}</div>`;};
   const etBadge=et=>{const m={abertura:'Abertura',reuniao:'Reunião',questionario:'Questionário',esboco_asis:'Esboço AS IS',det_valid_asis:'Det. AS IS',riscos:'Riscos',analise:'Análise',melhorias:'Melhorias',esboco_tobe:'Esboço TO BE',det_valid_tobe:'Det. TO BE',desenho_final:'Desenho Final',indicadores_proc:'Indicadores',pop:'POP',apresentacao:'Apresentação',publicacao:'Publicação',acompanha:'Acompanhamento',auditoria:'Auditoria'};return m[et]||et||'—';};
 
   // ── HTML ────────────────────────────────────────────────────────────────────
