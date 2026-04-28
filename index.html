@@ -12641,7 +12641,7 @@ function gerarStatusReportPDF(){
   const dtFmt=hoje.toLocaleDateString('pt-BR');
   const dtMesL=hoje.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);
-  const _e=s=>(s||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _e=s=>String(s==null?'—':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const _d=d=>d?(d.includes('-')?d.split('-').reverse().join('/'):d):'—';
   const _recente=d=>d&&new Date(d.includes('/')?d.split('/').reverse().join('-'):d)>=umMesAtras;
 
