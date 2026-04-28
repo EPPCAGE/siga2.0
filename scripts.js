@@ -1,8 +1,8 @@
 ﻿// ═══════════════════════════════════════════
 // DADOS CENTRAIS
 // ═══════════════════════════════════════════
-const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto'};
-const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00'};
+const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto',gerente_projeto:'Gerente de Projeto'};
+const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
 // Enums frozen — usar em vez de strings literais em código novo
 const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor'});
 const STATUS_ENTREGA = Object.freeze({EM_DIA:'em_dia', COM_ATRASO:'com_atraso', SEM_PRAZO:'sem_prazo'});
@@ -237,7 +237,8 @@ function _aplicarUsuario(user){
   document.getElementById('aside-av').textContent=user.iniciais;
   const mobAv=document.getElementById('mob-user-av');if(mobAv)mobAv.textContent=user.iniciais;
   document.getElementById('aside-name').textContent=user.nome;
-  document.getElementById('aside-role').textContent=PERFIL_LABELS[user.perfil]||user.perfil;
+  const roleTxt = getPerfisUsuario(user).map(p=>PERFIL_LABELS[p]||p).join(' · ') || (PERFIL_LABELS[user.perfil]||user.perfil);
+  document.getElementById('aside-role').textContent=roleTxt;
   _aplicarToggleEP(user);
   updCounts();
   aplicarPermissoes();
@@ -753,7 +754,7 @@ function rListaAptosAuditoria(){
         <div class="prc-m"><strong>${esc(p.macro||'—')}</strong> · ${esc(p.area||'—')} · Dono: ${esc(p.dono||'—')}</div>
         <div style="font-size:11px;color:var(--ink3);margin-top:2px">
           <span class="badge bg" style="font-size:9px">Mapeado</span>
-          &nbsp;Etapa atual: <strong>${etLb(p.etapa)}</strong>
+          &nbsp;Etapa atual: <strong>${esc(etLb(p.etapa))}</strong>
           ${p.auditoria?.data?`&nbsp;· Última auditoria: ${esc(p.auditoria.data)}`:''}
         </div>
       </div>
@@ -887,8 +888,28 @@ function taskCard(p,ACT){
 // ═══════════════════════════════════════════
 
 // ─── PERMISSÕES ───────────────────────────────────────────
-function isEP(){ return usuarioLogado?.perfil === 'ep'; }
-function isDono(){ return usuarioLogado?.perfil === 'dono'; }
+function getPerfisUsuario(u=usuarioLogado){
+  if(!u) return [];
+  if(Array.isArray(u.perfis) && u.perfis.length) return [...new Set(u.perfis.map(p=>String(p||'').trim()).filter(Boolean))];
+  return u.perfil ? [u.perfil] : [];
+}
+function hasPerfil(perfil, u=usuarioLogado){ return getPerfisUsuario(u).includes(perfil); }
+function isEP(){ return hasPerfil('ep'); }
+function isDono(){ return hasPerfil('dono'); }
+function isGerenteProjeto(){ return hasPerfil('gerente_projeto'); }
+function projCanWriteAll(){ return isEP(); }
+function projCanWriteExec(){ return isEP() || isGerenteProjeto(); }
+function projCanViewOnly(){ return isDono() && !isEP() && !isGerenteProjeto(); }
+function projEnsureWriteAll(msg='Apenas EPP pode editar esta seção do módulo de projetos.'){
+  if(projCanWriteAll()) return true;
+  projToast(msg, '#d97706');
+  return false;
+}
+function projEnsureWriteExec(msg='Apenas EPP e Gerente de Projeto podem executar esta ação.'){
+  if(projCanWriteExec()) return true;
+  projToast(msg, '#d97706');
+  return false;
+}
 
 
 function _aplicarPermissoesNavBtns(){
@@ -1279,10 +1300,10 @@ function criarProcesso(){
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
     ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
       <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem">Notificar Dono do Processo?</div>
-      <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">Deseja enviar notificação e e-mail para <strong>${p.dono}</strong> informando que o mapeamento de <em>${p.nome}</em> foi iniciado?</div>
+      <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">Deseja enviar notificação e e-mail para <strong>${esc(p.dono)}</strong> informando que o mapeamento de <em>${esc(p.nome)}</em> foi iniciado?</div>
       <div class="btn-row">
         <button type="button" class="btn" onclick="this.closest('[style*=fixed]').remove()">Não agora</button>
-        <button type="button" class="btn btn-p" onclick="enviarNotif('${donoEmail}','${p.dono}','Mapeamento iniciado — aguarda questionário de maturidade','${p.nome}','','EP·CAGE');toast('Notificação enviada para ${p.dono}','var(--teal)');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
+        <button type="button" class="btn btn-p" onclick="enviarNotif(${JSON.stringify(donoEmail)},${JSON.stringify(p.dono)},'Mapeamento iniciado — aguarda questionário de maturidade',${JSON.stringify(p.nome)},'', 'EP·CAGE');toast('Notificação enviada para '+${JSON.stringify(p.dono)},'var(--teal)');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
       </div>
     </div>`;
     document.body.appendChild(ov);
@@ -1322,7 +1343,7 @@ function perguntarNotifDono(etapaProxId){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
   ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:440px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
     <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.5rem">📋 Tarefa encaminhada ao dono</div>
-    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">A etapa <em><strong>${etLb(etapaProxId)}</strong></em> aguarda ação de <strong>${p.dono}</strong>. Defina o prazo para que o dono conclua esta tarefa.</div>
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">A etapa <em><strong>${etLb(etapaProxId)}</strong></em> aguarda ação de <strong>${esc(p.dono)}</strong>. Defina o prazo para que o dono conclua esta tarefa.</div>
     <div class="fg" style="margin-bottom:1.2rem">
       <label class="fl">Prazo para conclusão <span style="color:var(--red)">*</span></label>
       <input class="fi" type="date" id="prazo-dono-inp" value="${defaultPrazo}" min="${hoje}">
@@ -3561,7 +3582,8 @@ async function iaGerarRelatorioAuditoria(){
     } catch {
       const html = `<div class="ai-result"><div class="ai-result-lbl">✦ Relatório</div><div style="white-space:pre-wrap;font-size:12px">${esc(result)}</div></div>`;
       el.innerHTML = html;
-      p.auditoria.relatorio_html = html;
+      p.auditoria.relatorio_html = '';
+      p.auditoria.relatorio_texto = String(result||'');
     }
   }
   if(btn) btn.disabled = false;
@@ -7543,11 +7565,12 @@ async function salvarUsr(){
 
   if(idxStr===''){
     if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
-    USUARIOS.push({email, nome, perfil, iniciais:ini, processos_vinculados:vinculos});
+    USUARIOS.push({email, nome, perfil, perfis:[perfil], iniciais:ini, processos_vinculados:vinculos});
   } else {
     const idx = Number.parseInt(idxStr);
     if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
-    USUARIOS[idx] = {...USUARIOS[idx], email, nome, perfil, iniciais:ini, processos_vinculados:vinculos};
+    const perfisPrev = Array.isArray(USUARIOS[idx].perfis) ? USUARIOS[idx].perfis : (USUARIOS[idx].perfil ? [USUARIOS[idx].perfil] : []);
+    USUARIOS[idx] = {...USUARIOS[idx], email, nome, perfil, perfis:[...new Set([...perfisPrev, perfil])], iniciais:ini, processos_vinculados:vinculos};
     if(usuarioLogado?.email===email){
       usuarioLogado = USUARIOS[idx];
       document.getElementById('aside-name').textContent = nome;
@@ -9204,8 +9227,8 @@ function gerarRelatorioIndPdf(){
       <td>${k.codigo?'<strong>'+esc(k.codigo)+'</strong> — ':''}${esc(k.nome)}</td>
       <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
       <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
-      <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
-      <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
+      <td style="text-align:center">${hasMeta?esc(String(k.meta)+und):'—'}</td>
+      <td style="text-align:center;font-weight:600">${esc(String(k.realizado)+und)}</td>
       <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
       <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
     </tr>`;
@@ -9620,8 +9643,123 @@ var _objetivosEstrategicos = [
   '[Aprendizado] Promover uma comunicação interna mais efetiva',
   '[Aprendizado] Assegurar serviços de TIC para suportar os processos e a estratégia'
 ];
-function projLoadListas(){try{var m=localStorage.getItem('cage_macroprocessos_v6');if(m)_macroprocessos=JSON.parse(m);var o=localStorage.getItem('cage_objetivos_v6');if(o)_objetivosEstrategicos=JSON.parse(o);}catch(e){}}
-function projSaveListas(){localStorage.setItem('cage_macroprocessos_v6',JSON.stringify(_macroprocessos));localStorage.setItem('cage_objetivos_v6',JSON.stringify(_objetivosEstrategicos));}
+const PROJ_FB = Object.freeze({
+  colProjetos: 'proj_projetos',
+  colProgramas: 'proj_programas',
+  cfgCol: 'config',
+  cfgMacrosId: 'proj_macroprocessos',
+  cfgObjetivosId: 'proj_objetivos'
+});
+const _projFbState = {loaded:false, loading:false, saveTimer:null};
+
+function projLoadListas(){
+  try{
+    var m=localStorage.getItem('cage_macroprocessos_v6');if(m)_macroprocessos=JSON.parse(m);
+    var o=localStorage.getItem('cage_objetivos_v6');if(o)_objetivosEstrategicos=JSON.parse(o);
+  }catch(e){}
+}
+function projSaveListas(){
+  localStorage.setItem('cage_macroprocessos_v6',JSON.stringify(_macroprocessos));
+  localStorage.setItem('cage_objetivos_v6',JSON.stringify(_objetivosEstrategicos));
+  projFbAutoSave('listas');
+}
+
+async function projFbSyncCollection(col, items){
+  const {db, doc, writeBatch, collection, getDocs, deleteDoc} = fb();
+  const ids = new Set((items||[]).map(i=>String(i.id)));
+  const ops = [];
+  (items||[]).forEach(item=>{
+    ops.push({type:'set', ref:doc(db,col,String(item.id)), data:_fsClean(item)});
+  });
+  const snap = await getDocs(collection(db,col));
+  snap.forEach(d=>{ if(!ids.has(String(d.id))) ops.push({type:'del', ref:d.ref}); });
+  for(let i=0;i<ops.length;i+=400){
+    const batch = writeBatch(db);
+    ops.slice(i,i+400).forEach(op=>{
+      if(op.type==='set') batch.set(op.ref, op.data);
+      else batch.delete(op.ref);
+    });
+    await batch.commit();
+  }
+}
+
+async function projFbSaveAll(){
+  if(!fbReady()) return;
+  try{
+    const {db, doc, setDoc} = fb();
+    await projFbSyncCollection(PROJ_FB.colProjetos, _projetos||[]);
+    await projFbSyncCollection(PROJ_FB.colProgramas, _programas||[]);
+    await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgMacrosId), {data: JSON.stringify(_macroprocessos||[])});
+    await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgObjetivosId), {data: JSON.stringify(_objetivosEstrategicos||[])});
+  } catch(e){ console.warn('projFbSaveAll:', e.message); }
+}
+
+function projFbAutoSave(label){
+  if(!fbReady()) return;
+  clearTimeout(_projFbState.saveTimer);
+  _projFbState.saveTimer = setTimeout(()=>{ projFbSaveAll().catch(e=>console.warn('projFbAutoSave('+label+'):',e.message)); }, 1200);
+}
+
+function projRenderCurrentPage(){
+  const active = document.querySelector('.proj-nav-btn.on');
+  const page = active ? (active.id||'').replace('pnb-','') : 'inicio';
+  if(document.getElementById('proj-shell')?.classList.contains('on')){
+    projGo(page || 'inicio', active || document.getElementById('pnb-inicio'));
+  }
+}
+
+async function projFbLoadOnce(){
+  if(!fbReady() || _projFbState.loaded || _projFbState.loading) return;
+  _projFbState.loading = true;
+  try{
+    const {db, collection, getDocs, doc, getDoc, setDoc} = fb();
+    const [pSnap, gSnap] = await Promise.all([
+      getDocs(collection(db,PROJ_FB.colProjetos)),
+      getDocs(collection(db,PROJ_FB.colProgramas))
+    ]);
+
+    // Fallback/migração: se nuvem estiver vazia, sobe o que existe no localStorage.
+    if(pSnap.empty && gSnap.empty && ((_projetos||[]).length || (_programas||[]).length)){
+      await projFbSaveAll();
+    } else {
+      if(!pSnap.empty){
+        _projetos = [];
+        pSnap.forEach(d=>_projetos.push(projFixDefaults(d.data())));
+      }
+      if(!gSnap.empty){
+        _programas = [];
+        gSnap.forEach(d=>_programas.push(progFixDefaults(d.data())));
+      }
+    }
+
+    const [macrosDoc, objetivosDoc] = await Promise.all([
+      getDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgMacrosId)),
+      getDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgObjetivosId))
+    ]);
+    if(macrosDoc.exists() && typeof macrosDoc.data()?.data === 'string'){
+      try{ _macroprocessos = JSON.parse(macrosDoc.data().data); }catch(_e){}
+    } else {
+      await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgMacrosId), {data: JSON.stringify(_macroprocessos||[])});
+    }
+    if(objetivosDoc.exists() && typeof objetivosDoc.data()?.data === 'string'){
+      try{ _objetivosEstrategicos = JSON.parse(objetivosDoc.data().data); }catch(_e){}
+    } else {
+      await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgObjetivosId), {data: JSON.stringify(_objetivosEstrategicos||[])});
+    }
+
+    // Mantém cache local para modo offline.
+    try{
+      localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(_projetos||[]));
+      localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(_programas||[]));
+      localStorage.setItem('cage_macroprocessos_v6', JSON.stringify(_macroprocessos||[]));
+      localStorage.setItem('cage_objetivos_v6', JSON.stringify(_objetivosEstrategicos||[]));
+    }catch(_e){}
+
+    _projFbState.loaded = true;
+    projRenderCurrentPage();
+  } catch(e){ console.warn('projFbLoadOnce:', e.message); }
+  finally { _projFbState.loading = false; }
+}
 
 
 // ── Persistência ─────────────────────────────────────────────────
@@ -9637,11 +9775,13 @@ function projLoad() {
   // Load programas and lists too
   progLoad();
   projLoadListas();
+  projFbLoadOnce().catch(e=>console.warn('projLoad/fb:',e.message));
 }
 
 function projSave() {
   try {
     localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(_projetos));
+    projFbAutoSave('projetos');
   } catch(e) {
     projToast('Erro ao salvar dados.', 'var(--red)');
   }
@@ -9661,6 +9801,7 @@ function progLoad() {
 function progSave() {
   try {
     localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(_programas));
+    projFbAutoSave('programas');
   } catch(e) {
     projToast('Erro ao salvar programas.', 'var(--red)');
   }
@@ -9767,10 +9908,9 @@ function abrirModuloProjetos() {
 }
 
 function voltarAoHub() {
-  document.getElementById('proj-shell').classList.remove('on');
-  document.querySelector('.shell').style.display = 'none';
-  document.getElementById('module-hub').style.display = 'flex';
-  _hubVisible = true;
+  // Volta para a landing oficial de módulos no index.
+  // O index já possui o fluxo de autenticação + hub centralizado.
+  window.location.href = 'index.html';
 }
 
 function projGoBack() {
@@ -10417,6 +10557,7 @@ function projRenderStatusReport() {
 }
 
 function projSalvarStatusReportObs(projId, value, silent) {
+  if(!projCanWriteExec()){ if(!silent) projToast('Somente EPP ou Gerente de Projeto pode salvar status report.','#d97706'); return; }
   projLoad();
   const proj = _projetos.find(p => String(p.id) === String(projId));
   if(!proj) return;
@@ -10756,7 +10897,7 @@ function projRenderReunioesPage() {
         </div>
         ${pendentes.map(r => `
           <div class="proj-reunion-item" style="display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;gap:8px;padding:.6rem 0;border-bottom:1px solid #eaecf3">
-            <div class="proj-reunion-check" onclick="projToggleReuniaoPage('${p.id}','${projEsc(r.id)}')"></div>
+            <div class="proj-reunion-check" onclick="projToggleReuniaoPage(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})"></div>
             <div>
               <div class="proj-reunion-text">${projEsc(r.nome)}</div>
               <div style="font-size:11px;color:#8893a7;margin-top:2px">
@@ -10766,8 +10907,8 @@ function projRenderReunioesPage() {
               ${r.observacoes ? `<div style="font-size:11px;color:#8893a7">📝 ${projEsc(r.observacoes)}</div>` : ''}
             </div>
             <span style="font-size:10px;padding:2px 7px;border-radius:5px;background:#e8f0ff;color:#00599c">Pendente</span>
-            <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal('${p.id}','${projEsc(r.id)}')">✏️</button>
-            <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao('${p.id}','${projEsc(r.id)}')">✕</button>
+            <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})">✏️</button>
+            <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})">✕</button>
           </div>
         `).join('')}
       </div>
@@ -10970,6 +11111,7 @@ function projRenderNovo() {
 }
 
 function projCriar() {
+  if(!projEnsureWriteAll()) return;
   const nome = document.getElementById('pnovo-nome')?.value.trim();
   const gerente = document.getElementById('pnovo-gerente')?.value.trim();
   if(!nome) { projToast('Informe o nome do projeto.', '#d97706'); return; }
@@ -11002,6 +11144,7 @@ function projCriar() {
 // EXCLUIR PROJETO
 // ════════════════════════════════════════════════════════════════════
 function projExcluir(id) {
+  if(!projEnsureWriteAll()) return;
   const proj = _projetos.find(p => String(p.id) === String(id));
   if(!proj) return;
   projConfirmar(`Excluir o projeto "${proj.nome}"?\n\nAtenção: esta ação é irreversível e apagará todos os dados do projeto.`, () => {
@@ -11136,7 +11279,7 @@ function projRenderDetalhe(p) {
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.4rem;flex-wrap:wrap">
       <button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">← Portfólio</button>
-      <div style="font-size:28px;cursor:pointer;padding:2px 6px;border-radius:8px;border:1px dashed transparent;transition:all .2s" title="Alterar ícone" onclick="projShowEmojiPicker('${p.id}')" onmouseover="this.style.borderColor='#1A5DC8';this.style.background='#ebf1fc'" onmouseout="this.style.borderColor='transparent';this.style.background='none'">${p.icone_url ? '<img src="'+projEsc(p.icone_url)+'" style="width:32px;height:32px;object-fit:cover;border-radius:6px">' : (p.icone_emoji || '📁')}</div>
+      <div style="font-size:28px;cursor:pointer;padding:2px 6px;border-radius:8px;border:1px dashed transparent;transition:all .2s" title="Alterar ícone" onclick="projShowEmojiPicker(${JSON.stringify(String(p.id))})" onmouseover="this.style.borderColor='#1A5DC8';this.style.background='#ebf1fc'" onmouseout="this.style.borderColor='transparent';this.style.background='none'">${p.icone_url ? '<img src="'+projEsc(p.icone_url)+'" style="width:32px;height:32px;object-fit:cover;border-radius:6px">' : (p.icone_emoji || '📁')}</div>
       <div style="flex:1">
         <div style="font-family:'Syne',sans-serif;font-size:19px;font-weight:700;color:#1a2540">${projEsc(p.nome)}</div>
         <div style="font-size:12px;color:#8893a7;margin-top:2px">Gerente: ${projEsc(p.gerente)} ${p.patrocinador ? '· Patrocinador: '+projEsc(p.patrocinador) : ''}</div>
@@ -11324,6 +11467,7 @@ function projTabAprovacao(p) {
 
 
 function projSalvarAprovacao() {
+  if(!projEnsureWriteAll()) return;
   projLoad();
   const proj = _projetos.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -11514,6 +11658,7 @@ function projCanvasCell(num, label, sub, fieldId, value) {
 }
 
 function projSalvarIdeacao() {
+  if(!projEnsureWriteAll()) return;
   projLoad();
   const proj = _projetos.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -11747,6 +11892,7 @@ function projExcluirRisco(idx) {
 }
 
 function projSalvarPlanejamento() {
+  if(!projEnsureWriteAll()) return;
   projLoad();
   const proj = _projetos.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -12196,6 +12342,7 @@ function projTogglePctMode() {
 }
 
 function projSalvarExecucao() {
+  if(!projEnsureWriteExec()) return;
   projLoad();
   const proj = _projetos.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -12596,6 +12743,7 @@ function _progModal(pg, titulo) {
 }
 
 function progSalvarModal(idRaw, btn) {
+  if(!projEnsureWriteAll('Apenas EPP pode gerenciar programas.')) return;
   const nome = document.getElementById('prog-m-nome')?.value.trim();
   if(!nome) { projToast('Informe o nome do programa.', '#d97706'); return; }
   progLoad();
@@ -12631,6 +12779,7 @@ function progSalvarModal(idRaw, btn) {
 }
 
 function progExcluir(id) {
+  if(!projEnsureWriteAll('Apenas EPP pode excluir programas.')) return;
   progLoad();
   const pg = _programas.find(p => String(p.id) === String(id));
   if(!pg) return;
