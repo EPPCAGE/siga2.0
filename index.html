@@ -9634,19 +9634,15 @@ function _procIntelSnapshot(proc){
   const atividadesAbertas = atividadesPlano.filter(a=>_planoAtividadeConcluida(a) === false);
   const sinais = [];
   if(vencido) sinais.push({txt:'Prazo global vencido', cls:'br'});
-  if(semIndicadores) sinais.push({txt:'Sem indicador vinculado', cls:'ba'});
   if(semRiscos) sinais.push({txt:'Sem riscos registrados', cls:'bgr'});
   if(temAnalise === false) sinais.push({txt:'Análise inteligente pendente', cls:'bp'});
   if(temPop === false) sinais.push({txt:'POP/publicação pendente', cls:'bb'});
-  if(semTrilhas) sinais.push({txt:'Sem trilha vinculada', cls:'bgr'});
   if(atividadesAbertas.length) sinais.push({txt:atividadesAbertas.length+' ação(ões) aberta(s) no PAT', cls:'ba'});
 
   const recomendacoes = [];
-  if(semIndicadores) recomendacoes.push('Vincular ao menos um indicador para acompanhar desempenho.');
   if(semRiscos) recomendacoes.push('Registrar riscos operacionais antes de avançar para melhoria ou publicação.');
   if(temAnalise === false) recomendacoes.push('Executar a análise inteligente para revelar gargalos, gaps e oportunidades.');
   if(semPublicacao && temPop) recomendacoes.push('Cadastrar a publicação correspondente em Metodologias e Publicações.');
-  if(semTrilhas) recomendacoes.push('Vincular uma trilha de capacitação para apoiar a sustentação do processo.');
   if(vencido) recomendacoes.push('Revisar prazo global ou justificar suspensão/cancelamento do mapeamento.');
   if(atividadesAbertas.length) recomendacoes.push('Atualizar as ações abertas do PAT relacionadas a este processo.');
   return {riscos, indicadores, pubs, trilhasProc, atividadesPlano, atividadesAbertas, analise, vencido, sinais, recomendacoes};
@@ -9662,15 +9658,11 @@ function buildPainelAlertasEPHTML(){
   }
 
   const totalVencidos = itens.filter(x=>x.intel.vencido).length;
-  const semIndicador = itens.filter(x=>!x.intel.indicadores.length).length;
   const semRisco = itens.filter(x=>!x.intel.riscos.length).length;
-  const semTrilha = itens.filter(x=>!x.intel.trilhasProc.length).length;
   const patAberto = itens.filter(x=>x.intel.atividadesAbertas.length).length;
   const resumo = [
     totalVencidos ? totalVencidos+' vencido(s)' : null,
-    semIndicador ? semIndicador+' sem indicador' : null,
     semRisco ? semRisco+' sem riscos' : null,
-    semTrilha ? semTrilha+' sem trilha' : null,
     patAberto ? patAberto+' com PAT aberto' : null
   ].filter(Boolean);
 
