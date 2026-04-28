@@ -12664,8 +12664,21 @@ function gerarStatusReportPDF(){
   const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);
   const _e=s=>{const v=s==null?'—':s;return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');};
   const _ea=s=>_e(s).replaceAll('"','&quot;').replaceAll("'",'&#39;');
-  const _corPct=(p,hi=70,mid=40)=>{if(p>=hi)return '#16a34a';if(p>=mid)return '#d97706';return '#dc2626';};
-  const _d=d=>{if(!d)return '—';return d.includes('-')?d.split('-').reverse().join('/'):d;};
+  const _corPct=(p,hi=70,mid=40)=>{
+    if(p>=hi){
+      return '#16a34a';
+    }
+    if(p>=mid){
+      return '#d97706';
+    }
+    return '#dc2626';
+  };
+  const _d=d=>{
+    if(!d){
+      return '—';
+    }
+    return d.includes('-') ? d.split('-').reverse().join('/') : d;
+  };
   const _recente=d=>d&&new Date(d.includes('/')?d.split('/').reverse().join('-'):d)>=umMesAtras;
 
   // ── PAT métricas ──────────────────────────────────────────────────────────────
