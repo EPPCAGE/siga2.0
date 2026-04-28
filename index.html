@@ -925,7 +925,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <select class="fi" id="plano-ano-sel" onchange="rPlano()" style="width:90px"></select>
-      <button type="button" class="btn btn-a ep-only" onclick="gerarStatusReportPPT()" title="Gerar Status Report mensal em .pptx">📊 Status Report</button>
+      <button type="button" class="btn btn-a ep-only" onclick="gerarStatusReportPPT()" title="Gerar Status Report mensal em .pptx">📊 Status Report PPT</button>
+      <button type="button" class="btn ep-only" onclick="gerarStatusReportPDF()" title="Gerar Status Report em PDF" style="border-color:var(--red-b,#fca5a5);color:var(--red,#dc2626)">📄 Status Report PDF</button>
       <button type="button" class="btn btn-p" onclick="abrirPlanoModal(null)">+ Nova atividade</button>
     </div>
   </div>
@@ -12626,6 +12627,244 @@ function fecharPlanoModal(){
 }
 
 // ── STATUS REPORT MENSAL — geração automática de .pptx ───────────────────────
+function gerarStatusReportPDF(){
+  if(!isEP()){toast('Restrito ao EP.','var(--amber)');return;}
+
+  // ── Dados base ───────────────────────────────────────────────────────────────
+  const ano=planoAno();
+  const hoje=new Date();
+  const mes=hoje.getMonth();
+  let trimAtual;
+  if(mes<3)trimAtual='T1';else if(mes<6)trimAtual='T2';else if(mes<9)trimAtual='T3';else trimAtual='T4';
+  const TRIM_ORD=['T1','T2','T3','T4'];
+  const trimProx=TRIM_ORD[(TRIM_ORD.indexOf(trimAtual)+1)%4];
+  const dtFmt=hoje.toLocaleDateString('pt-BR');
+  const dtMesL=hoje.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);
+  const _e=s=>(s||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _d=d=>d?(d.includes('-')?d.split('-').reverse().join('/'):d):'—';
+  const _recente=d=>d&&new Date(d.includes('/')?d.split('/').reverse().join('-'):d)>=umMesAtras;
+
+  // ── PAT métricas ──────────────────────────────────────────────────────────────
+  const doAno=plano.filter(a=>a.ano===ano);
+  const total=doAno.length;
+  const concl=doAno.filter(a=>planoStatusEfetivo(a)==='concluida').length;
+  const emExec=doAno.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
+  const emAtraso=doAno.filter(a=>planoStatusEfetivo(a)==='em_atraso').length;
+  const planej=doAno.filter(a=>planoStatusEfetivo(a)==='planejado').length;
+  const pctAnual=total?Math.round(concl/total*100):0;
+  const comStatus=doAno.filter(a=>planoStatusEfetivo(a)==='concluida'&&a.entrega_status);
+  const emDia=comStatus.filter(a=>a.entrega_status==='em_dia').length;
+  const pctPont=comStatus.length?Math.round(emDia/comStatus.length*100):null;
+  const doTri=doAno.filter(a=>a.trimestre===trimAtual);
+  const triConcl=doTri.filter(a=>planoStatusEfetivo(a)==='concluida').length;
+  const triExec=doTri.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
+  const triAtras=doTri.filter(a=>planoStatusEfetivo(a)==='em_atraso').length;
+  const triPlanj=doTri.filter(a=>planoStatusEfetivo(a)==='planejado').length;
+  const triTotal=doTri.length;
+  const catLabels={mapeamento:'Mapeamento',auditoria:'Auditoria',normativa:'Normativa',capacitacao:'Capacitação',governanca:'Governança',outro:'Outro'};
+  const cats=[...new Set(doAno.map(a=>a.categoria).filter(Boolean))];
+  const catMetrics=cats.map(c=>{
+    const its=doAno.filter(a=>a.categoria===c);
+    const cc=its.filter(a=>planoStatusEfetivo(a)==='concluida').length;
+    return{cat:catLabels[c]||c,total:its.length,concl:cc,pct:Math.round(cc/its.length*100)};
+  }).sort((a,b)=>b.total-a.total);
+
+  // ── Cobertura arquitetura ────────────────────────────────────────────────────
+  const mx=getMetricasArq();
+  const pctCob=mx.nUnid?Math.round(mx.nMap/mx.nUnid*100):0;
+  const cobMacro=ARQUITETURA.map(m=>{
+    let nU=0,nM=0;
+    m.processos.forEach(p=>{
+      if(p.subprocessos&&p.subprocessos.length)p.subprocessos.forEach(s=>{nU++;if(isMapeado(s.id))nM++;});
+      else{nU++;if(isMapeado(p.id))nM++;}
+    });
+    return{nome:m.nome,nU,nM,pct:nU?Math.round(nM/nU*100):0};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  // ── Conjuntos de processos ────────────────────────────────────────────────────
+  const DONE_ETAPAS=new Set(['publicacao','acompanha','auditoria']);
+  const mapAndamento=processos.filter(p=>!DONE_ETAPAS.has(p.etapa)&&p.status_ciclo!=='cancelado'&&p.status_ciclo!=='suspenso'&&p.arq_id);
+  const audAndamento=processos.filter(p=>p.etapa==='auditoria'&&!p.auditoria?.concluida);
+  const mapConclMes=processos.filter(p=>['acompanha','auditoria'].includes(p.etapa)&&_recente(p.dt_ciclo_fim));
+  const audConclMes=processos.filter(p=>p.auditoria?.concluida&&_recente(p.auditoria?.data||p.dt_etapas?.auditoria));
+  const proxTrabs=doAno.filter(a=>planoStatusEfetivo(a)==='planejado'&&(a.trimestre===trimAtual||a.trimestre===trimProx)&&['mapeamento','auditoria'].includes(a.categoria))
+    .sort((a,b)=>(a.trimestre===trimAtual?0:1)-(b.trimestre===trimAtual?0:1)||(a.prazo||'').localeCompare(b.prazo||''));
+
+  // ── Metas do escritório ──────────────────────────────────────────────────────
+  const metasAno=(PLANO_METAS||[]).filter(m=>!m.ano||m.ano===ano);
+  const metasRows=metasAno.map(m=>{
+    const real=_metaRealizado(m);
+    const pct=m.meta?Math.min(100,Math.round(real/m.meta*100)):null;
+    const cor=pct===null?'#888':pct>=100?'#16a34a':pct>=70?'#d97706':'#dc2626';
+    return{titulo:m.titulo,meta:m.meta,real,unidade:m.unidade,pct,cor,obs:m.obs};
+  });
+
+  // ── Helpers de render ─────────────────────────────────────────────────────────
+  const SEC=(n,t)=>`<h2 class="sec">${n}. ${t}</h2>`;
+  const SUB=t=>`<h3 class="sub">${t}</h3>`;
+  const EMPTY=`<p class="vazio">Nenhum registro.</p>`;
+  const tbl=(heads,rows)=>rows.length?`<table><thead><tr>${heads.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr class="${i%2?'alt':''}">${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`:EMPTY;
+  const badge=(v,cor)=>`<span style="color:${cor};font-weight:700">${_e(v)}</span>`;
+  const pbar=(pct,cor)=>`<div style="background:#e5e7eb;border-radius:99px;height:7px;margin-top:3px"><div style="background:${cor};height:7px;border-radius:99px;width:${pct||0}%"></div></div>`;
+  const kpi=(label,val,sub,cor)=>`<div class="kpi"><div class="kpi-val" style="color:${cor||'#2B485F'}">${val}</div><div class="kpi-lbl">${label}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
+  const etBadge=et=>{const m={abertura:'Abertura',reuniao:'Reunião',questionario:'Questionário',esboco_asis:'Esboço AS IS',det_valid_asis:'Det. AS IS',riscos:'Riscos',analise:'Análise',melhorias:'Melhorias',esboco_tobe:'Esboço TO BE',det_valid_tobe:'Det. TO BE',desenho_final:'Desenho Final',indicadores_proc:'Indicadores',pop:'POP',apresentacao:'Apresentação',publicacao:'Publicação',acompanha:'Acompanhamento',auditoria:'Auditoria'};return m[et]||et||'—';};
+
+  // ── HTML ────────────────────────────────────────────────────────────────────
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+  <title>Status Report EP·CAGE — ${dtMesL}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10pt;color:#1a1a1a;background:#fff;padding:1.5cm 2cm}
+    .cover{text-align:center;padding:2.5cm 0 2cm}
+    .cover-eyebrow{font-size:11pt;color:#00C5B4;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:.5rem}
+    .cover-title{font-size:32pt;font-weight:800;color:#2B485F;line-height:1.1;margin-bottom:.7rem}
+    .cover-sub{font-size:13pt;color:#6b7280;margin-bottom:1.5rem}
+    .cover-meta{display:inline-flex;gap:2rem;font-size:10pt;color:#6b7280;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:.5rem 0}
+    h2.sec{font-size:14pt;font-weight:800;color:#2B485F;margin:1.5rem 0 .6rem;padding-bottom:.3rem;border-bottom:3px solid #00C5B4;page-break-after:avoid}
+    h3.sub{font-size:11pt;font-weight:700;color:#2B485F;margin:.8rem 0 .4rem;page-break-after:avoid}
+    table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:.5rem;page-break-inside:auto}
+    thead{page-break-inside:avoid}
+    th{background:#2B485F;color:#fff;padding:5px 8px;text-align:left;font-weight:600}
+    td{padding:4px 8px;border-bottom:1px solid #e5e7eb;vertical-align:top}
+    tr.alt{background:#f8fafc}
+    .vazio{font-size:9pt;color:#9ca3af;font-style:italic;margin:.3rem 0 .8rem}
+    .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:.5rem 0 1rem}
+    .kpi{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;text-align:center;break-inside:avoid}
+    .kpi-val{font-size:22pt;font-weight:800;line-height:1}
+    .kpi-lbl{font-size:8pt;color:#6b7280;margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+    .kpi-sub{font-size:8pt;color:#9ca3af;margin-top:2px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:.5rem}
+    .card{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;break-inside:avoid}
+    .card-t{font-size:9pt;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+    .macro-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:9pt}
+    .macro-nome{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .macro-pct{font-weight:700;width:36px;text-align:right;flex-shrink:0}
+    .meta-row{margin-bottom:8px;break-inside:avoid}
+    .meta-header{display:flex;justify-content:space-between;font-size:9pt;margin-bottom:3px}
+    .footer{margin-top:2rem;padding-top:.5rem;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:8pt;color:#9ca3af}
+    @media print{
+      body{padding:.8cm 1.2cm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .cover{padding:1.5cm 0 1.2cm}
+      .no-print{display:none}
+      @page{margin:.8cm 1.2cm;size:A4}
+      h2.sec{page-break-before:auto}
+    }
+  </style></head><body>
+
+  <div class="no-print" style="position:fixed;top:12px;right:12px;z-index:999;display:flex;gap:8px">
+    <button onclick="window.print()" style="padding:8px 18px;background:#2B485F;color:#fff;border:none;border-radius:6px;font-size:11pt;cursor:pointer;font-family:inherit">🖨 Imprimir / Salvar PDF</button>
+    <button onclick="window.close()" style="padding:8px 14px;background:#e5e7eb;color:#374151;border:none;border-radius:6px;font-size:11pt;cursor:pointer;font-family:inherit">✕ Fechar</button>
+  </div>
+
+  <div class="cover">
+    <div class="cover-eyebrow">EP · CAGE — Escritório de Processos</div>
+    <div class="cover-title">Status Report</div>
+    <div class="cover-sub">${dtMesL}</div>
+    <div class="cover-meta">
+      <span>📅 Gerado em ${dtFmt}</span>
+      <span>📋 Referência: ${ano}</span>
+      <span>📊 Trimestre atual: ${trimAtual}</span>
+    </div>
+  </div>
+
+  ${SEC(1,'Mapeamentos e Auditorias em Andamento')}
+  ${SUB('Mapeamentos em andamento ('+mapAndamento.length+')')}
+  ${tbl(['Processo','Macroprocesso','Dono','EP Responsável','Etapa atual','Prazo global'],
+    mapAndamento.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),etBadge(p.etapa),_d(p.ent?.dt_prev)])
+  )}
+  ${SUB('Auditorias em andamento ('+audAndamento.length+')')}
+  ${tbl(['Processo','Macroprocesso','Dono','Equipe','Início auditoria','Objetivo'],
+    audAndamento.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.auditoria?.equipe),_d(p.auditoria?.data_inicio),_e(p.auditoria?.objetivo)])
+  )}
+
+  ${SEC(2,'Concluídos no Último Mês')}
+  ${SUB('Mapeamentos concluídos ('+mapConclMes.length+')')}
+  ${tbl(['Processo','Macroprocesso','Dono','EP','Fim do ciclo','Tempo total'],
+    mapConclMes.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(p.dt_ciclo_fim),_e(p.ent?.t_total)])
+  )}
+  ${SUB('Auditorias concluídas ('+audConclMes.length+')')}
+  ${tbl(['Processo','Macroprocesso','Conformidade','Data conclusão','Achados','Ações'],
+    audConclMes.map(p=>{
+      const aud=p.auditoria||{};
+      const corConf={'Conforme':'#16a34a','Conforme com ressalvas':'#d97706','Não conforme':'#dc2626'};
+      return[_e(p.nome),_e(p.macro),badge(aud.conformidade,corConf[aud.conformidade]||'#888'),_d(aud.data),(aud.achados_list||[]).length,(aud.acoes_list||[]).length];
+    })
+  )}
+
+  ${SEC(3,'A Iniciar no '+trimAtual+' e '+trimProx+' (PAT)')}
+  ${tbl(['Atividade','Categoria','Trimestre','Prazo','Responsável','Vínculo processo'],
+    proxTrabs.map(a=>[_e(a.nome),_e(catLabels[a.categoria]||a.categoria),a.trimestre,_d(a.prazo),_e(a.responsavel),_e(a.vinculo_nome)])
+  )}
+
+  ${SEC(4,'Métricas do PAT — '+ano)}
+  <div class="kpis">
+    ${kpi('Total',total,'atividades')}
+    ${kpi('Concluídas',concl,pctAnual+'% do total','#16a34a')}
+    ${kpi('Em execução',emExec,'','#2563eb')}
+    ${kpi('Em atraso',emAtraso,'','#dc2626')}
+    ${kpi('Planejadas',planej,'','#d97706')}
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-t">Trimestre atual (${trimAtual})</div>
+      ${tbl(['Status','Qtd'],[
+        ['Concluídas',badge(triConcl,'#16a34a')],
+        ['Em execução',badge(triExec,'#2563eb')],
+        ['Em atraso',badge(triAtras,'#dc2626')],
+        ['Planejadas',badge(triPlanj,'#d97706')],
+        ['<strong>Total</strong>','<strong>'+triTotal+'</strong>']
+      ])}
+    </div>
+    <div class="card">
+      <div class="card-t">Por categoria — ${ano}</div>
+      ${tbl(['Categoria','Total','Concluídas','%'],
+        catMetrics.map(c=>[_e(c.cat),c.total,c.concl,badge(c.pct+'%',c.pct>=70?'#16a34a':c.pct>=40?'#d97706':'#dc2626')])
+      )}
+    </div>
+  </div>
+  ${pctPont!==null?`<p style="font-size:9pt;color:#6b7280;margin-top:4px">Pontualidade nas entregas: <strong style="color:${pctPont>=80?'#16a34a':pctPont>=60?'#d97706':'#dc2626'}">${pctPont}%</strong> (${emDia} em dia de ${comStatus.length} concluídas com prazo)</p>`:''}
+
+  ${SEC(5,'Metas do Escritório — '+ano)}
+  ${metasRows.length?metasRows.map(m=>`<div class="meta-row">
+    <div class="meta-header">
+      <span><strong>${_e(m.titulo)}</strong>${m.obs?` <span style="color:#9ca3af;font-size:8.5pt">— ${_e(m.obs)}</span>`:''}</span>
+      <span style="font-weight:700;color:${m.cor}">${m.real??'—'} / ${m.meta??'—'} ${_e(m.unidade)}${m.pct!==null?' ('+m.pct+'%)':''}</span>
+    </div>
+    ${m.pct!==null?pbar(m.pct,m.cor):''}
+  </div>`).join(''):`<p class="vazio">Nenhuma meta cadastrada para ${ano}.</p>`}
+
+  ${SEC(6,'Cobertura da Arquitetura de Processos')}
+  <div class="grid2">
+    <div class="kpi" style="grid-column:span 1;text-align:center;padding:14px">
+      <div class="kpi-val" style="color:${pctCob>=70?'#16a34a':pctCob>=40?'#d97706':'#dc2626'}">${pctCob}%</div>
+      <div class="kpi-lbl">Cobertura total</div>
+      <div class="kpi-sub">${mx.nMap} de ${mx.nUnid} processos/subprocessos mapeados</div>
+      ${pbar(pctCob,pctCob>=70?'#16a34a':pctCob>=40?'#d97706':'#dc2626')}
+    </div>
+    <div></div>
+  </div>
+  <div class="card" style="margin-top:.5rem">
+    <div class="card-t">Por macroprocesso</div>
+    ${cobMacro.map(m=>`<div class="macro-row">
+      <div class="macro-nome" title="${_e(m.nome)}">${_e(m.nome)}</div>
+      <div style="flex:0 0 160px;background:#e5e7eb;border-radius:99px;height:7px"><div style="background:${m.pct>=70?'#16a34a':m.pct>=40?'#d97706':'#dc2626'};height:7px;border-radius:99px;width:${m.pct}%"></div></div>
+      <div class="macro-pct" style="color:${m.pct>=70?'#16a34a':m.pct>=40?'#d97706':'#dc2626'}">${m.pct}%</div>
+      <div style="font-size:8.5pt;color:#9ca3af;width:60px;text-align:right">${m.nM}/${m.nU}</div>
+    </div>`).join('')}
+  </div>
+
+  <div class="footer">
+    <span>EP·CAGE — Escritório de Processos</span>
+    <span>Gerado pelo SIGA 2.0 em ${dtFmt}</span>
+  </div>
+  </body></html>`;
+
+  const w=window.open('','_blank','width=1024,height=800');
+  if(!w){toast('Bloqueio de popup. Permita popups para este site.','var(--amber)');return;}
+  w.document.write(html);
+  w.document.close();
+}
 async function gerarStatusReportPPT(){
   if(!isEP()){ toast('Restrito ao EP.','var(--amber)'); return; }
   if(typeof PptxGenJS === 'undefined'){ toast('PptxGenJS não carregada.','var(--red)'); return; }
