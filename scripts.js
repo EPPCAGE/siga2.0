@@ -1,8 +1,8 @@
 ﻿// ═══════════════════════════════════════════
 // DADOS CENTRAIS
 // ═══════════════════════════════════════════
-const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto'};
-const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00'};
+const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto',gerente_projeto:'Gerente de Projeto'};
+const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
 // Enums frozen — usar em vez de strings literais em código novo
 const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor'});
 const STATUS_ENTREGA = Object.freeze({EM_DIA:'em_dia', COM_ATRASO:'com_atraso', SEM_PRAZO:'sem_prazo'});
@@ -237,7 +237,8 @@ function _aplicarUsuario(user){
   document.getElementById('aside-av').textContent=user.iniciais;
   const mobAv=document.getElementById('mob-user-av');if(mobAv)mobAv.textContent=user.iniciais;
   document.getElementById('aside-name').textContent=user.nome;
-  document.getElementById('aside-role').textContent=PERFIL_LABELS[user.perfil]||user.perfil;
+  const roleTxt = getPerfisUsuario(user).map(p=>PERFIL_LABELS[p]||p).join(' · ') || (PERFIL_LABELS[user.perfil]||user.perfil);
+  document.getElementById('aside-role').textContent=roleTxt;
   _aplicarToggleEP(user);
   updCounts();
   aplicarPermissoes();
@@ -887,8 +888,28 @@ function taskCard(p,ACT){
 // ═══════════════════════════════════════════
 
 // ─── PERMISSÕES ───────────────────────────────────────────
-function isEP(){ return usuarioLogado?.perfil === 'ep'; }
-function isDono(){ return usuarioLogado?.perfil === 'dono'; }
+function getPerfisUsuario(u=usuarioLogado){
+  if(!u) return [];
+  if(Array.isArray(u.perfis) && u.perfis.length) return [...new Set(u.perfis.map(p=>String(p||'').trim()).filter(Boolean))];
+  return u.perfil ? [u.perfil] : [];
+}
+function hasPerfil(perfil, u=usuarioLogado){ return getPerfisUsuario(u).includes(perfil); }
+function isEP(){ return hasPerfil('ep'); }
+function isDono(){ return hasPerfil('dono'); }
+function isGerenteProjeto(){ return hasPerfil('gerente_projeto'); }
+function projCanWriteAll(){ return isEP(); }
+function projCanWriteExec(){ return isEP() || isGerenteProjeto(); }
+function projCanViewOnly(){ return isDono() && !isEP() && !isGerenteProjeto(); }
+function projEnsureWriteAll(msg='Apenas EPP pode editar esta seção do módulo de projetos.'){
+  if(projCanWriteAll()) return true;
+  projToast(msg, '#d97706');
+  return false;
+}
+function projEnsureWriteExec(msg='Apenas EPP e Gerente de Projeto podem executar esta ação.'){
+  if(projCanWriteExec()) return true;
+  projToast(msg, '#d97706');
+  return false;
+}
 
 
 function _aplicarPermissoesNavBtns(){
@@ -7543,11 +7564,12 @@ async function salvarUsr(){
 
   if(idxStr===''){
     if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
-    USUARIOS.push({email, nome, perfil, iniciais:ini, processos_vinculados:vinculos});
+    USUARIOS.push({email, nome, perfil, perfis:[perfil], iniciais:ini, processos_vinculados:vinculos});
   } else {
     const idx = Number.parseInt(idxStr);
     if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
-    USUARIOS[idx] = {...USUARIOS[idx], email, nome, perfil, iniciais:ini, processos_vinculados:vinculos};
+    const perfisPrev = Array.isArray(USUARIOS[idx].perfis) ? USUARIOS[idx].perfis : (USUARIOS[idx].perfil ? [USUARIOS[idx].perfil] : []);
+    USUARIOS[idx] = {...USUARIOS[idx], email, nome, perfil, perfis:[...new Set([...perfisPrev, perfil])], iniciais:ini, processos_vinculados:vinculos};
     if(usuarioLogado?.email===email){
       usuarioLogado = USUARIOS[idx];
       document.getElementById('aside-name').textContent = nome;
@@ -9885,10 +9907,9 @@ function abrirModuloProjetos() {
 }
 
 function voltarAoHub() {
-  document.getElementById('proj-shell').classList.remove('on');
-  document.querySelector('.shell').style.display = 'none';
-  document.getElementById('module-hub').style.display = 'flex';
-  _hubVisible = true;
+  // Volta para a landing oficial de módulos no index.
+  // O index já possui o fluxo de autenticação + hub centralizado.
+  window.location.href = 'index.html';
 }
 
 function projGoBack() {
@@ -10535,6 +10556,7 @@ function projRenderStatusReport() {
 }
 
 function projSalvarStatusReportObs(projId, value, silent) {
+  if(!projCanWriteExec()){ if(!silent) projToast('Somente EPP ou Gerente de Projeto pode salvar status report.','#d97706'); return; }
   projLoad();
   const proj = _projetos.find(p => String(p.id) === String(projId));
   if(!proj) return;
@@ -11088,6 +11110,7 @@ function projRenderNovo() {
 }
 
 function projCriar() {
+  if(!projEnsureWriteAll()) return;
   const nome = document.getElementById('pnovo-nome')?.value.trim();
   const gerente = document.getElementById('pnovo-gerente')?.value.trim();
   if(!nome) { projToast('Informe o nome do projeto.', '#d97706'); return; }
@@ -11120,6 +11143,7 @@ function projCriar() {
 // EXCLUIR PROJETO
 // ════════════════════════════════════════════════════════════════════
 function projExcluir(id) {
+  if(!projEnsureWriteAll()) return;
   const proj = _projetos.find(p => String(p.id) === String(id));
   if(!proj) return;
   projConfirmar(`Excluir o projeto "${proj.nome}"?\n\nAtenção: esta ação é irreversível e apagará todos os dados do projeto.`, () => {
@@ -11442,6 +11466,7 @@ function projTabAprovacao(p) {
 
 
 function projSalvarAprovacao() {
+  if(!projEnsureWriteAll()) return;
   projLoad();
   const proj = _projetos.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -11632,6 +11657,7 @@ function projCanvasCell(num, label, sub, fieldId, value) {
 }
 
 function projSalvarIdeacao() {
+  if(!projEnsureWriteAll()) return;
   projLoad();
   const proj = _projetos.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -11865,6 +11891,7 @@ function projExcluirRisco(idx) {
 }
 
 function projSalvarPlanejamento() {
+  if(!projEnsureWriteAll()) return;
   projLoad();
   const proj = _projetos.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -12314,6 +12341,7 @@ function projTogglePctMode() {
 }
 
 function projSalvarExecucao() {
+  if(!projEnsureWriteExec()) return;
   projLoad();
   const proj = _projetos.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -12714,6 +12742,7 @@ function _progModal(pg, titulo) {
 }
 
 function progSalvarModal(idRaw, btn) {
+  if(!projEnsureWriteAll('Apenas EPP pode gerenciar programas.')) return;
   const nome = document.getElementById('prog-m-nome')?.value.trim();
   if(!nome) { projToast('Informe o nome do programa.', '#d97706'); return; }
   progLoad();
@@ -12749,6 +12778,7 @@ function progSalvarModal(idRaw, btn) {
 }
 
 function progExcluir(id) {
+  if(!projEnsureWriteAll('Apenas EPP pode excluir programas.')) return;
   progLoad();
   const pg = _programas.find(p => String(p.id) === String(id));
   if(!pg) return;
