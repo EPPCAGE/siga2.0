@@ -12875,36 +12875,28 @@ function planoVinculoOptsHTML(tipo, selId){
   return '';
 }
 
-function _planoModalBodyHTML(at){
-  const vTipo = at?.vinculo_tipo||'';
-  const vId   = at?.vinculo_id||'';
-  const trOpts = ['Anual','T1','T2','T3','T4'].map(t=>{
-    const sel = (at?.trimestre||'Anual')===t ? 'selected' : '';
-    return `<option value="${t}" ${sel}>${t}</option>`;
-  }).join('');
-  const catOpts = Object.entries(PLANO_CAT_LB).map(([v,l])=>{
-    const sel = at?.categoria===v ? 'selected' : '';
-    return `<option value="${v}" ${sel}>${l}</option>`;
-  }).join('');
+function _planoModalBodyHTML(){
+  const trOpts = ['Anual','T1','T2','T3','T4'].map(t=>`<option value="${t}">${t}</option>`).join('');
+  const catOpts = Object.entries(PLANO_CAT_LB).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
   return `
-    <input type="hidden" id="pm-id" value="${at?.id||''}">
-    <input type="hidden" id="pm-ano" value="${at?.ano||planoAno()}">
+    <input type="hidden" id="pm-id" value="">
+    <input type="hidden" id="pm-ano" value="">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
       <div style="grid-column:1/-1">
         <div class="fl">Nome da atividade *</div>
-        <input class="fi" id="pm-nome" value="${esc(at?.nome||'')}" placeholder="Ex: Auditoria do processo de licitação">
+        <input class="fi" id="pm-nome" value="" placeholder="Ex: Auditoria do processo de licitação">
       </div>
       <div style="grid-column:1/-1">
         <div class="fl">Descrição</div>
-        <textarea class="fi" id="pm-desc" rows="2" style="resize:vertical">${esc(at?.descricao||'')}</textarea>
+        <textarea class="fi" id="pm-desc" rows="2" style="resize:vertical"></textarea>
       </div>
       <div>
         <div class="fl">Responsável</div>
-        <input class="fi" id="pm-resp" value="${esc(at?.responsavel||usuarioLogado?.nome||'')}">
+        <input class="fi" id="pm-resp" value="">
       </div>
       <div>
         <div class="fl">Prazo para conclusão</div>
-        <input class="fi" type="date" id="pm-prazo" value="${at?.prazo||''}">
+        <input class="fi" type="date" id="pm-prazo" value="">
       </div>
       <div>
         <div class="fl">Trimestre</div>
@@ -12915,18 +12907,18 @@ function _planoModalBodyHTML(at){
       <div>
         <div class="fl">Status</div>
         <select class="fi" id="pm-status">
-          <option value="planejado"   ${(!at||at.status==='planejado')?'selected':''}>Planejado</option>
-          <option value="em_execucao" ${at?.status==='em_execucao'?'selected':''}>Em execução</option>
-          <option value="em_atraso"   ${at?.status==='em_atraso'?'selected':''}>Em atraso</option>
-          <option value="concluida"   ${at?.status==='concluida'?'selected':''}>Concluída</option>
+          <option value="planejado">Planejado</option>
+          <option value="em_execucao">Em execução</option>
+          <option value="em_atraso">Em atraso</option>
+          <option value="concluida">Concluída</option>
         </select>
       </div>
       <div>
         <div class="fl">Prioridade</div>
         <select class="fi" id="pm-prio">
-          <option value="alta"  ${at?.prioridade==='alta'?'selected':''}>Alta</option>
-          <option value="media" ${(!at||at.prioridade==='media')?'selected':''}>Média</option>
-          <option value="baixa" ${at?.prioridade==='baixa'?'selected':''}>Baixa</option>
+          <option value="alta">Alta</option>
+          <option value="media">Média</option>
+          <option value="baixa">Baixa</option>
         </select>
       </div>
       <div>
@@ -12938,34 +12930,33 @@ function _planoModalBodyHTML(at){
       </div>
       <div>
         <div class="fl">Quantidade prevista</div>
-        <input class="fi" type="number" id="pm-qtprev" value="${at?.qt_prevista||''}" min="0" placeholder="0">
+        <input class="fi" type="number" id="pm-qtprev" value="" min="0" placeholder="0">
       </div>
       <div>
         <div class="fl">Quantidade realizada</div>
-        <input class="fi" type="number" id="pm-qtreal" value="${at?.qt_realizada||''}" min="0" placeholder="0">
+        <input class="fi" type="number" id="pm-qtreal" value="" min="0" placeholder="0">
       </div>
       <div>
         <div class="fl">Tipo de vínculo</div>
         <select class="fi" id="pm-vint" onchange="planoAtualizarVinculo()">
           <option value="">Sem vínculo</option>
-          <option value="mapeamento" ${vTipo==='mapeamento'?'selected':''}>Mapeamento</option>
-          <option value="auditoria"  ${vTipo==='auditoria'?'selected':''}>Auditoria</option>
+          <option value="mapeamento">Mapeamento</option>
+          <option value="auditoria">Auditoria</option>
         </select>
       </div>
       <div>
         <div class="fl">Processo vinculado</div>
-        <select class="fi" id="pm-vinid" ${vTipo?'':'disabled'}>
+        <select class="fi" id="pm-vinid" disabled>
           <option value="">Selecione...</option>
-          ${planoVinculoOptsHTML(vTipo,vId)}
         </select>
       </div>
       <div style="grid-column:1/-1">
         <div class="fl">Observações / andamento</div>
-        <textarea class="fi" id="pm-obs" rows="2" style="resize:vertical">${esc(at?.obs||'')}</textarea>
+        <textarea class="fi" id="pm-obs" rows="2" style="resize:vertical"></textarea>
       </div>
       <div style="grid-column:1/-1">
         <div class="fl">Evidência de conclusão</div>
-        <textarea class="fi" id="pm-evid" rows="2" style="resize:vertical" placeholder="Descreva como a conclusão será/foi comprovada...">${esc(at?.evidencia||'')}</textarea>
+        <textarea class="fi" id="pm-evid" rows="2" style="resize:vertical" placeholder="Descreva como a conclusão será/foi comprovada..."></textarea>
       </div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:1.2rem;border-top:1px solid var(--bdr);padding-top:1rem">
@@ -12973,11 +12964,35 @@ function _planoModalBodyHTML(at){
       <button type="button" class="btn btn-p" onclick="salvarAtividade()">Salvar atividade</button>
     </div>`;
 }
+function _planoModalApplyValues(at){
+  const cur = at||{};
+  const vTipo = cur.vinculo_tipo||'';
+  const vId   = cur.vinculo_id||'';
+  document.getElementById('pm-id').value = cur.id||'';
+  document.getElementById('pm-ano').value = cur.ano||planoAno();
+  document.getElementById('pm-nome').value = cur.nome||'';
+  document.getElementById('pm-desc').value = cur.descricao||'';
+  document.getElementById('pm-resp').value = cur.responsavel||usuarioLogado?.nome||'';
+  document.getElementById('pm-prazo').value = cur.prazo||'';
+  document.getElementById('pm-tri').value = cur.trimestre||'Anual';
+  document.getElementById('pm-status').value = cur.status||'planejado';
+  document.getElementById('pm-prio').value = cur.prioridade||'media';
+  document.getElementById('pm-cat').value = cur.categoria||'';
+  document.getElementById('pm-qtprev').value = cur.qt_prevista||'';
+  document.getElementById('pm-qtreal').value = cur.qt_realizada||'';
+  document.getElementById('pm-vint').value = vTipo;
+  const vSel = document.getElementById('pm-vinid');
+  vSel.disabled = !vTipo;
+  vSel.innerHTML = '<option value="">Selecione...</option>' + planoVinculoOptsHTML(vTipo,vId);
+  document.getElementById('pm-obs').value = cur.obs||'';
+  document.getElementById('pm-evid').value = cur.evidencia||'';
+}
 function abrirPlanoModal(idOrObj){
   const at = typeof idOrObj==='number' ? plano.find(a=>a.id===idOrObj) : (idOrObj||null);
   const isNew = !at||!at.id;
   document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
-  document.getElementById('plano-modal-body').innerHTML = _planoModalBodyHTML(at); // lgtm[js/xss-through-dom]
+  document.getElementById('plano-modal-body').innerHTML = _planoModalBodyHTML();
+  _planoModalApplyValues(at);
   document.getElementById('plano-modal').style.display='block';
 }
 
