@@ -4503,6 +4503,7 @@ const ACOES = {
         </div>
         <div id="aud-rel-result">${aud.relatorio_html||'<div class="ib ibsl">Clique em "Gerar relatório com IA" para criar o relatório executivo automaticamente a partir das abas anteriores.</div>'}</div>
         <div class="btn-row" style="margin-top:1rem">
+          <button type="button" class="btn btn-a" onclick="exportarAuditoriaWord()">⬇ Exportar Word</button>
           <button type="button" class="btn" onclick="salvarRelatorioAuditoria(false)">Salvar</button>
         </div>
       </div>`;
@@ -6848,6 +6849,105 @@ function salvarRelatorioAuditoria(concluir){
   if(concluir)push(p,'auditoria','EP','Auditoria concluída. Conformidade: '+conf);
   fbAutoSave('salvar');toast(concluir?'Auditoria concluída!':'Relatório salvo!','var(--teal)');
   if(concluir){updCounts();rDetalhe();}
+}
+function exportarAuditoriaWord(){
+  const p=curProc;if(!p){toast('Processo não encontrado.','var(--red)');return;}
+  const aud=p.auditoria||{};
+  const _e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _d=d=>d?(d.includes('-')?d.split('-').reverse().join('/'):d):'—';
+  const _confCor={Conforme:'#16a34a','Conforme com ressalvas':'#d97706','Não conforme':'#dc2626'};
+  const _achadoCor={'Não conformidade':'#dc2626','Observação':'#d97706','Conformidade':'#16a34a','Ponto de melhoria':'#2563eb'};
+  const _statusCor={Pendente:'#d97706','Em andamento':'#2563eb','Concluída':'#16a34a'};
+
+  const sec=(titulo,conteudo)=>`
+    <h2 style="font-size:13pt;color:#1E3A5F;border-bottom:2px solid #1E3A5F;padding-bottom:4px;margin-top:24px">${titulo}</h2>
+    ${conteudo}`;
+
+  const tabela=(colunas,linhas)=>{
+    if(!linhas.length) return '<p style="color:#888;font-style:italic">Nenhum registro.</p>';
+    return `<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt">
+      <tr>${colunas.map(c=>`<th style="background:#1E3A5F;color:#fff;padding:6px 8px;text-align:left;border:1px solid #1E3A5F">${c}</th>`).join('')}</tr>
+      ${linhas.map((row,i)=>`<tr style="background:${i%2?'#f5f7fa':'#fff'}">${row.map(c=>`<td style="border:1px solid #ddd;padding:5px 8px;vertical-align:top">${c}</td>`).join('')}</tr>`).join('')}
+    </table>`;
+  };
+
+  // 1. CABEÇALHO
+  let html=`<html><head><meta charset="utf-8">
+  <style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:2.5cm;color:#1a1a1a}
+  h1{font-size:18pt;color:#1E3A5F;margin-bottom:4px}
+  p{margin:3px 0}table{page-break-inside:avoid}</style></head><body>
+  <h1>Relatório de Auditoria</h1>
+  <p style="font-size:10pt;color:#666;margin-bottom:16px">Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+  <table style="width:100%;border-collapse:collapse;font-size:10.5pt;margin-bottom:8px">
+    <tr><td style="padding:4px 8px;width:50%"><strong>Processo:</strong> ${_e(p.nome)}</td>
+        <td style="padding:4px 8px"><strong>Macroprocesso:</strong> ${_e(p.macro)}</td></tr>
+    <tr style="background:#f5f7fa"><td style="padding:4px 8px"><strong>Dono do processo:</strong> ${_e(p.dono)}</td>
+        <td style="padding:4px 8px"><strong>EP Responsável:</strong> ${_e(p.resp_ep)}</td></tr>
+    <tr><td style="padding:4px 8px"><strong>Início da auditoria:</strong> ${_d(aud.data_inicio)}</td>
+        <td style="padding:4px 8px"><strong>Conclusão prevista:</strong> ${_d(aud.data_fim)}</td></tr>
+    <tr style="background:#f5f7fa"><td style="padding:4px 8px"><strong>Conformidade geral:</strong>
+        <span style="color:${_confCor[aud.conformidade]||'#444'};font-weight:bold"> ${_e(aud.conformidade||'Não definida')}</span></td>
+        <td style="padding:4px 8px"><strong>Equipe:</strong> ${_e(aud.equipe)}</td></tr>
+  </table>`;
+
+  // 2. PLANEJAMENTO
+  html+=sec('1. Planejamento',`
+    <p><strong>Objetivo:</strong> ${_e(aud.objetivo)}</p>
+    <p><strong>Escopo:</strong> ${_e(aud.escopo)}</p>
+    <p><strong>Critérios:</strong> ${_e(aud.criterios)}</p>
+    <p><strong>Metodologia:</strong> ${_e(aud.metodologia)}</p>`);
+
+  // 3. QUESTÕES
+  const questoes=aud.questoes||[];
+  html+=sec('2. Questões de Auditoria',tabela(
+    ['#','Questão','Critério','Responsável','Resposta'],
+    questoes.map((q,i)=>[i+1,_e(q.questao),_e(q.criterio),_e(q.responsavel),_e(q.resposta)||'<span style="color:#aaa">Pendente</span>'])
+  ));
+
+  // 4. TRILHA DE PROCEDIMENTOS
+  const trilha=aud.trilha||[];
+  html+=sec('3. Trilha de Auditoria',tabela(
+    ['Tipo','Data','Auditor','Descrição','Evidências','Conclusões'],
+    trilha.map(t=>[_e(t.tipo),_d(t.data),_e(t.responsavel),_e(t.descricao),_e(t.evidencias),_e(t.conclusoes)])
+  ));
+
+  // 5. ACHADOS
+  const achados=aud.achados_list||[];
+  html+=sec('4. Achados e Não Conformidades',tabela(
+    ['Título','Tipo','Descrição','Evidência','Critério violado','Data'],
+    achados.map(a=>[
+      _e(a.titulo),
+      `<span style="color:${_achadoCor[a.tipo]||'#444'};font-weight:bold">${_e(a.tipo)}</span>`,
+      _e(a.descricao),_e(a.evidencia),_e(a.criterio),_d(a.data)
+    ])
+  ));
+
+  // 6. AÇÕES CORRETIVAS
+  const acoes=aud.acoes_list||[];
+  html+=sec('5. Ações Corretivas',tabela(
+    ['Ação','Responsável','Prazo','Status','Achado relacionado'],
+    acoes.map(a=>[
+      _e(a.acao),_e(a.responsavel),_d(a.prazo),
+      `<span style="color:${_statusCor[a.status]||'#444'};font-weight:bold">${_e(a.status)}</span>`,
+      _e(a.achado)
+    ])
+  ));
+
+  // 7. RELATÓRIO EXECUTIVO (HTML gerado pela IA)
+  if(aud.relatorio_html){
+    html+=sec('6. Relatório Executivo',`<div style="font-size:10.5pt;line-height:1.5">${aud.relatorio_html}</div>`);
+  }
+
+  html+=`</body></html>`;
+
+  const blob=new Blob(['﻿'+html],{type:'application/vnd.ms-word;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='Auditoria_'+(p.nome||'processo').replace(/[^a-zA-Z0-9]/g,'_').slice(0,50)+'.doc';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Relatório Word exportado!','var(--teal)');
 }
 function visPopPreview(){
   const p=curProc;
