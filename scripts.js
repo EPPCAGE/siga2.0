@@ -9620,8 +9620,123 @@ var _objetivosEstrategicos = [
   '[Aprendizado] Promover uma comunicação interna mais efetiva',
   '[Aprendizado] Assegurar serviços de TIC para suportar os processos e a estratégia'
 ];
-function projLoadListas(){try{var m=localStorage.getItem('cage_macroprocessos_v6');if(m)_macroprocessos=JSON.parse(m);var o=localStorage.getItem('cage_objetivos_v6');if(o)_objetivosEstrategicos=JSON.parse(o);}catch(e){}}
-function projSaveListas(){localStorage.setItem('cage_macroprocessos_v6',JSON.stringify(_macroprocessos));localStorage.setItem('cage_objetivos_v6',JSON.stringify(_objetivosEstrategicos));}
+const PROJ_FB = Object.freeze({
+  colProjetos: 'proj_projetos',
+  colProgramas: 'proj_programas',
+  cfgCol: 'config',
+  cfgMacrosId: 'proj_macroprocessos',
+  cfgObjetivosId: 'proj_objetivos'
+});
+const _projFbState = {loaded:false, loading:false, saveTimer:null};
+
+function projLoadListas(){
+  try{
+    var m=localStorage.getItem('cage_macroprocessos_v6');if(m)_macroprocessos=JSON.parse(m);
+    var o=localStorage.getItem('cage_objetivos_v6');if(o)_objetivosEstrategicos=JSON.parse(o);
+  }catch(e){}
+}
+function projSaveListas(){
+  localStorage.setItem('cage_macroprocessos_v6',JSON.stringify(_macroprocessos));
+  localStorage.setItem('cage_objetivos_v6',JSON.stringify(_objetivosEstrategicos));
+  projFbAutoSave('listas');
+}
+
+async function projFbSyncCollection(col, items){
+  const {db, doc, writeBatch, collection, getDocs, deleteDoc} = fb();
+  const ids = new Set((items||[]).map(i=>String(i.id)));
+  const ops = [];
+  (items||[]).forEach(item=>{
+    ops.push({type:'set', ref:doc(db,col,String(item.id)), data:_fsClean(item)});
+  });
+  const snap = await getDocs(collection(db,col));
+  snap.forEach(d=>{ if(!ids.has(String(d.id))) ops.push({type:'del', ref:d.ref}); });
+  for(let i=0;i<ops.length;i+=400){
+    const batch = writeBatch(db);
+    ops.slice(i,i+400).forEach(op=>{
+      if(op.type==='set') batch.set(op.ref, op.data);
+      else batch.delete(op.ref);
+    });
+    await batch.commit();
+  }
+}
+
+async function projFbSaveAll(){
+  if(!fbReady()) return;
+  try{
+    const {db, doc, setDoc} = fb();
+    await projFbSyncCollection(PROJ_FB.colProjetos, _projetos||[]);
+    await projFbSyncCollection(PROJ_FB.colProgramas, _programas||[]);
+    await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgMacrosId), {data: JSON.stringify(_macroprocessos||[])});
+    await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgObjetivosId), {data: JSON.stringify(_objetivosEstrategicos||[])});
+  } catch(e){ console.warn('projFbSaveAll:', e.message); }
+}
+
+function projFbAutoSave(label){
+  if(!fbReady()) return;
+  clearTimeout(_projFbState.saveTimer);
+  _projFbState.saveTimer = setTimeout(()=>{ projFbSaveAll().catch(e=>console.warn('projFbAutoSave('+label+'):',e.message)); }, 1200);
+}
+
+function projRenderCurrentPage(){
+  const active = document.querySelector('.proj-nav-btn.on');
+  const page = active ? (active.id||'').replace('pnb-','') : 'inicio';
+  if(document.getElementById('proj-shell')?.classList.contains('on')){
+    projGo(page || 'inicio', active || document.getElementById('pnb-inicio'));
+  }
+}
+
+async function projFbLoadOnce(){
+  if(!fbReady() || _projFbState.loaded || _projFbState.loading) return;
+  _projFbState.loading = true;
+  try{
+    const {db, collection, getDocs, doc, getDoc, setDoc} = fb();
+    const [pSnap, gSnap] = await Promise.all([
+      getDocs(collection(db,PROJ_FB.colProjetos)),
+      getDocs(collection(db,PROJ_FB.colProgramas))
+    ]);
+
+    // Fallback/migração: se nuvem estiver vazia, sobe o que existe no localStorage.
+    if(pSnap.empty && gSnap.empty && ((_projetos||[]).length || (_programas||[]).length)){
+      await projFbSaveAll();
+    } else {
+      if(!pSnap.empty){
+        _projetos = [];
+        pSnap.forEach(d=>_projetos.push(projFixDefaults(d.data())));
+      }
+      if(!gSnap.empty){
+        _programas = [];
+        gSnap.forEach(d=>_programas.push(progFixDefaults(d.data())));
+      }
+    }
+
+    const [macrosDoc, objetivosDoc] = await Promise.all([
+      getDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgMacrosId)),
+      getDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgObjetivosId))
+    ]);
+    if(macrosDoc.exists() && typeof macrosDoc.data()?.data === 'string'){
+      try{ _macroprocessos = JSON.parse(macrosDoc.data().data); }catch(_e){}
+    } else {
+      await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgMacrosId), {data: JSON.stringify(_macroprocessos||[])});
+    }
+    if(objetivosDoc.exists() && typeof objetivosDoc.data()?.data === 'string'){
+      try{ _objetivosEstrategicos = JSON.parse(objetivosDoc.data().data); }catch(_e){}
+    } else {
+      await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgObjetivosId), {data: JSON.stringify(_objetivosEstrategicos||[])});
+    }
+
+    // Mantém cache local para modo offline.
+    try{
+      localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(_projetos||[]));
+      localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(_programas||[]));
+      localStorage.setItem('cage_macroprocessos_v6', JSON.stringify(_macroprocessos||[]));
+      localStorage.setItem('cage_objetivos_v6', JSON.stringify(_objetivosEstrategicos||[]));
+    }catch(_e){}
+
+    _projFbState.loaded = true;
+    projRenderCurrentPage();
+  } catch(e){ console.warn('projFbLoadOnce:', e.message); }
+  finally { _projFbState.loading = false; }
+}
 
 
 // ── Persistência ─────────────────────────────────────────────────
@@ -9637,11 +9752,13 @@ function projLoad() {
   // Load programas and lists too
   progLoad();
   projLoadListas();
+  projFbLoadOnce().catch(e=>console.warn('projLoad/fb:',e.message));
 }
 
 function projSave() {
   try {
     localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(_projetos));
+    projFbAutoSave('projetos');
   } catch(e) {
     projToast('Erro ao salvar dados.', 'var(--red)');
   }
@@ -9661,6 +9778,7 @@ function progLoad() {
 function progSave() {
   try {
     localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(_programas));
+    projFbAutoSave('programas');
   } catch(e) {
     projToast('Erro ao salvar programas.', 'var(--red)');
   }
