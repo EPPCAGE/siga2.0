@@ -7453,14 +7453,14 @@ const _VERB_NAT={
   Aprovacao:['aprovar','autorizar','validar','homologar','ratificar','deferir','indeferir','deliberar','decidir','confirmar','aceitar','rejeitar','vetar','chancelar','anuir','consentir','formalizar','referendar','admitir','sancionar'],
 };
 function inferNatureza(nome){
-  if(!nome)return'';
+  if(!nome)return'Execucao';
   const verb=nome.trim().split(/\s+/)[0].toLowerCase()
     .normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'')
     .replaceAll(/[^a-z]/g,'');
   for(const nat of NATUREZAS){
     if(_VERB_NAT[nat]?.includes(verb))return nat;
   }
-  return'';
+  return'Execucao';
 }
 let etapasIdC=100;
 
