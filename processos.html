@@ -1311,6 +1311,16 @@ Não responda este e-mail.</pre>
           <span>Também é <strong>Gerente de Projeto</strong> (acesso ao SIGA Projetos)</span>
         </label>
       </div>
+      <div id="usr-proc-also-extra" style="display:none;margin-bottom:.85rem">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink2)">
+          <input type="checkbox" id="usr-proc-also-chk" style="width:15px;height:15px;cursor:pointer" onchange="_onUsrProcAlsoChg()">
+          <span>Também acessa o <strong>SIGA Processos</strong> como:</span>
+        </label>
+        <select class="fi" id="usr-proc-also-sel" style="margin-top:.4rem;display:none" onchange="_onUsrProcAlsoSelChg()">
+          <option value="dono">Dono de Processo</option>
+          <option value="gestor">Gestor / Adjunto</option>
+        </select>
+      </div>
 
       <!-- VÍNCULO COM PROCESSOS — só aparece para dono -->
       <div id="usr-proc-section" style="display:none">
@@ -12046,16 +12056,40 @@ async function bloquearUsuario(idx){
 
 function onUsrPerfilChg(){
   const perfil = document.getElementById('usr-perfil')?.value;
-  const sec = document.getElementById('usr-proc-section');
-  if(sec) sec.style.display = perfil==='dono' ? 'block' : 'none';
-  // Show "also gerente_projeto" checkbox only for non-gerproj primary profiles
-  const extra = document.getElementById('usr-gerproj-extra');
-  const chk = document.getElementById('usr-gerproj-chk');
-  if(extra){
-    const show = perfil==='dono' || perfil==='gestor';
-    extra.style.display = show ? 'block' : 'none';
-    if(!show && chk) chk.checked = false;
-  }
+  const sec       = document.getElementById('usr-proc-section');
+  const extra     = document.getElementById('usr-gerproj-extra');
+  const chk       = document.getElementById('usr-gerproj-chk');
+  const extraProc = document.getElementById('usr-proc-also-extra');
+  const chkProc   = document.getElementById('usr-proc-also-chk');
+  const selProc   = document.getElementById('usr-proc-also-sel');
+
+  const isDono   = perfil==='dono';
+  const isGestor = perfil==='gestor';
+  const isGerproj= perfil==='gerente_projeto';
+
+  // Process vinculos section: visible for dono (or gerproj-primary + dono secondary)
+  if(sec) sec.style.display = isDono ? 'block' : 'none';
+
+  // "Also gerente_projeto" checkbox: visible when primary is dono or gestor
+  if(extra){ extra.style.display = (isDono||isGestor) ? 'block' : 'none'; if(!(isDono||isGestor)&&chk) chk.checked=false; }
+
+  // "Also SIGA Processos" section: visible only when primary is gerente_projeto
+  if(extraProc){ extraProc.style.display = isGerproj ? 'block' : 'none'; if(!isGerproj){ if(chkProc)chkProc.checked=false; if(selProc)selProc.style.display='none'; } }
+}
+
+function _onUsrProcAlsoChg(){
+  const chkProc = document.getElementById('usr-proc-also-chk');
+  const selProc = document.getElementById('usr-proc-also-sel');
+  const sec     = document.getElementById('usr-proc-section');
+  const checked = chkProc?.checked;
+  if(selProc) selProc.style.display = checked ? 'block' : 'none';
+  if(sec) sec.style.display = (checked && selProc?.value==='dono') ? 'block' : 'none';
+}
+
+function _onUsrProcAlsoSelChg(){
+  const selProc = document.getElementById('usr-proc-also-sel');
+  const sec     = document.getElementById('usr-proc-section');
+  if(sec) sec.style.display = selProc?.value==='dono' ? 'block' : 'none';
 }
 
 function abrirModalUsr(idx){
@@ -12069,6 +12103,16 @@ function abrirModalUsr(idx){
   sel.innerHTML = '<option value="">Selecione um processo para vincular...</option>' +
     units.map(u=>`<option value="${u.arq_id}">${u.label}</option>`).join('');
 
+  // Reset secondary-module fields
+  const _resetSecondary = () => {
+    const extraPr=document.getElementById('usr-proc-also-extra');
+    const chkPr=document.getElementById('usr-proc-also-chk');
+    const selPr=document.getElementById('usr-proc-also-sel');
+    if(extraPr) extraPr.style.display='none';
+    if(chkPr)   chkPr.checked=false;
+    if(selPr)   selPr.style.display='none';
+  };
+
   if(idx===null){
     document.getElementById('usr-modal-t').textContent = 'Novo usuário';
     document.getElementById('usr-idx').value = '';
@@ -12078,6 +12122,7 @@ function abrirModalUsr(idx){
     document.getElementById('usr-proc-section').style.display = 'block';
     const extra=document.getElementById('usr-gerproj-extra');if(extra)extra.style.display='block';
     const chk=document.getElementById('usr-gerproj-chk');if(chk)chk.checked=false;
+    _resetSecondary();
     delBtn.style.display = 'none';
   } else {
     const u = USUARIOS[idx];
@@ -12090,12 +12135,28 @@ function abrirModalUsr(idx){
     document.getElementById('usr-cargo').value = u.cargo||'';
     document.getElementById('usr-email').value = u.email;
     document.getElementById('usr-perfil').value = primaryPerfil;
-    document.getElementById('usr-proc-section').style.display = primaryPerfil==='dono' ? 'block' : 'none';
+
     const extra=document.getElementById('usr-gerproj-extra');
     const chk=document.getElementById('usr-gerproj-chk');
     const showExtra = primaryPerfil==='dono'||primaryPerfil==='gestor';
     if(extra) extra.style.display=showExtra?'block':'none';
     if(chk) chk.checked=perfis.includes('gerente_projeto')&&primaryPerfil!=='gerente_projeto';
+
+    // Reverse: gerente_projeto primary with dono/gestor secondary
+    const extraProc=document.getElementById('usr-proc-also-extra');
+    const chkProc=document.getElementById('usr-proc-also-chk');
+    const selProc=document.getElementById('usr-proc-also-sel');
+    if(primaryPerfil==='gerente_projeto'){
+      const secProc = perfis.find(p=>p==='dono'||p==='gestor');
+      if(extraProc) extraProc.style.display='block';
+      if(chkProc)   chkProc.checked=!!secProc;
+      if(selProc){  selProc.value=secProc||'dono'; selProc.style.display=secProc?'block':'none'; }
+      document.getElementById('usr-proc-section').style.display = (secProc==='dono') ? 'block' : 'none';
+    } else {
+      _resetSecondary();
+      document.getElementById('usr-proc-section').style.display = primaryPerfil==='dono' ? 'block' : 'none';
+    }
+
     renderVinculos(u.processos_vinculados||[]);
     delBtn.style.display = 'inline-flex';
   }
@@ -12220,10 +12281,16 @@ async function salvarUsr(){
   const perfil = document.getElementById('usr-perfil').value;
   if(!nome||!email){ toast('Preencha nome e e-mail.','var(--amber)'); return; }
   const ini = document.getElementById('usr-ini').value.trim() || nome.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);
-  const vinculos = perfil==='dono' ? [..._tempVinculos] : [];
-  // Build perfis array: primary + optional gerente_projeto checkbox
-  const tambemGerProj = document.getElementById('usr-gerproj-chk')?.checked && perfil!=='gerente_projeto';
-  const perfisArr = tambemGerProj ? [perfil,'gerente_projeto'] : [perfil];
+  // Build perfis array considering bidirectional dual-profile
+  const tambemGerProj  = document.getElementById('usr-gerproj-chk')?.checked  && perfil!=='gerente_projeto';
+  const tambemProcAlso = document.getElementById('usr-proc-also-chk')?.checked && perfil==='gerente_projeto';
+  const procAlsoPerfil = tambemProcAlso ? (document.getElementById('usr-proc-also-sel')?.value||'dono') : null;
+  let perfisArr;
+  if(tambemGerProj)         perfisArr = [perfil,'gerente_projeto'];
+  else if(tambemProcAlso)   perfisArr = [procAlsoPerfil,'gerente_projeto'];
+  else                      perfisArr = [perfil];
+  const effectiveDono = perfisArr.includes('dono');
+  const vinculos = effectiveDono ? [..._tempVinculos] : [];
   const idxStr = document.getElementById('usr-idx').value;
 
   if(idxStr===''){
