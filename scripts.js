@@ -13733,9 +13733,39 @@ document.addEventListener('DOMContentLoaded', function() {
   if(procShell) procShell.style.display = 'none';
   var projShell = document.getElementById('proj-shell');
   if(projShell) projShell.classList.add('on');
-  
+
   projCarregarDemoSeVazio();
   projLoad();
   projGo('inicio', document.getElementById('pnb-inicio'));
   projRenderQuickAccess();
+
+  // Only run auth setup for projetos.html (proj-shell exists there)
+  if (!projShell) return;
+
+  function _aplicarUsuarioProjetos(user) {
+    usuarioLogado = user;
+    aplicarPermissoes();
+    projRenderCurrentPage();
+  }
+
+  if (fbReady()) {
+    var _fbObj = fb();
+    _fbObj.onAuthStateChanged(_fbObj.auth, function(firebaseUser) {
+      if (firebaseUser) {
+        var user = USUARIOS.find(function(u) { return u.email === firebaseUser.email; });
+        if (user) _aplicarUsuarioProjetos(user);
+      } else {
+        usuarioLogado = null;
+      }
+    });
+  } else {
+    // Local fallback: restore session from localStorage
+    try {
+      var savedEmail = lsGet('siga_user');
+      if (savedEmail) {
+        var user = USUARIOS.find(function(u) { return u.email === savedEmail; });
+        if (user) _aplicarUsuarioProjetos(user);
+      }
+    } catch(_e) {}
+  }
 });
