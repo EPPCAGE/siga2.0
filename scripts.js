@@ -10906,7 +10906,7 @@ function projRenderReunioesPage() {
               </div>
               ${r.observacoes ? `<div style="font-size:11px;color:var(--ink3)">📝 ${projEsc(r.observacoes)}</div>` : ''}
             </div>
-            <span style="font-size:10px;padding:2px 7px;border-radius:5px;background:var(--blue-l);color:var(--blue)">Pendente</span>
+            <span style="font-size:10px;padding:2px 7px;border-radius:5px;background:#e8f0ff;color:#00599c">Pendente</span>
             <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})">✏️</button>
             <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})">✕</button>
           </div>
