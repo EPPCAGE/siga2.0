@@ -1703,8 +1703,8 @@ let usuarioLogado = null;
 let curProc = null;
 let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
-let mapeadosManual = new Set((() => { try { return JSON.parse(lsGet('mapeadosManual','[]')); } catch{ return []; } })());
-let criticosManual = new Set((() => { try { return JSON.parse(lsGet('criticosManual','[]')); } catch{ return []; } })());
+let mapeadosManual = new Set();
+let criticosManual = new Set();
 let fluxosCache = {};
 let bpmnModelers = {};
 let bpmnDirty = {};
@@ -9193,6 +9193,7 @@ function bpmnEditorHTML(which, existingXml){
       <button type="button" class="btn" onclick="bpmnExport('${which}')">↓ XML</button>
       <button type="button" class="btn" onclick="bpmnImport('${which}')">↑ XML</button>
       <button type="button" class="btn" onclick="bpmnExportPNG('${which}')" title="Salvar diagrama como imagem PNG">↓ PNG</button>
+      <button type="button" class="btn" onclick="bpmnOpenFullscreen('${which}')" title="Abrir em tela cheia">⛶ Ampliar</button>
       <button type="button" class="btn btn-g" onclick="bpmnSave('${which}')">Salvar ${which.toUpperCase()}</button>
     </div>
     <div id="bpmn-${which}-canvas" class="bpmn-canvas">
@@ -9421,6 +9422,65 @@ function bpmnExportPNG(which){
     img.src=svgUri;
   }).catch(e=>toast('Erro ao exportar: '+(e.message||e),'var(--red)'));
 }
+function bpmnOpenFullscreen(which){
+  const m=bpmnModelers[which];
+  if(!m){toast('Editor BPMN não carregado.','var(--amber)');return;}
+  if(document.getElementById('bpmn-fs-overlay')){return;}
+
+  const overlay=document.createElement('div');
+  overlay.id='bpmn-fs-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9980;background:#1a1a2e;display:flex;flex-direction:column';
+
+  const bar=document.createElement('div');
+  bar.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 10px;background:#111120;flex-shrink:0;flex-wrap:wrap';
+  bar.innerHTML=`
+    <span style="font-size:13px;font-weight:700;color:#c8c8e0;margin-right:4px">${which.toUpperCase()} — Tela cheia</span>
+    <button type="button" class="btn" onclick="bpmnZ('${which}',1)" title="Zoom in">+</button>
+    <button type="button" class="btn" onclick="bpmnZ('${which}',-1)" title="Zoom out">-</button>
+    <button type="button" class="btn" onclick="bpmnFit('${which}')">Ajustar</button>
+    <button type="button" class="btn" onclick="bpmnUndo('${which}')">Desfazer</button>
+    <button type="button" class="btn" onclick="bpmnColorize('${which}')" title="Colorir elementos">🎨 Colorir</button>
+    <button type="button" class="btn" onclick="bpmnExport('${which}')">↓ XML</button>
+    <button type="button" class="btn" onclick="bpmnImport('${which}')">↑ XML</button>
+    <button type="button" class="btn" onclick="bpmnExportPNG('${which}')" title="Exportar PNG">↓ PNG</button>
+    <div style="flex:1"></div>
+    <button type="button" class="btn btn-g" onclick="bpmnSave('${which}')">Salvar ${which.toUpperCase()}</button>
+    <button type="button" class="btn" onclick="bpmnCloseFullscreen('${which}')" title="Fechar tela cheia (Esc)" style="background:#3a2a2a;color:#e08080;border-color:#5a3a3a">✕ Fechar</button>`;
+
+  const canvasEl=document.createElement('div');
+  canvasEl.id='bpmn-fs-canvas';
+  canvasEl.style.cssText='flex:1;position:relative;overflow:hidden';
+
+  overlay.appendChild(bar);
+  overlay.appendChild(canvasEl);
+  document.body.appendChild(overlay);
+
+  try{m.attachTo(canvasEl);}catch(e){
+    document.body.removeChild(overlay);
+    toast('Erro ao abrir tela cheia: '+(e.message||e),'var(--red)');
+    return;
+  }
+  try{m.get('canvas').zoom('fit-viewport');}catch{}
+
+  const _escHandler=e=>{if(e.key==='Escape')bpmnCloseFullscreen(which);};
+  overlay._escHandler=_escHandler;
+  document.addEventListener('keydown',_escHandler);
+}
+
+function bpmnCloseFullscreen(which){
+  const overlay=document.getElementById('bpmn-fs-overlay');
+  if(!overlay)return;
+  if(overlay._escHandler)document.removeEventListener('keydown',overlay._escHandler);
+
+  const m=bpmnModelers[which];
+  const inlineCanvas=document.getElementById('bpmn-'+which+'-canvas');
+  if(m&&inlineCanvas){
+    try{m.attachTo(inlineCanvas);}catch{}
+    try{m.get('canvas').zoom('fit-viewport');}catch{}
+  }
+  overlay.remove();
+}
+
 function vincularDesenhoFinalArq(){
   const m=bpmnModelers['asis'];
   if(!m||!curProc){toast('Editor BPMN não carregado.','var(--amber)');return;}
@@ -13772,6 +13832,8 @@ async function fbLoad(){
         mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
         lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
       } catch(e){ console.error('Erro ao parsear mapeados:', e); }
+    } else {
+      try { mapeadosManual = new Set(JSON.parse(lsGet('mapeadosManual','[]'))); } catch(_e){}
     }
 
     // críticos manualmente
@@ -13781,6 +13843,8 @@ async function fbLoad(){
         criticosManual = new Set(JSON.parse(critDoc.data().data));
         lsSet('criticosManual', JSON.stringify([...criticosManual]));
       } catch(e){ console.error('Erro ao parsear criticos:', e); }
+    } else {
+      try { criticosManual = new Set(JSON.parse(lsGet('criticosManual','[]'))); } catch(_e){}
     }
 
     // emailjs config
@@ -14700,7 +14764,9 @@ async function bootApp() {
       }
     });
   } else {
-    // Fallback modo local
+    // Fallback modo local — Firebase indisponível, restaurar cache
+    try { mapeadosManual = new Set(JSON.parse(lsGet('mapeadosManual','[]'))); } catch(_e){}
+    try { criticosManual = new Set(JSON.parse(lsGet('criticosManual','[]'))); } catch(_e){}
     try {
       const savedEmail = lsGet('siga_user');
       if(savedEmail){
