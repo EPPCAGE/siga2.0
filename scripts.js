@@ -13724,75 +13724,72 @@ function projRenderMemorial(p) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Hide login and hub, show projects directly
-  var loginEl = document.getElementById('login-screen');
-  if(loginEl) loginEl.style.display = 'none';
-  var hubEl = document.getElementById('module-hub');
-  if(hubEl) hubEl.style.display = 'none';
-  var procShell = document.querySelector('.shell');
-  if(procShell) procShell.style.display = 'none';
   var projShell = document.getElementById('proj-shell');
-  if(projShell) projShell.classList.add('on');
+  if (!projShell) return; // Not projetos.html context
 
+  // Keep projects hidden until auth is confirmed — prevents acting with usuarioLogado=null
+  projShell.classList.remove('on');
+  var loginEl  = document.getElementById('login-screen');
+  var hubEl    = document.getElementById('module-hub');
+  if (loginEl) loginEl.style.display = 'none';
+  if (hubEl)   hubEl.style.display   = 'none';
+
+  // Load project data in the background while auth resolves
   projCarregarDemoSeVazio();
   projLoad();
-  projGo('inicio', document.getElementById('pnb-inicio'));
-  projRenderQuickAccess();
 
-  // Only run auth setup for projetos.html (proj-shell exists there)
-  if (!projShell) return;
-
-  function _aplicarUsuarioProjetos(user) {
+  function _mostrarProjetos(user) {
     usuarioLogado = user;
+    projShell.classList.add('on');
     aplicarPermissoes();
-    projRenderCurrentPage();
+    projGo('inicio', document.getElementById('pnb-inicio'));
+    projRenderQuickAccess();
   }
 
-  function _redirecionarLogin() {
-    window.location.replace('processos.html');
-  }
-
-  function _setupProjAuthListener() {
-    var _fbObj = fb();
-    _fbObj.onAuthStateChanged(_fbObj.auth, function(firebaseUser) {
-      if (firebaseUser) {
-        var user = USUARIOS.find(function(u) { return u.email === firebaseUser.email; });
-        if (user) {
-          _aplicarUsuarioProjetos(user);
-        } else {
-          // Authenticated in Firebase but not in the app's user list
-          _redirecionarLogin();
-        }
-      } else {
-        // No active session — send back to the hub login
-        _redirecionarLogin();
-      }
-    });
+  function _mostrarLogin() {
+    // projetos.html has its own login form — show it.
+    // Pre-load USUARIOS so doLogin() can validate the user on submit.
+    if (fbReady()) {
+      var _fbObj = fb();
+      _fbObj.getDoc(_fbObj.doc(_fbObj.db, 'config', 'usuarios'))
+        .then(function(usrDoc) {
+          if (usrDoc.exists() && usrDoc.data().data) {
+            try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(_e) {}
+          }
+        })
+        .catch(function() {});
+    }
+    if (loginEl) loginEl.style.display = 'flex';
   }
 
   if (fbReady()) {
-    // Load USUARIOS from Firestore first — the default array only has the demo
-    // user; real users (including EPP members) live in config/usuarios on Firestore.
     var _fbObj = fb();
-    _fbObj.getDoc(_fbObj.doc(_fbObj.db, 'config', 'usuarios'))
-      .then(function(usrDoc) {
-        if (usrDoc.exists() && usrDoc.data().data) {
-          try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(_e) {}
-        }
-      })
-      .catch(function() {})
-      .finally(function() {
-        _setupProjAuthListener();
-      });
+    // Register auth listener immediately — USUARIOS is loaded inside the callback
+    // so the Firestore read happens with a valid auth token (no security-rules issues).
+    _fbObj.onAuthStateChanged(_fbObj.auth, function(firebaseUser) {
+      if (!firebaseUser) { _mostrarLogin(); return; }
+
+      _fbObj.getDoc(_fbObj.doc(_fbObj.db, 'config', 'usuarios'))
+        .then(function(usrDoc) {
+          if (usrDoc.exists() && usrDoc.data().data) {
+            try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(_e) {}
+          }
+        })
+        .catch(function() {})
+        .finally(function() {
+          var user = USUARIOS.find(function(u) { return u.email === firebaseUser.email; });
+          if (user) { _mostrarProjetos(user); } else { _mostrarLogin(); }
+        });
+    });
   } else {
-    // Local fallback: restore session from localStorage
+    // Local / offline fallback
     try {
       var savedEmail = lsGet('siga_user');
       if (savedEmail) {
         var user = USUARIOS.find(function(u) { return u.email === savedEmail; });
-        if (user) { _aplicarUsuarioProjetos(user); return; }
+        if (user) { _mostrarProjetos(user); return; }
       }
     } catch(_e) {}
-    _redirecionarLogin();
+    _mostrarLogin();
   }
 });
