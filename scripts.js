@@ -13729,10 +13729,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Keep projects hidden until auth is confirmed — prevents acting with usuarioLogado=null
   projShell.classList.remove('on');
-  var loginEl  = document.getElementById('login-screen');
-  var hubEl    = document.getElementById('module-hub');
-  if (loginEl) loginEl.style.display = 'none';
-  if (hubEl)   hubEl.style.display   = 'none';
+  var loginEl   = document.getElementById('login-screen');
+  var hubEl     = document.getElementById('module-hub');
+  var procShell = document.querySelector('.shell');
+  if (loginEl)   loginEl.style.display   = 'none';
+  if (hubEl)     hubEl.style.display     = 'none';
+  if (procShell) procShell.style.display = 'none';
 
   // Load project data in the background while auth resolves
   projCarregarDemoSeVazio();
@@ -13743,18 +13745,15 @@ document.addEventListener('DOMContentLoaded', function() {
   function _mostrarProjetos(user) {
     usuarioLogado = user;
 
-    // Populate sidebar user info
+    // Populate proj-shell sidebar user info (IDs scoped to proj-shell)
     var roleTxt = getPerfisUsuario(user).map(function(p){ return PERFIL_LABELS[p]||p; }).join(' · ') || (PERFIL_LABELS[user.perfil]||user.perfil);
-    var avEl   = document.getElementById('aside-av');   if(avEl)   avEl.textContent   = user.iniciais || '?';
-    var nameEl = document.getElementById('aside-name'); if(nameEl) nameEl.textContent = user.nome     || '-';
-    var roleEl = document.getElementById('aside-role'); if(roleEl) roleEl.textContent = roleTxt;
-    var mobAv  = document.getElementById('mob-user-av'); if(mobAv) mobAv.textContent  = user.iniciais || '?';
-    _aplicarToggleEP(user);
+    var avEl   = document.getElementById('proj-av');    if(avEl)   avEl.textContent   = user.iniciais || '?';
+    var nameEl = document.getElementById('proj-nome');  if(nameEl) nameEl.textContent = user.nome     || '-';
+    var roleEl = document.getElementById('proj-perfil');if(roleEl) roleEl.textContent = roleTxt;
 
     projShell.classList.add('on');
     aplicarPermissoes();
     projGo('inicio', document.getElementById('pnb-inicio'));
-    projRenderQuickAccess();
 
     if (_veioDoLogin) {
       projToast('Bem-vindo(a), ' + (user.nome || user.email) + '!', 'var(--teal)');
