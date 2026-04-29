@@ -13748,14 +13748,24 @@ document.addEventListener('DOMContentLoaded', function() {
     projRenderCurrentPage();
   }
 
+  function _redirecionarLogin() {
+    window.location.replace('processos.html');
+  }
+
   function _setupProjAuthListener() {
     var _fbObj = fb();
     _fbObj.onAuthStateChanged(_fbObj.auth, function(firebaseUser) {
       if (firebaseUser) {
         var user = USUARIOS.find(function(u) { return u.email === firebaseUser.email; });
-        if (user) _aplicarUsuarioProjetos(user);
+        if (user) {
+          _aplicarUsuarioProjetos(user);
+        } else {
+          // Authenticated in Firebase but not in the app's user list
+          _redirecionarLogin();
+        }
       } else {
-        usuarioLogado = null;
+        // No active session — send back to the hub login
+        _redirecionarLogin();
       }
     });
   }
@@ -13780,8 +13790,9 @@ document.addEventListener('DOMContentLoaded', function() {
       var savedEmail = lsGet('siga_user');
       if (savedEmail) {
         var user = USUARIOS.find(function(u) { return u.email === savedEmail; });
-        if (user) _aplicarUsuarioProjetos(user);
+        if (user) { _aplicarUsuarioProjetos(user); return; }
       }
     } catch(_e) {}
+    _redirecionarLogin();
   }
 });
