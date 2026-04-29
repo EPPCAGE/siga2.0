@@ -4,7 +4,7 @@
 const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto',gerente_projeto:'Gerente de Projeto'};
 const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
 // Enums frozen — usar em vez de strings literais em código novo
-const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor'});
+const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor', GERENTE_PROJETO:'gerente_projeto'});
 const STATUS_ENTREGA = Object.freeze({EM_DIA:'em_dia', COM_ATRASO:'com_atraso', SEM_PRAZO:'sem_prazo'});
 const STATUS_PLANO = Object.freeze({PENDENTE:'pendente', EM_ANDAMENTO:'em_andamento', CONCLUIDO:'concluido', CANCELADO:'cancelado', PAUSADO:'pausado'});
 
@@ -900,6 +900,8 @@ function hasPerfil(perfil, u=usuarioLogado){ return getPerfisUsuario(u).includes
 function isEP(){ return hasPerfil('ep'); }
 function isDono(){ return hasPerfil('dono'); }
 function isGerenteProjeto(){ return hasPerfil('gerente_projeto'); }
+function hasProcessosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.some(p=>['ep','dono','gestor'].includes(p)); }
+function hasProjetosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.some(p=>['ep','gerente_projeto'].includes(p)); }
 function projCanWriteAll(){ return isEP(); }
 function projCanWriteExec(){ return isEP() || isGerenteProjeto(); }
 function projCanViewOnly(){ return isDono() && !isEP() && !isGerenteProjeto(); }
@@ -9899,16 +9901,25 @@ function projFixDefaults(p) {
 }
 
 // ── Navegação entre módulos ───────────────────────────────────────
+function _atualizarCardsHub(){
+  const cardProc = document.getElementById('hub-card-proc');
+  const cardProj = document.getElementById('hub-card-proj');
+  if(cardProc) cardProc.style.display = hasProcessosAccess() ? '' : 'none';
+  if(cardProj) cardProj.style.display = hasProjetosAccess()  ? '' : 'none';
+}
+
 function mostrarHub() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('module-hub').style.display = 'flex';
   document.querySelector('.shell').style.display = 'none';
   const ps = document.getElementById('proj-shell');
   ps.classList.remove('on');
+  _atualizarCardsHub();
   _hubVisible = true;
 }
 
 function abrirModuloProcessos() {
+  if(!hasProcessosAccess()){ projToast('Seu perfil não tem acesso ao módulo de processos.','var(--red)'); return; }
   document.getElementById('module-hub').style.display = 'none';
   document.querySelector('.shell').style.display = 'grid';
   document.getElementById('proj-shell').classList.remove('on');
@@ -9916,6 +9927,7 @@ function abrirModuloProcessos() {
 }
 
 function abrirModuloProjetos() {
+  if(!hasProjetosAccess()){ projToast('Seu perfil não tem acesso ao módulo de projetos.','var(--red)'); return; }
   document.getElementById('module-hub').style.display = 'none';
   document.querySelector('.shell').style.display = 'none';
   const ps = document.getElementById('proj-shell');
@@ -9937,15 +9949,36 @@ function projGoBack() {
   document.getElementById('login-screen').style.display = 'flex';
 }
 
-// Após login bem-sucedido, oculta o shell e mostra o hub de módulos
+// Após login bem-sucedido, roteia para o módulo correto conforme perfil
 (function() {
   const observer = new MutationObserver(function(mutations) {
     mutations.forEach(function(m) {
       if(m.target.id === 'login-screen' && m.target.style.display === 'none') {
-        document.querySelector('.shell').style.display = 'none';
-        const hub = document.getElementById('module-hub');
-        if(hub) { hub.classList.add('on'); hub.style.display = ''; }
-        _hubVisible = true;
+        const temProc = hasProcessosAccess();
+        const temProj = hasProjetosAccess();
+        if(temProj && !temProc) {
+          // Gerente de Projeto puro → vai direto ao módulo de projetos
+          document.querySelector('.shell').style.display = 'none';
+          const hub = document.getElementById('module-hub');
+          if(hub) hub.style.display = 'none';
+          const ps = document.getElementById('proj-shell');
+          if(ps) ps.classList.add('on');
+          _hubVisible = false;
+          projLoad();
+        } else if(temProc && !temProj) {
+          // Processos puro → vai direto ao shell de processos
+          document.querySelector('.shell').style.display = 'grid';
+          const hub = document.getElementById('module-hub');
+          if(hub) hub.style.display = 'none';
+          _hubVisible = false;
+        } else {
+          // Acesso duplo ou EP → mostra hub com cards filtrados
+          document.querySelector('.shell').style.display = 'none';
+          const hub = document.getElementById('module-hub');
+          if(hub) { hub.classList.add('on'); hub.style.display = ''; }
+          _atualizarCardsHub();
+          _hubVisible = true;
+        }
       }
     });
   });

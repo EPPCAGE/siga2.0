@@ -475,13 +475,13 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="module-hub-ttl">EPP/CAGE</div>
       <div class="module-hub-sub">Selecione o módulo para acessar</div>
     </div>
-    <div class="module-grid">
-      <div class="module-card">
+    <div class="module-grid" id="module-grid">
+      <div class="module-card" id="hub-card-processos">
         <h3>🧩 SIGA Processos</h3>
         <p>Mapeamento, workflow, auditoria, trilhas e demais funcionalidades de gestão de processos.</p>
         <button type="button" class="btn btn-p" onclick="enterProcessModule()">Entrar →</button>
       </div>
-      <div class="module-card">
+      <div class="module-card" id="hub-card-projetos">
         <h3>📁 SIGA Projetos</h3>
         <p>Portfólio de projetos, programas, indicadores e acompanhamento estratégico.</p>
         <button type="button" class="btn btn-t" onclick="openProjectsModule()">Entrar →</button>
@@ -494,18 +494,35 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 </div>
 
 <!-- Modal: trocar senha no primeiro acesso -->
-<div id="trocar-senha-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;padding:1rem">
-  <div style="background:#1e1e2e;border-radius:14px;padding:2rem;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
-    <div style="color:#fff;font-size:16px;font-weight:700;margin-bottom:.4rem">Defina sua senha</div>
-    <div style="color:rgba(255,255,255,.55);font-size:12px;margin-bottom:1.4rem;line-height:1.5">
-      Você está usando uma senha temporária.<br>
-      Escolha uma senha definitiva para continuar.
-    </div>
-    <label class="login-label" for="ts-nova">Nova senha <span style="opacity:.5;font-size:10px">(mín. 6 caracteres)</span></label>
-    <input class="login-input" id="ts-nova" type="password" placeholder="••••••••" style="margin-bottom:.75rem" onkeydown="if(event.key==='Enter')salvarNovaSenha()">
+<div id="trocar-senha-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;align-items:center;justify-content:center;padding:1rem">
+  <div style="background:#1e1e2e;border-radius:16px;padding:2rem;width:100%;max-width:420px;box-shadow:0 12px 48px rgba(0,0,0,.6);overflow-y:auto;max-height:90vh">
+    <div style="color:#fff;font-size:17px;font-weight:700;margin-bottom:.35rem">Bem-vindo(a) ao SIGA 2.0!</div>
+    <div style="color:rgba(255,255,255,.5);font-size:12px;margin-bottom:1.5rem;line-height:1.55">Você está usando uma senha temporária. Defina sua senha definitiva e confirme seu perfil de acesso antes de continuar.</div>
+
+    <label class="login-label" for="ts-nova">Nova senha <span style="opacity:.45;font-size:10px">(mín. 6 caracteres)</span></label>
+    <input class="login-input" id="ts-nova" type="password" placeholder="••••••••" style="margin-bottom:.7rem">
     <label class="login-label" for="ts-conf">Confirmar nova senha</label>
-    <input class="login-input" id="ts-conf" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')salvarNovaSenha()">
-    <button type="button" class="login-btn" style="margin-top:.9rem" onclick="salvarNovaSenha()">Definir senha →</button>
+    <input class="login-input" id="ts-conf" type="password" placeholder="••••••••" style="margin-bottom:1.4rem">
+
+    <div id="ts-perfil-section">
+      <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.7rem">Meu perfil de acesso</div>
+      <label id="ts-lbl-dono" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:.7rem .85rem;border-radius:10px;border:1px solid rgba(255,255,255,.1);margin-bottom:.5rem;transition:border-color .12s,background .12s">
+        <input type="checkbox" id="ts-perfil-dono" style="margin-top:3px;width:15px;height:15px;cursor:pointer;flex-shrink:0;accent-color:var(--blue)" onchange="_tsAtualizarCards()">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#fff">🧩 Dono de Processo</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:2px;line-height:1.4">Acesso ao SIGA Processos — mapeamento, workflow e gestão de processos institucionais.</div>
+        </div>
+      </label>
+      <label id="ts-lbl-gerproj" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:.7rem .85rem;border-radius:10px;border:1px solid rgba(255,255,255,.1);transition:border-color .12s,background .12s">
+        <input type="checkbox" id="ts-perfil-gerproj" style="margin-top:3px;width:15px;height:15px;cursor:pointer;flex-shrink:0;accent-color:var(--teal)" onchange="_tsAtualizarCards()">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#fff">📁 Gerente de Projeto</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:2px;line-height:1.4">Acesso ao SIGA Projetos — portfólio, indicadores e acompanhamento estratégico.</div>
+        </div>
+      </label>
+    </div>
+
+    <button type="button" class="login-btn" style="margin-top:1.2rem" onclick="salvarNovaSenha()">Definir senha e entrar →</button>
     <div id="ts-msg" style="display:none;font-size:12px;text-align:center;margin-top:.6rem;color:#F2A0A0"></div>
   </div>
 </div>
@@ -1260,6 +1277,7 @@ Não responda este e-mail.</pre>
       <button type="button" class="chip" onclick="filtUsr('ep',this)">EPP</button>
       <button type="button" class="chip" onclick="filtUsr('dono',this)">Executor</button>
       <button type="button" class="chip" onclick="filtUsr('gestor',this)">Gestor</button>
+      <button type="button" class="chip" onclick="filtUsr('gerente_projeto',this)">Ger. Projeto</button>
     </div>
     <input class="srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
   </div>
@@ -1284,7 +1302,14 @@ Não responda este e-mail.</pre>
           <option value="ep">EPP</option>
           <option value="dono">Executor de Processo</option>
           <option value="gestor">Gestor / Adjunto</option>
+          <option value="gerente_projeto">Gerente de Projeto</option>
         </select>
+      </div>
+      <div id="usr-gerproj-extra" style="display:none;margin-bottom:.85rem">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink2)">
+          <input type="checkbox" id="usr-gerproj-chk" style="width:15px;height:15px;cursor:pointer">
+          <span>Também é <strong>Gerente de Projeto</strong> (acesso ao SIGA Projetos)</span>
+        </label>
       </div>
 
       <!-- VÍNCULO COM PROCESSOS — só aparece para dono -->
@@ -1411,10 +1436,10 @@ Não responda este e-mail.</pre>
 // ═══════════════════════════════════════════
 // DADOS CENTRAIS
 // ═══════════════════════════════════════════
-const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto'};
-const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00'};
+const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto',gerente_projeto:'Gerente de Projeto'};
+const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
 // Enums frozen — usar em vez de strings literais em código novo
-const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor'});
+const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor', GERENTE_PROJETO:'gerente_projeto'});
 const STATUS_ENTREGA = Object.freeze({EM_DIA:'em_dia', COM_ATRASO:'com_atraso', SEM_PRAZO:'sem_prazo'});
 const STATUS_PLANO = Object.freeze({PENDENTE:'pendente', EM_ANDAMENTO:'em_andamento', CONCLUIDO:'concluido', CANCELADO:'cancelado', PAUSADO:'pausado'});
 
@@ -1651,8 +1676,19 @@ function openModuleHub(){
   const shell=document.getElementById('proc-shell');
   if(hub) hub.classList.add('on');
   if(shell) shell.style.display='none';
+  // Show/hide cards based on the user's profiles
+  const cProc=document.getElementById('hub-card-processos');
+  const cProj=document.getElementById('hub-card-projetos');
+  const grid=document.getElementById('module-grid');
+  const temProc=hasProcessosAccess();
+  const temProj=hasProjetosAccess();
+  if(cProc) cProc.style.display=temProc?'':'none';
+  if(cProj) cProj.style.display=temProj?'':'none';
+  // Single-column grid when only one card is visible
+  if(grid) grid.style.gridTemplateColumns=(temProc&&temProj)?'':'minmax(0,1fr)';
 }
 function enterProcessModule(){
+  if(!hasProcessosAccess()){ toast('Seu perfil não tem acesso ao SIGA Processos.','var(--red)'); return; }
   const hub=document.getElementById('module-hub');
   const shell=document.getElementById('proc-shell');
   if(hub) hub.classList.remove('on');
@@ -1660,6 +1696,7 @@ function enterProcessModule(){
   go('fila',document.getElementById('nb-fila'));
 }
 function openProjectsModule(){
+  if(!hasProjetosAccess()){ toast('Seu perfil não tem acesso ao SIGA Projetos.','var(--red)'); return; }
   window.location.href='projetos.html';
 }
 
@@ -1679,9 +1716,12 @@ function _aplicarUsuario(user){
   _aplicarToggleEP(user);
   updCounts();
   aplicarPermissoes();
-  openModuleHub();
   _startInactivityWatch();
-  if(user.trocar_senha) setTimeout(abrirModalTrocarSenha, 600);
+  if(user.trocar_senha){
+    abrirModalTrocarSenha();
+  } else {
+    openModuleHub();
+  }
   setTimeout(verificarPrazosProximos, 1500);
 }
 function _aplicarToggleEP(user){
@@ -1943,30 +1983,93 @@ async function _criarUsuarioParaAtribuicao(email, nome, perfil){
   return senhaEnviada; // null se usuário já tinha conta Auth
 }
 
+function _tsAtualizarCards(){
+  const lblDono   = document.getElementById('ts-lbl-dono');
+  const lblGerproj= document.getElementById('ts-lbl-gerproj');
+  const chkDono   = document.getElementById('ts-perfil-dono');
+  const chkGerproj= document.getElementById('ts-perfil-gerproj');
+  if(lblDono && chkDono){
+    lblDono.style.borderColor   = chkDono.checked   ? 'var(--blue)' : 'rgba(255,255,255,.1)';
+    lblDono.style.background    = chkDono.checked   ? 'rgba(26,93,200,.15)' : '';
+  }
+  if(lblGerproj && chkGerproj){
+    lblGerproj.style.borderColor= chkGerproj.checked? 'var(--teal)' : 'rgba(255,255,255,.1)';
+    lblGerproj.style.background = chkGerproj.checked? 'rgba(10,112,96,.15)' : '';
+  }
+}
+
 function abrirModalTrocarSenha(){
   const m = document.getElementById('trocar-senha-modal');
-  if(m){ m.style.display='flex'; document.getElementById('ts-nova')?.focus(); }
+  if(!m) return;
+  // Pre-select existing profiles
+  const perfis = getPerfisUsuario();
+  const chkDono    = document.getElementById('ts-perfil-dono');
+  const chkGerproj = document.getElementById('ts-perfil-gerproj');
+  const section    = document.getElementById('ts-perfil-section');
+  const isEpUser   = perfis.includes('ep');
+  if(section) section.style.display = isEpUser ? 'none' : 'block';
+  if(chkDono)    chkDono.checked    = perfis.includes('dono');
+  if(chkGerproj) chkGerproj.checked = perfis.includes('gerente_projeto');
+  _tsAtualizarCards();
+  // Clear fields and message
+  const nova = document.getElementById('ts-nova');
+  const conf = document.getElementById('ts-conf');
+  const msg  = document.getElementById('ts-msg');
+  if(nova) nova.value='';
+  if(conf) conf.value='';
+  if(msg)  { msg.style.display='none'; msg.textContent=''; }
+  m.style.display='flex';
+  if(nova) nova.focus();
 }
 
 async function salvarNovaSenha(){
   const nova  = (document.getElementById('ts-nova')?.value)||'';
   const conf  = (document.getElementById('ts-conf')?.value)||'';
   const msgEl = document.getElementById('ts-msg');
-  const showErr = m => { if(msgEl){ msgEl.style.color='#F2A0A0'; msgEl.textContent=m; msgEl.style.display='block'; } };
+  const showErr = msg => { if(msgEl){ msgEl.style.color='#F2A0A0'; msgEl.textContent=msg; msgEl.style.display='block'; } };
   if(nova.length < 6){ showErr('A senha deve ter pelo menos 6 caracteres.'); return; }
   if(nova !== conf){ showErr('As senhas não coincidem.'); return; }
+
+  // Validate profile selection (not required for EP users)
+  const isEpUser = usuarioLogado && getPerfisUsuario(usuarioLogado).includes('ep');
+  let novosPerfis = [];
+  if(isEpUser){
+    novosPerfis = ['ep'];
+  } else {
+    const chkDono    = document.getElementById('ts-perfil-dono');
+    const chkGerproj = document.getElementById('ts-perfil-gerproj');
+    if(chkDono?.checked)    novosPerfis.push('dono');
+    if(chkGerproj?.checked) novosPerfis.push('gerente_projeto');
+    if(!novosPerfis.length){ showErr('Selecione pelo menos um perfil de acesso.'); return; }
+  }
+
   if(!fbReady()){ showErr('Firebase não disponível.'); return; }
   const {auth, updatePassword} = fb();
   const firebaseUser = auth.currentUser;
   if(!firebaseUser){ showErr('Sessão inválida. Faça login novamente.'); return; }
   try {
     await updatePassword(firebaseUser, nova);
-    // Remove flag trocar_senha
-    if(usuarioLogado) usuarioLogado.trocar_senha = false;
-    fbSaveAll();
-    const m = document.getElementById('trocar-senha-modal');
-    if(m) m.style.display='none';
+    // Apply profiles and clear temp-password flag
+    if(usuarioLogado){
+      usuarioLogado.perfis      = novosPerfis;
+      usuarioLogado.perfil      = novosPerfis[0]; // keep legacy field in sync
+      usuarioLogado.trocar_senha = false;
+      // Update the entry in USUARIOS array
+      const idx = USUARIOS.findIndex(u => u.email === usuarioLogado.email);
+      if(idx !== -1){
+        USUARIOS[idx].perfis      = novosPerfis;
+        USUARIOS[idx].perfil      = novosPerfis[0];
+        USUARIOS[idx].trocar_senha = false;
+      }
+      // Update sidebar role label
+      const roleEl = document.getElementById('aside-role');
+      if(roleEl) roleEl.textContent = novosPerfis.map(p => PERFIL_LABELS[p]||p).join(' · ');
+    }
+    await fbSaveAll();
+    const modal = document.getElementById('trocar-senha-modal');
+    if(modal) modal.style.display='none';
     toast('Senha definida com sucesso! Bem-vindo(a) ao EP·CAGE.', 'var(--green)');
+    openModuleHub();
   } catch(e){
     const msgs = {
       'auth/requires-recent-login':'Sessão expirada. Faça logout e login novamente.',
@@ -2469,8 +2572,17 @@ function taskCard(p,ACT){
 // ═══════════════════════════════════════════
 
 // ─── PERMISSÕES ───────────────────────────────────────────
-function isEP(){ return usuarioLogado?.perfil === 'ep'; }
-function isDono(){ return usuarioLogado?.perfil === 'dono'; }
+function getPerfisUsuario(u){
+  u = u || usuarioLogado;
+  if(!u) return [];
+  if(Array.isArray(u.perfis) && u.perfis.length) return [...new Set(u.perfis.filter(Boolean))];
+  return u.perfil ? [u.perfil] : [];
+}
+function hasPerfil(p, u){ return getPerfisUsuario(u || usuarioLogado).includes(p); }
+function hasProcessosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('dono')||ps.includes('gestor'); }
+function hasProjetosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('gerente_projeto'); }
+function isEP(){ return hasPerfil('ep'); }
+function isDono(){ return hasPerfil('dono'); }
 
 
 function _aplicarPermissoesNavBtns(){
@@ -11883,13 +11995,14 @@ function renderAdmin(){
 
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
-    (!filtUsrPerfil||u.perfil===filtUsrPerfil) &&
+    (!filtUsrPerfil||getPerfisUsuario(u).includes(filtUsrPerfil)) &&
     (!srch||u.nome.toLowerCase().includes(srch)||u.email.toLowerCase().includes(srch)||(u.cargo||'').toLowerCase().includes(srch))
   );
   const tbody = document.getElementById('usr-tbody');
   if(!tbody) return;
-  const cors = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00'};
-  const pBadge = p=>`<span class="badge ${{ep:'bb',dono:'bt',gestor:'ba'}[p]||'bgr'}">${PERFIL_LABELS[p]||p}</span>`;
+  const cors = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
+  const pBadge = p=>`<span class="badge ${{ep:'bb',dono:'bt',gestor:'ba',gerente_projeto:'bp'}[p]||'bgr'}">${PERFIL_LABELS[p]||p}</span>`;
+  const pBadges = u=>{ const ps=getPerfisUsuario(u); return ps.map(pBadge).join(' '); };
   tbody.innerHTML = lista.map(u=>{
     const idx = USUARIOS.indexOf(u);
     const isMe = usuarioLogado?.email===u.email;
@@ -11904,7 +12017,7 @@ function renderAdmin(){
       <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span class="badge" style="background:var(--red-l);color:var(--red);font-size:10px">bloqueado</span>':''}</td>
       <td style="font-size:12px;color:var(--ink3)">${u.cargo||'—'}</td>
       <td style="font-size:12px;color:var(--ink3)">${u.email}</td>
-      <td>${pBadge(u.perfil)}</td>
+      <td>${pBadges(u)}</td>
       <td style="font-size:11px;color:var(--ink3)">
         ${vinculos.length
           ? vinculos.map(vid=>{
@@ -11935,6 +12048,14 @@ function onUsrPerfilChg(){
   const perfil = document.getElementById('usr-perfil')?.value;
   const sec = document.getElementById('usr-proc-section');
   if(sec) sec.style.display = perfil==='dono' ? 'block' : 'none';
+  // Show "also gerente_projeto" checkbox only for non-gerproj primary profiles
+  const extra = document.getElementById('usr-gerproj-extra');
+  const chk = document.getElementById('usr-gerproj-chk');
+  if(extra){
+    const show = perfil==='dono' || perfil==='gestor';
+    extra.style.display = show ? 'block' : 'none';
+    if(!show && chk) chk.checked = false;
+  }
 }
 
 function abrirModalUsr(idx){
@@ -11955,17 +12076,26 @@ function abrirModalUsr(idx){
     document.getElementById('usr-perfil').value = 'dono';
     document.getElementById('usr-vinculos-list').innerHTML = '';
     document.getElementById('usr-proc-section').style.display = 'block';
+    const extra=document.getElementById('usr-gerproj-extra');if(extra)extra.style.display='block';
+    const chk=document.getElementById('usr-gerproj-chk');if(chk)chk.checked=false;
     delBtn.style.display = 'none';
   } else {
     const u = USUARIOS[idx];
+    const perfis = getPerfisUsuario(u);
+    const primaryPerfil = u.perfil || perfis[0] || 'dono';
     document.getElementById('usr-modal-t').textContent = 'Editar usuário';
     document.getElementById('usr-idx').value = idx;
     document.getElementById('usr-nome').value = u.nome;
     document.getElementById('usr-ini').value = u.iniciais;
     document.getElementById('usr-cargo').value = u.cargo||'';
     document.getElementById('usr-email').value = u.email;
-    document.getElementById('usr-perfil').value = u.perfil;
-    document.getElementById('usr-proc-section').style.display = u.perfil==='dono' ? 'block' : 'none';
+    document.getElementById('usr-perfil').value = primaryPerfil;
+    document.getElementById('usr-proc-section').style.display = primaryPerfil==='dono' ? 'block' : 'none';
+    const extra=document.getElementById('usr-gerproj-extra');
+    const chk=document.getElementById('usr-gerproj-chk');
+    const showExtra = primaryPerfil==='dono'||primaryPerfil==='gestor';
+    if(extra) extra.style.display=showExtra?'block':'none';
+    if(chk) chk.checked=perfis.includes('gerente_projeto')&&primaryPerfil!=='gerente_projeto';
     renderVinculos(u.processos_vinculados||[]);
     delBtn.style.display = 'inline-flex';
   }
@@ -12091,15 +12221,18 @@ async function salvarUsr(){
   if(!nome||!email){ toast('Preencha nome e e-mail.','var(--amber)'); return; }
   const ini = document.getElementById('usr-ini').value.trim() || nome.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);
   const vinculos = perfil==='dono' ? [..._tempVinculos] : [];
+  // Build perfis array: primary + optional gerente_projeto checkbox
+  const tambemGerProj = document.getElementById('usr-gerproj-chk')?.checked && perfil!=='gerente_projeto';
+  const perfisArr = tambemGerProj ? [perfil,'gerente_projeto'] : [perfil];
   const idxStr = document.getElementById('usr-idx').value;
 
   if(idxStr===''){
     if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
-    USUARIOS.push({email, nome, cargo, perfil, iniciais:ini, processos_vinculados:vinculos});
+    USUARIOS.push({email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos});
   } else {
     const idx = Number.parseInt(idxStr);
     if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
-    USUARIOS[idx] = {...USUARIOS[idx], email, nome, cargo, perfil, iniciais:ini, processos_vinculados:vinculos};
+    USUARIOS[idx] = {...USUARIOS[idx], email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos};
     if(usuarioLogado?.email===email){
       usuarioLogado = USUARIOS[idx];
       document.getElementById('aside-name').textContent = nome;
