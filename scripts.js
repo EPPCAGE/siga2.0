@@ -1301,19 +1301,14 @@ function criarProcesso(){
     if(!donoEmail||!donoNome) return;
     const ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
-    const card=document.createElement('div');
-    card.style.cssText='background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)';
-    const ttl=document.createElement('div');
-    ttl.style.cssText='font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem';
-    ttl.textContent='Notificar Dono do Processo?';
-    const txt=document.createElement('div');
-    txt.style.cssText='font-size:13px;color:var(--ink3);margin-bottom:1.2rem';
-    txt.textContent='Deseja enviar notificação e e-mail para '+(p.dono||'')+' informando que o mapeamento de '+(p.nome||'')+' foi iniciado?';
-    const row=document.createElement('div'); row.className='btn-row';
-    const bNo=document.createElement('button'); bNo.type='button'; bNo.className='btn'; bNo.textContent='Não agora'; bNo.onclick=()=>ov.remove();
-    const bYes=document.createElement('button'); bYes.type='button'; bYes.className='btn btn-p'; bYes.textContent='Sim, notificar →';
-    bYes.onclick=()=>{ enviarNotif(donoEmail,p.dono,'Mapeamento iniciado — aguarda questionário de maturidade',p.nome,'','EP·CAGE'); toast('Notificação enviada para '+(p.dono||''),'var(--teal)'); ov.remove(); };
-    row.append(bNo,bYes); card.append(ttl,txt,row); ov.appendChild(card);
+    ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+      <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem">Notificar Dono do Processo?</div>
+      <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">Deseja enviar notificação e e-mail para <strong>${esc(p.dono)}</strong> informando que o mapeamento de <em>${esc(p.nome)}</em> foi iniciado?</div>
+      <div class="btn-row">
+        <button type="button" class="btn" onclick="this.closest('[style*=fixed]').remove()">Não agora</button>
+        <button type="button" class="btn btn-p" onclick="enviarNotif(${JSON.stringify(donoEmail)},${JSON.stringify(p.dono)},'Mapeamento iniciado — aguarda questionário de maturidade',${JSON.stringify(p.nome)},'', 'EP·CAGE');toast('Notificação enviada para '+${JSON.stringify(p.dono)},'var(--teal)');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
+      </div>
+    </div>`;
     document.body.appendChild(ov);
   }, 400);
   fbAutoSave('criarProcesso');
@@ -9674,7 +9669,7 @@ function projSaveListas(){
 }
 
 async function projFbSyncCollection(col, items){
-  const {db, doc, writeBatch, collection, getDocs} = fb();
+  const {db, doc, writeBatch, collection, getDocs, deleteDoc} = fb();
   const ids = new Set((items||[]).map(i=>String(i.id)));
   const ops = [];
   (items||[]).forEach(item=>{
@@ -10916,7 +10911,7 @@ function projRenderReunioesPage() {
               </div>
               ${r.observacoes ? `<div style="font-size:11px;color:var(--ink3)">📝 ${projEsc(r.observacoes)}</div>` : ''}
             </div>
-            <span style="font-size:10px;padding:2px 7px;border-radius:5px;background:var(--blue-l);color:var(--blue)">Pendente</span>
+            <span style="font-size:10px;padding:2px 7px;border-radius:5px;background:#e8f0ff;color:#00599c">Pendente</span>
             <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})">✏️</button>
             <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})">✕</button>
           </div>
