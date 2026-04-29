@@ -837,11 +837,10 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-fila" class="page on"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Minhas tarefas</div><div class="ph-s" id="fila-sub">Carregando...</div></div>
   <button type="button" class="btn btn-p ep-only" onclick="go('dashboard',document.getElementById('nb-dash'))">Ver painel</button></div>
-  <div id="avisos-carousel" style="display:none"></div>
   <div id="fila-content"></div>
 
   <!-- Fale Conosco — visível apenas para perfil dono -->
-  <div id="fale-conosco-panel" style="display:none;margin-top:1rem;max-width:620px">
+  <div id="fale-conosco-panel" style="display:none;margin:1.5rem auto 0;max-width:620px">
     <div class="card" style="padding:.85rem 1rem;border-radius:12px;box-shadow:none;background:rgba(255,255,255,.72)">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:.65rem">
         <span style="font-size:14px;opacity:.65">💬</span>
@@ -2629,7 +2628,6 @@ function rAuditoria(){
 }
 function rFila(){
   if(!usuarioLogado)return;
-  rCarrosselAvisos();
   const tarefas=getTarefasUsr();
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
   const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',det_valid_asis:'Detalhar etapas e validar AS IS',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',desenho_final:'Finalizar desenho do processo',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir auditoria do processo'};
