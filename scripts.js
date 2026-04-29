@@ -10737,7 +10737,7 @@ function projColetarReunioesGlobal() {
   return todas;
 }
 
-function projRenderReunioesCalendar() {
+function projRenderReunioesCalendar(container) {
   const monthValue = document.getElementById('proj-cal-reuniao-mes')?.value || projMonthValue();
   const parts = monthValue.split('-').map(Number);
   const ano = parts[0];
@@ -10745,48 +10745,102 @@ function projRenderReunioesCalendar() {
   const first = new Date(ano, mesIndex, 1);
   const daysInMonth = new Date(ano, mesIndex + 1, 0).getDate();
   const startOffset = first.getDay();
-  const reunioes = projColetarReunioesGlobal().filter(function(r){ return r.data && projIsoInMonth(r.data, monthValue); });
+  const reunioes = projColetarReunioesGlobal().filter(r => r.data && projIsoInMonth(r.data, monthValue));
   const byDay = {};
-  reunioes.forEach(function(r){
+  reunioes.forEach(r => {
     const day = parseInt(String(r.data).slice(8,10), 10);
     if(!byDay[day]) byDay[day] = [];
     byDay[day].push(r);
   });
-  const label = projMonthLabel(monthValue);
-  let cells = '';
-  for(let i=0;i<startOffset;i++) cells += '<div class="proj-meeting-cal-cell empty"></div>';
-  for(let day=1; day<=daysInMonth; day++) {
-    const items = byDay[day] || [];
-    const dateValue = monthValue + '-' + String(day).padStart(2, '0');
-    cells += `
-      <div class="proj-meeting-cal-cell" ondragover="projMeetingCalendarDragOver(event)" ondrop="projDropReuniaoCalendar(event,'${dateValue}')">
-        <div class="proj-meeting-cal-day">${day}</div>
-        ${items.slice(0,3).map(function(r){
-          return `<div class="proj-meeting-cal-item ${r.realizada?'done':''}" draggable="true" ondragstart="projDragReuniaoCalendar(event,'${projEsc(String(r._projeto.id))}','${projEsc(String(r.id))}')" title="${projEsc(r._projeto.nome + ' - ' + r.nome)}">
-            ${projIconHtml(r._projeto)} <span>${projEsc(r.nome)}</span>
-          </div>`;
-        }).join('')}
-        ${items.length > 3 ? `<div class="proj-meeting-cal-more">+${items.length-3} reunião(ões)</div>` : ''}
-      </div>
-    `;
+
+  const section = document.createElement('div');
+  section.className = 'proj-form-section proj-meeting-calendar-section';
+  section.style.marginBottom = '1rem';
+
+  // Title — static SVG + text
+  const titleDiv = document.createElement('div');
+  titleDiv.className = 'proj-form-section-title';
+  titleDiv.innerHTML = '<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1.5" y="3" width="13" height="11.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.5v3M11 1.5v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  titleDiv.appendChild(document.createTextNode(' Calendário de Reuniões'));
+  section.appendChild(titleDiv);
+
+  // Toolbar
+  const toolbar = document.createElement('div');
+  toolbar.className = 'proj-meeting-cal-toolbar';
+  const toolInfo = document.createElement('div');
+  const calTitle = document.createElement('div');
+  calTitle.className = 'proj-meeting-cal-title';
+  calTitle.textContent = projMonthLabel(monthValue);
+  const calSub = document.createElement('div');
+  calSub.className = 'proj-meeting-cal-sub';
+  calSub.textContent = reunioes.length + ' reunião(ões) no mês selecionado';
+  toolInfo.append(calTitle, calSub);
+  const monthInput = document.createElement('input');
+  monthInput.type = 'month'; monthInput.className = 'proj-fi';
+  monthInput.id = 'proj-cal-reuniao-mes'; monthInput.value = monthValue;
+  monthInput.style.maxWidth = '170px';
+  monthInput.addEventListener('change', () => projRenderReunioesPage());
+  toolbar.append(toolInfo, monthInput);
+  section.appendChild(toolbar);
+
+  // Weekday headers — static text
+  const weekdaysDiv = document.createElement('div');
+  weekdaysDiv.className = 'proj-meeting-cal-weekdays';
+  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(d => {
+    const s = document.createElement('span'); s.textContent = d; weekdaysDiv.appendChild(s);
+  });
+  section.appendChild(weekdaysDiv);
+
+  // Grid
+  const grid = document.createElement('div');
+  grid.className = 'proj-meeting-cal-grid';
+  for(let i = 0; i < startOffset; i++){
+    const empty = document.createElement('div');
+    empty.className = 'proj-meeting-cal-cell empty';
+    grid.appendChild(empty);
   }
-  return `
-    <div class="proj-form-section proj-meeting-calendar-section" style="margin-bottom:1rem">
-      <div class="proj-form-section-title">
-        <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1.5" y="3" width="13" height="11.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.5v3M11 1.5v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        Calendário de Reuniões
-      </div>
-      <div class="proj-meeting-cal-toolbar">
-        <div>
-          <div class="proj-meeting-cal-title">${label}</div>
-          <div class="proj-meeting-cal-sub">${reunioes.length} reunião(ões) no mês selecionado</div>
-        </div>
-        <input type="month" class="proj-fi" id="proj-cal-reuniao-mes" value="${monthValue}" onchange="projRenderReunioesPage()" style="max-width:170px">
-      </div>
-      <div class="proj-meeting-cal-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
-      <div class="proj-meeting-cal-grid">${cells}</div>
-    </div>
-  `;
+  for(let day = 1; day <= daysInMonth; day++){
+    const items = byDay[day] || [];
+    const dateValue = monthValue + '-' + String(day).padStart(2,'0');
+    const cell = document.createElement('div');
+    cell.className = 'proj-meeting-cal-cell';
+    cell.addEventListener('dragover', ev => projMeetingCalendarDragOver(ev));
+    cell.addEventListener('drop', ev => projDropReuniaoCalendar(ev, dateValue));
+    const dayEl = document.createElement('div');
+    dayEl.className = 'proj-meeting-cal-day'; dayEl.textContent = day;
+    cell.appendChild(dayEl);
+    items.slice(0,3).forEach(r => {
+      const pId = String(r._projeto.id);
+      const rId = String(r.id);
+      const meetItem = document.createElement('div');
+      meetItem.className = 'proj-meeting-cal-item' + (r.realizada ? ' done' : '');
+      meetItem.draggable = true;
+      meetItem.title = r._projeto.nome + ' - ' + r.nome;
+      meetItem.addEventListener('dragstart', ev => projDragReuniaoCalendar(ev, pId, rId));
+      // Icon
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'proj-mini-icon';
+      if(r._projeto.icone_url){
+        const img = document.createElement('img'); img.src = r._projeto.icone_url; img.alt = '';
+        iconSpan.appendChild(img);
+      } else {
+        iconSpan.textContent = r._projeto.icone_emoji || '📁';
+      }
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = r.nome;
+      meetItem.append(iconSpan, nameSpan);
+      cell.appendChild(meetItem);
+    });
+    if(items.length > 3){
+      const more = document.createElement('div');
+      more.className = 'proj-meeting-cal-more';
+      more.textContent = '+' + (items.length - 3) + ' reunião(ões)';
+      cell.appendChild(more);
+    }
+    grid.appendChild(cell);
+  }
+  section.appendChild(grid);
+  container.appendChild(section);
 }
 
 function projDragReuniaoCalendar(ev, projetoId, reuniaoId) {
@@ -10821,7 +10875,8 @@ function projRenderReunioesPage() {
   const el = document.getElementById('proj-reunioes-content');
   if(!el) return;
 
-  let html = projRenderReunioesCalendar() + `
+  // Static form only — no user data in this string
+  el.innerHTML = `
     <div class="proj-form-section" style="margin-bottom:1rem">
       <div class="proj-form-section-title">
         <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
@@ -10872,8 +10927,10 @@ function projRenderReunioesPage() {
     </div>
   `;
 
-  // Static form via innerHTML (no user data) — select options added below
-  el.innerHTML = html;
+  // Calendar built entirely via DOM (user data via textContent/title/addEventListener)
+  const calDiv = document.createElement('div');
+  projRenderReunioesCalendar(calDiv);
+  el.prepend(calDiv.firstElementChild || calDiv);
 
   // Populate project select options safely via DOM
   const sel = document.getElementById('greuniao-proj');
