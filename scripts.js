@@ -9937,33 +9937,21 @@ function projGoBack() {
   document.getElementById('login-screen').style.display = 'flex';
 }
 
-// Intercept original login to show hub instead of shell
+// Após login bem-sucedido, oculta o shell e mostra o hub de módulos
 (function() {
-  const _origLogin = window.doLogin;
-  // We'll override the login function after it authenticates
-  // The original doLogin sets up the shell; we'll intercept after auth
-  // by monitoring the login screen display
   const observer = new MutationObserver(function(mutations) {
     mutations.forEach(function(m) {
       if(m.target.id === 'login-screen' && m.target.style.display === 'none') {
-        // Login was successful, show hub
         document.querySelector('.shell').style.display = 'none';
-        document.getElementById('module-hub').style.display = 'flex';
+        const hub = document.getElementById('module-hub');
+        if(hub) { hub.classList.add('on'); hub.style.display = ''; }
         _hubVisible = true;
       }
     });
   });
   document.addEventListener('DOMContentLoaded', function() {
     const ls = document.getElementById('login-screen');
-    if(ls) {
-      observer.observe(ls, { attributes: true, attributeFilter: ['style'] });
-    }
-    // Also: bypass login and show hub directly (for local testing)
-    // Since we're removing login for local testing, show hub directly
-    ls.style.display = 'none';
-    document.querySelector('.shell').style.display = 'none';
-    document.getElementById('module-hub').style.display = 'flex';
-    _hubVisible = true;
+    if(ls) observer.observe(ls, { attributes: true, attributeFilter: ['style'] });
   });
 })();
 
