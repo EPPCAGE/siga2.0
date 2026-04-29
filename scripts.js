@@ -467,6 +467,75 @@ async function salvarNovaSenha(){
   }
 }
 
+function abrirMenuUsuario(ev, targetEl) {
+  ev.stopPropagation();
+  const menu = document.getElementById('user-menu-popup');
+  if (!menu) return;
+  if (menu.style.display !== 'none') { fecharMenuUsuario(); return; }
+  const rect = (targetEl || ev.currentTarget).getBoundingClientRect();
+  menu.style.display = 'block';
+  const mw = 175, mh = 85;
+  let left = rect.left;
+  let top  = rect.top - mh - 6;
+  if (top < 8) top = rect.bottom + 6;
+  if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+  menu.style.left = left + 'px';
+  menu.style.top  = top  + 'px';
+  setTimeout(() => document.addEventListener('click', fecharMenuUsuario, { once: true }), 0);
+}
+
+function fecharMenuUsuario() {
+  const menu = document.getElementById('user-menu-popup');
+  if (menu) menu.style.display = 'none';
+}
+
+function abrirAlterarSenha() {
+  fecharMenuUsuario();
+  ['alt-pwd-atual', 'alt-pwd-nova', 'alt-pwd-conf'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const msgEl = document.getElementById('alt-pwd-msg');
+  if (msgEl) msgEl.style.display = 'none';
+  document.getElementById('alterar-senha-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('alt-pwd-atual')?.focus(), 80);
+}
+
+async function salvarAlterarSenha() {
+  const atual = document.getElementById('alt-pwd-atual').value;
+  const nova  = document.getElementById('alt-pwd-nova').value;
+  const conf  = document.getElementById('alt-pwd-conf').value;
+  const msgEl = document.getElementById('alt-pwd-msg');
+  const btn   = document.getElementById('alt-pwd-btn');
+  const showErr = m => { if(msgEl){ msgEl.style.background='rgba(242,160,160,.12)'; msgEl.style.color='#F2A0A0'; msgEl.textContent=m; msgEl.style.display='block'; } };
+  const showOk  = m => { if(msgEl){ msgEl.style.background='rgba(160,242,196,.12)'; msgEl.style.color='#A0F2C4'; msgEl.textContent=m; msgEl.style.display='block'; } };
+  if (!atual)           { showErr('Informe a senha atual.');                         return; }
+  if (nova.length < 6)  { showErr('A nova senha deve ter pelo menos 6 caracteres.'); return; }
+  if (nova !== conf)    { showErr('As senhas não coincidem.');                        return; }
+  if (!fbReady())       { showErr('Firebase não disponível.');                        return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+  try {
+    const { auth, reauthenticateWithCredential, EmailAuthProvider, updatePassword } = fb();
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) { showErr('Sessão inválida. Faça login novamente.'); return; }
+    const credential = EmailAuthProvider.credential(firebaseUser.email, atual);
+    await reauthenticateWithCredential(firebaseUser, credential);
+    await updatePassword(firebaseUser, nova);
+    showOk('Senha alterada com sucesso!');
+    setTimeout(() => { document.getElementById('alterar-senha-modal').style.display = 'none'; }, 1400);
+    projToast('✓ Senha alterada com sucesso!', 'var(--teal)');
+  } catch(e) {
+    const msgs = {
+      'auth/wrong-password':       'Senha atual incorreta.',
+      'auth/invalid-credential':   'Senha atual incorreta.',
+      'auth/requires-recent-login':'Sessão expirada. Faça logout e login novamente.',
+      'auth/weak-password':        'Senha muito fraca. Use pelo menos 6 caracteres.',
+    };
+    showErr(msgs[e.code] || 'Erro: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+  }
+}
+
 async function doLogout(){
   if(fbReady()){
     const {auth, signOut} = fb();
