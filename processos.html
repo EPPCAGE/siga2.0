@@ -615,11 +615,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div style="background:#1e1e2e;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:1.8rem;width:100%;max-width:380px;box-shadow:0 16px 48px rgba(0,0,0,.6)">
     <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:1.4rem">Alterar senha</div>
     <label for="alt-pwd-atual" style="font-size:11px;font-weight:600;color:#e0e0e8;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Senha atual</label>
-    <input id="alt-pwd-atual" type="password" placeholder="••••••••" autocomplete="current-password" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#fff;font-size:13px;margin-bottom:.9rem;box-sizing:border-box;font-family:inherit" onkeydown="if(event.key==='Enter')document.getElementById('alt-pwd-nova').focus()">
+    <input id="alt-pwd-atual" type="password" placeholder="••••••••" autocomplete="current-password" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:#34384d;color:#f7f8ff;font-size:13px;margin-bottom:.9rem;box-sizing:border-box;font-family:inherit" onkeydown="if(event.key==='Enter')document.getElementById('alt-pwd-nova').focus()">
     <label for="alt-pwd-nova" style="font-size:11px;font-weight:600;color:#e0e0e8;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Nova senha <span style="color:#9898a8;font-size:10px;text-transform:none">(mín. 6 caracteres)</span></label>
-    <input id="alt-pwd-nova" type="password" placeholder="••••••••" autocomplete="new-password" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#fff;font-size:13px;margin-bottom:.9rem;box-sizing:border-box;font-family:inherit" onkeydown="if(event.key==='Enter')document.getElementById('alt-pwd-conf').focus()">
+    <input id="alt-pwd-nova" type="password" placeholder="••••••••" autocomplete="new-password" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:#34384d;color:#f7f8ff;font-size:13px;margin-bottom:.9rem;box-sizing:border-box;font-family:inherit" onkeydown="if(event.key==='Enter')document.getElementById('alt-pwd-conf').focus()">
     <label for="alt-pwd-conf" style="font-size:11px;font-weight:600;color:#e0e0e8;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Confirmar nova senha</label>
-    <input id="alt-pwd-conf" type="password" placeholder="••••••••" autocomplete="new-password" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#fff;font-size:13px;margin-bottom:1rem;box-sizing:border-box;font-family:inherit" onkeydown="if(event.key==='Enter')salvarAlterarSenha()">
+    <input id="alt-pwd-conf" type="password" placeholder="••••••••" autocomplete="new-password" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:#34384d;color:#f7f8ff;font-size:13px;margin-bottom:1rem;box-sizing:border-box;font-family:inherit" onkeydown="if(event.key==='Enter')salvarAlterarSenha()">
     <div id="alt-pwd-msg" style="display:none;font-size:12px;text-align:center;padding:.4rem .7rem;border-radius:7px;margin-bottom:.9rem;line-height:1.4"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button onclick="document.getElementById('alterar-senha-modal').style.display='none'" style="padding:7px 15px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid rgba(255,255,255,.18);background:#2e2e3c;color:#bcbcc0;font-family:inherit;transition:background .1s" onmouseover="this.style.background='#383848'" onmouseout="this.style.background='#2e2e3c'">Cancelar</button>
@@ -1541,6 +1541,16 @@ const REUNIAO_TIPOS = Object.freeze({
 const lsGet = (k, d='') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { console.warn('localStorage indisponível'); } };
 const lsRemove = (k) => { try { localStorage.removeItem(k); } catch {} };
+function jsonArrayFromStorage(key, fallback='[]'){
+  const raw = lsGet(key, fallback);
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.warn('JSON inválido em localStorage para '+key+':', e.message);
+    return [];
+  }
+}
 
 let USUARIOS = [
   {email:'ep@sefaz.rs.gov.br',nome:'Equipe EP',perfil:'ep',iniciais:'EP'},
@@ -9490,7 +9500,7 @@ function bpmnOpenFullscreen(which){
   document.body.appendChild(overlay);
 
   try{m.attachTo(canvasEl);}catch(e){
-    document.body.removeChild(overlay);
+    overlay.remove();
     toast('Erro ao abrir tela cheia: '+(e.message||e),'var(--red)');
     return;
   }
@@ -13871,25 +13881,25 @@ async function fbLoad(){
 
     // mapeados manualmente
     const mapDoc = await getDoc(doc(db,'config','mapeados'));
-    if(mapDoc.exists() && mapDoc.data().data){
-      try {
-        mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
-        lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
-      } catch(e){ console.error('Erro ao parsear mapeados:', e); }
-    } else {
-      try { mapeadosManual = new Set(JSON.parse(lsGet('mapeadosManual','[]'))); } catch(_e){}
-    }
+	    if(mapDoc.exists() && mapDoc.data().data){
+	      try {
+	        mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
+	        lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
+	      } catch(e){ console.error('Erro ao parsear mapeados:', e); }
+	    } else {
+	      mapeadosManual = new Set(jsonArrayFromStorage('mapeadosManual'));
+	    }
 
     // críticos manualmente
     const critDoc = await getDoc(doc(db,'config','criticos'));
-    if(critDoc.exists() && critDoc.data().data){
-      try {
-        criticosManual = new Set(JSON.parse(critDoc.data().data));
-        lsSet('criticosManual', JSON.stringify([...criticosManual]));
-      } catch(e){ console.error('Erro ao parsear criticos:', e); }
-    } else {
-      try { criticosManual = new Set(JSON.parse(lsGet('criticosManual','[]'))); } catch(_e){}
-    }
+	    if(critDoc.exists() && critDoc.data().data){
+	      try {
+	        criticosManual = new Set(JSON.parse(critDoc.data().data));
+	        lsSet('criticosManual', JSON.stringify([...criticosManual]));
+	      } catch(e){ console.error('Erro ao parsear criticos:', e); }
+	    } else {
+	      criticosManual = new Set(jsonArrayFromStorage('criticosManual'));
+	    }
 
     // emailjs config
     const ejsDoc = await getDoc(doc(db,'config','ejs'));
@@ -14809,8 +14819,8 @@ async function bootApp() {
     });
   } else {
     // Fallback modo local — Firebase indisponível, restaurar cache
-    try { mapeadosManual = new Set(JSON.parse(lsGet('mapeadosManual','[]'))); } catch(_e){}
-    try { criticosManual = new Set(JSON.parse(lsGet('criticosManual','[]'))); } catch(_e){}
+    mapeadosManual = new Set(jsonArrayFromStorage('mapeadosManual'));
+    criticosManual = new Set(jsonArrayFromStorage('criticosManual'));
     try {
       const savedEmail = lsGet('siga_user');
       if(savedEmail){
