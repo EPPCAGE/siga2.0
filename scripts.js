@@ -13738,15 +13738,32 @@ document.addEventListener('DOMContentLoaded', function() {
   projCarregarDemoSeVazio();
   projLoad();
 
+  var _veioDoLogin = false;
+
   function _mostrarProjetos(user) {
     usuarioLogado = user;
+
+    // Populate sidebar user info
+    var roleTxt = getPerfisUsuario(user).map(function(p){ return PERFIL_LABELS[p]||p; }).join(' · ') || (PERFIL_LABELS[user.perfil]||user.perfil);
+    var avEl   = document.getElementById('aside-av');   if(avEl)   avEl.textContent   = user.iniciais || '?';
+    var nameEl = document.getElementById('aside-name'); if(nameEl) nameEl.textContent = user.nome     || '-';
+    var roleEl = document.getElementById('aside-role'); if(roleEl) roleEl.textContent = roleTxt;
+    var mobAv  = document.getElementById('mob-user-av'); if(mobAv) mobAv.textContent  = user.iniciais || '?';
+    _aplicarToggleEP(user);
+
     projShell.classList.add('on');
     aplicarPermissoes();
     projGo('inicio', document.getElementById('pnb-inicio'));
     projRenderQuickAccess();
+
+    if (_veioDoLogin) {
+      projToast('Bem-vindo(a), ' + (user.nome || user.email) + '!', 'var(--teal)');
+      _veioDoLogin = false;
+    }
   }
 
   function _mostrarLogin() {
+    _veioDoLogin = true;
     // projetos.html has its own login form — show it.
     // Pre-load USUARIOS so doLogin() can validate the user on submit.
     if (fbReady()) {
