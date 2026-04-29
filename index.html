@@ -7941,6 +7941,19 @@ async function _bpmnGetSvg(which,p){
   });
 }
 
+async function _getFluxogramaAsIsPng(p){
+  if(!p) return null;
+  const linkedImg = p.arq_id ? await loadFluxoImg(p.arq_id) : null;
+  if(linkedImg) return linkedImg;
+  if(p.mod?.bpmnAsIs) return renderBpmnToPng(p.mod.bpmnAsIs);
+  return null;
+}
+
+async function _getFluxogramaToBePng(p){
+  if(!p?.mod?.bpmnToBe) return null;
+  return renderBpmnToPng(p.mod.bpmnToBe);
+}
+
 // ─── Gera HTML do apêndice de caracterização do processo para o PDF ──────────
 async function _popPdfAnexo(p){
   const e=p.ent||{};
@@ -8065,9 +8078,9 @@ async function _popPdfAnexo(p){
 
   // ── 12.0 Desenho do processo (BPMN) — página separada em paisagem ────────
   let bpmnLandscape='';
-  const hasBpmnA=!!(p.mod?.bpmnAsIs);
+  const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs);
   const hasBpmnT=!!(p.mod?.bpmnToBe);
-  if(hasBpmnA||hasBpmnT){
+  if(hasFluxoA||hasBpmnT){
     let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">12.0 Desenho do Processo</div>`;
     // Normaliza o SVG para caber na largura da página sem encoding frágil
     const _svgForPdf=svg=>{
@@ -8079,16 +8092,26 @@ async function _popPdfAnexo(p){
         return `<svg${at}>`;
       });
     };
-    if(hasBpmnA){
+    if(hasFluxoA){
       const svg=await _bpmnGetSvg('asis',p);
       if(svg){
         bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;margin-bottom:1.4rem;background:#fff">${_svgForPdf(svg)}</div>`;
+      }else{
+        const png=await _getFluxogramaAsIsPng(p);
+        if(png){
+          bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;margin-bottom:1.4rem;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma AS IS"></div>`;
+        }
       }
     }
     if(hasBpmnT){
       const svg=await _bpmnGetSvg('tobe',p);
       if(svg){
         bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff">${_svgForPdf(svg)}</div>`;
+      }else{
+        const png=await _getFluxogramaToBePng(p);
+        if(png){
+          bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma TO BE"></div>`;
+        }
       }
     }
     bpmnLandscape=`<div class="bpmn-landscape">${bpInner}</div>`;
@@ -8175,11 +8198,8 @@ async function baixarFluxogramas(btn){
   const orig=btn.textContent;
   btn.disabled=true;btn.textContent='⏳ Preparando...';
   try{
-    let pngAsIs=null;
-    if(p.arq_id){pngAsIs=await loadFluxoImg(p.arq_id);}
-    else if(p.mod?.bpmnAsIs){pngAsIs=await renderBpmnToPng(p.mod.bpmnAsIs);}
-    let pngToBe=null;
-    if(p.mod?.bpmnToBe){pngToBe=await renderBpmnToPng(p.mod.bpmnToBe);}
+    const pngAsIs=await _getFluxogramaAsIsPng(p);
+    const pngToBe=await _getFluxogramaToBePng(p);
     if(!pngAsIs&&!pngToBe){toast('Nenhum fluxograma disponível para este processo.','var(--amber)');return;}
     const nome=(p.nome||'fluxo').replaceAll(/[^\w\s-]/g,'').trim().replaceAll(/\s+/g,'_');
     const dl=(href,filename)=>{const a=document.createElement('a');a.href=href;a.download=filename;document.body.appendChild(a);a.click();a.remove();};
@@ -12829,15 +12849,25 @@ async function gerarStatusReportPPT(){
   toast('Status Report gerado com sucesso!','var(--green)');
 }
 
-function planoVinculoOptsHTML(tipo, selId){
+function planoVinculoItems(tipo){
   if(tipo==='mapeamento'){
-    return processos.map(p=>`<option value="${p.id}" ${selId==p.id?'selected':''}>${esc(p.nome)}</option>`).join('');
+    return processos.map(p=>({id:p.id,nome:p.nome,label:p.nome}));
   }
   if(tipo==='auditoria'){
     const src = processos.filter(p=>p.auditoria||p.aud?.length);
-    return (src.length?src:processos).map(p=>`<option value="${p.id}" ${selId==p.id?'selected':''}>Aud: ${esc(p.nome)}</option>`).join('');
+    return (src.length?src:processos).map(p=>({id:p.id,nome:p.nome,label:'Aud: '+p.nome}));
   }
-  return '';
+  return [];
+}
+
+function planoPopularVinculoSelect(tipo, selId){
+  const sel = document.getElementById('pm-vinid');
+  if(!sel) return;
+  const options = [new Option('Selecione...', '')];
+  planoVinculoItems(tipo).forEach(item=>{
+    options.push(new Option(item.label, String(item.id), false, String(selId||'')===String(item.id)));
+  });
+  sel.replaceChildren(...options);
 }
 
 function _planoModalBodyHTML(at){
@@ -12921,7 +12951,6 @@ function _planoModalBodyHTML(at){
         <div class="fl">Processo vinculado</div>
         <select class="fi" id="pm-vinid" ${vTipo?'':'disabled'}>
           <option value="">Selecione...</option>
-          ${planoVinculoOptsHTML(vTipo,vId)}
         </select>
       </div>
       <div style="grid-column:1/-1">
@@ -12943,6 +12972,7 @@ function abrirPlanoModal(idOrObj){
   const isNew = !at||!at.id;
   document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
   document.getElementById('plano-modal-body').innerHTML = _planoModalBodyHTML(at);
+  planoPopularVinculoSelect(at?.vinculo_tipo||'', at?.vinculo_id||'');
   document.getElementById('plano-modal').style.display='block';
 }
 
@@ -12951,7 +12981,7 @@ function planoAtualizarVinculo(){
   const sel  = document.getElementById('pm-vinid');
   if(!sel) return;
   sel.disabled = !tipo;
-  sel.innerHTML = '<option value="">Selecione...</option>' + planoVinculoOptsHTML(tipo,'');
+  planoPopularVinculoSelect(tipo,'');
 }
 
 async function salvarAtividade(){
@@ -12962,7 +12992,8 @@ async function salvarAtividade(){
   const vTipo = document.getElementById('pm-vint')?.value||'';
   const vSel  = document.getElementById('pm-vinid');
   const vId   = vTipo&&vSel?.value ? Number.parseInt(vSel.value)||null : null;
-  const vNome = vId ? (vSel.options[vSel.selectedIndex]?.text||'').replace(/^Aud:\s*/,'') : '';
+  const vItem = vId ? planoVinculoItems(vTipo).find(item=>String(item.id)===String(vId)) : null;
+  const vNome = vItem?.nome||'';
   const qtPrev= Number.parseFloat(document.getElementById('pm-qtprev')?.value)||0;
   const qtReal= Number.parseFloat(document.getElementById('pm-qtreal')?.value)||0;
   const antigo= plano.find(a=>a.id===id);
