@@ -407,6 +407,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 .u-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3)}
 .u-bold{font-weight:600}
 .u-sep{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
+/* concurrent edit banner */
+#concurrent-banner{display:none;position:sticky;top:0;z-index:500;background:#7C3400;color:#fff;padding:10px 1.2rem;font-size:12.5px;align-items:center;gap:10px;flex-wrap:wrap}
+#concurrent-banner strong{font-weight:600}
+.cb-btn{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-family:var(--f);transition:background .12s}.cb-btn:hover{background:rgba(255,255,255,.22)}
+.cb-btn.cb-reload{background:#fff;color:#7C3400;border-color:#fff}.cb-btn.cb-reload:hover{background:#f0f0f0}
 </style>
 </head>
 <body>
@@ -595,6 +600,13 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </div>
 </aside>
 <main class="main-area">
+
+<!-- Concurrent edit warning banner -->
+<div id="concurrent-banner" role="alert">
+  <span style="flex:1"><strong>⚠ Atenção:</strong> <span id="concurrent-msg">Dados foram modificados em outro dispositivo.</span></span>
+  <button type="button" class="cb-btn cb-reload" onclick="_fbReloadData()">Recarregar do servidor</button>
+  <button type="button" class="cb-btn" onclick="_fbDismissBanner()">Manter meus dados</button>
+</div>
 
 <!-- PAGES -->
 <div id="page-fila" class="page on"><div style="padding:2rem">
@@ -1950,6 +1962,8 @@ async function salvarNovaSenha(){
 }
 
 async function doLogout(){
+  if(globalThis._fbExternalWatcher){ globalThis._fbExternalWatcher(); globalThis._fbExternalWatcher=null; }
+  globalThis._fbLoadedAt = 0;
   if(fbReady()){
     const {auth, signOut} = fb();
     await signOut(auth).catch(()=>{});
@@ -13213,7 +13227,7 @@ function _fsClean(v){
 async function fbSaveAll(){
   if(!fbReady()) return;
   try {
-    const {db, doc, writeBatch} = fb();
+    const {db, doc, writeBatch, setDoc} = fb();
 
     // Collect all set operations (strip undefined — Firestore rejects it)
     const ops = [];
@@ -13236,6 +13250,13 @@ async function fbSaveAll(){
       ops.slice(i, i + 450).forEach(({ref, data}) => batch.set(ref, data));
       await batch.commit();
     }
+
+    // Update sentinel so other sessions detect this save, then mark ourselves as current
+    await setDoc(doc(db,'config','last_modified'), {ts: Date.now(), by: usuarioLogado?.email||''});
+    globalThis._fbLoadedAt = Date.now();
+    const _cb = document.getElementById('concurrent-banner');
+    if(_cb) _cb.style.display = 'none';
+
     toast('✓ Dados salvos na nuvem', 'var(--teal)');
   } catch(e){ console.warn('fbSaveAll error:', e.message); toast('⚠ Erro ao salvar na nuvem: '+e.message,'var(--red)'); }
 }
@@ -13368,6 +13389,8 @@ async function fbLoad(){
     }
 
     console.info('Firebase: dados carregados');
+    globalThis._fbLoadedAt = Date.now();
+    _fbWatchExternalChanges();
     return true;
   } catch(e){
     console.warn('fbLoad error:', e.message);
@@ -13930,6 +13953,60 @@ function excluirTrilhaModal(){
 }
 
 // ── END TRILHAS ────────────────────────────
+
+// ── CONCURRENT EDIT DETECTION ────────────────────────────────
+globalThis._fbLoadedAt = 0;
+globalThis._fbExternalWatcher = null;
+
+function _fbShowConcurrentBanner(byEmail){
+  const banner = document.getElementById('concurrent-banner');
+  if(!banner) return;
+  const msg = document.getElementById('concurrent-msg');
+  if(msg) msg.textContent = 'Dados foram modificados por ' + (byEmail||'outro dispositivo') + '. Suas alterações não salvas podem sobrescrever as delas.';
+  banner.style.display = 'flex';
+}
+
+function _fbDismissBanner(){
+  const banner = document.getElementById('concurrent-banner');
+  if(banner) banner.style.display = 'none';
+  globalThis._fbLoadedAt = Date.now();
+}
+
+async function _fbReloadData(){
+  const banner = document.getElementById('concurrent-banner');
+  if(banner) banner.style.display = 'none';
+  clearTimeout(globalThis._fbSaveTimer);
+  toast('Recarregando dados do servidor…', 'var(--blue)');
+  try {
+    await fbLoad();
+    globalThis._fbLoadedAt = Date.now();
+    const pAtivo = document.querySelector('.page.on');
+    if(pAtivo){
+      const id = pAtivo.id.replace('page-','');
+      go(id, document.getElementById('nb-'+id)||null);
+    }
+    toast('✓ Dados recarregados do servidor', 'var(--teal)');
+  } catch(e){ toast('⚠ Erro ao recarregar: '+e.message,'var(--red)'); }
+}
+
+function _fbWatchExternalChanges(){
+  if(!fbReady() || globalThis._fbExternalWatcher) return;
+  const {db, doc, onSnapshot} = fb();
+  globalThis._fbExternalWatcher = onSnapshot(
+    doc(db,'config','last_modified'),
+    (snap) => {
+      if(!snap.exists()) return;
+      const d = snap.data();
+      const ts = d?.ts || 0;
+      const by = d?.by || '';
+      if(ts > (globalThis._fbLoadedAt||0) && by && by !== (usuarioLogado?.email||'')){
+        _fbShowConcurrentBanner(by);
+      }
+    },
+    (err) => { console.warn('_fbWatchExternalChanges:', err.message); }
+  );
+}
+// ── END CONCURRENT EDIT ──────────────────────────────────────
 
 function fbAutoSave(label){
   if(!fbReady()) return;
