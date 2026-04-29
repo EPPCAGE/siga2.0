@@ -1,54 +1,61 @@
-# Configuração Local - EP·CAGE v2
+# Configuração Local — EP·CAGE
 
-## Variáveis de Ambiente
+## Pré-requisitos
 
-Para rodar a aplicação localmente com as funções de IA, você precisa configurar as credenciais do Firebase e Azure.
+- Node.js 20+
+- Firebase CLI (`npm install -g firebase-tools`)
+- Conta no Firebase com acesso ao projeto `gesproc2`
 
-### Opção 1: Usando `config.local.js` (Recomendado para desenvolvimento)
+---
 
-1. Copie o arquivo de exemplo:
-   ```bash
-   cp config.local.js config.local.js
-   ```
+## Credenciais
 
-2. Edite `config.local.js` com suas credenciais:
-   ```javascript
-   window.CONFIG = {
-     FIREBASE_API_KEY: 'sua-chave-api-aqui',
-     AI_FUNCTION_URL: 'https://sua-funcao-cloud-run.a.run.app'
-   };
-   ```
+A aplicação precisa de duas credenciais para funcionar localmente:
 
-3. No `index.html`, o script `config.local.js` será carregado automaticamente (se existir).
+| Variável | Origem |
+|----------|--------|
+| `FIREBASE_API_KEY` | Firebase Console → Configurações do Projeto → `apiKey` |
+| `AI_FUNCTION_URL` | Google Cloud Console → Cloud Run → função `ai` → URL de invocação |
 
-### Opção 2: Usando variáveis de ambiente
+### Configuração via `config.local.js` (recomendado)
 
-Você pode definir as variáveis de ambiente e carregá-las em tempo de deploy via CI/CD:
-- `FIREBASE_API_KEY` → substitui `__FIREBASE_API_KEY__`
-- `AI_FUNCTION_URL` → substitui `__AI_FUNCTION_URL__`
+1. Crie o arquivo `config.local.js` na raiz do projeto (já está no `.gitignore`):
 
-### Encontrando suas credenciais
+```javascript
+window.CONFIG = {
+  FIREBASE_API_KEY: 'sua-chave-api-aqui',
+  AI_FUNCTION_URL: 'https://sua-funcao.a.run.app'
+};
+```
 
-**Firebase API Key:**
-- Firebase Console → Configurações do Projeto → copie o `apiKey` do config JavaScript
+2. O arquivo é carregado automaticamente por `processos.html` e `projetos.html` quando presente.
 
-**AI Function URL:**
-- Google Cloud Console → Cloud Run → função `ai` → copie a URL de invocação
+---
 
 ## Rodando localmente
 
 ```bash
-# Inicie o Firebase Emulator e HTTP Server
+# Terminal 1 — Firebase Emulator (Firestore + Auth)
 firebase emulators:start --project=gesproc2
 
-# Em outro terminal, inicie o servidor HTTP
+# Terminal 2 — Servidor HTTP simples
 python -m http.server 3000
 ```
 
-Acesse: `http://localhost:3000`
+Acesse: `http://localhost:3000/processos.html`
 
-## ⚠️ Segurança
+> **Atenção:** servidores como `python -m http.server` não têm fallback para `processos.html` ao acessar `/`. Acesse o arquivo diretamente pela URL.
 
-- **NUNCA** commite credenciais reais em `index.html`, `.env`, ou arquivos rastreados
-- `config.local.js` está no `.gitignore` e é seguro usar localmente
-- Em produção, use variáveis de ambiente do seu host (Firebase Hosting, etc)
+---
+
+## Deploy via CI/CD
+
+Em produção, as credenciais são injetadas automaticamente pelo workflow `firebase-deploy.yml` via Secrets do GitHub. Não é necessário nenhum arquivo local para o deploy.
+
+---
+
+## Segurança
+
+- **NUNCA** commite credenciais reais em `processos.html`, `.env` ou qualquer arquivo rastreado pelo Git
+- `config.local.js` está no `.gitignore` — é seguro usar localmente
+- Em produção, use os Secrets do GitHub Actions e do Google Cloud Secret Manager

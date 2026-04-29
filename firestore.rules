@@ -24,6 +24,14 @@ service cloud.firestore {
       return isAuth() && userPerfil() == 'gestor';
     }
 
+    function isGerenteProjeto() {
+      return isAuth() && userPerfil() == 'gerente_projeto';
+    }
+
+    function canWriteProjetos() {
+      return isEP() || isGerenteProjeto();
+    }
+
     // ── Usuários ──────────────────────────────────────────────────────────────
     match /usuarios/{uid} {
       // Any authenticated user can read their own record
@@ -81,6 +89,16 @@ service cloud.firestore {
     match /arquitetura/{id} {
       allow read: if isAuth();
       allow write: if isEP();
+    }
+
+    // ── Projetos / Programas (módulo SIGA Projetos) ──────────────────────────
+    match /projPROJETOS/{id} {
+      allow read: if isAuth();
+      allow write: if canWriteProjetos();
+    }
+    match /projPROGRAMAS/{id} {
+      allow read: if isAuth();
+      allow write: if canWriteProjetos();
     }
 
     // ── Helpers (cannot be called from rules, but here for documentation) ─────
