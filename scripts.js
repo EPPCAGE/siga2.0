@@ -9940,7 +9940,7 @@ function abrirModuloProjetos() {
 function voltarAoHub() {
   // Volta para a landing oficial de módulos no index.
   // O index já possui o fluxo de autenticação + hub centralizado.
-  window.location.href = 'index.html';
+  window.location.href = 'processos.html';
 }
 
 function projGoBack() {
