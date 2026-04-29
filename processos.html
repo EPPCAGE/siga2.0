@@ -6125,22 +6125,50 @@ async function gerarAnaliseIA(){
     }
   }
 }
-function salvarEsboco(avancar=true){
+
+async function _persistirBpmnXml(which, p){
+  const mod = bpmnModelers[which];
+  if(!mod) return null;
+  try{
+    const {xml} = await mod.saveXML({format:true});
+    if(!p.mod) p.mod={asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,etapas_proc:[],etapas_proc_tobe:[]};
+    if(which==='asis') p.mod.bpmnAsIs = xml;
+    else p.mod.bpmnToBe = xml;
+    return xml;
+  }catch(e){
+    console.warn('bpmn saveXML '+which+':', e.message);
+    return null;
+  }
+}
+
+async function salvarEsboco(avancar=true){
   const p=curProc;
   p.mod.asIs=document.getElementById('e-asis')?.value||p.mod.asIs||'';
-  const mAs=bpmnModelers['asis'];
-  if(mAs){mAs.saveXML({format:true}).then(({xml})=>{p.mod.bpmnAsIs=xml;if(!avancar)fbAutoSave('salvarEsboco');}).catch(e=>console.warn('bpmn saveXML asis:',e.message));}
+  const hasModeler=!!bpmnModelers['asis'];
+  if(hasModeler){
+    const xml=await _persistirBpmnXml('asis', p);
+    if(!xml){
+      toast('Não foi possível salvar o BPMN AS IS antes de avançar. Tente novamente.','var(--red)');
+      return;
+    }
+  }
   if(avancar) av('esboco_asis','EP','Esboço AS IS elaborado com BPMN');
-  else{if(!mAs){fbAutoSave('salvarEsboco');}toast('Dados salvos!','var(--teal)');}
+  else{fbAutoSave('salvarEsboco');toast('Dados salvos!','var(--teal)');}
 }
-function salvarEsbocaTobe(avancar=true){
+async function salvarEsbocaTobe(avancar=true){
   if(!_validarCampos([{id:'e-tobe',label:'Descrição do TO BE'}])) return;
   const p=curProc;
   p.mod.toBe=document.getElementById('e-tobe')?.value||p.mod.toBe||'';
-  const mTo=bpmnModelers['tobe'];
-  if(mTo){mTo.saveXML({format:true}).then(({xml})=>{p.mod.bpmnToBe=xml;if(!avancar)fbAutoSave('salvarEsbocaTobe');}).catch(e=>console.warn('bpmn saveXML tobe:',e.message));}
+  const hasModeler=!!bpmnModelers['tobe'];
+  if(hasModeler){
+    const xml=await _persistirBpmnXml('tobe', p);
+    if(!xml){
+      toast('Não foi possível salvar o BPMN TO BE antes de avançar. Tente novamente.','var(--red)');
+      return;
+    }
+  }
   if(avancar) av('esboco_tobe','EP','Esboço TO BE elaborado com BPMN');
-  else{if(!mTo){fbAutoSave('salvarEsbocaTobe');}toast('Dados salvos!','var(--teal)');}
+  else{fbAutoSave('salvarEsbocaTobe');toast('Dados salvos!','var(--teal)');}
 }
 
 
