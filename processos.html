@@ -1703,8 +1703,8 @@ let usuarioLogado = null;
 let curProc = null;
 let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
-let mapeadosManual = new Set((() => { try { return JSON.parse(lsGet('mapeadosManual','[]')); } catch{ return []; } })());
-let criticosManual = new Set((() => { try { return JSON.parse(lsGet('criticosManual','[]')); } catch{ return []; } })());
+let mapeadosManual = new Set();
+let criticosManual = new Set();
 let fluxosCache = {};
 let bpmnModelers = {};
 let bpmnDirty = {};
@@ -13772,6 +13772,8 @@ async function fbLoad(){
         mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
         lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
       } catch(e){ console.error('Erro ao parsear mapeados:', e); }
+    } else {
+      try { mapeadosManual = new Set(JSON.parse(lsGet('mapeadosManual','[]'))); } catch(_e){}
     }
 
     // críticos manualmente
@@ -13781,6 +13783,8 @@ async function fbLoad(){
         criticosManual = new Set(JSON.parse(critDoc.data().data));
         lsSet('criticosManual', JSON.stringify([...criticosManual]));
       } catch(e){ console.error('Erro ao parsear criticos:', e); }
+    } else {
+      try { criticosManual = new Set(JSON.parse(lsGet('criticosManual','[]'))); } catch(_e){}
     }
 
     // emailjs config
@@ -14700,7 +14704,9 @@ async function bootApp() {
       }
     });
   } else {
-    // Fallback modo local
+    // Fallback modo local — Firebase indisponível, restaurar cache
+    try { mapeadosManual = new Set(JSON.parse(lsGet('mapeadosManual','[]'))); } catch(_e){}
+    try { criticosManual = new Set(JSON.parse(lsGet('criticosManual','[]'))); } catch(_e){}
     try {
       const savedEmail = lsGet('siga_user');
       if(savedEmail){
