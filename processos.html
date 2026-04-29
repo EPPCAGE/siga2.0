@@ -111,9 +111,9 @@ body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;l
 .login-btn{width:100%;padding:10px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--fh);margin-top:1rem;transition:background .12s}
 .login-btn:hover{background:#1248A8}
 .login-err{font-size:12px;color:#F2A0A0;margin-top:.5rem;text-align:center}
-.module-hub{position:fixed;inset:0;background:var(--ink);display:none;align-items:center;justify-content:center;z-index:999;padding:1.2rem}
+.module-hub{position:fixed;inset:0;background:var(--ink);display:none;align-items:flex-start;justify-content:center;z-index:999;padding:2rem 1.2rem;overflow-y:auto}
 .module-hub.on{display:flex}
-.module-hub-card{width:min(640px,100%);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:2.5rem 2rem}
+.module-hub-card{width:min(960px,100%);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:2.5rem 2rem;margin:auto 0}
 .module-hub-hd{text-align:center;margin-bottom:1.8rem}
 .module-hub-ttl{font-family:var(--fh);font-size:28px;font-weight:700;color:#fff;margin-bottom:4px}
 .module-hub-sub{font-size:12px;color:rgba(255,255,255,.35);letter-spacing:.06em;text-transform:uppercase}
@@ -122,7 +122,24 @@ body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;l
 .module-card:hover{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.07)}
 .module-card h3{font-family:var(--fh);font-size:15px;font-weight:600;color:#fff;margin:0}
 .module-card p{font-size:12px;color:rgba(255,255,255,.5);margin:0;line-height:1.5;flex:1}
-.module-hub-foot{text-align:center;margin-top:1.2rem}
+.module-hub-foot{margin-top:1.5rem;border-top:1px solid rgba(255,255,255,.08);padding-top:1.2rem;display:flex;align-items:center;justify-content:space-between}
+.hub-section{margin-top:2rem;border-top:1px solid rgba(255,255,255,.1);padding-top:2rem}
+.hub-section-ttl{font-family:var(--fh);font-size:15px;font-weight:600;color:#fff;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hub-aviso-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.9rem 1.1rem;margin-bottom:.5rem}
+.hub-aviso-ttl{font-size:13px;font-weight:600;color:#fff;margin-bottom:4px}
+.hub-aviso-body{font-size:12px;color:rgba(255,255,255,.55);line-height:1.5}
+.hub-tbl-wrap{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;overflow:hidden;overflow-x:auto}
+.hub-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.hub-tbl th{text-align:left;padding:6px 9px;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.08);font-weight:600;color:rgba(255,255,255,.5);font-size:11px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.hub-tbl td{padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.06);color:rgba(255,255,255,.75);vertical-align:middle}
+.hub-tbl tr:last-child td{border-bottom:none}
+.hub-tbl tr:hover td{background:rgba(255,255,255,.03)}
+.hub-fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:.8rem}
+.hub-chip{padding:3px 10px;border-radius:99px;border:1px solid rgba(255,255,255,.15);font-size:11px;font-weight:500;color:rgba(255,255,255,.45);cursor:pointer;background:transparent;transition:all .11s;white-space:nowrap;font-family:inherit}
+.hub-chip.on,.hub-chip:hover{border-color:rgba(255,255,255,.4);color:#fff;background:rgba(255,255,255,.08)}
+.hub-srch{padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.15);font-size:12px;color:#fff;background:rgba(255,255,255,.06);font-family:inherit;min-width:160px;transition:border-color .12s}
+.hub-srch::placeholder{color:rgba(255,255,255,.3)}
+.hub-srch:focus{outline:none;border-color:rgba(255,255,255,.35)}
 /* layout */
 .page{display:none;padding:2rem}.page.on{display:block}
 .ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;gap:12px;flex-wrap:wrap}
@@ -487,7 +504,60 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <button type="button" class="btn btn-t" onclick="openProjectsModule()">Entrar →</button>
       </div>
     </div>
+
+    <!-- Quadro de Avisos — visible to all users -->
+    <div class="hub-section" id="hub-avisos-section">
+      <div class="hub-section-ttl">
+        <span>📋 Quadro de avisos</span>
+        <button type="button" class="btn btn-p" style="font-size:12px;display:none" id="hub-aviso-new-btn" onclick="abrirModalAviso(null)">+ Novo aviso</button>
+      </div>
+      <div id="hub-avisos-cards">
+        <div style="text-align:center;color:rgba(255,255,255,.35);font-size:13px;padding:1rem 0">Nenhum aviso ativo.</div>
+      </div>
+      <!-- EPP management table (hidden for non-EP) -->
+      <div id="hub-avisos-manage" style="display:none;margin-top:1.4rem">
+        <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem">Gerenciar avisos</div>
+        <div class="hub-tbl-wrap">
+          <table class="hub-tbl"><thead><tr><th>Título</th><th>Mensagem</th><th>Destinatários</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="avisos-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Administração de Usuários — EPP only -->
+    <div class="hub-section" id="hub-admin-section" style="display:none">
+      <div class="hub-section-ttl">
+        <span>👤 Usuários</span>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn" style="font-size:12px" onclick="exportarBackupJSON()" title="Baixar backup completo dos dados em JSON">⬇ Backup JSON</button>
+          <button type="button" class="btn btn-p" style="font-size:12px" onclick="abrirModalUsr(null)">+ Novo usuário</button>
+        </div>
+      </div>
+      <div class="hub-fbar">
+        <div style="display:flex;gap:5px;flex-wrap:wrap" id="hub-usr-chips">
+          <button type="button" class="hub-chip on" onclick="filtUsr('',this)">Todos</button>
+          <button type="button" class="hub-chip" onclick="filtUsr('ep',this)">EPP</button>
+          <button type="button" class="hub-chip" onclick="filtUsr('dono',this)">Executor</button>
+          <button type="button" class="hub-chip" onclick="filtUsr('gestor',this)">Gestor</button>
+          <button type="button" class="hub-chip" onclick="filtUsr('gerente_projeto',this)">Ger. Projeto</button>
+        </div>
+        <input class="hub-srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
+      </div>
+      <div class="hub-tbl-wrap">
+        <table class="hub-tbl"><thead><tr><th></th><th>Nome</th><th>Cargo</th><th>E-mail</th><th>Perfil</th><th>Processos vinculados</th><th>Ações</th></tr></thead>
+        <tbody id="usr-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- Footer: user info + logout -->
     <div class="module-hub-foot">
+      <div class="user-chip">
+        <div class="user-av" id="hub-user-av">?</div>
+        <div>
+          <div class="user-name" id="hub-user-name">-</div>
+          <div class="user-role" id="hub-user-role">-</div>
+        </div>
+      </div>
       <button type="button" class="btn" onclick="doLogout()">Sair</button>
     </div>
   </div>
@@ -538,6 +608,95 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </div>
 </div>
 <button type="button" class="mob-drawer-backdrop" id="mob-backdrop" tabindex="0" aria-label="Fechar menu" onclick="mobToggleDrawer()" onkeydown="if(event.key==='Escape'){event.preventDefault();mobToggleDrawer()}"></button>
+<!-- MODAL EDITAR USUÁRIO — global, used from hub -->
+<div id="usr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:5000;align-items:center;justify-content:center;padding:1rem">
+  <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
+    <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="usr-modal-t">Novo usuário</div>
+    <input type="hidden" id="usr-idx">
+    <div class="g2">
+      <div class="fg"><label class="fl" for="usr-nome">Nome<span>*</span></label><input class="fi" id="usr-nome"></div>
+      <div class="fg"><label class="fl" for="usr-ini">Iniciais</label><input class="fi" id="usr-ini" maxlength="2"></div>
+    </div>
+    <div class="fg"><label class="fl" for="usr-cargo">Cargo</label><input class="fi" id="usr-cargo" placeholder="Ex: Auditor Fiscal, Gestor, Analista..."></div>
+    <div class="fg"><label class="fl" for="usr-email">E-mail<span>*</span></label><input class="fi" id="usr-email" type="email"></div>
+    <div class="fg"><label class="fl" for="usr-perfil">Perfil<span>*</span></label>
+      <select class="fi" id="usr-perfil" onchange="onUsrPerfilChg()">
+        <option value="ep">EPP</option>
+        <option value="dono">Executor de Processo</option>
+        <option value="gestor">Gestor / Adjunto</option>
+        <option value="gerente_projeto">Gerente de Projeto</option>
+      </select>
+    </div>
+    <div id="usr-gerproj-extra" style="display:none;margin-bottom:.85rem">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink2)">
+        <input type="checkbox" id="usr-gerproj-chk" style="width:15px;height:15px;cursor:pointer">
+        <span>Também é <strong>Gerente de Projeto</strong> (acesso ao SIGA Projetos)</span>
+      </label>
+    </div>
+    <div id="usr-proc-also-extra" style="display:none;margin-bottom:.85rem">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink2)">
+        <input type="checkbox" id="usr-proc-also-chk" style="width:15px;height:15px;cursor:pointer" onchange="_onUsrProcAlsoChg()">
+        <span>Também acessa o <strong>SIGA Processos</strong> como:</span>
+      </label>
+      <select class="fi" id="usr-proc-also-sel" style="margin-top:.4rem;display:none" onchange="_onUsrProcAlsoSelChg()">
+        <option value="dono">Dono de Processo</option>
+        <option value="gestor">Gestor / Adjunto</option>
+      </select>
+    </div>
+    <div id="usr-proc-section" style="display:none">
+      <hr style="margin:.8rem 0">
+      <div class="card-t" style="margin-bottom:.5rem">Processos vinculados</div>
+      <div class="ib ibb" style="font-size:11px;margin-bottom:.7rem">
+        Selecione os processos/subprocessos da arquitetura pelos quais este usuário é responsável.
+        Ele verá apenas esses processos em Melhorias, Indicadores e no painel de tarefas.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:.6rem;flex-wrap:wrap">
+        <select class="fi" id="usr-proc-add-sel" style="flex:1;max-width:420px">
+          <option value="">Selecione um processo para vincular...</option>
+        </select>
+        <button type="button" class="btn btn-p" style="font-size:12px" onclick="addVinculoProc()">+ Vincular</button>
+      </div>
+      <div id="usr-vinculos-list"></div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-r" id="usr-del-btn" onclick="deletarUsr()" style="margin-right:auto;display:none">Remover usuário</button>
+      <button type="button" class="btn" onclick="document.getElementById('usr-modal').style.display='none'">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="salvarUsr()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AVISO — global, used from hub -->
+<div id="aviso-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:5000;align-items:center;justify-content:center;padding:1rem">
+  <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
+    <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="aviso-modal-t">Novo aviso</div>
+    <input type="hidden" id="aviso-id">
+    <div class="fg"><label class="fl" for="aviso-titulo">Título<span>*</span></label><input class="fi" id="aviso-titulo" placeholder="Ex: Manutenção programada em 15/04"></div>
+    <div class="fg"><label class="fl" for="aviso-corpo">Mensagem<span>*</span></label><textarea class="fi" id="aviso-corpo" rows="4" placeholder="Texto do aviso..."></textarea></div>
+    <div class="fg">
+      <label class="fl" for="aviso-perfil-todos">Destinatários<span>*</span></label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="aviso-perfil-todos" onchange="onAvisoPerfisChg()" checked> Todos os perfis
+        </label>
+        <div id="aviso-perfis-ind" style="display:flex;flex-direction:column;gap:6px;padding-left:1.2rem;opacity:.4;pointer-events:none">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-ep"> EPP</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-dono"> Executor de Processo</label>
+        </div>
+      </div>
+    </div>
+    <div class="fg" style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="aviso-ativo" checked>
+      <label class="fl" style="margin:0;cursor:pointer" for="aviso-ativo">Aviso ativo (visível para os usuários)</label>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-r" id="aviso-del-btn" style="margin-right:auto;display:none" onclick="excluirAvisoModal()">Excluir</button>
+      <button type="button" class="btn" onclick="document.getElementById('aviso-modal').style.display='none'">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="salvarAviso()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="shell" id="proc-shell">
 <aside class="aside">
   <div class="aside-top" style="display:flex;align-items:center;justify-content:space-between">
@@ -589,15 +748,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <button type="button" class="nav-btn" onclick="go('notificacoes',this)" id="nb-notif">
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a5 5 0 00-5 5v3l-1 2h12l-1-2V7a5 5 0 00-5-5z" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg>
     Notificações <span class="nav-cnt" id="nb-notif-cnt">0</span>
-  </button>
-  <div class="nav-sec">Administração</div>
-  <button type="button" class="nav-btn" onclick="go('admin',this)" id="nb-admin">
-    <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-    Usuários
-  </button>
-  <button type="button" class="nav-btn ep-only" onclick="go('avisos',this)" id="nb-avisos">
-    <svg viewBox="0 0 16 16" fill="none"><path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H9l-1 2-1-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M5 7h6M5 9.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-    Quadro de avisos <span class="nav-cnt" id="nb-avisos-cnt">0</span>
   </button>
   <button type="button" class="nav-btn" onclick="openModuleHub()" id="nb-modhub" style="display:none;margin-top:4px;border-top:1px solid var(--bdr2);padding-top:10px">
     <svg viewBox="0 0 16 16" fill="none"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" stroke="currentColor" stroke-width="1.2"/></svg>
@@ -1265,131 +1415,8 @@ Não responda este e-mail.</pre>
   </div>
 </div></div>
 
-<div id="page-admin" class="page"><div style="padding:2rem">
-  <div class="ph"><div><div class="ph-t">Usuários</div><div class="ph-s">Cadastro de e-mails, perfis e vínculos com processos</div></div>
-  <div style="display:flex;gap:8px">
-    <button type="button" class="btn" onclick="exportarBackupJSON()" title="Baixar backup completo dos dados em JSON">⬇ Backup JSON</button>
-    <button type="button" class="btn btn-p" onclick="abrirModalUsr(null)">+ Novo usuário</button>
-  </div></div>
-  <div class="fbar"><span class="fbar-l">Perfil</span>
-    <div class="chips" id="usr-chips">
-      <button type="button" class="chip on" onclick="filtUsr('',this)">Todos</button>
-      <button type="button" class="chip" onclick="filtUsr('ep',this)">EPP</button>
-      <button type="button" class="chip" onclick="filtUsr('dono',this)">Executor</button>
-      <button type="button" class="chip" onclick="filtUsr('gestor',this)">Gestor</button>
-      <button type="button" class="chip" onclick="filtUsr('gerente_projeto',this)">Ger. Projeto</button>
-    </div>
-    <input class="srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
-  </div>
-  <div class="card" style="padding:0;overflow:hidden">
-    <table class="pop-tbl"><thead><tr><th></th><th>Nome</th><th>Cargo</th><th>E-mail</th><th>Perfil</th><th>Processos vinculados</th><th>Ações</th></tr></thead>
-    <tbody id="usr-tbody"></tbody></table>
-  </div>
-
-  <!-- MODAL EDITAR USUÁRIO -->
-  <div id="usr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
-    <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
-      <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="usr-modal-t">Novo usuário</div>
-      <input type="hidden" id="usr-idx">
-      <div class="g2">
-        <div class="fg"><label class="fl" for="usr-nome">Nome<span>*</span></label><input class="fi" id="usr-nome"></div>
-        <div class="fg"><label class="fl" for="usr-ini">Iniciais</label><input class="fi" id="usr-ini" maxlength="2"></div>
-      </div>
-      <div class="fg"><label class="fl" for="usr-cargo">Cargo</label><input class="fi" id="usr-cargo" placeholder="Ex: Auditor Fiscal, Gestor, Analista..."></div>
-      <div class="fg"><label class="fl" for="usr-email">E-mail<span>*</span></label><input class="fi" id="usr-email" type="email"></div>
-      <div class="fg"><label class="fl" for="usr-perfil">Perfil<span>*</span></label>
-        <select class="fi" id="usr-perfil" onchange="onUsrPerfilChg()">
-          <option value="ep">EPP</option>
-          <option value="dono">Executor de Processo</option>
-          <option value="gestor">Gestor / Adjunto</option>
-          <option value="gerente_projeto">Gerente de Projeto</option>
-        </select>
-      </div>
-      <div id="usr-gerproj-extra" style="display:none;margin-bottom:.85rem">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink2)">
-          <input type="checkbox" id="usr-gerproj-chk" style="width:15px;height:15px;cursor:pointer">
-          <span>Também é <strong>Gerente de Projeto</strong> (acesso ao SIGA Projetos)</span>
-        </label>
-      </div>
-      <div id="usr-proc-also-extra" style="display:none;margin-bottom:.85rem">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink2)">
-          <input type="checkbox" id="usr-proc-also-chk" style="width:15px;height:15px;cursor:pointer" onchange="_onUsrProcAlsoChg()">
-          <span>Também acessa o <strong>SIGA Processos</strong> como:</span>
-        </label>
-        <select class="fi" id="usr-proc-also-sel" style="margin-top:.4rem;display:none" onchange="_onUsrProcAlsoSelChg()">
-          <option value="dono">Dono de Processo</option>
-          <option value="gestor">Gestor / Adjunto</option>
-        </select>
-      </div>
-
-      <!-- VÍNCULO COM PROCESSOS — só aparece para dono -->
-      <div id="usr-proc-section" style="display:none">
-        <hr style="margin:.8rem 0">
-        <div class="card-t" style="margin-bottom:.5rem">Processos vinculados</div>
-        <div class="ib ibb" style="font-size:11px;margin-bottom:.7rem">
-          Selecione os processos/subprocessos da arquitetura pelos quais este usuário é responsável.
-          Ele verá apenas esses processos em Melhorias, Indicadores e no painel de tarefas.
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:.6rem;flex-wrap:wrap">
-          <select class="fi" id="usr-proc-add-sel" style="flex:1;max-width:420px">
-            <option value="">Selecione um processo para vincular...</option>
-          </select>
-          <button type="button" class="btn btn-p" style="font-size:12px" onclick="addVinculoProc()">+ Vincular</button>
-        </div>
-        <div id="usr-vinculos-list"></div>
-      </div>
-
-      <div class="btn-row">
-        <button type="button" class="btn btn-r" id="usr-del-btn" onclick="deletarUsr()" style="margin-right:auto;display:none">Remover usuário</button>
-        <button type="button" class="btn" onclick="document.getElementById('usr-modal').style.display='none'">Cancelar</button>
-        <button type="button" class="btn btn-p" onclick="salvarUsr()">Salvar</button>
-      </div>
-    </div>
-  </div>
-</div></div>
-
-<!-- QUADRO DE AVISOS — gestão EP -->
-<div id="page-avisos" class="page"><div style="padding:2rem">
-  <div class="ph">
-    <div><div class="ph-t">Quadro de avisos</div><div class="ph-s">Crie e gerencie avisos visíveis para os usuários do sistema</div></div>
-    <button type="button" class="btn btn-p" onclick="abrirModalAviso(null)">+ Novo aviso</button>
-  </div>
-  <div class="card" style="padding:0;overflow:hidden">
-    <table class="pop-tbl"><thead><tr><th>Título</th><th>Mensagem</th><th>Destinatários</th><th>Status</th><th>Ações</th></tr></thead>
-    <tbody id="avisos-tbody"></tbody></table>
-  </div>
-
-  <!-- MODAL AVISO -->
-  <div id="aviso-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
-    <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
-      <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="aviso-modal-t">Novo aviso</div>
-      <input type="hidden" id="aviso-id">
-      <div class="fg"><label class="fl" for="aviso-titulo">Título<span>*</span></label><input class="fi" id="aviso-titulo" placeholder="Ex: Manutenção programada em 15/04"></div>
-      <div class="fg"><label class="fl" for="aviso-corpo">Mensagem<span>*</span></label><textarea class="fi" id="aviso-corpo" rows="4" placeholder="Texto do aviso..."></textarea></div>
-      <div class="fg">
-        <label class="fl" for="aviso-perfil-todos">Destinatários<span>*</span></label>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-            <input type="checkbox" id="aviso-perfil-todos" onchange="onAvisoPerfisChg()" checked> Todos os perfis
-          </label>
-          <div id="aviso-perfis-ind" style="display:flex;flex-direction:column;gap:6px;padding-left:1.2rem;opacity:.4;pointer-events:none">
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-ep"> EPP</label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-dono"> Executor de Processo</label>
-          </div>
-        </div>
-      </div>
-      <div class="fg" style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="aviso-ativo" checked>
-        <label class="fl" style="margin:0;cursor:pointer" for="aviso-ativo">Aviso ativo (visível para os usuários)</label>
-      </div>
-      <div class="btn-row">
-        <button type="button" class="btn btn-r" id="aviso-del-btn" style="margin-right:auto;display:none" onclick="excluirAvisoModal()">Excluir</button>
-        <button type="button" class="btn" onclick="document.getElementById('aviso-modal').style.display='none'">Cancelar</button>
-        <button type="button" class="btn btn-p" onclick="salvarAviso()">Salvar</button>
-      </div>
-    </div>
-  </div>
-</div></div>
+<div id="page-admin" class="page"></div>
+<div id="page-avisos" class="page"></div>
 
 <!-- TRILHAS DE CAPACITAÇÃO -->
 <div id="page-trilhas" class="page"><div style="padding:2rem">
@@ -1686,7 +1713,7 @@ function openModuleHub(){
   const shell=document.getElementById('proc-shell');
   if(hub) hub.classList.add('on');
   if(shell) shell.style.display='none';
-  // Show/hide cards based on the user's profiles
+  // Show/hide module cards based on user's profiles
   const cProc=document.getElementById('hub-card-processos');
   const cProj=document.getElementById('hub-card-projetos');
   const grid=document.getElementById('module-grid');
@@ -1694,8 +1721,38 @@ function openModuleHub(){
   const temProj=hasProjetosAccess();
   if(cProc) cProc.style.display=temProc?'':'none';
   if(cProj) cProj.style.display=temProj?'':'none';
-  // Single-column grid when only one card is visible
   if(grid) grid.style.gridTemplateColumns=(temProc&&temProj)?'':'minmax(0,1fr)';
+  // Avisos cards — all users
+  renderHubAvisosCards();
+  // Admin sections — EPP only
+  const ep=isEP();
+  const adminSec=document.getElementById('hub-admin-section');
+  const avisosManage=document.getElementById('hub-avisos-manage');
+  const avisoNewBtn=document.getElementById('hub-aviso-new-btn');
+  if(adminSec) adminSec.style.display=ep?'':'none';
+  if(avisosManage) avisosManage.style.display=ep?'':'none';
+  if(avisoNewBtn) avisoNewBtn.style.display=ep?'':'none';
+  if(ep){ renderAdmin(); rAvisos(); }
+}
+
+function renderHubAvisosCards(){
+  const container=document.getElementById('hub-avisos-cards');
+  if(!container) return;
+  const userPerfis=usuarioLogado?getPerfisUsuario(usuarioLogado):[];
+  const ativos=AVISOS.filter(a=>{
+    if(!a.ativo) return false;
+    if(!a.perfis||a.perfis.includes('todos')) return true;
+    return userPerfis.some(p=>a.perfis.includes(p));
+  });
+  if(!ativos.length){
+    container.innerHTML='<div style="text-align:center;color:rgba(255,255,255,.35);font-size:13px;padding:1rem 0">Nenhum aviso ativo no momento.</div>';
+    return;
+  }
+  container.innerHTML=ativos.map(a=>`
+    <div class="hub-aviso-card">
+      <div class="hub-aviso-ttl">${esc(a.titulo)}</div>
+      <div class="hub-aviso-body">${esc(a.corpo)}</div>
+    </div>`).join('');
 }
 function enterProcessModule(){
   if(!hasProcessosAccess()){ toast('Seu perfil não tem acesso ao SIGA Processos.','var(--red)'); return; }
@@ -1723,6 +1780,9 @@ function _aplicarUsuario(user){
   const mobAv=document.getElementById('mob-user-av');if(mobAv)mobAv.textContent=user.iniciais;
   document.getElementById('aside-name').textContent=user.nome;
   document.getElementById('aside-role').textContent=PERFIL_LABELS[user.perfil]||user.perfil;
+  const hubAv=document.getElementById('hub-user-av');if(hubAv)hubAv.textContent=user.iniciais;
+  const hubName=document.getElementById('hub-user-name');if(hubName)hubName.textContent=user.nome;
+  const hubRole=document.getElementById('hub-user-role');if(hubRole)hubRole.textContent=PERFIL_LABELS[user.perfil]||user.perfil;
   _aplicarToggleEP(user);
   updCounts();
   aplicarPermissoes();
@@ -11998,40 +12058,41 @@ let filtUsrPerfil = '';
 
 function filtUsr(p, el){
   filtUsrPerfil = p;
-  document.querySelectorAll('#usr-chips .chip').forEach(c=>c.classList.remove('on'));
+  document.querySelectorAll('#hub-usr-chips .hub-chip').forEach(c=>c.classList.remove('on'));
   el.classList.add('on');
   renderAdmin();
 }
 
 function renderAdmin(){
-  if(!isEP()){document.getElementById('usr-tbody').innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--ink3);padding:1rem">Acesso restrito ao EPP.</td></tr>';return;}
+  const tbody = document.getElementById('usr-tbody');
+  if(!tbody) return;
+  if(!isEP()){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,.35);padding:1rem">Acesso restrito ao EPP.</td></tr>';return;}
 
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
     (!filtUsrPerfil||getPerfisUsuario(u).includes(filtUsrPerfil)) &&
     (!srch||u.nome.toLowerCase().includes(srch)||u.email.toLowerCase().includes(srch)||(u.cargo||'').toLowerCase().includes(srch))
   );
-  const tbody = document.getElementById('usr-tbody');
-  if(!tbody) return;
   const cors = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
   const pBadge = p=>`<span class="badge ${{ep:'bb',dono:'bt',gestor:'ba',gerente_projeto:'bp'}[p]||'bgr'}">${PERFIL_LABELS[p]||p}</span>`;
   const pBadges = u=>{ const ps=getPerfisUsuario(u); return ps.map(pBadge).join(' '); };
+  if(!lista.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,.35);padding:1.2rem">Nenhum usuário encontrado.</td></tr>';return;}
   tbody.innerHTML = lista.map(u=>{
     const idx = USUARIOS.indexOf(u);
     const isMe = usuarioLogado?.email===u.email;
     const vinculos = (u.processos_vinculados||[]);
-    const noVinculoHtml = u.perfil==='ep'?'<span style="color:var(--ink4)">Todos (EP)</span>':'<span style="color:var(--red)">Nenhum vínculo</span>';
-    const bloqStyle = u.bloqueado ? 'background:var(--red-l);color:var(--red);' : '';
+    const noVinculoHtml = u.perfil==='ep'?'<span style="color:rgba(255,255,255,.35)">Todos (EP)</span>':'<span style="color:#f87171">Nenhum vínculo</span>';
+    const bloqStyle = u.bloqueado ? 'background:rgba(176,28,28,.25);color:#f87171;border-color:rgba(176,28,28,.4);' : '';
     const bloqLabel = u.bloqueado ? 'Desbloquear' : 'Bloquear';
     let trStyle = '';
-    if(isMe){ trStyle = 'background:var(--blue-l)'; } else if(u.bloqueado){ trStyle = 'opacity:.6'; }
+    if(isMe){ trStyle = 'background:rgba(26,93,200,.18)'; } else if(u.bloqueado){ trStyle = 'opacity:.6'; }
     return `<tr style="${trStyle}">
       <td><div style="width:28px;height:28px;border-radius:50%;background:${cors[u.perfil]||'#888'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${u.iniciais}</div></td>
-      <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span class="badge" style="background:var(--red-l);color:var(--red);font-size:10px">bloqueado</span>':''}</td>
-      <td style="font-size:12px;color:var(--ink3)">${u.cargo||'—'}</td>
-      <td style="font-size:12px;color:var(--ink3)">${u.email}</td>
+      <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span style="background:rgba(176,28,28,.2);color:#f87171;font-size:10px;padding:1px 6px;border-radius:4px">bloqueado</span>':''}</td>
+      <td style="font-size:12px;color:rgba(255,255,255,.45)">${u.cargo||'—'}</td>
+      <td style="font-size:12px;color:rgba(255,255,255,.45)">${u.email}</td>
       <td>${pBadges(u)}</td>
-      <td style="font-size:11px;color:var(--ink3)">
+      <td style="font-size:11px;color:rgba(255,255,255,.45)">
         ${vinculos.length
           ? vinculos.map(vid=>{
               const u2=getUnidadesMapeaveis().find(u=>u.arq_id===vid);
@@ -13678,19 +13739,19 @@ function updAvisosCnt(){
 }
 
 function rAvisos(){
-  updAvisosCnt();
+  renderHubAvisosCards();
   const tbody = document.getElementById('avisos-tbody');
   if(!tbody) return;
   if(!AVISOS.length){
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink4)">Nenhum aviso criado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:rgba(255,255,255,.35)">Nenhum aviso criado</td></tr>';
     return;
   }
   tbody.innerHTML = AVISOS.map(a=>`
     <tr>
       <td style="font-weight:500">${esc(a.titulo)}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)">${esc(a.corpo)}</td>
-      <td style="font-size:12px">${(a.perfis||[]).map(p=>p==='todos'?'<span style="background:var(--slate-l);color:var(--slate);padding:2px 7px;border-radius:99px;font-size:11px">Todos</span>':('<span style="background:var(--bg2);color:var(--ink2);padding:2px 7px;border-radius:99px;font-size:11px">'+(PERFIL_LABELS[p]||p)+'</span>')).join(' ')}</td>
-      <td><span style="padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;background:${a.ativo?'var(--green-l)':'var(--bg2)'};color:${a.ativo?'var(--green)':'var(--ink4)'}">${a.ativo?'Ativo':'Inativo'}</span></td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.55)">${esc(a.corpo)}</td>
+      <td style="font-size:12px">${(a.perfis||[]).map(p=>p==='todos'?'<span style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);padding:2px 7px;border-radius:99px;font-size:11px">Todos</span>':('<span style="background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);padding:2px 7px;border-radius:99px;font-size:11px">'+(PERFIL_LABELS[p]||p)+'</span>')).join(' ')}</td>
+      <td><span style="padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;background:${a.ativo?'rgba(26,110,60,.35)':'rgba(255,255,255,.07)'};color:${a.ativo?'#6ee7b7':'rgba(255,255,255,.4)'}">${a.ativo?'Ativo':'Inativo'}</span></td>
       <td style="display:flex;gap:6px">
         <button type="button" class="btn" style="font-size:11px" onclick="abrirModalAviso('${a.id}')">Editar</button>
       </td>
