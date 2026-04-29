@@ -9789,9 +9789,59 @@ async function projFbSyncCollection(col, items){
   }
 }
 
+function projIsDataUrl(value){
+  return typeof value === 'string' && value.startsWith('data:');
+}
+
+async function projDataUrlToBlob(dataUrl){
+  const res = await fetch(dataUrl);
+  if(!res.ok) throw new Error('Não foi possível preparar imagem para upload.');
+  return res.blob();
+}
+
+function projSafeStorageName(name, fallback){
+  return String(name || fallback || 'imagem')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 90) || 'imagem';
+}
+
+async function projFbUploadConclusaoImages(){
+  if(!fbReady()) return;
+  const {storage, storageRef, uploadBytes, getDownloadURL} = fb();
+  if(!storage || !storageRef || !uploadBytes || !getDownloadURL) return;
+
+  for(const proj of PROJETOS || []){
+    const imagens = proj?.conclusao?.imagens;
+    if(!Array.isArray(imagens)) continue;
+
+    for(let i = 0; i < imagens.length; i++){
+      const img = imagens[i];
+      if(!img || typeof img !== 'object') continue;
+      if(!projIsDataUrl(img.data)) {
+        if(img.data && !img.url) img.url = img.data;
+        continue;
+      }
+
+      const blob = await projDataUrlToBlob(img.data);
+      const nome = projSafeStorageName(img.nome, 'imagem-' + (i + 1));
+      const path = img.path || `projetos/${proj.id || 'sem-id'}/conclusao/${Date.now()}-${i}-${nome}`;
+      const ref = storageRef(storage, path);
+      await uploadBytes(ref, blob, { contentType: blob.type || 'application/octet-stream' });
+      const url = await getDownloadURL(ref);
+
+      img.path = path;
+      img.url = url;
+      img.data = url;
+    }
+  }
+}
+
 async function projFbSaveAll(){
   if(!fbReady()) throw new Error('Firebase indisponível.');
   const {db, doc, setDoc} = fb();
+  await projFbUploadConclusaoImages();
   await projFbSyncCollection(PROJ_FB.colProjetos, PROJETOS||[]);
   await projFbSyncCollection(PROJ_FB.colProgramas, PROGRAMAS||[]);
   await setDoc(doc(db,PROJ_FB.cfgCol,PROJ_FB.cfgMacrosId), {data: JSON.stringify(PROJ_MACROS||[])});
