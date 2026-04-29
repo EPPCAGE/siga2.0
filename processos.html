@@ -4339,6 +4339,7 @@ const ACOES = {
     <div style="display:flex;gap:8px;margin-bottom:.8rem;flex-wrap:wrap">
       <button type="button" class="btn btn-t" onclick="extrairBpmn()">⚡ Extrair etapas do BPMN</button>
       <button type="button" class="btn" onclick="addEtapaProc()">+ Adicionar manualmente</button>
+      <button type="button" class="btn" style="font-size:11px;padding:3px 10px" onclick="exportarEtapasAsIsXlsx()" title="Exportar todas as etapas para planilha Excel">⬇ Exportar Excel</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
     `},
