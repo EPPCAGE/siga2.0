@@ -8183,14 +8183,31 @@ function duplicarAtividade(id){
   abrirPlanoModal({...src, id:0, nome:src.nome+' (cópia)', status:'planejado', qt_realizada:0, evidencia:'', dt_criacao:'', dt_atualizacao:''});
 }
 
-function _fsClean(v){
+function _fsClean(v, insideArray){
   if(v===null||v===undefined) return null;
-  if(Array.isArray(v)) return v.map(_fsClean);
-  if(typeof v==='object'&&!(v instanceof Date)){
-    const r={};
-    for(const k of Object.keys(v)){if(v[k]!==undefined) r[k]=_fsClean(v[k]);}
+  if(v instanceof Date) return v;
+  if(Array.isArray(v)){
+    const arr = v.map(item => _fsClean(item, true));
+    return insideArray ? { items: arr } : arr;
+  }
+  if(typeof v==='object'){
+    const proto = Object.getPrototypeOf(v);
+    if(proto !== Object.prototype && proto !== null) return null;
+    const r = {};
+    for(const k of Object.keys(v)){
+      if(k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      if(v[k] === undefined) continue;
+      Object.defineProperty(r, k, {
+        value: _fsClean(v[k], false),
+        enumerable: true,
+        writable: true,
+        configurable: true
+      });
+    }
     return r;
   }
+  if(typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if(typeof v === 'function' || typeof v === 'symbol') return null;
   return v;
 }
 async function fbSaveAll(){
@@ -13186,31 +13203,49 @@ function projImportJSON(){
           return;
         }
         projConfirmar('Importar dados? Isso substituira TODOS os projetos e programas atuais.', function(){
-          PROJETOS = data.projetos.map(function(p){return projFixDefaults(p);});
-          PROGRAMAS = Array.isArray(data.programas) ? data.programas.map(function(pg){return progFixDefaults(pg);}) : [];
-          if(Array.isArray(data.macros)) PROJ_MACROS = data.macros;
-          if(Array.isArray(data.objetivos)) PROJ_OBJETIVOS = data.objetivos;
-          // Cache local imediato (projetos + programas + listas)
-          try {
+          const prevProjetos = PROJETOS;
+          const prevProgramas = PROGRAMAS;
+          const prevMacros = PROJ_MACROS;
+          const prevObjetivos = PROJ_OBJETIVOS;
+
+          const nextProjetos = data.projetos.map(function(p){return projFixDefaults(p);});
+          const nextProgramas = Array.isArray(data.programas) ? data.programas.map(function(pg){return progFixDefaults(pg);}) : [];
+          const nextMacros = Array.isArray(data.macros) ? data.macros : PROJ_MACROS;
+          const nextObjetivos = Array.isArray(data.objetivos) ? data.objetivos : PROJ_OBJETIVOS;
+
+          PROJETOS = nextProjetos;
+          PROGRAMAS = nextProgramas;
+          PROJ_MACROS = nextMacros;
+          PROJ_OBJETIVOS = nextObjetivos;
+
+          _projFbState.loaded = true;
+          clearTimeout(_projFbState.saveTimer);
+
+          const gravarCacheLocal = function(){
             localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS));
             localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS));
             localStorage.setItem('cagePROJ_MACROS_v6', JSON.stringify(PROJ_MACROS||[]));
             localStorage.setItem('cage_objetivos_v6', JSON.stringify(PROJ_OBJETIVOS||[]));
-          } catch(_e){}
-          // Marca como carregado para evitar que projFbLoadOnce sobrescreva os dados importados
-          _projFbState.loaded = true;
-          // Cancela qualquer auto-save pendente — vamos persistir agora, sincronicamente.
-          clearTimeout(_projFbState.saveTimer);
+          };
+
           if(!fbReady()){
+            try { gravarCacheLocal(); } catch(_e){}
             projToast('Importado localmente. Firebase indisponível — dados não sincronizados na nuvem.', '#d97706');
             projGo('inicio', document.getElementById('pnb-inicio'));
             return;
           }
+
           projToast('Enviando para a nuvem…');
           projFbSaveAll().then(function(){
+            try { gravarCacheLocal(); } catch(_e){}
             projToast('Dados importados e sincronizados na nuvem!');
             projGo('inicio', document.getElementById('pnb-inicio'));
           }).catch(function(err){
+            PROJETOS = prevProjetos;
+            PROGRAMAS = prevProgramas;
+            PROJ_MACROS = prevMacros;
+            PROJ_OBJETIVOS = prevObjetivos;
+            _projFbState.loaded = false;
             console.warn('projImportJSON/fb:', err && err.message);
             projToast('Erro ao enviar para a nuvem: ' + (err && err.message ? err.message : err), '#dc2626');
           });
