@@ -2066,8 +2066,8 @@ function _enviarSenhaAcesso(email, nome, senha){
     emailjs.send(ejsConfig.service, ejsConfig.template, {
       to_name:  nome,
       to_email: email,
-      from_name: 'EP·CAGE',
-      processo: 'EP·CAGE — Acesso liberado',
+      from_name: 'EPP·CAGE',
+      processo: 'Acesso liberado',
       acao: 'Seu acesso ao sistema EP·CAGE foi aprovado.\n\nSua senha temporária: ' + senha + '\n\nAcesse o sistema e altere sua senha no primeiro login.',
       prazo: 'Alterar a senha no primeiro acesso',
       link: 'https://sigaepp.web.app/',
