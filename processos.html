@@ -1526,6 +1526,16 @@ const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto
 const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor', GERENTE_PROJETO:'gerente_projeto'});
 const STATUS_ENTREGA = Object.freeze({EM_DIA:'em_dia', COM_ATRASO:'com_atraso', SEM_PRAZO:'sem_prazo'});
 const STATUS_PLANO = Object.freeze({PENDENTE:'pendente', EM_ANDAMENTO:'em_andamento', CONCLUIDO:'concluido', CANCELADO:'cancelado', PAUSADO:'pausado'});
+const MATURIDADE_LABELS = Object.freeze(['','Inicial','Repetível','Definido','Gerenciado','Otimizado']);
+const REUNIAO_TIPOS = Object.freeze({
+  reuniao_entendimento:'Reunião de entendimento',
+  reuniao_valid_asis:'Validação AS IS',
+  reuniao_valid_tobe:'Validação TO BE',
+  reuniao_complement:'Complementação',
+  reuniao_apresentacao:'Aprovação pelo Gestor',
+  acompanhamento:'Acompanhamento',
+  outra:'Outra reunião',
+});
 
 // ── localStorage seguro (try/catch para modo incógnito / bloqueio corporativo) ─
 const lsGet = (k, d='') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
@@ -2708,7 +2718,6 @@ function rMeusProc(){
   panel.style.display='block';
   cntEl.textContent = minhas.length + ' processo' + (minhas.length===1?'':'s');
 
-  const ML_ = ['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
   listEl.innerHTML = minhas.map(u=>{
     const proc = u.proc;
     const mapeado = !!proc;
@@ -2717,7 +2726,7 @@ function rMeusProc(){
     const cardTitle = mapeado ? 'Abrir mapeamento' : 'Ver na arquitetura';
     const borderColor = mapeado ? 'var(--teal-b)' : 'var(--bdr)';
     const borderL = mapeado ? 'var(--teal)' : 'var(--bdr2)';
-    const matText = mat ? 'Maturidade '+mat+'/5 — '+ML_[mat] : 'Maturidade não avaliada';
+    const matText = mat ? 'Maturidade '+mat+'/5 — '+MATURIDADE_LABELS[mat] : 'Maturidade não avaliada';
     const ei = mapeado ? etIdx(proc.etapa) : -1;
     const progressBar = mapeado ? ETAPAS.map((_,i)=>{
       let bg;
@@ -5517,7 +5526,6 @@ function salvarQuestionario(){
 }
 function mostrarResultadoMaturidade(p,nivel,media){
   const resp=p.ent.quest_resp||{};
-  const ML=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
   // Calcula nota por dimensão
   const dims={};
   QUESTOES.forEach(q=>{if(!dims[q.dim]){dims[q.dim]={sum:0,cnt:0};} if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
@@ -5547,7 +5555,7 @@ function mostrarResultadoMaturidade(p,nivel,media){
     <div style="text-align:center;margin-bottom:1.4rem">
       <div style="font-size:13px;color:var(--ink3);margin-bottom:.3rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Resultado do Questionário de Maturidade</div>
       <div style="font-size:48px;font-weight:900;color:${corNivel};line-height:1">${nivel}</div>
-      <div style="font-size:22px;font-weight:700;color:${corNivel};margin-bottom:.2rem">${ML[nivel]||''}</div>
+      <div style="font-size:22px;font-weight:700;color:${corNivel};margin-bottom:.2rem">${MATURIDADE_LABELS[nivel]||''}</div>
       <div style="font-size:13px;color:var(--ink3)">Média geral: <strong>${media}</strong> · Nível <strong>${nivel}/5</strong></div>
     </div>
     <div style="border-top:1px solid var(--bdr);padding-top:1.2rem;margin-bottom:1.4rem">
@@ -6562,7 +6570,6 @@ async function montarPOPPPT(p, dados, logoB64, bpmnAsisPng, bpmnTobePng, indsPro
 
   const C1='1E3A5F', C2='2E7D8F', C3='F5F7FA', CW='FFFFFF', CG='2E2E2E';
   const CA='1B5E7B', CL='C8DCE8';
-  const ML_=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
   const HCOLS=['1E3A5F','1A6674','2C5F8A','1E5E5E','2E4A7A','1A5A6A','243F6A','185A6A'];
 
   // Rodapé padrão com logo SIGA
@@ -6647,7 +6654,7 @@ async function montarPOPPPT(p, dados, logoB64, bpmnAsisPng, bpmnTobePng, indsPro
       sl.addText(m.nota||'—', {x:bx+3.45,y:by+0.03,w:0.52,h:0.28,fontSize:9,bold:true,color:CW,fontFace:'Calibri',align:'center',valign:'middle'});
     });
     const matGeral = p.ent?.mat || 0;
-    sl.addText(`Maturidade Geral: ${matGeral}/5 — ${ML_[matGeral]||''}`, {x:8.5,y:4.52,w:4.2,h:0.26,fontSize:9.5,bold:true,color:cor,fontFace:'Calibri',align:'right'});
+    sl.addText(`Maturidade Geral: ${matGeral}/5 — ${MATURIDADE_LABELS[matGeral]||''}`, {x:8.5,y:4.52,w:4.2,h:0.26,fontSize:9.5,bold:true,color:cor,fontFace:'Calibri',align:'right'});
   }
   function renderSlideObjetivo(sl, slide) {
     sl.addText('Objetivo', {x:0.5,y:1.18,w:11.5,h:0.27,fontSize:10.5,bold:true,color:CA,fontFace:'Calibri'});
@@ -8045,7 +8052,6 @@ function extrairBpmn(){
 // ═══════════════════════════════════════════
 // ABAS SECUNDÁRIAS DO DETALHE
 // ═══════════════════════════════════════════
-const ML=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
 // ── Índice Lean Processual ─────────────────
 // ILP = (E + P + 0.5*(C+D)) / (Total + α*GxorDiv + β*(Atores-1)) * 100
 // α=1: cada exclusive gateway divergente equivale a 1 atividade improdutiva
@@ -8140,7 +8146,7 @@ function _rEntMatBadges(e){
     if(mat===n){matBg='var(--blue)';matColor='#fff';}
     else if(mat>n){matBg='var(--teal-l)';matColor='var(--teal)';}
     else{matBg='var(--bg3)';matColor='var(--ink3)';}
-    return `<span class="badge" style="margin-right:4px;background:${matBg};color:${matColor}">${n} ${ML[n]}</span>`;
+    return `<span class="badge" style="margin-right:4px;background:${matBg};color:${matColor}">${n} ${MATURIDADE_LABELS[n]}</span>`;
   }).join('');
 }
 function _rEntIlpCard(ilpData){
@@ -8300,7 +8306,7 @@ function rEnt(p){
       ${pubExtra}
     </div>
     <div class="card">
-      <div class="card-t">Maturidade — Nível ${e.mat||0}/5: ${ML[e.mat||0]}</div>
+      <div class="card-t">Maturidade — Nível ${e.mat||0}/5: ${MATURIDADE_LABELS[e.mat||0]}</div>
       <div style="margin-bottom:.7rem">${matBadges}</div>
       <div class="sec-lbl">Respostas por dimensão (${respondidas}/15)</div>
       ${Object.entries(dims).map(([dim,d])=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px">
@@ -8630,7 +8636,6 @@ async function _popPdfAnexo(p){
   // ── 8.0 Maturidade ────────────────────────────────────────────────────────
   const matNivel=e.mat||0;
   if(matNivel>0){
-    const ML2=['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
     const matDescs=['',
       'O processo é executado de forma ad hoc, sem padronização documentada. Os resultados dependem do esforço individual e do conhecimento tácito dos executores.',
       'O processo possui rotinas estabelecidas e é repetido com alguma regularidade, mas a padronização ainda é informal ou parcial.',
@@ -8643,9 +8648,9 @@ async function _popPdfAnexo(p){
       if(matNivel===n){bg='#1e6bfa';c='#fff';}
       else if(matNivel>n){bg='#d1fae5';c='#065f46';}
       else{bg='#f4f5f8';c='#8888aa';}
-      return `<span style="background:${bg};color:${c};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px">${n} ${ML2[n]}</span>`;
+      return `<span style="background:${bg};color:${c};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px">${n} ${MATURIDADE_LABELS[n]}</span>`;
     }).join('');
-    const matTitle=`Maturidade — Nível ${matNivel}/5: ${ML2[matNivel]}`;
+    const matTitle=`Maturidade — Nível ${matNivel}/5: ${MATURIDADE_LABELS[matNivel]}`;
     sections.push(`${secH('8.0',matTitle)}
     <div style="margin-bottom:.5rem">${badges}</div>
     <div style="font-size:12px;color:#4a4a6a;line-height:1.55">${matDescs[matNivel]}</div>`);
@@ -8939,16 +8944,6 @@ function _renderAcompReuniao(r){
       ${participantesHtml}${pautaHtml}${desviosHtml}${acoesHtml}    </div>`;
 }
 function rReun(p){
-  const REUN_TIPOS={
-    reuniao_entendimento:'Reunião de entendimento',
-    reuniao_valid_asis:'Validação AS IS',
-    reuniao_valid_tobe:'Validação TO BE',
-    reuniao_complement:'Complementação',
-    reuniao_apresentacao:'Aprovação pelo Gestor',
-    acompanhamento:'Acompanhamento',
-    outra:'Outra reunião',
-  };
-
   // Reuniões registradas nesta aba (array unificado, qualquer tipo, múltiplas por tipo)
   const reunioes=p.reunioes||[];
 
@@ -8977,11 +8972,11 @@ function rReun(p){
       ${r.ata?`<div style="font-size:12px;color:var(--ink2);white-space:pre-wrap;margin-top:.4rem;padding:.5rem;background:var(--bg2);border-radius:5px">${esc(r.ata)}</div>`:''}
     </div>`;
 
-  const reunioesHtml=reunioes.map(r=>cardReun(r,REUN_TIPOS[r.tipo]||r.tipo,true)).join('');
+  const reunioesHtml=reunioes.map(r=>cardReun(r,REUNIAO_TIPOS[r.tipo]||r.tipo,true)).join('');
 
   const legacyHtml=legacyFixas.length?`
     <div style="font-weight:600;font-size:12px;color:var(--ink3);margin:.8rem 0 .4rem;text-transform:uppercase;letter-spacing:.04em">Registradas por outras abas</div>
-    ${legacyFixas.map(t=>cardReun(t.dados,REUN_TIPOS[t.key]||t.key,false)).join('')}`:'';
+    ${legacyFixas.map(t=>cardReun(t.dados,REUNIAO_TIPOS[t.key]||t.key,false)).join('')}`:'';
 
   const acompHtml=acomp.length?`
     <div style="font-weight:600;font-size:13px;margin:1rem 0 .6rem">Reuniões de acompanhamento</div>
@@ -9064,15 +9059,6 @@ async function excluirReuniao(id){
 
 async function salvarReuniaoAvulsa(){
   const p=curProc; if(!p) return;
-  const REUN_TIPOS={
-    reuniao_entendimento:'Reunião de entendimento',
-    reuniao_valid_asis:'Validação AS IS',
-    reuniao_valid_tobe:'Validação TO BE',
-    reuniao_complement:'Complementação',
-    reuniao_apresentacao:'Aprovação pelo Gestor',
-    acompanhamento:'Acompanhamento',
-    outra:'Outra reunião',
-  };
   const editId=document.getElementById('nr-edit-id')?.value||'';
   const tipo=document.getElementById('nr-tipo')?.value||'outra';
   const data=document.getElementById('nr-data')?.value||'';
@@ -9085,7 +9071,7 @@ async function salvarReuniaoAvulsa(){
     if(r){r.tipo=tipo;r.data=data;r.participantes=part;r.ata=ata;}
   } else {
     p.reunioes.push({id:'rn_'+Date.now(),tipo,data,participantes:part,ata,registrada_em:now()});
-    push(p,'','EP','Reunião registrada: '+(REUN_TIPOS[tipo]||tipo)+' — '+data);
+    push(p,'','EP','Reunião registrada: '+(REUNIAO_TIPOS[tipo]||tipo)+' — '+data);
   }
   await fbSaveAll();
   toast(editId?'Reunião atualizada!':'Reunião registrada!','var(--teal)');
@@ -10444,7 +10430,6 @@ function _procCentralInteligenciaHTML(proc){
 }
 
 function _metaFieldsMapeamentoHTML(item, proc){
-  const ML_ = ['','Inicial','Repetível','Definido','Gerenciado','Otimizado'];
   const analise = proc.ent?.analise;
   const matNivel = proc.ent?.mat||0;
   const progBar = _metaFieldsProgBar(proc);
@@ -10467,7 +10452,7 @@ function _metaFieldsMapeamentoHTML(item, proc){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;font-size:11px">
       <div><span style="font-weight:600;color:var(--ink2)">Dono:</span> <span style="color:var(--ink3)">${proc.dono||'—'}</span></div>
       <div><span style="font-weight:600;color:var(--ink2)">Resp. EP:</span> <span style="color:var(--ink3)">${proc.resp_ep||'—'}</span></div>
-      <div><span style="font-weight:600;color:var(--ink2)">Maturidade:</span> <span style="color:var(--ink3)">${matNivel?matNivel+'/5 — '+ML_[matNivel]:'Não avaliada'}</span></div>
+      <div><span style="font-weight:600;color:var(--ink2)">Maturidade:</span> <span style="color:var(--ink3)">${matNivel?matNivel+'/5 — '+MATURIDADE_LABELS[matNivel]:'Não avaliada'}</span></div>
       ${proc.ent?.dt_inicio?`<div><span style="font-weight:600;color:var(--ink2)">Início:</span> <span style="color:var(--ink3)">${proc.ent.dt_inicio}</span></div>`:''}
       ${proc.ent?.dt_prev?`<div><span style="font-weight:600;color:var(--ink2)">Previsão:</span> <span style="color:var(--ink3)">${proc.ent.dt_prev}</span></div>`:''}
       ${proc.produto?`<div><span style="font-weight:600;color:var(--ink2)">Produto:</span> <span style="color:var(--ink3)">${proc.produto}</span></div>`:''}
