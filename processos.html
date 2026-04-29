@@ -12077,7 +12077,13 @@ function onUsrPerfilChg(){
   if(extra){ extra.style.display = (isDono||isGestor) ? 'block' : 'none'; if(!(isDono||isGestor)&&chk) chk.checked=false; }
 
   // "Also SIGA Processos" section: visible only when primary is gerente_projeto
-  if(extraProc){ extraProc.style.display = isGerproj ? 'block' : 'none'; if(!isGerproj){ if(chkProc)chkProc.checked=false; if(selProc)selProc.style.display='none'; } }
+  if (extraProc) {
+    extraProc.style.display = isGerproj ? 'block' : 'none';
+    if (!isGerproj) {
+      if (chkProc) { chkProc.checked = false; }
+      if (selProc) { selProc.style.display = 'none'; }
+    }
+  }
 }
 
 function _onUsrProcAlsoChg(){
@@ -14425,7 +14431,7 @@ function syncLoginModeUI(){
 document.getElementById('login-screen').style.display='flex';
 
 // Boot sequence: load from Firebase (if configured), else fall back to localStorage
-async function boot(){
+(async function() {
   // Show loading indicator
   const loginBox = document.querySelector('.login-box');
   const loadMsg = document.createElement('div');
@@ -14495,8 +14501,7 @@ async function boot(){
   fbStatusBadge();
   syncLoginModeUI();
   injectSaveBtn();
-}
-boot();
+})();
 
 // ═══════════════════════════════════════════
 // IA — AZURE OPENAI VIA FIREBASE FUNCTION
