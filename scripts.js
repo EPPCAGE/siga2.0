@@ -1298,14 +1298,28 @@ function criarProcesso(){
     if(!donoEmail||!donoNome) return;
     const ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
-    ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
-      <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem">Notificar Dono do Processo?</div>
-      <div style="font-size:13px;color:var(--ink3);margin-bottom:1.2rem">Deseja enviar notificação e e-mail para <strong>${esc(p.dono)}</strong> informando que o mapeamento de <em>${esc(p.nome)}</em> foi iniciado?</div>
-      <div class="btn-row">
-        <button type="button" class="btn" onclick="this.closest('[style*=fixed]').remove()">Não agora</button>
-        <button type="button" class="btn btn-p" onclick="enviarNotif(${JSON.stringify(donoEmail)},${JSON.stringify(p.dono)},'Mapeamento iniciado — aguarda questionário de maturidade',${JSON.stringify(p.nome)},'', 'EP·CAGE');toast('Notificação enviada para '+${JSON.stringify(p.dono)},'var(--teal)');this.closest('[style*=fixed]').remove()">Sim, notificar →</button>
-      </div>
-    </div>`;
+    const card=document.createElement('div');
+    card.style.cssText='background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:420px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)';
+    const ttl=document.createElement('div');
+    ttl.style.cssText='font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.7rem';
+    ttl.textContent='Notificar Dono do Processo?';
+    const msg=document.createElement('div');
+    msg.style.cssText='font-size:13px;color:var(--ink3);margin-bottom:1.2rem';
+    msg.appendChild(document.createTextNode('Deseja enviar notificação e e-mail para '));
+    const strong=document.createElement('strong'); strong.textContent=p.dono||''; msg.appendChild(strong);
+    msg.appendChild(document.createTextNode(' informando que o mapeamento de '));
+    const em=document.createElement('em'); em.textContent=p.nome||''; msg.appendChild(em);
+    msg.appendChild(document.createTextNode(' foi iniciado?'));
+    const row=document.createElement('div'); row.className='btn-row';
+    const bNo=document.createElement('button'); bNo.type='button'; bNo.className='btn'; bNo.textContent='Não agora';
+    bNo.addEventListener('click',()=>ov.remove());
+    const bYes=document.createElement('button'); bYes.type='button'; bYes.className='btn btn-p'; bYes.textContent='Sim, notificar →';
+    bYes.addEventListener('click',()=>{
+      enviarNotif(donoEmail,p.dono,'Mapeamento iniciado — aguarda questionário de maturidade',p.nome,'','EP·CAGE');
+      toast('Notificação enviada para '+(p.dono||''),'var(--teal)');
+      ov.remove();
+    });
+    row.append(bNo,bYes); card.append(ttl,msg,row); ov.appendChild(card);
     document.body.appendChild(ov);
   }, 400);
   fbAutoSave('criarProcesso');
@@ -9665,7 +9679,7 @@ function projSaveListas(){
 }
 
 async function projFbSyncCollection(col, items){
-  const {db, doc, writeBatch, collection, getDocs, deleteDoc} = fb();
+  const {db, doc, writeBatch, collection, getDocs} = fb();
   const ids = new Set((items||[]).map(i=>String(i.id)));
   const ops = [];
   (items||[]).forEach(item=>{
@@ -10839,7 +10853,6 @@ function projRenderReunioesPage() {
           <label class="proj-fl">Projeto<span>*</span></label>
           <select class="proj-fi" id="greuniao-proj">
             <option value="">Selecione...</option>
-            ${_projetos.filter(p=>p.status==='ativo').map(p=>`<option value="${projEsc(String(p.id))}">${projEsc(p.nome)}</option>`).join('')}
           </select>
         </div>
         <div class="proj-fg" style="margin:0">
@@ -10866,59 +10879,113 @@ function projRenderReunioesPage() {
     </div>
   `;
 
-  // Group meetings by project — main view shows only PENDING
+  // Static form via innerHTML (no user data) — select options added below
+  el.innerHTML = html;
+
+  // Populate project select options safely via DOM
+  const sel = document.getElementById('greuniao-proj');
+  if(sel) {
+    _projetos.filter(p => p.status === 'ativo').forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = String(p.id);
+      opt.textContent = p.nome;
+      sel.appendChild(opt);
+    });
+  }
+
+  // Build meeting cards via DOM (avoids XSS in innerHTML with user data)
+  const listFrag = document.createDocumentFragment();
   let hasAny = false;
+  const calSvg = '<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1" y="3" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
   _projetos.forEach(p => {
     const reunioes = p.execucao?.reunioes || [];
     if(reunioes.length === 0) return;
     const pendentes = reunioes.filter(r => !r.realizada);
+    const pId = String(p.id);
     if(pendentes.length === 0 && reunioes.length > 0) {
-      // Project has meetings but all realized — show link only
       hasAny = true;
-      html += `
-        <div class="proj-card" style="margin-bottom:1rem">
-          <div class="proj-card-t" style="cursor:pointer" onclick="projGoReunioesProj('${p.id}')">
-            <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1" y="3" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-            <a href="javascript:void(0)" style="color:var(--blue);text-decoration:underline">${projEsc(p.nome)}</a>
-            <span style="font-size:10.5px;font-weight:400;color:#16a34a;margin-left:4px">✓ Todas as reuniões realizadas</span>
-          </div>
-        </div>
-      `;
+      const card = document.createElement('div');
+      card.className = 'proj-card'; card.style.marginBottom = '1rem';
+      const hd = document.createElement('div');
+      hd.className = 'proj-card-t'; hd.style.cursor = 'pointer';
+      hd.innerHTML = calSvg;
+      hd.addEventListener('click', () => projGoReunioesProj(pId));
+      const link = document.createElement('a');
+      link.href = 'javascript:void(0)';
+      link.style.cssText = 'color:var(--blue);text-decoration:underline';
+      link.textContent = p.nome;
+      const badge = document.createElement('span');
+      badge.style.cssText = 'font-size:10.5px;font-weight:400;color:#16a34a;margin-left:4px';
+      badge.textContent = '✓ Todas as reuniões realizadas';
+      hd.append(link, badge); card.appendChild(hd);
+      listFrag.appendChild(card);
       return;
     }
     if(pendentes.length === 0) return;
     hasAny = true;
-    html += `
-      <div class="proj-card" style="margin-bottom:1rem">
-        <div class="proj-card-t" style="cursor:pointer" onclick="projGoReunioesProj('${p.id}')">
-          <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1" y="3" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <a href="javascript:void(0)" style="color:var(--blue);text-decoration:underline">${projEsc(p.nome)}</a>
-          <span style="font-size:10.5px;font-weight:400;color:#d97706;margin-left:4px">(${pendentes.length} pendente${pendentes.length>1?'s':''})</span>
-        </div>
-        ${pendentes.map(r => `
-          <div class="proj-reunion-item" style="display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;gap:8px;padding:.6rem 0;border-bottom:1px solid #eaecf3">
-            <div class="proj-reunion-check" onclick="projToggleReuniaoPage(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})"></div>
-            <div>
-              <div class="proj-reunion-text">${projEsc(r.nome)}</div>
-              <div style="font-size:11px;color:var(--ink3);margin-top:2px">
-                ${r.data ? '📅 '+projFormatDate(r.data) + (r.participantes?' · ':'') : ''}
-                ${r.participantes ? '👥 '+projEsc(r.participantes) : ''}
-              </div>
-              ${r.observacoes ? `<div style="font-size:11px;color:var(--ink3)">📝 ${projEsc(r.observacoes)}</div>` : ''}
-            </div>
-            <span style="font-size:10px;padding:2px 7px;border-radius:5px;background:var(--blue-l);color:var(--blue)">Pendente</span>
-            <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})">✏️</button>
-            <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao(${JSON.stringify(String(p.id))},${JSON.stringify(String(r.id))})">✕</button>
-          </div>
-        `).join('')}
-      </div>
-    `;
+    const card = document.createElement('div');
+    card.className = 'proj-card'; card.style.marginBottom = '1rem';
+    const hd = document.createElement('div');
+    hd.className = 'proj-card-t'; hd.style.cursor = 'pointer';
+    hd.innerHTML = calSvg;
+    hd.addEventListener('click', () => projGoReunioesProj(pId));
+    const link = document.createElement('a');
+    link.href = 'javascript:void(0)';
+    link.style.cssText = 'color:var(--blue);text-decoration:underline';
+    link.textContent = p.nome;
+    const cnt = document.createElement('span');
+    cnt.style.cssText = 'font-size:10.5px;font-weight:400;color:#d97706;margin-left:4px';
+    cnt.textContent = '(' + pendentes.length + ' pendente' + (pendentes.length > 1 ? 's' : '') + ')';
+    hd.append(link, cnt); card.appendChild(hd);
+    pendentes.forEach(r => {
+      const rId = String(r.id);
+      const item = document.createElement('div');
+      item.className = 'proj-reunion-item';
+      item.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;gap:8px;padding:.6rem 0;border-bottom:1px solid var(--bdr)';
+      const chk = document.createElement('div');
+      chk.className = 'proj-reunion-check';
+      chk.addEventListener('click', () => projToggleReuniaoPage(pId, rId));
+      const content = document.createElement('div');
+      const txtEl = document.createElement('div');
+      txtEl.className = 'proj-reunion-text'; txtEl.textContent = r.nome;
+      content.appendChild(txtEl);
+      if(r.data || r.participantes) {
+        const meta = document.createElement('div');
+        meta.style.cssText = 'font-size:11px;color:var(--ink3);margin-top:2px';
+        if(r.data) meta.appendChild(document.createTextNode('📅 ' + projFormatDate(r.data) + (r.participantes ? ' · ' : '')));
+        if(r.participantes) meta.appendChild(document.createTextNode('👥 ' + r.participantes));
+        content.appendChild(meta);
+      }
+      if(r.observacoes) {
+        const obs = document.createElement('div');
+        obs.style.cssText = 'font-size:11px;color:var(--ink3)';
+        obs.textContent = '📝 ' + r.observacoes;
+        content.appendChild(obs);
+      }
+      const pendBadge = document.createElement('span');
+      pendBadge.style.cssText = 'font-size:10px;padding:2px 7px;border-radius:5px;background:var(--blue-l);color:var(--blue)';
+      pendBadge.textContent = 'Pendente';
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button'; editBtn.className = 'proj-btn';
+      editBtn.style.cssText = 'font-size:11px;padding:3px 8px'; editBtn.textContent = '✏️';
+      editBtn.addEventListener('click', () => projEditarReuniaoModal(pId, rId));
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button'; delBtn.className = 'proj-btn danger';
+      delBtn.style.cssText = 'font-size:11px;padding:3px 8px'; delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => projExcluirReuniao(pId, rId));
+      item.append(chk, content, pendBadge, editBtn, delBtn);
+      card.appendChild(item);
+    });
+    listFrag.appendChild(card);
   });
 
   if(!hasAny) {
-    html += '<div style="text-align:center;padding:2rem;color:#b0b8cc;font-size:13px">Nenhuma reunião registrada ainda. Adicione uma acima.</div>';
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;padding:2rem;font-size:13px;color:var(--ink4)';
+    empty.textContent = 'Nenhuma reunião registrada ainda. Adicione uma acima.';
+    listFrag.appendChild(empty);
   }
-  el.innerHTML = html;
+  el.appendChild(listFrag);
 }
 
 // ── Sub-página de reuniões de um projeto específico ──
@@ -12566,8 +12633,6 @@ function projAvancarFase(id) {
       if(!proj.execucao) proj.execucao = { planner_link:'', percentual:0, reunioes:[] };
       if(!proj.execucao.reunioes) proj.execucao.reunioes = [];
       // Add meeting for current month
-      const now = new Date();
-      const mesNome = now.toLocaleDateString('pt-BR', {month:'long',year:'numeric'});
       proj.execucao.reunioes.push({
         id: 'r' + Date.now(),
         nome: `Reunião de Status Patrocinador do Projeto ${proj.nome}`,
