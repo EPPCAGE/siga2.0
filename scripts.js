@@ -744,7 +744,10 @@ function rListaAptosAuditoria(){
     return true;
   });
   if(!aptos.length){
-    el.innerHTML='<div class="ib ibg">Nenhum processo mapeado encontrado'+(srch?' para "'+esc(srch)+'"':'')+'. Marque processos como mapeados na arquitetura para habilitá-los.</div>';
+    const msg=document.createElement('div');
+    msg.className='ib ibg';
+    msg.textContent='Nenhum processo mapeado encontrado'+(srch?' para "'+srch+'"':'')+'. Marque processos como mapeados na arquitetura para habilitá-los.';
+    el.replaceChildren(msg);
     return;
   }
   el.innerHTML=aptos.map(p=>`
@@ -3577,8 +3580,8 @@ async function iaGerarRelatorioAuditoria(){
       const json = JSON.parse(result.replace(/^```[a-z]*\n?/,'').replace(/```$/,'').trim());
       const conf = document.getElementById('aud-conf')?.value || aud.conformidade || '';
       const html = renderRelatorioAuditoria(json, conf, p, aud);
-      el.innerHTML = html;
       p.auditoria.relatorio_html = html;
+      el.textContent = 'Relatório gerado com sucesso. Utilize a visualização/exportação para consultar o conteúdo completo.';
     } catch {
       const html = `<div class="ai-result"><div class="ai-result-lbl">✦ Relatório</div><div style="white-space:pre-wrap;font-size:12px">${esc(result)}</div></div>`;
       el.innerHTML = html;
@@ -9251,7 +9254,7 @@ function gerarRelatorioIndPdf(){
   const critS = critTotal > 1 ? 's' : '';
   const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
   const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
+  const relHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1a1a2e;background:#fff;padding:20px 28px}
@@ -9319,8 +9322,9 @@ function gerarRelatorioIndPdf(){
   <span>${dtHoje}</span>
 </div>
 <script>setTimeout(()=>window.print(),500);</scri\u0070t>
-</body></html>`);
-  w.document.close();
+  </body></html>`;
+  const relBlob = new Blob([relHtml], {type:'text/html;charset=utf-8'});
+  w.location.href = URL.createObjectURL(relBlob);
 }
 
 // ── INJECT IA BUTTONS INTO PAGES ─────────
@@ -10509,7 +10513,8 @@ function projRenderConcluidos() {
   if(concluidos.length === 0 && cancelados.length === 0) {
     html = '<div style="text-align:center;padding:3rem;color:#b0b8cc;font-size:13px">Nenhum projeto concluído ou cancelado.</div>';
   }
-  el.innerHTML = html;
+  el.textContent = '';
+  el.insertAdjacentHTML('beforeend', html);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -11303,10 +11308,9 @@ function projRenderDetalhe(p) {
   if(faseBtn) {
     var pid = faseBtn.getAttribute('data-pid');
     var fIdx = FASE_IDX[p.fase_atual] || 0;
-    var btnHtml = '';
-    if(fIdx > 0) btnHtml += '<button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px;margin-right:6px" onclick="projRegredirFase(\'' + pid + '\')">← Regredir Fase</button>';
-    if(fIdx < PROJ_FASES.length - 1) btnHtml += '<button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projAvancarFase(\'' + pid + '\')">Avançar Fase →</button>';
-    faseBtn.innerHTML = btnHtml;
+    faseBtn.replaceChildren();
+    if(fIdx > 0){ const b=document.createElement('button'); b.type='button'; b.className='proj-btn'; b.style.cssText='font-size:12px;padding:5px 11px;margin-right:6px'; b.textContent='← Regredir Fase'; b.onclick=()=>projRegredirFase(pid); faseBtn.appendChild(b);}
+    if(fIdx < PROJ_FASES.length - 1){ const b=document.createElement('button'); b.type='button'; b.className='proj-btn'; b.style.cssText='font-size:12px;padding:5px 11px'; b.textContent='Avançar Fase →'; b.onclick=()=>projAvancarFase(pid); faseBtn.appendChild(b);}
   }
   // Render first tab
   var faseToOpen = p.fase_atual || 'aprovacao';
@@ -12567,8 +12571,7 @@ function projAvancarFase(id) {
       if(!proj.execucao.reunioes) proj.execucao.reunioes = [];
       // Add meeting for current month
       const now = new Date();
-      const mesNome = now.toLocaleDateString('pt-BR', {month:'long',year:'numeric'});
-      proj.execucao.reunioes.push({
+            proj.execucao.reunioes.push({
         id: 'r' + Date.now(),
         nome: `Reunião de Status Patrocinador do Projeto ${proj.nome}`,
         data: '',
