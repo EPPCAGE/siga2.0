@@ -111,16 +111,6 @@ body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;l
 .login-btn{width:100%;padding:10px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--fh);margin-top:1rem;transition:background .12s}
 .login-btn:hover{background:#1248A8}
 .login-err{font-size:12px;color:#F2A0A0;margin-top:.5rem;text-align:center}
-.module-hub{position:fixed;inset:0;background:linear-gradient(160deg,#0f1629,#121f3d 65%,#0c4a6e);display:none;align-items:center;justify-content:center;z-index:900;padding:1.2rem}
-.module-hub.on{display:flex}
-.module-hub-card{width:min(960px,100%);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);border-radius:18px;padding:1.4rem;backdrop-filter:blur(4px)}
-.module-hub-hd{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:1rem}
-.module-hub-ttl{font-family:var(--fh);font-size:24px;color:#fff}
-.module-hub-sub{font-size:12px;color:rgba(255,255,255,.7)}
-.module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.module-card{border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.05);border-radius:14px;padding:1rem;display:flex;flex-direction:column;gap:8px}
-.module-card h3{font-family:var(--fh);font-size:18px;color:#fff;margin:0}
-.module-card p{font-size:12px;color:rgba(255,255,255,.8);margin:0;line-height:1.5}
 /* layout */
 .page{display:none;padding:2rem}.page.on{display:block}
 .ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;gap:12px;flex-wrap:wrap}
@@ -457,23 +447,24 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="module-hub" class="module-hub">
   <div class="module-hub-card">
     <div class="module-hub-hd">
-      <div>
-        <div class="module-hub-ttl">Selecione o módulo</div>
-        <div class="module-hub-sub">Escolha para onde deseja seguir após o login.</div>
-      </div>
-      <button type="button" class="btn" onclick="doLogout()">Sair</button>
+      <img src="logo-siga.png" alt="SIGA 2.0" style="height:44px;margin-bottom:.8rem;filter:brightness(10)">
+      <div class="module-hub-ttl">SIGA 2.0</div>
+      <div class="module-hub-sub">Selecione o módulo para acessar</div>
     </div>
     <div class="module-grid">
       <div class="module-card">
-        <h3>🧩 Módulo de Processos</h3>
-        <p>Acesso ao SIGA atual com mapeamento, workflow, auditoria, trilhas e demais funcionalidades.</p>
-        <button type="button" class="btn btn-p" onclick="enterProcessModule()">Entrar no módulo</button>
+        <h3>🧩 SIGA Processos</h3>
+        <p>Mapeamento, workflow, auditoria, trilhas e demais funcionalidades de gestão de processos.</p>
+        <button type="button" class="btn btn-p" onclick="enterProcessModule()">Entrar →</button>
       </div>
       <div class="module-card">
-        <h3>📁 Módulo de Projetos</h3>
-        <p>Acesso ao módulo de portfólio de projetos (<code>projetos.html</code> + <code>scripts.js</code> + <code>styles.css</code>).</p>
-        <button type="button" class="btn btn-t" onclick="openProjectsModule()">Ir para projetos</button>
+        <h3>📁 SIGA Projetos</h3>
+        <p>Portfólio de projetos, programas, indicadores e acompanhamento estratégico.</p>
+        <button type="button" class="btn btn-t" onclick="openProjectsModule()">Entrar →</button>
       </div>
+    </div>
+    <div class="module-hub-foot">
+      <button type="button" class="btn" onclick="doLogout()">Sair</button>
     </div>
   </div>
 </div>
