@@ -13748,7 +13748,7 @@ document.addEventListener('DOMContentLoaded', function() {
     projRenderCurrentPage();
   }
 
-  if (fbReady()) {
+  function _setupProjAuthListener() {
     var _fbObj = fb();
     _fbObj.onAuthStateChanged(_fbObj.auth, function(firebaseUser) {
       if (firebaseUser) {
@@ -13758,6 +13758,22 @@ document.addEventListener('DOMContentLoaded', function() {
         usuarioLogado = null;
       }
     });
+  }
+
+  if (fbReady()) {
+    // Load USUARIOS from Firestore first — the default array only has the demo
+    // user; real users (including EPP members) live in config/usuarios on Firestore.
+    var _fbObj = fb();
+    _fbObj.getDoc(_fbObj.doc(_fbObj.db, 'config', 'usuarios'))
+      .then(function(usrDoc) {
+        if (usrDoc.exists() && usrDoc.data().data) {
+          try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(_e) {}
+        }
+      })
+      .catch(function() {})
+      .finally(function() {
+        _setupProjAuthListener();
+      });
   } else {
     // Local fallback: restore session from localStorage
     try {
