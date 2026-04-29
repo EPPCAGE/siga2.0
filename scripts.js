@@ -8185,10 +8185,17 @@ function duplicarAtividade(id){
 
 function _fsClean(v){
   if(v===null||v===undefined) return null;
-  if(Array.isArray(v)) return v.map(_fsClean);
-  if(typeof v==='object'&&!(v instanceof Date)){
+  if(v instanceof Date) return v;
+  if(Array.isArray(v)) return v.map(x=>_fsClean(x));
+  if(typeof v==='object'){
     const r={};
-    for(const k of Object.keys(v)){if(v[k]!==undefined) r[k]=_fsClean(v[k]);}
+    for(const k of Object.keys(v)){
+      // Skip "__proto__": assigning it via r[k]=... mutates r's prototype, turning r
+      // into a non-plain object that Firestore rejects with "invalid nested entity".
+      if(k==='__proto__') continue;
+      if(v[k]===undefined) continue;
+      Object.defineProperty(r,k,{value:_fsClean(v[k]),enumerable:true,writable:true,configurable:true});
+    }
     return r;
   }
   return v;
