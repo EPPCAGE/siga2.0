@@ -7746,6 +7746,7 @@ function renderEtapasProc(etapas){
           ${e.nome}
           ${_gwBadge(e)}
         </div>
+        ${e.executor?`<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue-b);white-space:nowrap;flex-shrink:0" title="Ator / raia">👤 ${esc(e.executor)}</span>`:''}
         <button type="button" class="btn" style="font-size:11px;padding:3px 8px" onclick="toggleEtapaDetalhe('${e.id}')">✎ Detalhar</button>
         <button type="button" class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red-b)" onclick="remEtapaProc('${e.id}')" aria-label="Remover etapa">×</button>
       </div>
@@ -7864,10 +7865,41 @@ function _bpmnFindAll(xml, localNames){
 }
 function _bpmnBuildLaneMap(xml){
   const laneMap={};
-  _bpmnFindAll(xml,['lane']).forEach(lane=>{
+  const laneEls=_bpmnFindAll(xml,['lane']);
+  const laneNames={};
+  laneEls.forEach(lane=>{
+    const id=lane.getAttribute('id')||'';
     const nome=lane.getAttribute('name')||'';
-    if(nome) Array.from(lane.getElementsByTagName('*')).filter(e=>e.localName.toLowerCase()==='flownoderef').forEach(ref=>{laneMap[ref.textContent.trim()]=nome;});
+    if(id&&nome) laneNames[id]=nome;
+    // Approach 1: standard flowNodeRef children
+    if(nome){
+      Array.from(lane.getElementsByTagName('*'))
+        .filter(e=>e.localName.toLowerCase()==='flownoderef')
+        .forEach(ref=>{ laneMap[ref.textContent.trim()]=nome; });
+    }
   });
+  // Approach 2: bpmndi shape containment — fallback for tools that omit flowNodeRef
+  if(!Object.keys(laneMap).length&&laneEls.length){
+    const laneBounds={};
+    _bpmnFindAll(xml,['BPMNShape']).forEach(shape=>{
+      const elemId=shape.getAttribute('bpmnElement')||'';
+      if(!laneNames[elemId]) return;
+      const b=Array.from(shape.getElementsByTagName('*')).find(e=>e.localName.toLowerCase()==='bounds');
+      if(!b) return;
+      laneBounds[elemId]={x:+b.getAttribute('x'),y:+b.getAttribute('y'),w:+b.getAttribute('width'),h:+b.getAttribute('height'),name:laneNames[elemId]};
+    });
+    _bpmnFindAll(xml,['BPMNShape']).forEach(shape=>{
+      const elemId=shape.getAttribute('bpmnElement')||'';
+      if(laneNames[elemId]) return;
+      const b=Array.from(shape.getElementsByTagName('*')).find(e=>e.localName.toLowerCase()==='bounds');
+      if(!b) return;
+      const cx=(+b.getAttribute('x'))+(+b.getAttribute('width'))/2;
+      const cy=(+b.getAttribute('y'))+(+b.getAttribute('height'))/2;
+      for(const lb of Object.values(laneBounds)){
+        if(cx>=lb.x&&cx<=lb.x+lb.w&&cy>=lb.y&&cy<=lb.y+lb.h){laneMap[elemId]=lb.name;break;}
+      }
+    });
+  }
   return laneMap;
 }
 function _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap){
