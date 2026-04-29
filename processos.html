@@ -3069,6 +3069,26 @@ function isProcessoEmAndamento(p){
   return ['Entendimento','Modelagem','Formalizacao'].includes(etFase(p.etapa));
 }
 function filtFase(fase,el){filtFaseAtual=fase;document.querySelectorAll('#fase-chips .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');renderProcs();}
+function _procVisivelAoUsuario(p, isDono){
+  if(!isDono) return true;
+  const isDonoProc = p.dono === usuarioLogado.nome;
+  const isInteressado = (p.interessados || []).includes(usuarioLogado.email);
+  const isVinculado = (usuarioLogado.processos_vinculados || []).includes(p.arq_id);
+  return isDonoProc || isInteressado || isVinculado;
+}
+function _procCombinaBusca(p, srch){
+  if(!srch) return true;
+  return p.nome.toLowerCase().includes(srch) || p.macro.toLowerCase().includes(srch);
+}
+function _procCombinaFiltros(p, { isConcluidos, faseAtual, filtEP, filtDono, filtProd }){
+  if(isConcluidos){
+    return (!filtEP || p.resp_ep === filtEP) && (!filtDono || p.dono === filtDono);
+  }
+  return (!faseAtual || etFase(p.etapa) === faseAtual)
+    && (!filtEP || p.resp_ep === filtEP)
+    && (!filtDono || p.dono === filtDono)
+    && (!filtProd || p.produto === filtProd);
+}
 function renderProcs(){
   aplicarPermissoes();
   const srch=(document.getElementById('srch-p')?.value||'').toLowerCase();
@@ -3093,21 +3113,11 @@ function renderProcs(){
   const filtEP=epSel?.value||'';
   const filtDono=donoSel?.value||'';
   const filtProd=document.getElementById('filt-produto')?.value||'';
-  const lista=baseProcs.filter(p=>{
-    if(isDono){
-      const isDonoProc=(p.dono===usuarioLogado.nome);
-      const isInteressado=(p.interessados||[]).includes(usuarioLogado.email);
-      // Também exibe se o processo está vinculado ao usuário via arq_id (menu Usuários)
-      const isVinculado=(usuarioLogado.processos_vinculados||[]).includes(p.arq_id);
-      if(!isDonoProc&&!isInteressado&&!isVinculado)return false;
-    }
-    if(!srch||p.nome.toLowerCase().includes(srch)||p.macro.toLowerCase().includes(srch)){
-      if(isConcluidos) return(!filtEP||p.resp_ep===filtEP)&&(!filtDono||p.dono===filtDono);
-      return(!filtFaseAtual||etFase(p.etapa)===filtFaseAtual)
-        &&(!filtEP||p.resp_ep===filtEP)&&(!filtDono||p.dono===filtDono)&&(!filtProd||p.produto===filtProd);
-    }
-    return false;
-  });
+  const lista=baseProcs.filter(p=>
+    _procVisivelAoUsuario(p, isDono)
+    && _procCombinaBusca(p, srch)
+    && _procCombinaFiltros(p, { isConcluidos, faseAtual: filtFaseAtual, filtEP, filtDono, filtProd })
+  );
   const el=document.getElementById('proc-list'),em=document.getElementById('proc-empty');
   if(!lista.length){el.innerHTML='';em.style.display='block';return;}
   em.style.display='none';
@@ -4587,35 +4597,7 @@ const ACOES = {
     ${_renderEvidencias(p,'apresentacao')}`},
 
   publicacao:{titulo:'Publicar o processo',sub:'Publicar POP no repositório oficial.',role:'EP',rk:'ep',
-    form:p=>`<div class="ib ibg">Após publicação o processo entra em fase de operação e monitoramento.</div>
-    <div style="background:var(--bg2);border-radius:8px;padding:1rem;margin-bottom:1rem;border:1px solid var(--bdr)">
-      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.4rem">📊 Gerar POP em PowerPoint</div>
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Gera uma apresentação executiva .pptx com IA, contendo SIPOC, fluxos AS IS e TO BE, riscos, soluções, FAQ e indicadores. O logo SIGA aparece em todos os slides.</div>
-      <button type="button" class="btn btn-p" id="btn-gerar-pop-ppt" onclick="gerarPOPPPT()">✨ Gerar POP em PPT com IA</button>
-      <span id="pop-ppt-status" style="font-size:11px;color:var(--ink3);margin-left:.8rem"></span>
-    </div>
-    <div class="g3">
-      <div class="fg"><label class="fl">Link no repositório</label><input class="fi" id="a-link" placeholder="https://..." value="${p.form?.link_pub||''}"></div>
-      <div class="fg"><label class="fl">Data de vigência <small style="font-weight:400;color:var(--ink3)">(2 anos após entrega)</small></label><input class="fi" type="date" id="a-vig" value="${p.form?.vig||''}" readonly style="background:var(--bg2);color:var(--ink3)"></div>
-      <div class="fg"><label class="fl">Entrega efetiva</label><input class="fi" type="date" id="pub-efet" value="${p.ent?.dt_efetiva||''}" oninput="_onEfetChange(this.value)"></div>
-    </div>
-    <div style="margin-top:.6rem;padding:.8rem 1rem;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;color:var(--ink)">📄 POP em PDF</div>
-        <div style="font-size:11px;color:var(--ink3);margin-top:2px">Gera o documento PDF completo do POP (fluxo, atividades, SIPOC, riscos e indicadores)</div>
-      </div>
-      <button type="button" class="btn btn-a" onclick="gerarPopPdfDireto()">⬇ Gerar PDF do POP</button>
-    </div>
-    <div style="margin-top:.6rem;padding:.8rem 1rem;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;color:var(--ink)">🗺 Fluxograma do processo</div>
-        <div style="font-size:11px;color:var(--ink3);margin-top:2px">Baixa o fluxograma desenhado em PNG (AS IS e TO BE, quando disponíveis)</div>
-      </div>
-      <button type="button" class="btn btn-a" onclick="baixarFluxogramas(this)">⬇ Baixar imagem do fluxograma</button>
-    </div>
-    <div class="btn-row">
-      <button type="button" class="btn" onclick="salvarDadosPublicacao()">💾 Salvar dados</button>
-    </div>`},
+    form:p=>_renderFormPublicacao(p)},
 
   acompanha:{titulo:'Acompanhamento da implementação',sub:'Registre todas as reuniões de acompanhamento da implementação.',role:'EP',rk:'ep',
     form:p=>{
@@ -4995,6 +4977,44 @@ function rAcaoRetro(){
   document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
   if(etId==='esboco_asis'||etId==='det_valid_asis'||etId==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
   if(etId==='esboco_tobe'||etId==='det_valid_tobe') setTimeout(()=>initBpmnMod('tobe',p),120);
+}
+function _publicacaoCard(titulo, descricao, botaoHtml){
+  return `<div style="margin-top:.6rem;padding:.8rem 1rem;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:600;color:var(--ink)">${titulo}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">${descricao}</div>
+    </div>
+    ${botaoHtml}
+  </div>`;
+}
+function _renderFormPublicacao(p){
+  const cardPdf = _publicacaoCard(
+    '📄 POP em PDF',
+    'Gera o documento PDF completo do POP (fluxo, atividades, SIPOC, riscos e indicadores)',
+    '<button type="button" class="btn btn-a" onclick="gerarPopPdfDireto()">⬇ Gerar PDF do POP</button>'
+  );
+  const cardFluxo = _publicacaoCard(
+    '🗺 Fluxograma do processo',
+    'Baixa o fluxograma desenhado em PNG (AS IS e TO BE, quando disponíveis)',
+    '<button type="button" class="btn btn-a" onclick="baixarFluxogramas(this)">⬇ Baixar imagem do fluxograma</button>'
+  );
+  return `<div class="ib ibg">Após publicação o processo entra em fase de operação e monitoramento.</div>
+    <div style="background:var(--bg2);border-radius:8px;padding:1rem;margin-bottom:1rem;border:1px solid var(--bdr)">
+      <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.4rem">📊 Gerar POP em PowerPoint</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Gera uma apresentação executiva .pptx com IA, contendo SIPOC, fluxos AS IS e TO BE, riscos, soluções, FAQ e indicadores. O logo SIGA aparece em todos os slides.</div>
+      <button type="button" class="btn btn-p" id="btn-gerar-pop-ppt" onclick="gerarPOPPPT()">✨ Gerar POP em PPT com IA</button>
+      <span id="pop-ppt-status" style="font-size:11px;color:var(--ink3);margin-left:.8rem"></span>
+    </div>
+    <div class="g3">
+      <div class="fg"><label class="fl">Link no repositório</label><input class="fi" id="a-link" placeholder="https://..." value="${p.form?.link_pub||''}"></div>
+      <div class="fg"><label class="fl">Data de vigência <small style="font-weight:400;color:var(--ink3)">(2 anos após entrega)</small></label><input class="fi" type="date" id="a-vig" value="${p.form?.vig||''}" readonly style="background:var(--bg2);color:var(--ink3)"></div>
+      <div class="fg"><label class="fl">Entrega efetiva</label><input class="fi" type="date" id="pub-efet" value="${p.ent?.dt_efetiva||''}" oninput="_onEfetChange(this.value)"></div>
+    </div>
+    ${cardPdf}
+    ${cardFluxo}
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="salvarDadosPublicacao()">💾 Salvar dados</button>
+    </div>`;
 }
 
 // ── salvarRetroativo: handlers por etapa (extraídos para manutenibilidade) ──
@@ -6480,6 +6500,14 @@ function _pptPairsFromProb(p){
     return {problema:item.desc || '', solucao:item.solucao || ''};
   }).filter(x=>x.problema || x.solucao);
 }
+function _pptComparativoBullets(gargalosFinal, oportunidadesFinal, gapsFinal){
+  const bullets = [
+    ...gargalosFinal.slice(0,2).map(x=>`Gargalo atual: ${x}`),
+    ...oportunidadesFinal.slice(0,2).map(x=>`Oportunidade priorizada: ${x}`),
+    ...gapsFinal.slice(0,2).map(x=>`Gap a tratar: ${x}`),
+  ].slice(0,6).filter(Boolean);
+  return bullets.length ? bullets : ['Comparativo consolidado a partir do mapeamento AS IS e da proposta TO BE.'];
+}
 function _pptBuildFallbackSlides(p, indsProc, dimText, gargalosFinal, gapsFinal, oportunidadesFinal, solucoesFinal){
   const riscos = (p.ent?.riscos || []).map((r,i)=>{
     const desc = typeof r === 'string' ? r : (r.desc || '');
@@ -6532,13 +6560,7 @@ function _pptBuildFallbackSlides(p, indsProc, dimText, gargalosFinal, gapsFinal,
       {id:'tobe',titulo:'Desenho TO BE — Situação Proposta',tipo:'bpmn_tobe',
         resumo:p.mod?.toBe || 'Fluxo proposto com ajustes de padronização, clarificação de papéis e melhoria de desempenho.'},
       {id:'comparativo',titulo:'Comparativo AS IS → TO BE',tipo:'bullets',
-        bullets:[
-          ...gargalosFinal.slice(0,2).map(x=>`Gargalo atual: ${x}`),
-          ...oportunidadesFinal.slice(0,2).map(x=>`Oportunidade priorizada: ${x}`),
-          ...gapsFinal.slice(0,2).map(x=>`Gap a tratar: ${x}`),
-        ].slice(0,6).filter(Boolean).length
-          ? [...gargalosFinal.slice(0,2).map(x=>`Gargalo atual: ${x}`), ...oportunidadesFinal.slice(0,2).map(x=>`Oportunidade priorizada: ${x}`), ...gapsFinal.slice(0,2).map(x=>`Gap a tratar: ${x}`)].slice(0,6).filter(Boolean)
-          : ['Comparativo consolidado a partir do mapeamento AS IS e da proposta TO BE.']
+        bullets:_pptComparativoBullets(gargalosFinal, oportunidadesFinal, gapsFinal)
       },
       {id:'faq',titulo:'Perguntas Frequentes — FAQ',tipo:'faq',
         itens:faqItens.length ? faqItens : [{pergunta:'P: Quais são os principais cuidados na execução deste processo?', resposta:'R: Seguir o fluxo validado, os responsáveis definidos e os controles descritos no POP.'}]},
@@ -10195,38 +10217,37 @@ function _procArqStatusBadge(p, hasSubs, linked, bg, txt, border, label){
     ? `<button type="button" class="badge" style="font-size:10px;background:${bg};color:${txt};border:1px solid ${border};cursor:pointer" onclick="event.stopPropagation();toggleMapeadoManual('${p.id}',event)">${label}</button>`
     : `<span class="badge ${badgeCls}" style="font-size:10px">${label}</span>`;
 }
-function _subArqItemHTML(mid, pid, s){
-  const sl=s.proc_id?processos.find(pr=>pr.id===s.proc_id):null;
-  const sMapeado = isMapeado(s.id);
-  const sCritico = isCritico(s.id);
+function _subArqMapeadoBadge(sl, sMapeado, sId){
   const sMapeadoBg = sMapeado ? 'var(--green-l)' : 'var(--bg3)';
   const sMapeadoTxt = sMapeado ? 'var(--green)' : 'var(--ink3)';
   const sMapeadoLabel = sMapeado ? 'Mapeado' : 'Não mapeado';
   const sMapeadoBorderColor = sMapeado ? 'var(--green)' : 'var(--bdr2)';
   const sMapeadoCls = sMapeado ? 'bg' : 'bgr';
   const slNoLink = isEP()
-    ? `<button type="button" class="badge" style="font-size:10px;background:${sMapeadoBg};color:${sMapeadoTxt};border:1px solid ${sMapeadoBorderColor};cursor:pointer" onclick="event.stopPropagation();toggleMapeadoManual('${s.id}',event)">${sMapeadoLabel}</button>`
+    ? `<button type="button" class="badge" style="font-size:10px;background:${sMapeadoBg};color:${sMapeadoTxt};border:1px solid ${sMapeadoBorderColor};cursor:pointer" onclick="event.stopPropagation();toggleMapeadoManual('${sId}',event)">${sMapeadoLabel}</button>`
     : `<span class="badge ${sMapeadoCls}" style="font-size:10px">${sMapeadoLabel}</span>`;
-  const canOpenMap = isEP() || usuarioLogado?.perfil === 'gestor';
-  let slBadge;
-  if(sl){
-    if(canOpenMap){
-      slBadge = `<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button type="button" class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`;
-    } else if(['acompanha','auditoria'].includes(sl.etapa)){
-      slBadge = '';
-    } else {
-      slBadge = '<span class="badge ba" style="font-size:10px">Em mapeamento</span>';
-    }
-  } else {
-    slBadge = slNoLink;
+  if(!sl) return slNoLink;
+  if(isEP() || usuarioLogado?.perfil === 'gestor'){
+    return `<span class="badge ${EBADGE[sl.etapa]||'bgr'}" style="font-size:10px">${etLb(sl.etapa)}</span><button type="button" class="btn btn-p" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();abrirProc(${sl.id})">Abrir mapeamento</button>`;
   }
+  return ['acompanha','auditoria'].includes(sl.etapa) ? '' : '<span class="badge ba" style="font-size:10px">Em mapeamento</span>';
+}
+function _subArqCriticoBadge(sCritico, sId){
   const sCriticoBg = sCritico ? '#dc2626' : 'var(--bg3)';
   const sCriticoFg = sCritico ? '#fff' : 'var(--ink3)';
   const sCriticoBorder = sCritico ? '#dc2626' : 'var(--bdr2)';
   const sCriticoText = sCritico ? '⚠ Crítico' : 'Não crítico';
-  const sCriticoBadge = isEP()
-    ? `<button type="button" class="badge" style="font-size:10px;background:${sCriticoBg};color:${sCriticoFg};padding:2px 6px;border-radius:4px;border:1px solid ${sCriticoBorder};cursor:pointer" onclick="event.stopPropagation();toggleCriticoManual('${s.id}',event)">${sCriticoText}</button>`
-    : `<span class="badge" style="font-size:10px;background:${sCriticoBg};color:${sCriticoFg};padding:2px 6px;border-radius:4px;border:1px solid ${sCriticoBorder}">${sCriticoText}</span>`;
+  if(isEP()){
+    return `<button type="button" class="badge" style="font-size:10px;background:${sCriticoBg};color:${sCriticoFg};padding:2px 6px;border-radius:4px;border:1px solid ${sCriticoBorder};cursor:pointer" onclick="event.stopPropagation();toggleCriticoManual('${sId}',event)">${sCriticoText}</button>`;
+  }
+  return `<span class="badge" style="font-size:10px;background:${sCriticoBg};color:${sCriticoFg};padding:2px 6px;border-radius:4px;border:1px solid ${sCriticoBorder}">${sCriticoText}</span>`;
+}
+function _subArqItemHTML(mid, pid, s){
+  const sl=s.proc_id?processos.find(pr=>pr.id===s.proc_id):null;
+  const sMapeado = isMapeado(s.id);
+  const sCritico = isCritico(s.id);
+  const slBadge = _subArqMapeadoBadge(sl, sMapeado, s.id);
+  const sCriticoBadge = _subArqCriticoBadge(sCritico, s.id);
   return `<div style="border-top:1px solid var(--bdr)">
     <div style="display:flex;align-items:center;gap:8px;padding:.5rem .9rem;cursor:pointer" onclick="toggleEl('arq-ssub-${s.id}','chvss-${s.id}')">
       <span class="arq-chevron" id="chvss-${s.id}" style="color:var(--ink3);font-size:10px">▶</span>
@@ -11163,15 +11184,24 @@ function populateIndFilters(){
   }
 }
 
+function _kpiGrpWithData(items){
+  return items
+    .filter(i=>!i.sem_dado)
+    .filter(i=>{
+      const r = Number.parseFloat(i.realizado);
+      return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
+    });
+}
+function _kpiGrpPct(r, m, polaridade){
+  if(polaridade === 'Menor é melhor'){
+    return r > 0 ? (m / r) * 100 : 0;
+  }
+  return (r / m) * 100;
+}
 function _kpiGrpStatus(items){
-  // Exclude periods explicitly marked as "sem medição"
-  const measured = items.filter(i=>!i.sem_dado);
   // Include any period with a numeric realizado value (even 0).
   // "Sem dado" is handled by the sem_dado flag — realizado=0 always means the result was genuinely zero.
-  const withData = measured.filter(i=>{
-    const r = Number.parseFloat(i.realizado);
-    return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
-  });
+  const withData = _kpiGrpWithData(items);
   if(!withData.length) return null; // sem dados no período
   const last = withData[withData.length-1];
   const r = Number.parseFloat(last.realizado);
@@ -11182,12 +11212,7 @@ function _kpiGrpStatus(items){
   // Sem meta definida (null/undefined→NaN) ou meta<=0 → sem análise possível
   if(Number.isNaN(m) || m <= 0) return null;
   const pol = items[0].polaridade||'Maior é melhor';
-  let pct;
-  if(pol==='Menor é melhor'){
-    pct = r > 0 ? (m/r)*100 : 0;
-  } else {
-    pct = (r/m)*100;
-  }
+  const pct = _kpiGrpPct(r, m, pol);
   return pct>=100?'ok':'nok';
 }
 function rInd(){
@@ -12598,6 +12623,10 @@ function unsyncDonoProcessoUsuario({ nome, email, arqId }){
   }
   return usuario.processos_vinculados.length !== origLen;
 }
+function _mmPrefillCampo(id, valor){
+  const el = document.getElementById(id);
+  if(el && !el.value && valor) el.value = valor;
+}
 
 async function salvarUsr(){
   const nome = document.getElementById('usr-nome').value.trim();
@@ -12915,19 +12944,15 @@ function _mmToggleFonte(){
 function _mmBuiltinChange(key){
   const b=_META_BUILTINS.find(x=>x.key===key);
   if(!b) return;
-  const tituloEl=document.getElementById('mm-titulo');
-  if(tituloEl&&!tituloEl.value) tituloEl.value=b.label;
-  const unEl=document.getElementById('mm-unidade');
-  if(unEl&&!unEl.value) unEl.value='%';
+  _mmPrefillCampo('mm-titulo', b.label);
+  _mmPrefillCampo('mm-unidade', '%');
 }
 
 function _mmKpiChange(kpiId){
   const k=kpis.find(x=>x.id===Number.parseInt(kpiId));
   if(!k) return;
-  const tituloEl=document.getElementById('mm-titulo');
-  if(tituloEl&&!tituloEl.value) tituloEl.value=k.nome;
-  const unEl=document.getElementById('mm-unidade');
-  if(unEl&&!unEl.value&&k.unidade) unEl.value=k.unidade;
+  _mmPrefillCampo('mm-titulo', k.nome);
+  _mmPrefillCampo('mm-unidade', k.unidade);
 }
 
 function fecharMetaModal(){
@@ -13147,16 +13172,57 @@ function planoFiltrarTri(tri){
   sel.value = sel.value===tri ? '' : tri;
   rPlano();
 }
-
+function _planoTrimAtual(){
+  const mes = new Date().getMonth();
+  if(mes < 3) return 'T1';
+  if(mes < 6) return 'T2';
+  if(mes < 9) return 'T3';
+  return 'T4';
+}
+function _planoTriCor(pct){
+  if(pct >= 75) return '#14b8a6';
+  if(pct >= 40) return '#f59e0b';
+  return '#ef4444';
+}
+function _planoTriEstilo(isFilt, isCur){
+  return {
+    border: isFilt ? '3px solid var(--blue)' : (isCur ? '2px solid var(--blue)' : '1px solid var(--bdr)'),
+    bg: isFilt ? 'rgba(59,130,246,.12)' : (isCur ? 'rgba(59,130,246,.06)' : 'var(--bg2)'),
+  };
+}
+function _planoTriCardVazio(tri, isCur){
+  return `<div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;opacity:.45;cursor:default">
+    <div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:.3rem">${tri}${isCur?' <span style="color:var(--blue)">●</span>':''}</div>
+    <div style="font-size:11px;color:var(--ink3)">Sem atividades</div></div>`;
+}
+function _planoTriCard(tri, items, isCur, isFilt){
+  if(!items.length) return _planoTriCardVazio(tri, isCur);
+  const concl = items.filter(a=>planoStatusEfetivo(a)==='concluida').length;
+  const atraso = items.filter(a=>planoStatusEfetivo(a)==='em_atraso').length;
+  const execucao = items.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
+  const pct = Math.round(concl / items.length * 100);
+  const cor = _planoTriCor(pct);
+  const estilo = _planoTriEstilo(isFilt, isCur);
+  return `<div role="button" tabindex="0" onclick="planoFiltrarTri('${tri}')" onkeydown="if(event.key==='Enter'||event.key===' ')planoFiltrarTri('${tri}')" title="${isFilt?'Clique para remover filtro':'Filtrar por '+tri}" style="background:${estilo.bg};border:${estilo.border};border-radius:var(--r);padding:.8rem;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''" onfocus="this.style.boxShadow='0 0 0 2px var(--blue)'" onblur="this.style.boxShadow=''">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+      <span style="font-size:11px;font-weight:700;color:${isFilt||isCur?'var(--blue)':'var(--ink)'}">${tri}${isCur?' ●':''}${isFilt?' ▼':''}</span>
+      <span style="font-size:18px;font-weight:700;color:${cor}">${pct}%</span>
+    </div>
+    <div style="height:4px;background:var(--bdr2);border-radius:2px;overflow:hidden;margin-bottom:.4rem">
+      <div style="width:${pct}%;height:100%;background:${cor};border-radius:2px"></div>
+    </div>
+    <div style="font-size:10px;color:var(--ink3);display:flex;gap:7px;flex-wrap:wrap">
+      <span>${items.length} ativ.</span>
+      <span style="color:#14b8a6">${concl} concl.</span>
+      ${atraso?`<span style="color:#ef4444">${atraso} atr.</span>`:''}
+      ${execucao?`<span style="color:#f59e0b">${execucao} exec.</span>`:''}
+    </div>
+  </div>`;
+}
 function planoStatsTrimestrais(lista){
   const el = document.getElementById('plano-stats');
   if(!el) return;
-  const mes = new Date().getMonth();
-  let trimAtual;
-  if(mes<3) trimAtual='T1';
-  else if(mes<6) trimAtual='T2';
-  else if(mes<9) trimAtual='T3';
-  else trimAtual='T4';
+  const trimAtual = _planoTrimAtual();
   const triF = document.getElementById('plano-filt-tri')?.value||'';
   const trimestres = ['T1','T2','T3','T4'];
   el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:.8rem">
@@ -13164,34 +13230,7 @@ function planoStatsTrimestrais(lista){
       const items=lista.filter(a=>a.trimestre===tri);
       const isCur=tri===trimAtual;
       const isFilt=tri===triF;
-      if(!items.length) return `<div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;opacity:.45;cursor:default">
-        <div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:.3rem">${tri}${isCur?' <span style="color:var(--blue)">●</span>':''}</div>
-        <div style="font-size:11px;color:var(--ink3)">Sem atividades</div></div>`;
-      const concl   =items.filter(a=>planoStatusEfetivo(a)==='concluida').length;
-      const atraso  =items.filter(a=>planoStatusEfetivo(a)==='em_atraso').length;
-      const execucao=items.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
-      const pct=Math.round(concl/items.length*100);
-      let cor;
-      if(pct>=75) cor='#14b8a6';
-      else if(pct>=40) cor='#f59e0b';
-      else cor='#ef4444';
-      let borderStyle; if(isFilt) borderStyle='3px solid var(--blue)'; else if(isCur) borderStyle='2px solid var(--blue)'; else borderStyle='1px solid var(--bdr)';
-      let bgStyle; if(isFilt) bgStyle='rgba(59,130,246,.12)'; else if(isCur) bgStyle='rgba(59,130,246,.06)'; else bgStyle='var(--bg2)';
-      return `<div role="button" tabindex="0" onclick="planoFiltrarTri('${tri}')" onkeydown="if(event.key==='Enter'||event.key===' ')planoFiltrarTri('${tri}')" title="${isFilt?'Clique para remover filtro':'Filtrar por '+tri}" style="background:${bgStyle};border:${borderStyle};border-radius:var(--r);padding:.8rem;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''" onfocus="this.style.boxShadow='0 0 0 2px var(--blue)'" onblur="this.style.boxShadow=''">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
-          <span style="font-size:11px;font-weight:700;color:${isFilt||isCur?'var(--blue)':'var(--ink)'}">${tri}${isCur?' ●':''}${isFilt?' ▼':''}</span>
-          <span style="font-size:18px;font-weight:700;color:${cor}">${pct}%</span>
-        </div>
-        <div style="height:4px;background:var(--bdr2);border-radius:2px;overflow:hidden;margin-bottom:.4rem">
-          <div style="width:${pct}%;height:100%;background:${cor};border-radius:2px"></div>
-        </div>
-        <div style="font-size:10px;color:var(--ink3);display:flex;gap:7px;flex-wrap:wrap">
-          <span>${items.length} ativ.</span>
-          <span style="color:#14b8a6">${concl} concl.</span>
-          ${atraso?`<span style="color:#ef4444">${atraso} atr.</span>`:''}
-          ${execucao?`<span style="color:#f59e0b">${execucao} exec.</span>`:''}
-        </div>
-      </div>`;
+      return _planoTriCard(tri, items, isCur, isFilt);
     }).join('')}
   </div>`;
 }
@@ -14884,6 +14923,30 @@ async function chamarIA(mode, payload, targetEl){
     return null;
   }
 }
+function _iaPreencherCampoAnalise(id, valor){
+  if(!valor) return;
+  const campo = document.getElementById(id);
+  if(campo) campo.value = Array.isArray(valor) ? valor.join('\n') : valor;
+}
+function _iaAutopreencherAnaliseBpmn(p, json){
+  if(p.etapa !== 'analise' && p.etapa !== 'esboco_asis') return;
+  _iaPreencherCampoAnalise('an-gar', json.gargalos);
+  _iaPreencherCampoAnalise('an-ret', json.retrabalhos);
+  _iaPreencherCampoAnalise('an-gap', json.gaps);
+  _iaPreencherCampoAnalise('an-oport', json.oportunidades);
+  _iaPreencherCampoAnalise('an-comp', json.complexidade);
+}
+function _iaAnaliseBpmnHtml(json, which){
+  return `<div class="ai-result">
+    <div class="ai-result-lbl">✦ Análise IA — ${esc(which.toUpperCase())}</div>
+    <div style="margin-bottom:.5rem;color:var(--ink3)">${esc(json.resumo||'')}</div>
+    ${json.gargalos?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--red)">Gargalos:</strong> ${json.gargalos.map(g=>esc(g)).join(' · ')}</div>`:''}
+    ${json.retrabalhos?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--amber)">Retrabalhos:</strong> ${json.retrabalhos.map(r=>esc(r)).join(' · ')}</div>`:''}
+    ${json.gaps?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--purple)">Gaps:</strong> ${json.gaps.map(g=>esc(g)).join(' · ')}</div>`:''}
+    ${json.oportunidades?.length?`<div><strong style="color:var(--green)">Oportunidades:</strong> ${json.oportunidades.map(o=>esc(o)).join(' · ')}</div>`:''}
+    <div style="margin-top:.5rem;font-size:11px;color:var(--ink4)">Campos de análise preenchidos automaticamente ↑</div>
+  </div>`;
+}
 
 // ── 1. ANALISAR BPMN ─────────────────────
 async function iaAnalisarBpmn(which){
@@ -14902,23 +14965,8 @@ async function iaAnalisarBpmn(which){
   if(result){
     try {
       const json = JSON.parse(result);
-      // Auto-populate análise fields if on analise step
-      if(p.etapa === 'analise' || p.etapa === 'esboco_asis'){
-        if(json.gargalos?.length)   { const f=document.getElementById('an-gar');   if(f) f.value = json.gargalos.join('\n'); }
-        if(json.retrabalhos?.length){ const f=document.getElementById('an-ret');   if(f) f.value = json.retrabalhos.join('\n'); }
-        if(json.gaps?.length)       { const f=document.getElementById('an-gap');   if(f) f.value = json.gaps.join('\n'); }
-        if(json.oportunidades?.length){ const f=document.getElementById('an-oport'); if(f) f.value = json.oportunidades.join('\n'); }
-        if(json.complexidade)       { const f=document.getElementById('an-comp');  if(f) f.value = json.complexidade; }
-      }
-      el.innerHTML = `<div class="ai-result">
-        <div class="ai-result-lbl">✦ Análise IA — ${esc(which.toUpperCase())}</div>
-        <div style="margin-bottom:.5rem;color:var(--ink3)">${esc(json.resumo||'')}</div>
-        ${json.gargalos?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--red)">Gargalos:</strong> ${json.gargalos.map(g=>esc(g)).join(' · ')}</div>`:''}
-        ${json.retrabalhos?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--amber)">Retrabalhos:</strong> ${json.retrabalhos.map(r=>esc(r)).join(' · ')}</div>`:''}
-        ${json.gaps?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--purple)">Gaps:</strong> ${json.gaps.map(g=>esc(g)).join(' · ')}</div>`:''}
-        ${json.oportunidades?.length?`<div><strong style="color:var(--green)">Oportunidades:</strong> ${json.oportunidades.map(o=>esc(o)).join(' · ')}</div>`:''}
-        <div style="margin-top:.5rem;font-size:11px;color:var(--ink4)">Campos de análise preenchidos automaticamente ↑</div>
-      </div>`;
+      _iaAutopreencherAnaliseBpmn(p, json);
+      el.innerHTML = _iaAnaliseBpmnHtml(json, which);
     } catch {
       el.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">✦ Análise IA</div>${esc(result)}</div>`;
     }
