@@ -410,7 +410,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 /* concurrent edit banner */
 #concurrent-banner{display:none;position:sticky;top:0;z-index:500;background:#7C3400;color:#fff;padding:10px 1.2rem;font-size:12.5px;align-items:center;gap:10px;flex-wrap:wrap}
 #concurrent-banner strong{font-weight:600}
-.cb-btn{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-family:var(--f);transition:background .12s}.cb-btn:hover{background:rgba(255,255,255,.22)}
+.cb-btn{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.45);background:#9a4000;color:#fff;font-family:var(--f);transition:background .12s}.cb-btn:hover{background:#7c3400}
 .cb-btn.cb-reload{background:#fff;color:#7C3400;border-color:#fff}.cb-btn.cb-reload:hover{background:#f0f0f0}
 /* inactivity warning */
 #inactivity-warning{display:none;position:fixed;bottom:1.5rem;right:1.5rem;z-index:9000;background:var(--ink);color:#fff;border-radius:14px;padding:1.1rem 1.3rem;box-shadow:0 8px 32px rgba(0,0,0,.4);max-width:290px;border:1px solid rgba(255,255,255,.12);flex-direction:column;gap:.65rem}
@@ -1697,7 +1697,7 @@ function enterProcessModule(){
 }
 function openProjectsModule(){
   if(!hasProjetosAccess()){ toast('Seu perfil não tem acesso ao SIGA Projetos.','var(--red)'); return; }
-  window.location.href='projetos.html';
+  globalThis.location.href='projetos.html';
 }
 
 function _aplicarUsuario(user){
@@ -14355,7 +14355,7 @@ function syncLoginModeUI(){
 document.getElementById('login-screen').style.display='flex';
 
 // Boot sequence: load from Firebase (if configured), else fall back to localStorage
-(async function boot(){
+async function boot(){
   // Show loading indicator
   const loginBox = document.querySelector('.login-box');
   const loadMsg = document.createElement('div');
@@ -14425,7 +14425,8 @@ document.getElementById('login-screen').style.display='flex';
   fbStatusBadge();
   syncLoginModeUI();
   injectSaveBtn();
-})();
+}
+boot();
 
 // ═══════════════════════════════════════════
 // IA — AZURE OPENAI VIA FIREBASE FUNCTION
