@@ -10335,6 +10335,7 @@ function _metaFieldsProgBar(proc){
 
 function syncArquiteturaProcessos(){
   const byArqId = new Map(processos.filter(p=>p.arq_id).map(p=>[p.arq_id, p]));
+  let nomesAlterados = false;
   ARQUITETURA.forEach(m=>{
     m.processos.forEach(p=>{
       if(p.subprocessos && p.subprocessos.length){
@@ -10342,13 +10343,22 @@ function syncArquiteturaProcessos(){
         p.subprocessos.forEach(s=>{
           const linked = byArqId.get(s.id);
           s.proc_id = linked ? linked.id : null;
+          if(linked){
+            if(linked.nome !== s.nome){ linked.nome = s.nome; nomesAlterados = true; }
+            if(linked.macro !== m.nome){ linked.macro = m.nome; nomesAlterados = true; }
+          }
         });
       } else {
         const linked = byArqId.get(p.id);
         p.proc_id = linked ? linked.id : null;
+        if(linked){
+          if(linked.nome !== p.nome){ linked.nome = p.nome; nomesAlterados = true; }
+          if(linked.macro !== m.nome){ linked.macro = m.nome; nomesAlterados = true; }
+        }
       }
     });
   });
+  if(nomesAlterados) fbAutoSave('syncArqNomes');
 }
 
 function _normIntel(v=''){
