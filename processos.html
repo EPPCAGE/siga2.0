@@ -4215,22 +4215,32 @@ function _renderAnexosAchado(anexos, i){
   ).join('');
   return '<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">'+items+'</div>';
 }
+function _renderAnexosQuestao(anexos, i){
+  if(!anexos.length) return '<div style="font-size:11px;color:var(--ink4);margin-top:.45rem">Nenhuma evidência anexada.</div>';
+  const items=anexos.map((x,j)=>
+    '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">'+
+    `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>`+
+    `<button type="button" onclick="removerAnexoQuestao(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>`+
+    '</span>'
+  ).join('');
+  return '<div style="margin-top:.55rem"><div style="font-size:11px;color:var(--ink3);margin-bottom:.2rem">Evidências anexadas</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+items+'</div></div>';
+}
+function _renderAnexosProcedimento(anexos, i){
+  if(!anexos.length) return '<div style="font-size:11px;color:var(--ink4);margin-top:.45rem">Nenhum documento anexado.</div>';
+  const items=anexos.map((x,j)=>
+    '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(20,184,166,.07);border:1px solid rgba(20,184,166,.18);border-radius:999px;padding:3px 9px;font-size:11px">'+
+    `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Documento')}</a>`+
+    `<button type="button" onclick="removerAnexoProcedimentoAuditoria(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>`+
+    '</span>'
+  ).join('');
+  return '<div style="margin-top:.55rem"><div style="font-size:11px;color:var(--ink3);margin-bottom:.25rem">Documentos anexados</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+items+'</div></div>';
+}
 function _renderAnexosAcao(anexos, i){
   if(!anexos.length) return '';
   const items=anexos.map((x,j)=>
     '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">'+
     `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>`+
     `<button type="button" onclick="removerAnexoAcao(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>`+
-    '</span>'
-  ).join('');
-  return '<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">'+items+'</div>';
-}
-function _renderAnexosTrilha(anexos, i){
-  if(!anexos.length) return '';
-  const items=anexos.map((x,j)=>
-    '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">'+
-    `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>`+
-    `<button type="button" onclick="removerAnexoTrilha(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>`+
     '</span>'
   ).join('');
   return '<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">'+items+'</div>';
@@ -4302,6 +4312,9 @@ const ACOES = {
     <div class="fg"><label class="fl">Atividades principais <small style="font-weight:400;color:var(--ink3)">(uma por linha)</small></label><textarea class="fi" id="r-atividades" style="min-height:80px" placeholder="1. Receber demanda&#10;2. Analisar documentação&#10;...">${esc(p.ent.atividades_principais||'')}</textarea></div>
     <div class="fg"><label class="fl">Saídas${hint(p.ent.saidas,ai.entregas)}</label><textarea class="fi" id="r-saidas" style="min-height:54px" placeholder="Produtos, documentos, resultados gerados...">${esc(fg(p.ent.saidas,ai.entregas))}</textarea></div>
     <div class="fg"><label class="fl">Atores${hint(p.ent.atores,ai.atores)}</label><input class="fi" id="r-atores" value="${esc(fg(p.ent.atores,ai.atores))}" placeholder="Unidades e pessoas que participam do processo"></div>
+    <div class="fg"><label class="fl">Definições e siglas</label><textarea class="fi" id="r-def" style="min-height:60px" placeholder="Termo: Definição, uma por linha">${esc(p.form?.pop?.def||'')}</textarea></div>
+    <div class="fg"><label class="fl">Formulários / sistemas utilizados</label><input class="fi" id="r-forms" placeholder="Nome do formulário ou sistema — link se houver" value="${esc(p.form?.forms||'')}"></div>
+    <div class="fg"><label class="fl">Documentos correlatos</label><textarea class="fi" id="r-docs" style="min-height:50px" placeholder="Normas, regulamentos, formulários relacionados...">${esc(p.form?.pop?.docs||'')}</textarea></div>
     <hr>
     <div class="card-t">Volumetria e tempos</div>
     <div class="g3" style="margin-top:.5rem">
@@ -4574,10 +4587,8 @@ const ACOES = {
     </div>
     <div id="pp2" class="tab-p" style="display:none">
       <div class="fg"><label class="fl">Objetivo</label><textarea class="fi" id="pp-obj" style="min-height:80px">${esc(p.form?.pop?.obj||p.objetivo||'')}</textarea></div>
-      <div class="fg"><label class="fl">Definições e siglas</label><textarea class="fi" id="pp-def" style="min-height:60px" placeholder="Termo: Definição, uma por linha">${esc(p.form?.pop?.def||'')}</textarea></div>
       <div class="fg"><label class="fl">Entradas do processo <span style="font-size:10px;color:var(--teal);font-weight:400">← SIPOC</span></label><textarea class="fi" id="pp-ent" style="min-height:54px" placeholder="O que inicia o processo?">${esc(p.form?.pop?.ent||p.ent?.entradas||'')}</textarea></div>
       <div class="fg"><label class="fl">Saídas do processo <span style="font-size:10px;color:var(--teal);font-weight:400">← SIPOC</span></label><textarea class="fi" id="pp-sai" style="min-height:54px" placeholder="O que é produzido ao final?">${esc(p.form?.pop?.sai||p.ent?.saidas||'')}</textarea></div>
-      <div class="fg"><label class="fl">Documentos correlatos</label><textarea class="fi" id="pp-docs" style="min-height:50px" placeholder="Normas, regulamentos, formulários relacionados...">${esc(p.form?.pop?.docs||'')}</textarea></div>
     </div>
     <div id="pp3" class="tab-p" style="display:none">
       <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Atividades puxadas do detalhamento feito pelo dono (etapa de validação AS IS). Revise tipo, descrição, responsável e etapa seguinte.</div>
@@ -4595,7 +4606,6 @@ const ACOES = {
       </div>
       <div class="fg"><label class="fl">Exceções / casos especiais</label><textarea class="fi" id="a-excecoes" style="min-height:70px" placeholder="Situações fora do fluxo padrão que devem ser documentadas...">${esc(p.form?.excecoes||'')}</textarea></div>
       <div class="fg"><label class="fl">Contatos-chave do processo</label><textarea class="fi" id="a-contatos" style="min-height:60px" placeholder="Nome — Função — E-mail ou ramal">${esc(p.form?.contatos||'')}</textarea></div>
-      <div class="fg"><label class="fl">Formulários / sistemas utilizados</label><input class="fi" id="aforms" placeholder="Nome do formulário ou sistema — link se houver" value="${esc(p.form?.forms||'')}"></div>
       <div class="fg"><label class="fl">Observações complementares</label><textarea class="fi" id="aobs-pop" style="min-height:60px" placeholder="Observações adicionais sobre o processo...">${esc(p.form?.obs_complement||'')}</textarea></div>
     </div>
     <div class="btn-row">
@@ -4731,39 +4741,71 @@ const ACOES = {
       const achados=aud.achados_list||[];
       const acoes=aud.acoes_list||[];
       const trilha=aud.trilha||[];
-      const trilhaHtml=trilha.length?trilha.map((t,i)=>`
-        <div class="card" style="margin-bottom:.5rem;padding:.7rem .9rem;font-size:13px">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:.4rem">
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <span class="badge bt" style="font-size:10px">${esc(t.tipo||'')}</span>
-              ${t.data?`<span style="font-size:11px;color:var(--ink3)">${esc(t.data)}</span>`:''}
-              ${t.responsavel?`<span style="font-size:11px;color:var(--ink2)">· ${esc(t.responsavel)}</span>`:''}
-            </div>
-            <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red);flex-shrink:0" onclick="excluirProcedimentoAuditoria(${i})" aria-label="Remover procedimento">✕</button>
-          </div>
-          ${t.descricao?`<div style="margin-bottom:.3rem"><strong>O que foi feito:</strong> ${esc(t.descricao)}</div>`:''}
-          ${t.objetivo?`<div style="font-size:12px;color:var(--ink3);margin-bottom:.2rem"><strong>Objetivo:</strong> ${esc(t.objetivo)}</div>`:''}
-          ${t.evidencias?`<div style="font-size:12px;color:var(--teal);margin-bottom:.2rem">📎 <strong>Evidências:</strong> ${esc(t.evidencias)}</div>`:''}
-          ${t.conclusoes?`<div style="font-size:12px;color:var(--ink2)">→ <strong>Conclusões parciais:</strong> ${esc(t.conclusoes)}</div>`:''}
-          ${_renderAnexosTrilha(t.anexos||[], i)}
-          <div id="tr-anexo-form-${i}" style="margin-top:.5rem;display:none;gap:6px;flex-wrap:wrap;align-items:center">
-            <input class="fi" id="tr-link-nome-${i}" placeholder="Nome do documento" style="width:140px;font-size:11px;padding:3px 6px">
-            <input class="fi" id="tr-link-url-${i}" placeholder="https://..." style="flex:1;min-width:160px;font-size:11px;padding:3px 6px">
-            <button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="adicionarLinkTrilha(${i})">+ Link</button>
-            <label class="btn" style="font-size:11px;padding:2px 8px;cursor:pointer">↑ Arquivo<input type="file" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="uploadArquivoTrilha(${i},this)"></label>
-          </div>
-          <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-top:.4rem;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoFormTrilha(${i})">📎 Anexar</button>
-        </div>`).join(''):'';
+      const trilhaOrdenada=trilha
+        .map((t,i)=>({t,i,ord:t?.data||'9999-12-31'}))
+        .sort((a,b)=>a.ord.localeCompare(b.ord));
+      const trilhaHtml=trilhaOrdenada.length?`
+        <div style="position:relative;padding-left:1rem">
+          <div style="position:absolute;left:11px;top:8px;bottom:8px;width:2px;background:linear-gradient(180deg,var(--teal),rgba(20,184,166,.12))"></div>
+          ${trilhaOrdenada.map(({t,i},ordIdx)=>{
+            const isLast=ordIdx===trilhaOrdenada.length-1;
+            return `
+            <div style="position:relative;padding-left:1.35rem;margin-bottom:${isLast?'0':'.9rem'}">
+              <div style="position:absolute;left:0;top:.7rem;width:12px;height:12px;border-radius:999px;background:var(--teal);box-shadow:0 0 0 4px rgba(20,184,166,.14);border:2px solid #fff"></div>
+              <div class="card" style="padding:.85rem .95rem;font-size:13px;border-left:3px solid rgba(20,184,166,.28);background:linear-gradient(180deg,rgba(20,184,166,.04),rgba(20,184,166,.015))">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:.45rem">
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                    <span class="badge bt" style="font-size:10px">${esc(t.tipo||'')}</span>
+                    ${t.data?`<span style="font-size:11px;color:var(--ink3)">${esc(t.data)}</span>`:''}
+                    ${t.responsavel?`<span style="font-size:11px;color:var(--ink2)">· ${esc(t.responsavel)}</span>`:''}
+                  </div>
+                  <div style="display:flex;gap:4px;flex-shrink:0">
+                    <button type="button" class="btn" style="font-size:11px;padding:2px 7px" onclick="editarProcedimentoAuditoria(${i})">Editar</button>
+                    <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirProcedimentoAuditoria(${i})" aria-label="Remover procedimento">✕</button>
+                  </div>
+                </div>
+                ${t.descricao?`<div style="margin-bottom:.35rem;line-height:1.45"><strong>O que foi feito:</strong> ${esc(t.descricao)}</div>`:''}
+                ${t.objetivo?`<div style="font-size:12px;color:var(--ink3);margin-bottom:.25rem"><strong>Objetivo:</strong> ${esc(t.objetivo)}</div>`:''}
+                ${t.evidencias?`<div style="font-size:12px;color:var(--teal);margin-bottom:.25rem"><strong>Evidências:</strong> ${esc(t.evidencias)}</div>`:''}
+                ${t.conclusoes?`<div style="font-size:12px;color:var(--ink2);padding-top:.3rem;border-top:1px dashed rgba(20,184,166,.24)"><strong>Conclusões parciais:</strong> ${esc(t.conclusoes)}</div>`:''}
+                ${_renderAnexosProcedimento(t.anexos||[], i)}
+                <div id="aud-tr-anexo-form-${i}" style="margin-top:.55rem;display:none;gap:6px;flex-wrap:wrap;align-items:center">
+                  <input class="fi" id="aud-tr-link-nome-${i}" placeholder="Nome do documento" style="width:140px;font-size:11px;padding:3px 6px">
+                  <input class="fi" id="aud-tr-link-url-${i}" placeholder="https://..." style="flex:1;min-width:160px;font-size:11px;padding:3px 6px">
+                  <button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="adicionarLinkProcedimentoAuditoria(${i})">+ Link</button>
+                  <label class="btn" style="font-size:11px;padding:2px 8px;cursor:pointer">↑ Arquivo<input type="file" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="uploadArquivoProcedimentoAuditoria(${i},this)"></label>
+                </div>
+                <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-top:.55rem;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoProcedimentoForm(${i})">📎 Anexar documento</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`:'';
       const questoesHtml=questoes.length?questoes.map((q,i)=>`
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-            <div><strong>Q${i+1}:</strong> ${q.questao}
-            ${q.criterio?`<div style="font-size:11px;color:var(--ink3);margin-top:2px">Critério: ${q.criterio}</div>`:''}
-            ${q.resposta?`<div style="color:var(--teal);margin-top:.2rem">✓ ${q.resposta}</div>`:'<div style="color:var(--amber);margin-top:.2rem">Aguardando resposta</div>'}</div>
+            <div style="flex:1;min-width:0"><strong>Q${i+1}:</strong> ${esc(q.questao||'')}
+            ${q.criterio?`<div style="font-size:11px;color:var(--ink3);margin-top:2px">Critério: ${esc(q.criterio)}</div>`:''}
+            ${q.responsavel?`<div style="font-size:11px;color:var(--ink3);margin-top:2px">Responsável: ${esc(q.responsavel)}</div>`:''}
+            ${q.resposta?`<div style="color:var(--teal);margin-top:.4rem;white-space:pre-wrap"><strong>Resposta:</strong> ${esc(q.resposta)}</div>`:'<div style="color:var(--amber);margin-top:.4rem">Aguardando resposta</div>'}
+            ${_renderAnexosQuestao(q.anexos||[], i)}</div>
             <div style="display:flex;gap:4px;flex-shrink:0">
               <button type="button" class="btn" style="font-size:11px;padding:2px 7px" onclick="editarQuestaoAuditoria(${i})">Editar</button>
               <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirQuestaoAuditoria(${i})" aria-label="Remover questão">✕</button>
             </div>
+          </div>
+          <div class="fg" style="margin-top:.7rem">
+            <label class="fl">Resposta da questão</label>
+            <textarea class="fi" id="aud-q-resposta-${i}" style="min-height:78px" placeholder="Registre aqui a resposta desta questão...">${esc(q.resposta||'')}</textarea>
+          </div>
+          <div id="aud-q-anexo-form-${i}" style="margin-top:.5rem;display:none;gap:6px;flex-wrap:wrap;align-items:center">
+            <input class="fi" id="aud-q-link-nome-${i}" placeholder="Nome do documento" style="width:140px;font-size:11px;padding:3px 6px">
+            <input class="fi" id="aud-q-link-url-${i}" placeholder="https://..." style="flex:1;min-width:160px;font-size:11px;padding:3px 6px">
+            <button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="adicionarLinkQuestao(${i})">+ Link</button>
+            <label class="btn" style="font-size:11px;padding:2px 8px;cursor:pointer">↑ Arquivo<input type="file" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="uploadArquivoQuestao(${i},this)"></label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:.6rem">
+            <button type="button" class="btn btn-p" style="font-size:11px;padding:2px 8px" onclick="salvarRespostaQuestaoAuditoria(${i})">Salvar resposta</button>
+            <button type="button" class="btn" style="font-size:11px;padding:2px 8px;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoQuestaoForm(${i})">📎 Anexar evidência</button>
           </div>
         </div>`).join(''):'';
       const achadosHtml=achados.length?achados.map((a,i)=>{
@@ -4859,7 +4901,8 @@ const ACOES = {
           <span style="font-size:13px;color:var(--ink3)">${trilha.length} procedimento(s) registrado(s)</span>
         </div>
         <div style="margin-bottom:1rem">${trilhaHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhum procedimento registrado. Use o formulário abaixo para registrar reuniões, entrevistas, testes e demais ações de auditoria.</div>'}</div>
-        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Registrar procedimento de auditoria</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)" id="aud-tr-form-title">Registrar procedimento de auditoria</div>
+        <input type="hidden" id="aud-tr-idx" value="">
         <div class="g2">
           <div class="fg"><label class="fl">Tipo de ação</label>
             <select class="fi" id="aud-tr-tipo">
@@ -4881,7 +4924,10 @@ const ACOES = {
         <div class="fg"><label class="fl">Objetivo</label><textarea class="fi" id="aud-tr-obj" style="min-height:50px" placeholder="Qual o propósito deste procedimento?"></textarea></div>
         <div class="fg"><label class="fl">Evidências obtidas</label><textarea class="fi" id="aud-tr-evid" style="min-height:50px" placeholder="Documentos, atas, registros, declarações..."></textarea></div>
         <div class="fg"><label class="fl">Conclusões parciais</label><textarea class="fi" id="aud-tr-concl" style="min-height:50px" placeholder="Achados ou conclusões preliminares decorrentes deste procedimento..."></textarea></div>
-        <button type="button" class="btn btn-p" onclick="adicionarProcedimentoAuditoria()">＋ Registrar procedimento</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-p" id="aud-tr-save-btn" onclick="salvarProcedimentoAuditoria()">＋ Registrar procedimento</button>
+          <button type="button" class="btn" id="aud-tr-cancel-btn" style="display:none" onclick="cancelarEdicaoProcedimentoAuditoria()">Cancelar</button>
+        </div>
       </div>
       <div id="aud4" class="tab-p" style="display:none">
         <div style="margin-bottom:1rem">${achadosHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhum achado registrado.</div>'}</div>
@@ -5071,6 +5117,14 @@ function _rsReuniao(p){
   p.ent.atividades_principais=document.getElementById('r-atividades')?.value||p.ent.atividades_principais;
   p.ent.saidas=document.getElementById('r-saidas')?.value||p.ent.saidas;
   p.ent.atores=document.getElementById('r-atores')?.value||p.ent.atores;
+  p.form=p.form||{};
+  p.form.pop=p.form.pop||{};
+  const defVal=document.getElementById('r-def')?.value;
+  const formsVal=document.getElementById('r-forms')?.value;
+  const docsVal=document.getElementById('r-docs')?.value;
+  if(defVal!=null) p.form.pop.def=defVal;
+  if(formsVal!=null) p.form.forms=formsVal;
+  if(docsVal!=null) p.form.pop.docs=docsVal;
   if(!p.ent.vol)p.ent.vol={};
   p.ent.vol.exec=document.getElementById('r-exec')?.value||p.ent.vol.exec;
   const tc=Number.parseFloat(document.getElementById('r-tciclo')?.value);
@@ -5690,6 +5744,11 @@ function salvarReuniao(avancar=true){
   p.ent.atividades_principais=document.getElementById('r-atividades')?.value||'';
   p.ent.saidas=document.getElementById('r-saidas')?.value||'';
   p.ent.atores=document.getElementById('r-atores')?.value||'';
+  p.form=p.form||{};
+  p.form.pop=p.form.pop||{};
+  p.form.pop.def=document.getElementById('r-def')?.value||'';
+  p.form.forms=document.getElementById('r-forms')?.value||'';
+  p.form.pop.docs=document.getElementById('r-docs')?.value||'';
   if(!p.ent.vol)p.ent.vol={};
   p.ent.vol.exec_mensal=Number.parseFloat(document.getElementById('r-exec-mensal')?.value)||null;
   p.ent.t_ciclo=Number.parseFloat(document.getElementById('r-tciclo')?.value)||null;
@@ -6902,8 +6961,23 @@ async function iaGerarRelatorioAuditoria(){
     criterios: aud.criterios||'',
     data_inicio: aud.data_inicio||'', data_fim: aud.data_fim||'',
     conformidade: document.getElementById('aud-conf')?.value || aud.conformidade || '',
-    questoes: (aud.questoes||[]).map(q=>({questao:q.questao,criterio:q.criterio})),
-    trilha: (aud.trilha||[]).map(t=>({tipo:t.tipo,data:t.data,responsavel:t.responsavel,descricao:t.descricao,objetivo:t.objetivo,evidencias:t.evidencias,conclusoes:t.conclusoes})),
+    questoes: (aud.questoes||[]).map(q=>({
+      questao:q.questao,
+      criterio:q.criterio,
+      responsavel:q.responsavel,
+      resposta:q.resposta,
+      evidencias:(q.anexos||[]).map(x=>x.nome||x.url).join('; ')
+    })),
+    trilha: (aud.trilha||[]).map(t=>({
+      tipo:t.tipo,
+      data:t.data,
+      responsavel:t.responsavel,
+      descricao:t.descricao,
+      objetivo:t.objetivo,
+      evidencias:t.evidencias,
+      conclusoes:t.conclusoes,
+      anexos:(t.anexos||[]).map(x=>x.nome||x.url).join('; ')
+    })),
     achados: (aud.achados_list||[]).map(a=>({tipo:a.tipo,titulo:a.titulo,desc:a.desc,evidencia:a.evidencia,criterio:a.criterio})),
     acoes: (aud.acoes_list||[]).map(a=>({acao:a.acao,responsavel:a.responsavel,prazo:a.prazo,status:a.status})),
   });
@@ -7085,7 +7159,7 @@ function adicionarQuestaoAuditoria(){
     questao:document.getElementById('aud-q-texto')?.value||'',
     criterio:document.getElementById('aud-q-crit')?.value||'',
     responsavel:document.getElementById('aud-q-resp')?.value||'',
-    resposta:'',criada_em:now()
+    resposta:'',anexos:[],criada_em:now()
   };
   if(!q.questao){toast('Informe a questão','var(--red)');return;}
   p.auditoria.questoes.push(q);
@@ -7103,7 +7177,7 @@ async function salvarQuestaoAuditoria(){
   const idxStr=document.getElementById('aud-q-idx')?.value||'';
   if(!texto){toast('Informe a questão','var(--red)');return;}
   if(idxStr===''){
-    p.auditoria.questoes.push({questao:texto,criterio,responsavel,resposta:'',criada_em:now()});
+    p.auditoria.questoes.push({questao:texto,criterio,responsavel,resposta:'',anexos:[],criada_em:now()});
     toast('Questão adicionada!','var(--teal)');
   } else {
     const idx=Number.parseInt(idxStr);
@@ -7112,6 +7186,7 @@ async function salvarQuestaoAuditoria(){
   }
   await fbSaveAll();
   rDetalhe();
+  _reabrirAbaQuestoesAuditoria();
 }
 
 function editarQuestaoAuditoria(idx){
@@ -7136,6 +7211,10 @@ function cancelarEdicaoQuestao(){
   document.getElementById('aud-q-save-btn').textContent='＋ Adicionar questão';
   document.getElementById('aud-q-cancel-btn').style.display='none';
 }
+function _reabrirAbaQuestoesAuditoria(){
+  const aud2Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud2"]');
+  if(aud2Tab) sstab('aud2',aud2Tab);
+}
 
 async function excluirQuestaoAuditoria(idx){
   const p=curProc;if(!p)return;
@@ -7143,9 +7222,88 @@ async function excluirQuestaoAuditoria(idx){
     p.auditoria.questoes.splice(idx,1);
     toast('Questão excluída','var(--amber)');
     rDetalhe();
-    // Restore the Questões tab after rDetalhe resets it to Planejamento
-    const aud2Tab = document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud2"]');
-    if(aud2Tab) sstab('aud2', aud2Tab);
+    _reabrirAbaQuestoesAuditoria();
+    await fbSaveAll();
+  });
+}
+
+async function salvarRespostaQuestaoAuditoria(idx){
+  const p=curProc;if(!p)return;
+  const q=p.auditoria?.questoes?.[idx];if(!q)return;
+  q.resposta=document.getElementById('aud-q-resposta-'+idx)?.value?.trim()||'';
+  q.respondida_em=now();
+  await fbSaveAll();
+  toast('Resposta salva!','var(--teal)');
+  rDetalhe();
+  _reabrirAbaQuestoesAuditoria();
+}
+
+function toggleAnexoQuestaoForm(idx){
+  const el=document.getElementById('aud-q-anexo-form-'+idx);
+  if(!el)return;
+  const open=el.style.display==='flex';
+  el.style.display=open?'none':'flex';
+}
+
+function adicionarLinkQuestao(idx){
+  const p=curProc;if(!p)return;
+  const q=p.auditoria?.questoes?.[idx];if(!q)return;
+  q.resposta=document.getElementById('aud-q-resposta-'+idx)?.value?.trim()||q.resposta||'';
+  const nome=(document.getElementById('aud-q-link-nome-'+idx)?.value||'').trim();
+  const url=(document.getElementById('aud-q-link-url-'+idx)?.value||'').trim();
+  if(!url){toast('Informe a URL do documento','var(--red)');return;}
+  if(!url.startsWith('http')){toast('URL inválida','var(--red)');return;}
+  if(!q.anexos) q.anexos=[];
+  q.anexos.push({tipo:'link',nome:nome||url,url});
+  fbAutoSave('salvar');
+  toast('Link de evidência adicionado!','var(--teal)');
+  rDetalhe();
+  _reabrirAbaQuestoesAuditoria();
+}
+
+async function uploadArquivoQuestao(idx,input){
+  const p=curProc;if(!p)return;
+  const q=p.auditoria?.questoes?.[idx];if(!q)return;
+  q.resposta=document.getElementById('aud-q-resposta-'+idx)?.value?.trim()||q.resposta||'';
+  const file=input?.files?.[0];if(!file)return;
+  if(!q.anexos) q.anexos=[];
+  const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
+  if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
+  const path=`auditoria/${p.id||'sem-id'}/questoes/${idx}/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
+  const ref=storageRef(storage,path);
+  try{
+    toast('Enviando arquivo…','var(--blue)');
+    await uploadBytes(ref,file);
+    const url=await getDownloadURL(ref);
+    q.anexos.push({tipo:'arquivo',nome:file.name,url,path});
+    await fbSaveAll();
+    toast('Arquivo anexado à questão!','var(--teal)');
+    rDetalhe();
+    _reabrirAbaQuestoesAuditoria();
+  }catch(e){
+    console.error('upload questao erro',e);
+    toast('Erro ao enviar arquivo: '+e.message,'var(--red)');
+  }finally{
+    if(input) input.value='';
+  }
+}
+
+async function removerAnexoQuestao(questaoIdx,anexoIdx){
+  const p=curProc;if(!p)return;
+  confirmar('Remover este anexo?', async () => {
+    const q=p.auditoria?.questoes?.[questaoIdx];if(!q?.anexos)return;
+    q.resposta=document.getElementById('aud-q-resposta-'+questaoIdx)?.value?.trim()||q.resposta||'';
+    const anexo=q.anexos[anexoIdx];
+    if(anexo?.tipo==='arquivo'&&anexo.path){
+      const {storage,storageRef,deleteObject}=globalThis._fb||{};
+      if(storage&&anexo.path){
+        try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete questao err',e);}
+      }
+    }
+    q.anexos.splice(anexoIdx,1);
+    toast('Anexo removido','var(--amber)');
+    rDetalhe();
+    _reabrirAbaQuestoesAuditoria();
     await fbSaveAll();
   });
 }
@@ -7189,6 +7347,7 @@ async function iaGerarQuestoesAuditoria(){
         criterio:item.criterio||'',
         responsavel:'',
         resposta:'',
+        anexos:[],
         criada_em:now()
       });
     });
@@ -7268,7 +7427,20 @@ function adicionarAcaoAuditoria(){
   fbAutoSave('salvar');toast('Ação incluída!','var(--teal)');
   rDetalhe();
 }
-function adicionarProcedimentoAuditoria(){
+function _reabrirAbaAcoesAuditoria(){
+  const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
+  if(aud3Tab) sstab('aud3',aud3Tab);
+}
+function _limparFormularioProcedimentoAuditoria(){
+  const campos=['aud-tr-data','aud-tr-resp','aud-tr-desc','aud-tr-obj','aud-tr-evid','aud-tr-concl'];
+  campos.forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const tipoEl=document.getElementById('aud-tr-tipo'); if(tipoEl) tipoEl.value='Reunião de abertura';
+  const idxEl=document.getElementById('aud-tr-idx'); if(idxEl) idxEl.value='';
+  const titleEl=document.getElementById('aud-tr-form-title'); if(titleEl) titleEl.textContent='Registrar procedimento de auditoria';
+  const saveEl=document.getElementById('aud-tr-save-btn'); if(saveEl) saveEl.textContent='＋ Registrar procedimento';
+  const cancelEl=document.getElementById('aud-tr-cancel-btn'); if(cancelEl) cancelEl.style.display='none';
+}
+async function salvarProcedimentoAuditoria(){
   const p=curProc;if(!p)return;
   if(!p.auditoria)p.auditoria={};
   if(!p.auditoria.trilha)p.auditoria.trilha=[];
@@ -7280,27 +7452,128 @@ function adicionarProcedimentoAuditoria(){
     objetivo:document.getElementById('aud-tr-obj')?.value||'',
     evidencias:document.getElementById('aud-tr-evid')?.value||'',
     conclusoes:document.getElementById('aud-tr-concl')?.value||'',
-    criado_em:now(),
-    anexos:[]
+    anexos:[],
+    criado_em:now()
   };
   if(!t.descricao){toast('Informe o que foi feito','var(--red)');return;}
-  p.auditoria.trilha.push(t);
-  ['aud-tr-resp','aud-tr-desc','aud-tr-obj','aud-tr-evid','aud-tr-concl'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  fbAutoSave('salvar');
-  toast('Procedimento registrado!','var(--teal)');
+  const idxStr=document.getElementById('aud-tr-idx')?.value||'';
+  if(idxStr===''){
+    p.auditoria.trilha.push(t);
+    toast('Procedimento registrado!','var(--teal)');
+  } else {
+    const idx=Number.parseInt(idxStr,10);
+    p.auditoria.trilha[idx]={...p.auditoria.trilha[idx],...t,anexos:p.auditoria.trilha[idx]?.anexos||[]};
+    toast('Procedimento atualizado!','var(--teal)');
+  }
+  _limparFormularioProcedimentoAuditoria();
+  await fbSaveAll();
   rDetalhe();
-  const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
-  if(aud3Tab) sstab('aud3',aud3Tab);
+  _reabrirAbaAcoesAuditoria();
+}
+function adicionarProcedimentoAuditoria(){
+  return salvarProcedimentoAuditoria();
+}
+function editarProcedimentoAuditoria(idx){
+  const p=curProc;if(!p)return;
+  const t=p.auditoria?.trilha?.[idx]; if(!t)return;
+  document.getElementById('aud-tr-idx').value=String(idx);
+  document.getElementById('aud-tr-tipo').value=t.tipo||'Outro';
+  document.getElementById('aud-tr-data').value=t.data||'';
+  document.getElementById('aud-tr-resp').value=t.responsavel||'';
+  document.getElementById('aud-tr-desc').value=t.descricao||'';
+  document.getElementById('aud-tr-obj').value=t.objetivo||'';
+  document.getElementById('aud-tr-evid').value=t.evidencias||'';
+  document.getElementById('aud-tr-concl').value=t.conclusoes||'';
+  document.getElementById('aud-tr-form-title').textContent='Editar procedimento de auditoria';
+  document.getElementById('aud-tr-save-btn').textContent='Salvar alterações';
+  document.getElementById('aud-tr-cancel-btn').style.display='';
+  document.getElementById('aud-tr-desc').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function cancelarEdicaoProcedimentoAuditoria(){
+  _limparFormularioProcedimentoAuditoria();
+}
+function toggleAnexoProcedimentoForm(idx){
+  const el=document.getElementById('aud-tr-anexo-form-'+idx);
+  if(!el)return;
+  const open=el.style.display==='flex';
+  el.style.display=open?'none':'flex';
+}
+function adicionarLinkProcedimentoAuditoria(idx){
+  const p=curProc;if(!p)return;
+  const t=p.auditoria?.trilha?.[idx]; if(!t)return;
+  const nome=(document.getElementById('aud-tr-link-nome-'+idx)?.value||'').trim();
+  const url=(document.getElementById('aud-tr-link-url-'+idx)?.value||'').trim();
+  if(!url){toast('Informe a URL do documento','var(--red)');return;}
+  if(!url.startsWith('http')){toast('URL inválida','var(--red)');return;}
+  if(!t.anexos) t.anexos=[];
+  t.anexos.push({tipo:'link',nome:nome||url,url});
+  fbAutoSave('salvar');
+  toast('Documento vinculado ao procedimento!','var(--teal)');
+  rDetalhe();
+  _reabrirAbaAcoesAuditoria();
+}
+async function uploadArquivoProcedimentoAuditoria(idx,input){
+  const p=curProc;if(!p)return;
+  const t=p.auditoria?.trilha?.[idx]; if(!t)return;
+  const file=input?.files?.[0]; if(!file)return;
+  if(!t.anexos) t.anexos=[];
+  const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
+  if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
+  const path=`auditoria/${p.id||'sem-id'}/trilha/${idx}/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
+  const ref=storageRef(storage,path);
+  try{
+    toast('Enviando arquivo…','var(--blue)');
+    await uploadBytes(ref,file);
+    const url=await getDownloadURL(ref);
+    t.anexos.push({tipo:'arquivo',nome:file.name,url,path});
+    await fbSaveAll();
+    toast('Arquivo anexado ao procedimento!','var(--teal)');
+    rDetalhe();
+    _reabrirAbaAcoesAuditoria();
+  }catch(e){
+    console.error('upload procedimento erro',e);
+    toast('Erro ao enviar arquivo: '+e.message,'var(--red)');
+  }finally{
+    if(input) input.value='';
+  }
+}
+async function removerAnexoProcedimentoAuditoria(procIdx,anexoIdx){
+  const p=curProc;if(!p)return;
+  confirmar('Remover este anexo?', async () => {
+    const t=p.auditoria?.trilha?.[procIdx]; if(!t?.anexos)return;
+    const anexo=t.anexos[anexoIdx];
+    if(anexo?.tipo==='arquivo'&&anexo.path){
+      const {storage,storageRef,deleteObject}=globalThis._fb||{};
+      if(storage&&anexo.path){
+        try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete procedimento err',e);}
+      }
+    }
+    t.anexos.splice(anexoIdx,1);
+    toast('Anexo removido','var(--amber)');
+    rDetalhe();
+    _reabrirAbaAcoesAuditoria();
+    await fbSaveAll();
+  });
 }
 async function excluirProcedimentoAuditoria(idx){
   const p=curProc;if(!p)return;
   confirmar('Excluir este procedimento?', async () => {
     if(!p.auditoria?.trilha) return;
+    const item=p.auditoria.trilha[idx];
+    const anexosArquivo=(item?.anexos||[]).filter(a=>a?.tipo==='arquivo'&&a.path);
+    if(anexosArquivo.length){
+      const {storage,storageRef,deleteObject}=globalThis._fb||{};
+      if(storage){
+        for(const anexo of anexosArquivo){
+          try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete procedimento arquivo err',e);}
+        }
+      }
+    }
     p.auditoria.trilha.splice(idx,1);
     toast('Procedimento excluído','var(--amber)');
+    _limparFormularioProcedimentoAuditoria();
     rDetalhe();
-    const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
-    if(aud3Tab) sstab('aud3',aud3Tab);
+    _reabrirAbaAcoesAuditoria();
     await fbSaveAll();
   });
 }
@@ -7368,70 +7641,7 @@ async function removerAnexoAchado(achadoIdx,anexoIdx){
     await fbSaveAll();
   });
 }
-function toggleAnexoFormTrilha(idx){
-  const el=document.getElementById('tr-anexo-form-'+idx);
-  if(!el)return;
-  const open=el.style.display==='flex';
-  el.style.display=open?'none':'flex';
-}
-function adicionarLinkTrilha(idx){
-  const p=curProc;if(!p)return;
-  const nome=(document.getElementById('tr-link-nome-'+idx)?.value||'').trim();
-  const url=(document.getElementById('tr-link-url-'+idx)?.value||'').trim();
-  if(!url){toast('Informe a URL do documento','var(--red)');return;}
-  if(!url.startsWith('http')){toast('URL inválida','var(--red)');return;}
-  const proc=p.auditoria?.trilha?.[idx];
-  if(!proc)return;
-  if(!proc.anexos)proc.anexos=[];
-  proc.anexos.push({tipo:'link',nome:nome||url,url});
-  fbAutoSave('salvar');toast('Link adicionado!','var(--teal)');
-  rDetalhe();
-  const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
-  if(aud3Tab) sstab('aud3',aud3Tab);
-}
-async function uploadArquivoTrilha(idx,input){
-  const p=curProc;if(!p)return;
-  const file=input?.files?.[0];if(!file)return;
-  const proc=p.auditoria?.trilha?.[idx];if(!proc)return;
-  if(!proc.anexos)proc.anexos=[];
-  const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
-  if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
-  const path=`auditoria/${p.id||'sem-id'}/acoes/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
-  const ref=storageRef(storage,path);
-  try{
-    toast('Enviando arquivo…','var(--blue)');
-    await uploadBytes(ref,file);
-    const url=await getDownloadURL(ref);
-    proc.anexos.push({tipo:'arquivo',nome:file.name,url,path});
-    await fbSaveAll();
-    toast('Arquivo enviado!','var(--teal)');
-    rDetalhe();
-    const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
-    if(aud3Tab) sstab('aud3',aud3Tab);
-  }catch(e){
-    console.error('upload erro',e);
-    toast('Erro ao enviar arquivo: '+e.message,'var(--red)');
-  }
-}
-async function removerAnexoTrilha(trilhaIdx,anexoIdx){
-  const p=curProc;if(!p)return;
-  confirmar('Remover este anexo?', async () => {
-    const proc=p.auditoria?.trilha?.[trilhaIdx];if(!proc?.anexos)return;
-    const anexo=proc.anexos[anexoIdx];
-    if(anexo?.tipo==='arquivo'&&anexo.path){
-      const {storage,storageRef,deleteObject}=globalThis._fb||{};
-      if(storage&&anexo.path){
-        try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete storage err',e);}
-      }
-    }
-    proc.anexos.splice(anexoIdx,1);
-    toast('Anexo removido','var(--amber)');
-    rDetalhe();
-    const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
-    if(aud3Tab) sstab('aud3',aud3Tab);
-    await fbSaveAll();
-  });
-}
+
 function toggleAnexoFormAcao(idx){
   const el=document.getElementById('ac-anexo-form-'+idx);
   if(!el)return;
@@ -7580,15 +7790,30 @@ function exportarAuditoriaWord(){
   // 3. QUESTÕES
   const questoes=aud.questoes||[];
   html+=sec('2. Questões de Auditoria',tabela(
-    ['#','Questão','Critério','Responsável','Resposta'],
-    questoes.map((q,i)=>[i+1,_e(q.questao),_e(q.criterio),_e(q.responsavel),_e(q.resposta)||'<span style="color:#aaa">Pendente</span>'])
+    ['#','Questão','Critério','Responsável','Resposta','Evidências'],
+    questoes.map((q,i)=>[
+      i+1,
+      _e(q.questao),
+      _e(q.criterio),
+      _e(q.responsavel),
+      _e(q.resposta)||'<span style="color:#aaa">Pendente</span>',
+      _e((q.anexos||[]).map(a=>a.nome||a.url).join('; '))||'<span style="color:#aaa">Sem anexos</span>'
+    ])
   ));
 
   // 4. TRILHA DE PROCEDIMENTOS
   const trilha=aud.trilha||[];
   html+=sec('3. Trilha de Auditoria',tabela(
-    ['Tipo','Data','Auditor','Descrição','Evidências','Conclusões'],
-    trilha.map(t=>[_e(t.tipo),_d(t.data),_e(t.responsavel),_e(t.descricao),_e(t.evidencias),_e(t.conclusoes)])
+    ['Tipo','Data','Auditor','Descrição','Evidências','Documentos anexados','Conclusões'],
+    trilha.map(t=>[
+      _e(t.tipo),
+      _d(t.data),
+      _e(t.responsavel),
+      _e(t.descricao),
+      _e(t.evidencias),
+      _e((t.anexos||[]).map(a=>a.nome||a.url).join('; '))||'<span style="color:#aaa">Sem anexos</span>',
+      _e(t.conclusoes)
+    ])
   ));
 
   // 5. ACHADOS
@@ -9308,6 +9533,16 @@ function cancelarEditReuniao(){
   el('nr-form-title').textContent='+ Registrar nova reunião';
   el('nr-btn-cancel').style.display='none';
 }
+function _vincularReuniaoEtapaFluxo(p,tipo,dados){
+  if(!p || tipo!=='reuniao_apresentacao') return false;
+  if(!p.form) p.form={};
+  p.form.reuniao_apresentacao={
+    data:dados?.data||'',
+    participantes:dados?.participantes||'',
+    ata:dados?.ata||''
+  };
+  return true;
+}
 
 async function excluirReuniao(id){
   const p=curProc; if(!p) return;
@@ -9328,17 +9563,29 @@ async function salvarReuniaoAvulsa(){
   const data=document.getElementById('nr-data')?.value||'';
   const part=document.getElementById('nr-part')?.value||'';
   const ata=document.getElementById('nr-ata')?.value||'';
+  const dadosReuniao={data,participantes:part,ata};
   if(!data){toast('Informe a data da reunião','var(--red)');return;}
   if(!p.reunioes) p.reunioes=[];
+  const vinculouEtapa=_vincularReuniaoEtapaFluxo(p,tipo,dadosReuniao);
   if(editId){
-    const r=p.reunioes.find(x=>x.id===editId);
-    if(r){r.tipo=tipo;r.data=data;r.participantes=part;r.ata=ata;}
+    const idx=p.reunioes.findIndex(x=>x.id===editId);
+    if(idx>=0){
+      if(vinculouEtapa){
+        p.reunioes.splice(idx,1);
+      } else {
+        const r=p.reunioes[idx];
+        r.tipo=tipo;r.data=data;r.participantes=part;r.ata=ata;
+      }
+    }
   } else {
-    p.reunioes.push({id:'rn_'+Date.now(),tipo,data,participantes:part,ata,registrada_em:now()});
-    push(p,'','EP','Reunião registrada: '+(REUNIAO_TIPOS[tipo]||tipo)+' — '+data);
+    if(!vinculouEtapa){
+      p.reunioes.push({id:'rn_'+Date.now(),tipo,data,participantes:part,ata,registrada_em:now()});
+    }
+    push(p,vinculouEtapa?'apresentacao':'','EP','Reunião registrada: '+(REUNIAO_TIPOS[tipo]||tipo)+' — '+data);
   }
   await fbSaveAll();
-  toast(editId?'Reunião atualizada!':'Reunião registrada!','var(--teal)');
+  toast(vinculouEtapa?'Reunião registrada e vinculada à etapa Aprovação pelo Gestor!':(editId?'Reunião atualizada!':'Reunião registrada!'),'var(--teal)');
+  cancelarEditReuniao();
   rReun(p);
 }
 
@@ -13109,7 +13356,10 @@ function renderPlanoMetas(){
       const pct=Math.min(100,Math.round(real/mt*100));
       let cor; if(pct>=100) cor='#14b8a6'; else if(pct>=60) cor='#f59e0b'; else cor='#ef4444';
       const un=m.unidade||'';
-      const valTxt=`${real}${un?' '+un:''} / meta ${mt}${un?' '+un:''}`;
+      const unidadeSuffix=un ? ' '+un : '';
+      const valRealTxt=`${real}${unidadeSuffix}`;
+      const valMetaTxt=`${mt}${unidadeSuffix}`;
+      const valTxt=`${valRealTxt} / meta ${valMetaTxt}`;
       const editBtns=podeEditar?`<div style="display:flex;gap:4px;margin-top:6px">
         <button type="button" class="btn" style="font-size:10px;padding:1px 7px" onclick="abrirMetaModal(${m.id})">✎</button>
         <button type="button" class="btn" style="font-size:10px;padding:1px 7px;color:var(--red)" onclick="deletarMeta(${m.id})">🗑</button>
@@ -13406,9 +13656,18 @@ function _planoTriCor(pct){
   return '#ef4444';
 }
 function _planoTriEstilo(isFilt, isCur){
+  let border='1px solid var(--bdr)';
+  let bg='var(--bg2)';
+  if(isFilt){
+    border='3px solid var(--blue)';
+    bg='rgba(59,130,246,.12)';
+  } else if(isCur){
+    border='2px solid var(--blue)';
+    bg='rgba(59,130,246,.06)';
+  }
   return {
-    border: isFilt ? '3px solid var(--blue)' : (isCur ? '2px solid var(--blue)' : '1px solid var(--bdr)'),
-    bg: isFilt ? 'rgba(59,130,246,.12)' : (isCur ? 'rgba(59,130,246,.06)' : 'var(--bg2)'),
+    border,
+    bg,
   };
 }
 function _planoTriCardVazio(tri, isCur){
