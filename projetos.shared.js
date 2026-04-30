@@ -115,7 +115,7 @@ function aplicarPermissoes() {
 }
 
 function mostrarHub() {
-  window.location.href = 'processos.html';
+  globalThis.location.href = 'processos.html';
 }
 
 function abrirModuloProcessos() {
@@ -123,7 +123,7 @@ function abrirModuloProcessos() {
     _sharedToast('Seu perfil não tem acesso ao módulo de processos.', '#dc2626');
     return;
   }
-  window.location.href = 'processos.html';
+  globalThis.location.href = 'processos.html';
 }
 
 function abrirModuloProjetos() {
@@ -154,7 +154,7 @@ function abrirModuloProjetos() {
 }
 
 function voltarAoHub() {
-  window.location.href = 'processos.html';
+  globalThis.location.href = 'processos.html';
 }
 
 function _encaminharModuloLocal(user, toastOnEnter) {
@@ -168,9 +168,29 @@ function _encaminharModuloLocal(user, toastOnEnter) {
     return;
   }
   if (temProc && !temProj) {
-    window.location.href = 'processos.html';
-    return;
+    globalThis.location.href = 'processos.html';
   }
+}
+
+function _mostrarProjetos(user) {
+  usuarioLogado = user;
+  abrirModuloProjetos();
+}
+
+function _carregarUsuariosFirebase(_fbObj) {
+  return _fbObj.getDoc(_fbObj.doc(_fbObj.db, 'config', 'usuarios'))
+    .then(function(usrDoc) {
+      if (usrDoc.exists() && usrDoc.data().data) {
+        try {
+          USUARIOS = JSON.parse(usrDoc.data().data);
+        } catch (err) {
+          console.warn('usuarios/config parse:', err.message);
+        }
+      }
+    })
+    .catch(function(err) {
+      console.warn('usuarios/config load:', err.message);
+    });
 }
 
 async function doLogin() {
@@ -526,13 +546,13 @@ function mobToggleDrawer() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  var projShell = document.getElementById('proj-shell');
+  const projShell = document.getElementById('proj-shell');
   if (!projShell) return;
 
   projShell.classList.remove('on');
-  var loginEl = document.getElementById('login-screen');
-  var hubEl = document.getElementById('module-hub');
-  var procShell = document.querySelector('.shell');
+  const loginEl = document.getElementById('login-screen');
+  const hubEl = document.getElementById('module-hub');
+  const procShell = document.querySelector('.shell');
   if (hubEl) hubEl.remove();
   if (loginEl) loginEl.style.display = 'none';
   if (procShell) procShell.style.display = 'none';
@@ -540,56 +560,39 @@ document.addEventListener('DOMContentLoaded', function() {
   if (typeof projCarregarDemoSeVazio === 'function') projCarregarDemoSeVazio();
   if (typeof projLoad === 'function') projLoad();
 
-  function _mostrarProjetos(user) {
-    usuarioLogado = user;
-    abrirModuloProjetos();
-  }
-
   function _mostrarLogin() {
     if (fbReady()) {
-      var _fbObj = fb();
-      _fbObj.getDoc(_fbObj.doc(_fbObj.db, 'config', 'usuarios'))
-        .then(function(usrDoc) {
-          if (usrDoc.exists() && usrDoc.data().data) {
-            try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(_e) {}
-          }
-        })
-        .catch(function() {});
+      const _fbObj = fb();
+      _carregarUsuariosFirebase(_fbObj);
     }
     if (loginEl) loginEl.style.display = 'flex';
   }
 
   function _encaminhar(user) {
-    var temProj = hasProjetosAccess(user);
-    var temProc = hasProcessosAccess(user);
+    const temProj = hasProjetosAccess(user);
+    const temProc = hasProcessosAccess(user);
     if (temProj) {
       _mostrarProjetos(user);
       return;
     }
     if (temProc && !temProj) {
-      window.location.href = 'processos.html';
+      globalThis.location.href = 'processos.html';
       return;
     }
     _mostrarLogin();
   }
 
   if (fbReady()) {
-    var _fbObj = fb();
+    const _fbObj = fb();
     _fbObj.onAuthStateChanged(_fbObj.auth, function(firebaseUser) {
       if (!firebaseUser) {
         _mostrarLogin();
         return;
       }
 
-      _fbObj.getDoc(_fbObj.doc(_fbObj.db, 'config', 'usuarios'))
-        .then(function(usrDoc) {
-          if (usrDoc.exists() && usrDoc.data().data) {
-            try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(_e) {}
-          }
-        })
-        .catch(function() {})
+      _carregarUsuariosFirebase(_fbObj)
         .finally(function() {
-          var user = USUARIOS.find(function(u) { return u.email === firebaseUser.email; });
+          const user = USUARIOS.find(function(u) { return u.email === firebaseUser.email; });
           if (user) {
             _encaminhar(user);
           } else {
@@ -598,16 +601,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
   } else {
-    try {
-      var savedEmail = lsGet('siga_user');
-      if (savedEmail) {
-        var user = USUARIOS.find(function(u) { return u.email === savedEmail; });
-        if (user) {
-          _encaminhar(user);
-          return;
-        }
+    const savedEmail = lsGet('siga_user');
+    if (savedEmail) {
+      const user = USUARIOS.find(function(u) { return u.email === savedEmail; });
+      if (user) {
+        _encaminhar(user);
+        return;
       }
-    } catch(_e) {}
+    }
     _mostrarLogin();
   }
 });
