@@ -1352,7 +1352,7 @@ function projRenderReunioesCalendar(container) {
     const dayEl = document.createElement('div');
     dayEl.className = 'proj-meeting-cal-day'; dayEl.textContent = day;
     cell.appendChild(dayEl);
-    items.slice(0,3).forEach(r => {
+    items.slice(0,5).forEach(r => {
       const pId = String(r._projeto.id);
       const rId = String(r.id);
       const meetItem = document.createElement('div');
@@ -1374,10 +1374,10 @@ function projRenderReunioesCalendar(container) {
       meetItem.append(iconSpan, nameSpan);
       cell.appendChild(meetItem);
     });
-    if(items.length > 3){
+    if(items.length > 5){
       const more = document.createElement('div');
       more.className = 'proj-meeting-cal-more';
-      more.textContent = '+' + (items.length - 3) + ' reunião(ões)';
+      more.textContent = '+' + (items.length - 5) + ' reunião(ões)';
       cell.appendChild(more);
     }
     grid.appendChild(cell);
