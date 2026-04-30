@@ -723,7 +723,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:1.2rem">
       <div style="font-family:var(--fh);font-size:16px;font-weight:600;color:#fff">Gerenciamento de usuários</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn" style="font-size:12px" onclick="exportarBackupJSON()" title="Baixar backup completo dos dados em JSON">⬇ Backup JSON</button>
         <button type="button" class="btn btn-p" style="font-size:12px" onclick="abrirModalUsr(null)">+ Novo usuário</button>
         <button type="button" onclick="document.getElementById('usr-list-modal').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.45);cursor:pointer;font-size:20px;line-height:1;padding:2px 6px;border-radius:4px;transition:color .1s" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.45)'">&times;</button>
       </div>
@@ -895,7 +894,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
 <div id="page-processos" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Mapeamentos</div><div class="ph-s">Processos em mapeamento e mapeamentos concluídos vinculados à arquitetura</div></div>
-  <div style="display:flex;gap:8px"><div id="btn-novo-proc"></div><button type="button" class="btn ep-only" onclick="abrirImportPOP()" style="font-size:12px">⬆ Importar POP</button></div></div>
+  <div style="display:flex;gap:8px"><div id="btn-novo-proc"></div><button type="button" class="btn ep-only" onclick="abrirImportPOP()" style="font-size:12px">⬆ Importar POP</button><button type="button" class="btn ep-only" onclick="exportarBackupJSON()" style="font-size:12px" title="Baixar backup completo dos dados em JSON">⬇ Backup JSON</button></div></div>
   <div class="fbar">
     <span class="fbar-l">Fase</span>
     <div class="chips" id="fase-chips">
