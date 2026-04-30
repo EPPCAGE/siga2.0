@@ -13620,9 +13620,18 @@ function _planoTriCor(pct){
   return '#ef4444';
 }
 function _planoTriEstilo(isFilt, isCur){
+  let border='1px solid var(--bdr)';
+  let bg='var(--bg2)';
+  if(isFilt){
+    border='3px solid var(--blue)';
+    bg='rgba(59,130,246,.12)';
+  } else if(isCur){
+    border='2px solid var(--blue)';
+    bg='rgba(59,130,246,.06)';
+  }
   return {
-    border: isFilt ? '3px solid var(--blue)' : (isCur ? '2px solid var(--blue)' : '1px solid var(--bdr)'),
-    bg: isFilt ? 'rgba(59,130,246,.12)' : (isCur ? 'rgba(59,130,246,.06)' : 'var(--bg2)'),
+    border,
+    bg,
   };
 }
 function _planoTriCardVazio(tri, isCur){
