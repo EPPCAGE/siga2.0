@@ -723,7 +723,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:1.2rem">
       <div style="font-family:var(--fh);font-size:16px;font-weight:600;color:#fff">Gerenciamento de usuários</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn" style="font-size:12px" onclick="exportarBackupJSON()" title="Baixar backup completo dos dados em JSON">⬇ Backup JSON</button>
         <button type="button" class="btn btn-p" style="font-size:12px" onclick="abrirModalUsr(null)">+ Novo usuário</button>
         <button type="button" onclick="document.getElementById('usr-list-modal').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,.45);cursor:pointer;font-size:20px;line-height:1;padding:2px 6px;border-radius:4px;transition:color .1s" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.45)'">&times;</button>
       </div>
@@ -895,7 +894,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
 <div id="page-processos" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Mapeamentos</div><div class="ph-s">Processos em mapeamento e mapeamentos concluídos vinculados à arquitetura</div></div>
-  <div style="display:flex;gap:8px"><div id="btn-novo-proc"></div><button type="button" class="btn ep-only" onclick="abrirImportPOP()" style="font-size:12px">⬆ Importar POP</button></div></div>
+  <div style="display:flex;gap:8px"><div id="btn-novo-proc"></div><button type="button" class="btn ep-only" onclick="abrirImportPOP()" style="font-size:12px">⬆ Importar POP</button><button type="button" class="btn ep-only" onclick="exportarBackupJSON()" style="font-size:12px" title="Baixar backup completo dos dados em JSON">⬇ Backup JSON</button></div></div>
   <div class="fbar">
     <span class="fbar-l">Fase</span>
     <div class="chips" id="fase-chips">
@@ -4236,6 +4235,16 @@ function _renderAnexosProcedimento(anexos, i){
   ).join('');
   return '<div style="margin-top:.55rem"><div style="font-size:11px;color:var(--ink3);margin-bottom:.25rem">Documentos anexados</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+items+'</div></div>';
 }
+function _renderAnexosAcao(anexos, i){
+  if(!anexos.length) return '';
+  const items=anexos.map((x,j)=>
+    '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">'+
+    `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>`+
+    `<button type="button" onclick="removerAnexoAcao(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>`+
+    '</span>'
+  ).join('');
+  return '<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">'+items+'</div>';
+}
 
 function _iaSection(lbl,items,style){
   if(!items?.length)return'';
@@ -4826,9 +4835,20 @@ const ACOES = {
         <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <strong>${a.acao}</strong>
-            <span style="font-size:11px;color:var(--ink3)">${a.responsavel} · ${a.prazo}</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:11px;color:var(--ink3)">${a.responsavel} · ${a.prazo}</span>
+              <button type="button" onclick="excluirAcaoAuditoria(${i})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:12px;padding:0 3px" title="Excluir ação" aria-label="Excluir ação">✕</button>
+            </div>
           </div>
           <span class="badge ${_acaoBadgeCls(a.status)}">${a.status}</span>
+          ${_renderAnexosAcao(a.anexos||[], i)}
+          <div id="ac-anexo-form-${i}" style="margin-top:.5rem;display:none;gap:6px;flex-wrap:wrap;align-items:center">
+            <input class="fi" id="ac-link-nome-${i}" placeholder="Nome do documento" style="width:140px;font-size:11px;padding:3px 6px">
+            <input class="fi" id="ac-link-url-${i}" placeholder="https://..." style="flex:1;min-width:160px;font-size:11px;padding:3px 6px">
+            <button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="adicionarLinkAcao(${i})">+ Link</button>
+            <label class="btn" style="font-size:11px;padding:2px 8px;cursor:pointer">↑ Arquivo<input type="file" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="uploadArquivoAcao(${i},this)"></label>
+          </div>
+          <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-top:.4rem;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoFormAcao(${i})">📎 Anexar</button>
         </div>`).join(''):'';
       return `<div class="tabs" style="margin-bottom:1rem">
         <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud1',this)">Planejamento</div>
@@ -5109,11 +5129,19 @@ function _rsEsbocaAsis(p){
   if(!p.mod)p.mod={};
   const txt=document.getElementById('e-asis')?.value;
   if(txt!=null) p.mod.asIs=txt;
+  const m=bpmnModelers['asis'];
+  if(m&&bpmnProcIds['asis']===p?.id){
+    m.saveXML({format:true}).then(({xml})=>{if(xml)p.mod.bpmnAsIs=xml;}).catch(()=>{});
+  }
 }
 function _rsEsbocaTobe(p){
   if(!p.mod)p.mod={};
   const txt=document.getElementById('e-tobe')?.value;
   if(txt!=null) p.mod.toBe=txt;
+  const m=bpmnModelers['tobe'];
+  if(m&&bpmnProcIds['tobe']===p?.id){
+    m.saveXML({format:true}).then(({xml})=>{if(xml)p.mod.bpmnToBe=xml;}).catch(()=>{});
+  }
 }
 function _rsDetValidAsis(p){
   return p;
@@ -7378,7 +7406,8 @@ function adicionarAcaoAuditoria(){
     prazo:document.getElementById('aud-ac-prazo')?.value||'',
     status:document.getElementById('aud-ac-status')?.value||'Pendente',
     achado:document.getElementById('aud-ac-achado')?.value||'',
-    criada_em:now()
+    criada_em:now(),
+    anexos:[]
   };
   if(!a.acao){toast('Informe a ação','var(--red)');return;}
   p.auditoria.acoes_list.push(a);
@@ -7596,6 +7625,93 @@ async function removerAnexoAchado(achadoIdx,anexoIdx){
     rDetalhe();
     const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
     if(aud4Tab) sstab('aud4',aud4Tab);
+    await fbSaveAll();
+  });
+}
+function toggleAnexoFormAcao(idx){
+  const el=document.getElementById('ac-anexo-form-'+idx);
+  if(!el)return;
+  const open=el.style.display==='flex';
+  el.style.display=open?'none':'flex';
+}
+function adicionarLinkAcao(idx){
+  const p=curProc;if(!p)return;
+  const nome=(document.getElementById('ac-link-nome-'+idx)?.value||'').trim();
+  const url=(document.getElementById('ac-link-url-'+idx)?.value||'').trim();
+  if(!url){toast('Informe a URL do documento','var(--red)');return;}
+  if(!url.startsWith('http')){toast('URL inválida','var(--red)');return;}
+  const acao=p.auditoria?.acoes_list?.[idx];
+  if(!acao)return;
+  if(!acao.anexos)acao.anexos=[];
+  acao.anexos.push({tipo:'link',nome:nome||url,url});
+  fbAutoSave('salvar');toast('Link adicionado!','var(--teal)');
+  rDetalhe();
+  const aud5Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud5"]');
+  if(aud5Tab) sstab('aud5',aud5Tab);
+}
+async function uploadArquivoAcao(idx,input){
+  const p=curProc;if(!p)return;
+  const file=input?.files?.[0];if(!file)return;
+  const acao=p.auditoria?.acoes_list?.[idx];if(!acao)return;
+  if(!acao.anexos)acao.anexos=[];
+  const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
+  if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
+  const path=`auditoria/${p.id||'sem-id'}/acoes/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
+  const ref=storageRef(storage,path);
+  try{
+    toast('Enviando arquivo…','var(--blue)');
+    await uploadBytes(ref,file);
+    const url=await getDownloadURL(ref);
+    acao.anexos.push({tipo:'arquivo',nome:file.name,url,path});
+    await fbSaveAll();
+    toast('Arquivo enviado!','var(--teal)');
+    rDetalhe();
+    const aud5Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud5"]');
+    if(aud5Tab) sstab('aud5',aud5Tab);
+  }catch(e){
+    console.error('upload erro',e);
+    toast('Erro ao enviar arquivo: '+e.message,'var(--red)');
+  }
+}
+async function removerAnexoAcao(acaoIdx,anexoIdx){
+  const p=curProc;if(!p)return;
+  confirmar('Remover este anexo?', async () => {
+    const acao=p.auditoria?.acoes_list?.[acaoIdx];if(!acao?.anexos)return;
+    const anexo=acao.anexos[anexoIdx];
+    if(anexo?.tipo==='arquivo'&&anexo.path){
+      const {storage,storageRef,deleteObject}=globalThis._fb||{};
+      if(storage&&anexo.path){
+        try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete storage err',e);}
+      }
+    }
+    acao.anexos.splice(anexoIdx,1);
+    toast('Anexo removido','var(--amber)');
+    rDetalhe();
+    const aud5Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud5"]');
+    if(aud5Tab) sstab('aud5',aud5Tab);
+    await fbSaveAll();
+  });
+}
+async function excluirAcaoAuditoria(idx){
+  const p=curProc;if(!p)return;
+  confirmar('Excluir esta ação?', async () => {
+    if(!p.auditoria?.acoes_list) return;
+    const acao=p.auditoria.acoes_list[idx];
+    if(acao?.anexos){
+      const {storage,storageRef,deleteObject}=globalThis._fb||{};
+      if(storage){
+        for(const anexo of acao.anexos){
+          if(anexo?.tipo==='arquivo'&&anexo.path){
+            try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete storage err',e);}
+          }
+        }
+      }
+    }
+    p.auditoria.acoes_list.splice(idx,1);
+    toast('Ação excluída','var(--amber)');
+    rDetalhe();
+    const aud5Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud5"]');
+    if(aud5Tab) sstab('aud5',aud5Tab);
     await fbSaveAll();
   });
 }
@@ -8928,6 +9044,11 @@ async function _getFluxogramaAsIsPng(p){
   const linkedImg = p.arq_id ? await loadFluxoImg(p.arq_id) : null;
   if(linkedImg) return linkedImg;
   if(p.mod?.bpmnAsIs) return renderBpmnToPng(p.mod.bpmnAsIs);
+  // Fallback: use active modeler if still loaded for this process in the same session
+  const m=bpmnModelers['asis'];
+  if(m&&bpmnProcIds['asis']===p?.id){
+    try{const{xml}=await m.saveXML({format:true});if(xml)return renderBpmnToPng(xml);}catch{}
+  }
   return null;
 }
 
@@ -10616,6 +10737,7 @@ function _metaFieldsProgBar(proc){
 
 function syncArquiteturaProcessos(){
   const byArqId = new Map(processos.filter(p=>p.arq_id).map(p=>[p.arq_id, p]));
+  let nomesAlterados = false;
   ARQUITETURA.forEach(m=>{
     m.processos.forEach(p=>{
       if(p.subprocessos && p.subprocessos.length){
@@ -10623,13 +10745,22 @@ function syncArquiteturaProcessos(){
         p.subprocessos.forEach(s=>{
           const linked = byArqId.get(s.id);
           s.proc_id = linked ? linked.id : null;
+          if(linked){
+            if(linked.nome !== s.nome){ linked.nome = s.nome; nomesAlterados = true; }
+            if(linked.macro !== m.nome){ linked.macro = m.nome; nomesAlterados = true; }
+          }
         });
       } else {
         const linked = byArqId.get(p.id);
         p.proc_id = linked ? linked.id : null;
+        if(linked){
+          if(linked.nome !== p.nome){ linked.nome = p.nome; nomesAlterados = true; }
+          if(linked.macro !== m.nome){ linked.macro = m.nome; nomesAlterados = true; }
+        }
       }
     });
   });
+  if(nomesAlterados) fbAutoSave('syncArqNomes');
 }
 
 function _normIntel(v=''){
@@ -10897,7 +11028,11 @@ function salvarModalMeta(){
   const modal=document.getElementById('meta-modal');
   if(!modal)return;
   const item=modal._item;
-  item.nome=document.getElementById('mm-nome').value.trim()||item.nome;
+  const novoNome=document.getElementById('mm-nome').value.trim()||item.nome;
+  if(novoNome!==item.nome){
+    processos.forEach(proc=>{if(proc.arq_id===item.id)proc.nome=novoNome;});
+  }
+  item.nome=novoNome;
   item.natureza=document.getElementById('mm-nat').value;
   item.area=document.getElementById('mm-area').value.trim();
   item.gerente=document.getElementById('mm-ger').value.trim();
@@ -10997,6 +11132,9 @@ function editMacro(mid){
   if(!m) return;
   _pedirNome('Renomear macroprocesso',m.nome,nome=>{
     m.nome=nome;
+    const arqIds=new Set();
+    m.processos.forEach(p=>{arqIds.add(p.id);(p.subprocessos||[]).forEach(s=>arqIds.add(s.id));});
+    processos.forEach(proc=>{if(proc.arq_id&&arqIds.has(proc.arq_id))proc.macro=nome;});
     rArq();
     fbAutoSave('editMacro');
   });
