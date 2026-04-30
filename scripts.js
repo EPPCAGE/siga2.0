@@ -51,6 +51,7 @@ let PROGRAMAS = [];
 let _projCurrentId = null; // ID do projeto em visualização
 let _projCurrentPage = 'inicio';
 let _projCurrentWorkflowTab = null;
+let _projReunioesCalendarMonth = null;
 let _progCurrentId = null; // ID do programa em visualização
 const PROJ_STORAGE_KEY = 'cagePROJETOS_v6';
 const PROG_STORAGE_KEY = 'cagePROGRAMAS_v6';
@@ -1227,6 +1228,7 @@ function projAutoAddReunioesTipo(tipo, monthOffset) {
   projLoad();
   const target = projAddMonths(new Date(), monthOffset || 0);
   const mn = projMonthLabel(projMonthValue(target));
+  _projReunioesCalendarMonth = projMonthValue(target);
   const dataStatus = projMonthFirstDay(target);
   const isCronograma = tipo === 'cronograma';
   const baseNome = isCronograma ? 'Acompanhamento de Cronograma' : 'Reuniao de Status Patrocinador';
@@ -1276,7 +1278,7 @@ function projColetarReunioesGlobal() {
 }
 
 function projRenderReunioesCalendar(container) {
-  const monthValue = document.getElementById('proj-cal-reuniao-mes')?.value || projMonthValue();
+  const monthValue = _projReunioesCalendarMonth || document.getElementById('proj-cal-reuniao-mes')?.value || projMonthValue();
   const parts = monthValue.split('-').map(Number);
   const ano = parts[0];
   const mesIndex = (parts[1] || 1) - 1;
@@ -1317,7 +1319,10 @@ function projRenderReunioesCalendar(container) {
   monthInput.type = 'month'; monthInput.className = 'proj-fi';
   monthInput.id = 'proj-cal-reuniao-mes'; monthInput.value = monthValue;
   monthInput.style.maxWidth = '170px';
-  monthInput.addEventListener('change', () => projRenderReunioesPage());
+  monthInput.addEventListener('change', () => {
+    _projReunioesCalendarMonth = monthInput.value || projMonthValue();
+    projRenderReunioesPage();
+  });
   toolbar.append(toolInfo, monthInput);
   section.appendChild(toolbar);
 
@@ -1402,6 +1407,7 @@ function projDropReuniaoCalendar(ev, novaData) {
   const reuniao = proj?.execucao?.reunioes?.find(r => String(r.id) === String(payload.reuniaoId));
   if(!reuniao) return;
   reuniao.data = novaData;
+  _projReunioesCalendarMonth = novaData.slice(0, 7);
   projSave();
   projToast('Data da reunião atualizada.');
   projRenderReunioesPage();
@@ -3673,7 +3679,7 @@ async function projUploadConclusaoImagens(inputEl){
 function projRemoveConclusaoImagem(idx){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.conclusao?.imagens)return;proj.conclusao.imagens.splice(idx,1);projSave();projDetalheTab('conclusao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(5)'));}
 // ── Init ao carregar ──────────────────────────────────────────────
 // ── Ajustes v9.1: indicadores, memorial e report executivo ───────
-const PROJ_CAGE_REPORT_LOGO = 'file:///C:/Users/ewwoy/OneDrive/Imagens/04091256_2280_GD.png';
+const PROJ_CAGE_REPORT_LOGO = 'cage-logo-report.png';
 
 function projGroupCountWithProjects(list, fn) {
   const map = {};
@@ -3959,7 +3965,7 @@ function projTabConclusao(p) {
   return `<div class="proj-form-section"><div class="proj-form-section-title">Fase 5: Conclusão</div><div class="proj-ib proj-ib-blue">Registre o encerramento oficial, o Memorial do Projeto, as notícias e os aprendizados.</div><div class="proj-fg"><label class="proj-fl">Tipo de Conclusão<span>*</span></label><div class="proj-conclusao-tipo"><div class="proj-conclusao-card ${selectedSuccess?'selected-success':''}" onclick="projSelecionarTipoConclusao('sucesso')"><div class="proj-conclusao-icon">OK</div><div class="proj-conclusao-label">Conclusão com Sucesso</div><div class="proj-conclusao-desc">Projeto entregue conforme planejado</div></div><div class="proj-conclusao-card ${selectedCancel?'selected-cancel':''}" onclick="projSelecionarTipoConclusao('cancelamento')"><div class="proj-conclusao-icon">X</div><div class="proj-conclusao-label">Cancelamento</div><div class="proj-conclusao-desc">Projeto encerrado sem conclusão das entregas</div></div></div></div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data de Conclusão/Cancelamento</label><input type="date" class="proj-fi" id="conc-data" value="${projEsc(conc.dt_conclusao||'')}"></div><div class="proj-fg"><label class="proj-fl">Link para o Termo de Aceite</label><input type="url" class="proj-fi" id="conc-termo" value="${projEsc(conc.link_termo_aceite||'')}" placeholder="https://..."></div></div><div class="proj-fg"><label class="proj-fl">História do Projeto</label><textarea class="proj-fi" id="conc-historia" rows="5" placeholder="Conte a história e trajetória do projeto, principais marcos, aprendizados...">${projEsc(conc.historia||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Links de Notícias / Resultados <span style="font-size:10px;color:var(--ink3)">(um por linha)</span></label><textarea class="proj-fi" id="conc-links" rows="3" placeholder="https://noticia1.gov.br&#10;https://noticia2.gov.br">${projEsc(conc.links_noticias||'')}</textarea></div><div class="proj-form-section" style="background:#fff;margin-top:1rem"><div class="proj-form-section-title">Anexos de Imagens do Memorial</div><div class="proj-fg"><input type="file" class="proj-fi" accept="image/*" multiple onchange="projUploadConclusaoImagens(this)">${(conc.imagens||[]).length ? `<div class="proj-v9-attach-grid">${(conc.imagens||[]).map((img,i)=>`<div><img src="${projEsc(img.data)}" alt="${projEsc(img.nome||'Imagem')}"><button type="button" class="proj-btn danger" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%" onclick="projRemoveConclusaoImagem(${i})">Remover</button></div>`).join('')}</div>` : '<div style="font-size:11px;color:var(--ink3);margin-top:4px">Nenhuma imagem anexada.</div>'}</div></div><div class="proj-form-section" style="background:#f8fbff;margin-top:1rem"><div class="proj-form-section-title">Reunião de Lições Aprendidas</div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data da reunião</label><input type="date" class="proj-fi" id="conc-lic-data" value="${projEsc(conc.licoes_data||'')}"></div><div class="proj-fg"><label class="proj-fl">Participantes</label><input type="text" class="proj-fi" id="conc-lic-part" value="${projEsc(conc.licoes_participantes||'')}" placeholder="Nomes dos participantes"></div></div><div class="proj-g3"><div class="proj-fg"><label class="proj-fl">O que deu certo?</label><textarea class="proj-fi" id="conc-lic-certo" rows="4">${projEsc(conc.licoes_certo||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">O que pode melhorar?</label><textarea class="proj-fi" id="conc-lic-melhorar" rows="4">${projEsc(conc.licoes_melhorar||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Sugestões / ideias</label><textarea class="proj-fi" id="conc-lic-ideias" rows="4">${projEsc(conc.licoes_ideias||'')}</textarea></div></div></div><div class="proj-btn-row"><button type="button" class="proj-btn teal" onclick="projSalvarConclusao()">Salvar</button>${p.status !== 'concluido' && p.status !== 'cancelado' ? `<button type="button" class="proj-btn primary" onclick="projFinalizarProjeto()">Encerrar Projeto</button>` : `<div style="font-size:12.5px;color:var(--teal);font-weight:600;align-self:center">Projeto encerrado</div>`}</div></div>`;
 }
 
-function projBuildStatusReportHTML() {
+function projBuildStatusReportHTMLLegacy() {
   progLoad();
   const ativos = PROJETOS.filter(p => p.status === 'ativo');
   const data = new Date().toLocaleDateString('pt-BR');
@@ -3971,6 +3977,20 @@ function projBuildStatusReportHTML() {
 }
 
 // ── V10: Estratégia como fonte oficial ───────────────────────────
+function projBuildStatusReportHTML(){
+  progLoad();
+  const ativos = PROJETOS.filter(p => p.status === 'ativo');
+  const data = new Date().toLocaleDateString('pt-BR');
+  const grupos = {};
+  ativos.forEach(p => { const g = projProgramaNome(p); if(!grupos[g]) grupos[g] = []; grupos[g].push(p); });
+  const media = ativos.length ? Math.round(ativos.reduce((a,p)=>a+(Number(p.percentual ?? p.execucao?.percentual ?? 0)),0)/ativos.length) : 0;
+  const reportLogo = new URL(PROJ_CAGE_REPORT_LOGO, window.location.href).href;
+  const indicadorRows = projIndicadoresLista(ativos);
+  const indicadoresHtml = indicadorRows.length ? `<section class="sr-indicators"><h2>Indicadores cadastrados</h2><table><thead><tr><th>Projeto</th><th>Indicador</th><th>Resultado / Meta</th><th>Atingimento</th></tr></thead><tbody>${indicadorRows.map(({p, ind}) => { const meta = projIndicadorValor(ind,'meta'); const atual = projIndicadorValor(ind,'resultado'); const pct = meta ? (atual / meta) * 100 : 0; return `<tr><td>${projEsc(p.nome||'')}</td><td>${projEsc(ind.nome||'Indicador')}</td><td>${projEsc(atual)} / ${projEsc(meta)}</td><td>${projPctFmt(pct)}</td></tr>`; }).join('')}</tbody></table></section>` : '<section class="sr-indicators"><h2>Indicadores cadastrados</h2><p>Nenhum indicador cadastrado nos projetos em andamento.</p></section>';
+  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div></div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}`).join('');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:var(--muted)}.sr-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:20px;color:var(--blue);display:block}.sr-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-intro a{color:var(--blue);font-weight:700;text-decoration:none}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:18px 0 10px}.sr-card{display:grid;grid-template-columns:1.45fr .9fr;gap:14px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}.sr-indicators{margin-top:20px;break-inside:avoid}.sr-indicators h2{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px}.sr-indicators table{width:100%;border-collapse:collapse;font-size:11px}.sr-indicators th{background:#0f2746;color:#fff;text-align:left;padding:7px}.sr-indicators td{border-bottom:1px solid #d9e2ef;padding:7px}.sr-indicators tr:nth-child(even) td{background:#f8fbff}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="sr-cover"><div><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do Sistema Integrado de Gestão Estratégica (SIGA), módulo de Projetos. Acesse o SIGA em <a href="https://sigaepp.web.app/">https://sigaepp.web.app/</a>.</section><div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${media}%</strong>Média de conclusão</div></div>${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}${indicadoresHtml}<script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
+}
+
 function projStrategyBaseName(v) {
   return String(v||'').replace(/^\s*\[[^\]]+\]\s*/,'').trim();
 }
