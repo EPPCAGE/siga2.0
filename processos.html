@@ -13320,7 +13320,10 @@ function renderPlanoMetas(){
       const pct=Math.min(100,Math.round(real/mt*100));
       let cor; if(pct>=100) cor='#14b8a6'; else if(pct>=60) cor='#f59e0b'; else cor='#ef4444';
       const un=m.unidade||'';
-      const valTxt=`${real}${un?' '+un:''} / meta ${mt}${un?' '+un:''}`;
+      const unidadeSuffix=un ? ' '+un : '';
+      const valRealTxt=`${real}${unidadeSuffix}`;
+      const valMetaTxt=`${mt}${unidadeSuffix}`;
+      const valTxt=`${valRealTxt} / meta ${valMetaTxt}`;
       const editBtns=podeEditar?`<div style="display:flex;gap:4px;margin-top:6px">
         <button type="button" class="btn" style="font-size:10px;padding:1px 7px" onclick="abrirMetaModal(${m.id})">✎</button>
         <button type="button" class="btn" style="font-size:10px;padding:1px 7px;color:var(--red)" onclick="deletarMeta(${m.id})">🗑</button>
