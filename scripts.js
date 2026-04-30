@@ -51,7 +51,6 @@ let PROGRAMAS = [];
 let _projCurrentId = null; // ID do projeto em visualização
 let _projCurrentPage = 'inicio';
 let _progCurrentId = null; // ID do programa em visualização
-let _hubVisible = false;
 const PROJ_STORAGE_KEY = 'cagePROJETOS_v6';
 const PROG_STORAGE_KEY = 'cagePROGRAMAS_v6';
 
@@ -1149,60 +1148,6 @@ function projSaveStatusReportFromForm() {
   if(changed) projSave();
 }
 
-function projBuildStatusReportHTML() {
-  const ativos = PROJETOS.filter(p => p.status === 'ativo');
-  const data = new Date().toLocaleDateString('pt-BR');
-  const rows = ativos.map(p => {
-    const pct = Math.max(0, Math.min(100, p.percentual || 0));
-    const obs = projEsc(p.status_report_obs || 'Sem observações registradas.').replace(/\n/g,'<br>');
-    return `
-      <section class="sr-card">
-        <div class="sr-card-main">
-          <div class="sr-title-row">
-            <div class="sr-icon">${p.icone_url ? `<img src="${projEsc(p.icone_url)}" alt="">` : projEsc(p.icone_emoji || '📁')}</div>
-            <div>
-              <h2>${projEsc(p.nome)}</h2>
-              <div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div>
-            </div>
-            <div class="sr-pct">${pct}%</div>
-          </div>
-          <div class="sr-progress"><div style="width:${pct}%"></div></div>
-          <div class="sr-info">
-            <div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div>
-            <div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div>
-            <div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div>
-            <div><span>% de conclusão</span>${pct}%</div>
-          </div>
-        </div>
-        <aside class="sr-note">
-          <span>Informação executiva</span>
-          <p>${obs}</p>
-        </aside>
-      </section>
-    `;
-  }).join('');
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report</title>
-    <style>
-      @page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540;margin:0;background:#fff}
-      .sr-cover{border-left:8px solid var(--blue);padding:18px 22px;margin-bottom:18px;background:linear-gradient(90deg,#f0f6ff,#fff)}
-      .sr-kicker{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#00a89a}.sr-cover h1{margin:4px 0;font-size:25px;color:var(--blue)}.sr-date{font-size:12px;color:#5f6b80}
-      .sr-summary{display:flex;gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:8px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:18px;color:var(--blue);display:block}
-      .sr-card{display:grid;grid-template-columns:1.45fr .9fr;gap:14px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;page-break-inside:avoid}
-      .sr-title-row{display:flex;align-items:center;gap:10px}.sr-icon{width:36px;height:36px;border-radius:9px;background:var(--blue-l);display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden}.sr-icon img{width:100%;height:100%;object-fit:cover}
-      h2{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{margin-left:auto;font-size:24px;font-weight:800;color:#00a89a}
-      .sr-progress{height:7px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;background:linear-gradient(90deg,var(--blue),var(--teal))}
-      .sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
-      .sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}
-      .sr-empty{font-size:13px;color:#6b7588;padding:18px;border:1px solid #d9e2ef;border-radius:10px}
-      @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.no-print{display:none!important}}
-    </style></head><body>
-      <header class="sr-cover"><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Status Report</h1><div class="sr-date">Emitido em ${data}</div></header>
-      <div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${ativos.length ? Math.round(ativos.reduce((a,p)=>a+(p.percentual||0),0)/ativos.length) : 0}%</strong>Média de conclusão</div></div>
-      ${ativos.length ? rows : '<div class="sr-empty">Nenhum projeto em andamento encontrado.</div>'}
-      <script>setTimeout(function(){window.print();},350);</script>
-    </body></html>`;
-}
-
 function projExportStatusReportPDF() {
   projLoad();
   projSaveStatusReportFromForm();
@@ -1861,79 +1806,6 @@ function projAbrirDetalhe(id, forceWorkflow) {
   }
 }
 
-function projRenderMemorial(p) {
-  const el = document.getElementById('proj-detalhe-content');
-  if(!el) return;
-  const conc = p.conclusao || {};
-  const isSuccess = p.status === 'concluido';
-  const statusColor = isSuccess ? 'var(--teal)' : '#b91c1c';
-  const statusBg = isSuccess ? 'var(--teal-l)' : '#fde8e8';
-  const statusIcon = isSuccess ? '✅' : '🚫';
-  const statusLabel = isSuccess ? 'Concluído com Sucesso' : 'Cancelado';
-
-  const links = (conc.links_noticias||'').split('\n').filter(l=>l.trim());
-
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.6rem;flex-wrap:wrap">
-      <button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">← Portfólio</button>
-      <div style="flex:1">
-        <div style="font-family:'Syne',sans-serif;font-size:19px;font-weight:700;color:#1a2540">${projEsc(p.nome)}</div>
-        <div style="font-size:12px;color:var(--ink3);margin-top:2px">Gerente: ${projEsc(p.gerente)} ${p.patrocinador ? '· Patrocinador: '+projEsc(p.patrocinador) : ''}</div>
-      </div>
-      <span style="background:${statusBg};color:${statusColor};padding:4px 14px;border-radius:8px;font-size:12px;font-weight:700">${statusIcon} ${statusLabel}</span>
-      <button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projRenderDetalhe(PROJETOS.find(p=>String(p.id)===_projCurrentId))">📋 Ver Workflow</button>
-    </div>
-
-    <!-- Banner principal -->
-    <div style="background:linear-gradient(135deg,${isSuccess?'var(--blue),var(--teal)':'#4a1a1a,#7f1d1d'});border-radius:18px;padding:2rem 2.2rem;margin-bottom:1.4rem;position:relative;overflow:hidden">
-      <div style="position:absolute;right:-20px;top:-20px;font-size:100px;opacity:.08">${statusIcon}</div>
-      <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">Projeto ${statusLabel}</div>
-      <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:#fff;margin-bottom:.4rem">${projEsc(p.nome)}</div>
-      <div style="font-size:13px;color:rgba(255,255,255,.7)">
-        ${p.dt_inicio ? '📅 Início: '+projFormatDate(p.dt_inicio) : ''}
-        ${p.dt_inicio && conc.dt_conclusao ? ' · ' : ''}
-        ${conc.dt_conclusao ? '🏁 Encerramento: '+projFormatDate(conc.dt_conclusao) : ''}
-      </div>
-      ${conc.link_termo_aceite ? `
-        <div style="margin-top:.8rem">
-          <a href="${projEsc(conc.link_termo_aceite)}" target="_blank" style="background:rgba(255,255,255,.2);color:#fff;padding:5px 14px;border-radius:7px;text-decoration:none;font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,.3)">📄 Termo de Aceite</a>
-        </div>
-      ` : ''}
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:1.4rem">
-      <!-- História -->
-      <div class="proj-card" style="grid-column:${conc.historia ? '1 / -1' : '1'}">
-        <div class="proj-card-t">📖 História do Projeto</div>
-        ${conc.historia
-          ? `<div style="font-size:13px;color:#3a4560;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia)}</div>`
-          : `<div style="color:#b0b8cc;font-size:13px;text-align:center;padding:.8rem">Nenhuma história registrada. <button type="button" class="proj-btn" style="font-size:11px;padding:3px 9px;margin-left:6px" onclick="projRenderDetalhe(PROJETOS.find(p=>String(p.id)===_projCurrentId));setTimeout(()=>document.querySelector('#proj-detalhe-tabs .proj-tab:last-child').click(),100)">Registrar na aba Conclusão</button></div>`
-        }
-      </div>
-      ${!conc.historia && links.length > 0 ? '' : ''}
-    </div>
-
-    ${links.length > 0 ? `
-      <div class="proj-card" style="margin-bottom:1.4rem">
-        <div class="proj-card-t">🔗 Resultados e Notícias</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          ${links.map((l,i) => `<a href="${projEsc(l.trim())}" target="_blank" style="font-size:12.5px;color:var(--blue);text-decoration:none;display:flex;align-items:center;gap:6px"><span style="background:var(--blue-l);border-radius:5px;padding:1px 7px;font-size:10.5px;font-weight:600;color:var(--blue)">${i+1}</span>${projEsc(l.trim())}</a>`).join('')}
-        </div>
-      </div>
-    ` : ''}
-
-    <!-- Resumo do projeto (dados do canvas) -->
-    ${(p.ideacao?.descricao || p.ideacao?.objetivo_smart) ? `
-      <div class="proj-card" style="margin-bottom:1.4rem">
-        <div class="proj-card-t">📋 Resumo do Projeto</div>
-        ${p.ideacao?.descricao ? `<div style="margin-bottom:.7rem"><div style="font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Descrição</div><div style="font-size:13px;color:#3a4560">${projEsc(p.ideacao.descricao)}</div></div>` : ''}
-        ${p.ideacao?.objetivo_smart ? `<div><div style="font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Objetivo</div><div style="font-size:13px;color:#3a4560">${projEsc(p.ideacao.objetivo_smart)}</div></div>` : ''}
-      </div>
-    ` : ''}
-  `;
-}
-
-
 function projRenderDetalhe(p) {
   const el = document.getElementById('proj-detalhe-content');
   if(!el) return;
@@ -2179,40 +2051,9 @@ function projSalvarAprovacao() {
   projToast('Dados salvos!');
 }
 
-// ── Populate vinculações after tab renders ─────────────────────
-function projPopulateVinculacoes() {
-  projLoad();
-  var proj = PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});
-  if(!proj) return;
-  // Macroprocessos list
-  var ml = document.getElementById('aprov-macro-list');
-  if(ml) {
-    ml.innerHTML = (proj.macroprocessos||[]).map(function(m,i){
-      return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:#f0f4ff;border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(m)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverMacro('+i+')">✕</button></div>';
-    }).join('');
-  }
-  var ms = document.getElementById('aprov-macro-sel');
-  if(ms) {
-    ms.innerHTML = '<option value="">Selecione...</option>' + PROJ_MACROS.map(function(m){return '<option value="'+projEsc(m)+'">'+projEsc(m)+'</option>';}).join('');
-  }
-  // Objetivos list
-  var ol = document.getElementById('aprov-obj-list');
-  if(ol) {
-    ol.innerHTML = (proj.objetivos_estrategicos||[]).map(function(o,i){
-      return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:var(--teal-l);border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(o)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverObj('+i+')">✕</button></div>';
-    }).join('');
-  }
-  var os = document.getElementById('aprov-obj-sel');
-  if(os) {
-    os.innerHTML = '<option value="">Selecione...</option>' + PROJ_OBJETIVOS.map(function(o){return '<option value="'+projEsc(o)+'">'+projEsc(o)+'</option>';}).join('');
-  }
-}
-
 function projAddMacro(){var s=document.getElementById('aprov-macro-sel');if(!s||!s.value){projToast('Selecione um macroprocesso.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(p.macroprocessos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.macroprocessos.push(s.value);projSave();projPopulateVinculacoes();}
-function projAddMacroNovo(){var inp=document.getElementById('aprov-macro-novo');if(!inp||!inp.value.trim()){projToast('Digite o macroprocesso.','#d97706');return;}var v=inp.value.trim();if(PROJ_MACROS.indexOf(v)<0){PROJ_MACROS.push(v);projSaveListas();}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(p.macroprocessos.indexOf(v)<0)p.macroprocessos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
 function projRemoverMacro(i){projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.macroprocessos)return;p.macroprocessos.splice(i,1);projSave();projPopulateVinculacoes();}
 function projAddObj(){var s=document.getElementById('aprov-obj-sel');if(!s||!s.value){projToast('Selecione um objetivo.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(p.objetivos_estrategicos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.objetivos_estrategicos.push(s.value);projSave();projPopulateVinculacoes();}
-function projAddObjNovo(){var inp=document.getElementById('aprov-obj-novo');if(!inp||!inp.value.trim()){projToast('Digite o objetivo.','#d97706');return;}var v=inp.value.trim();if(PROJ_OBJETIVOS.indexOf(v)<0){PROJ_OBJETIVOS.push(v);projSaveListas();}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(p.objetivos_estrategicos.indexOf(v)<0)p.objetivos_estrategicos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
 function projRemoverObj(i){projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.objetivos_estrategicos)return;p.objetivos_estrategicos.splice(i,1);projSave();projPopulateVinculacoes();}
 
 // ── ABA: IDEAÇÃO (Canvas) ────────────────────────────────────────
@@ -3092,95 +2933,6 @@ function projAutoAddReunioesMes(){projLoad();var proj=PROJETOS.find(function(p){
 function projDeduplicarReunioes(){projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj||!proj.execucao||!proj.execucao.reunioes)return;var seen={};var orig=proj.execucao.reunioes.length;proj.execucao.reunioes=proj.execucao.reunioes.filter(function(r){var k=r.nome+'|'+(r.data||'');if(seen[k])return false;seen[k]=true;return true;});var rem=orig-proj.execucao.reunioes.length;projSave();if(rem>0){projToast(rem+' duplicada(s) removida(s).');projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}else{projToast('Nenhuma duplicata encontrada.');}}
 
 // ── ABA: CONCLUSÃO ───────────────────────────────────────────────
-function projTabConclusao(p) {
-  const conc = p.conclusao || {};
-  const selectedSuccess = conc.tipo === 'sucesso';
-  const selectedCancel = conc.tipo === 'cancelamento';
-
-  return `
-    <div class="proj-form-section">
-      <div class="proj-form-section-title">
-        <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 8l4 4 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Fase 5: Conclusão
-      </div>
-      <div class="proj-ib proj-ib-blue">
-        Registre aqui o encerramento oficial do projeto. O tipo de conclusão, link para o Termo de Aceite, e informações narrativas sobre o projeto.
-      </div>
-      <div class="proj-fg">
-        <label class="proj-fl">Tipo de Conclusão<span>*</span></label>
-        <div class="proj-conclusao-tipo">
-          <div class="proj-conclusao-card ${selectedSuccess?'selected-success':''}" onclick="projSelecionarTipoConclusao('sucesso')">
-            <div class="proj-conclusao-icon">✅</div>
-            <div class="proj-conclusao-label">Conclusão com Sucesso</div>
-            <div class="proj-conclusao-desc">Projeto entregue conforme planejado</div>
-          </div>
-          <div class="proj-conclusao-card ${selectedCancel?'selected-cancel':''}" onclick="projSelecionarTipoConclusao('cancelamento')">
-            <div class="proj-conclusao-icon">🚫</div>
-            <div class="proj-conclusao-label">Cancelamento</div>
-            <div class="proj-conclusao-desc">Projeto encerrado sem conclusão das entregas</div>
-          </div>
-        </div>
-      </div>
-      <div class="proj-g2">
-        <div class="proj-fg">
-          <label class="proj-fl">Data de Conclusão/Cancelamento</label>
-          <input type="date" class="proj-fi" id="conc-data" value="${projEsc(conc.dt_conclusao||'')}">
-        </div>
-        <div class="proj-fg">
-          <label class="proj-fl">Link para o Termo de Aceite</label>
-          <input type="url" class="proj-fi" id="conc-termo" value="${projEsc(conc.link_termo_aceite||'')}" placeholder="https://...">
-        </div>
-      </div>
-      <div class="proj-fg">
-        <label class="proj-fl">História do Projeto <span style="font-size:10px;color:var(--ink3)">(opcional — conte como foi o projeto)</span></label>
-        <textarea class="proj-fi" id="conc-historia" rows="5" placeholder="Conte a história e trajetória do projeto, principais marcos, aprendizados...">${projEsc(conc.historia||'')}</textarea>
-      </div>
-      <div class="proj-fg">
-        <label class="proj-fl">Links de Notícias / Resultados <span style="font-size:10px;color:var(--ink3)">(opcional — um por linha)</span></label>
-        <textarea class="proj-fi" id="conc-links" rows="3" placeholder="https://noticia1.gov.br&#10;https://noticia2.gov.br">${projEsc(conc.links_noticias||'')}</textarea>
-      </div>
-      <div class="proj-form-section" style="background:#f8fbff;margin-top:1rem">
-        <div class="proj-form-section-title">Reunião de Lições Aprendidas</div>
-        <div class="proj-g2">
-          <div class="proj-fg">
-            <label class="proj-fl">Data da reunião</label>
-            <input type="date" class="proj-fi" id="conc-lic-data" value="${projEsc(conc.licoes_data||'')}">
-          </div>
-          <div class="proj-fg">
-            <label class="proj-fl">Participantes</label>
-            <input type="text" class="proj-fi" id="conc-lic-part" value="${projEsc(conc.licoes_participantes||'')}" placeholder="Nomes dos participantes">
-          </div>
-        </div>
-        <div class="proj-g3">
-          <div class="proj-fg">
-            <label class="proj-fl">O que deu certo?</label>
-            <textarea class="proj-fi" id="conc-lic-certo" rows="4">${projEsc(conc.licoes_certo||'')}</textarea>
-          </div>
-          <div class="proj-fg">
-            <label class="proj-fl">O que pode melhorar?</label>
-            <textarea class="proj-fi" id="conc-lic-melhorar" rows="4">${projEsc(conc.licoes_melhorar||'')}</textarea>
-          </div>
-          <div class="proj-fg">
-            <label class="proj-fl">Sugestões / ideias</label>
-            <textarea class="proj-fi" id="conc-lic-ideias" rows="4">${projEsc(conc.licoes_ideias||'')}</textarea>
-          </div>
-        </div>
-        <div class="proj-fg">
-          <label class="proj-fl">Anexo de imagens</label>
-          <input type="file" class="proj-fi" accept="image/*" multiple onchange="projUploadConclusaoImagens(this)">
-          ${(conc.imagens||[]).length ? `<div class="proj-v9-attach-grid">${(conc.imagens||[]).map((img,i)=>`<div><img src="${projEsc(img.data)}" alt="${projEsc(img.nome||'Imagem')}"><button type="button" class="proj-btn danger" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%" onclick="projRemoveConclusaoImagem(${i})">Remover</button></div>`).join('')}</div>` : '<div style="font-size:11px;color:var(--ink3);margin-top:4px">Nenhuma imagem anexada.</div>'}
-        </div>
-      </div>
-      <div class="proj-btn-row">
-        <button type="button" class="proj-btn teal" onclick="projSalvarConclusao()">💾 Salvar</button>
-        ${p.status !== 'concluido' && p.status !== 'cancelado' ? `
-          <button type="button" class="proj-btn primary" onclick="projFinalizarProjeto()">🏁 Encerrar Projeto</button>
-        ` : `<div style="font-size:12.5px;color:var(--teal);font-weight:600;align-self:center">✓ Projeto encerrado</div>`}
-      </div>
-    </div>
-  `;
-}
-
 let _tipoConclusaoSelecionado = '';
 function projSelecionarTipoConclusao(tipo) {
   _tipoConclusaoSelecionado = tipo;
@@ -3840,17 +3592,10 @@ function projShowEmojiPicker(projId) {
 
 // ── V9: helpers executivos ───────────────────────────────────────
 function projProgramaNome(p) { if(p && p.programa_id){ const pg=(PROGRAMAS||[]).find(x=>String(x.id)===String(p.programa_id)); if(pg)return pg.nome; } return 'Sem programa'; }
-function projDimensoesProjeto(p) { return {patrocinador:p.patrocinador||'', objetivo:p.ideacao?.objetivo_estrategico||(p.objetivos_estrategicos||[])[0]||'', macro:(p.macroprocessos||[])[0]||p.macroprocesso||'', divisao:p.divisao||''}; }
-function projOptionsFromProjetos(projects,getter){return [...new Set(projects.map(getter).filter(Boolean))].sort();}
 function projGetDashFiltro(){return {patrocinador:document.getElementById('proj-f-patrocinador')?.value||'',objetivo:document.getElementById('proj-f-objetivo')?.value||'',macro:document.getElementById('proj-f-macro')?.value||'',divisao:document.getElementById('proj-f-divisao')?.value||''};}
-function projFiltrarProjetosV9(projects){const f=projGetDashFiltro();return projects.filter(p=>{const d=projDimensoesProjeto(p);return(!f.patrocinador||d.patrocinador===f.patrocinador)&&(!f.objetivo||d.objetivo===f.objetivo)&&(!f.macro||d.macro===f.macro)&&(!f.divisao||d.divisao===f.divisao);});}
 function projGroupCount(projects,getter){const map={};projects.forEach(p=>{const k=getter(p)||'Não informado';map[k]=(map[k]||0)+1;});return Object.entries(map).map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count).slice(0,8);}
-function projChartBars(title,items){const max=Math.max(1,...items.map(i=>i.count));return `<div class="proj-v9-chart-card"><div class="proj-card-t">${title}</div><div class="proj-v9-bars">${items.length?items.map(i=>`<div class="proj-v9-bar-row"><span title="${projEsc(i.label)}">${projEsc(i.label)}</span><div class="proj-v9-bar"><div style="width:${Math.max(6,Math.round(i.count/max*100))}%"></div></div><strong>${i.count}</strong></div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Sem dados.</div>'}</div></div>`;}
 function projTarefasAtrasadasProjeto(p){const today=new Date().toISOString().slice(0,10);return projFlattenTasks(p.execucao?.tarefas||[]).filter(t=>!(t._children&&t._children.length)&&!t.concluida&&t.dt_fim&&t.dt_fim<today);}
-function projRenderDashV9(){const all=(PROJETOS||[]).filter(p=>p.status==='ativo');const cur=projGetDashFiltro();const opts={patrocinador:projOptionsFromProjetos(all,p=>projDimensoesProjeto(p).patrocinador),objetivo:projOptionsFromProjetos(all,p=>projDimensoesProjeto(p).objetivo),macro:projOptionsFromProjetos(all,p=>projDimensoesProjeto(p).macro),divisao:projOptionsFromProjetos(all,p=>projDimensoesProjeto(p).divisao)};const sel=(id,label,arr,val)=>`<div class="proj-fg" style="margin:0"><label class="proj-fl">${label}</label><select class="proj-fi" id="${id}" onchange="projRenderDashV9()"><option value="">Todos</option>${arr.map(v=>`<option value="${projEsc(v)}" ${v===val?'selected':''}>${projEsc(v)}</option>`).join('')}</select></div>`;const filtrados=projFiltrarProjetosV9(all);const filtrosEl=document.getElementById('proj-dash-filtros');if(filtrosEl)filtrosEl.innerHTML=`<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros</div><div class="proj-v9-filter-grid">${sel('proj-f-patrocinador','Patrocinador',opts.patrocinador,cur.patrocinador)}${sel('proj-f-objetivo','Objetivo Estratégico',opts.objetivo,cur.objetivo)}${sel('proj-f-macro','Macroprocesso',opts.macro,cur.macro)}${sel('proj-f-divisao','Divisão',opts.divisao,cur.divisao)}</div></div>`;const alertasEl=document.getElementById('proj-dash-alertas');if(alertasEl){const comAtraso=filtrados.map(p=>({p,tarefas:projTarefasAtrasadasProjeto(p)})).filter(x=>x.tarefas.length);alertasEl.innerHTML=`<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length?comAtraso.map(({p,tarefas})=>`<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><strong>${projIconHtml(p)} ${projEsc(p.nome)}</strong><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t=>`<div class="proj-v9-alert-task"><span>${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`;}const graficosEl=document.getElementById('proj-dash-graficos');if(graficosEl){const indTotal=filtrados.reduce((acc,p)=>acc+(p.execucao?.indicadores||[]).length,0);graficosEl.innerHTML=`<div class="proj-v9-chart-card"><div class="proj-card-t">Dashboard Executivo</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div><strong>${filtrados.length}</strong><span> Projetos</span></div><div><strong>${Math.round(filtrados.reduce((a,p)=>a+(p.percentual||0),0)/(filtrados.length||1))}%</strong><span> Média</span></div><div><strong>${indTotal}</strong><span> Indicadores</span></div><div><strong>${filtrados.filter(p=>projTarefasAtrasadasProjeto(p).length).length}</strong><span> Com atraso</span></div></div></div><div class="proj-v9-chart-grid">${projChartBars('Projetos por Subprocesso',projGroupCount(filtrados,p=>p.subprocesso||p.nome))}${projChartBars('Projetos por Patrocinador',projGroupCount(filtrados,p=>p.patrocinador))}${projChartBars('Projetos por Indicadores',projGroupCount(filtrados,p=>(p.execucao?.indicadores||[]).length?'Com indicadores':'Sem indicadores'))}</div>`;}}
 function projRenderIndicadoresExecucao(p){const inds=p.execucao?.indicadores||[];return `<div style="display:flex;flex-direction:column;gap:8px">${inds.length?inds.map((i,idx)=>`<div class="proj-v9-ind-grid"><input class="proj-fi" value="${projEsc(i.nome||'')}" onchange="projUpdateIndicador(${idx},'nome',this.value)" placeholder="Indicador"><input class="proj-fi" type="number" value="${projEsc(String(i.meta||''))}" onchange="projUpdateIndicador(${idx},'meta',this.value)" placeholder="Meta"><input class="proj-fi" type="number" value="${projEsc(String(i.atual||''))}" onchange="projUpdateIndicador(${idx},'atual',this.value)" placeholder="Atual"><select class="proj-fi" onchange="projUpdateIndicador(${idx},'status',this.value)"><option ${i.status==='Em acompanhamento'?'selected':''}>Em acompanhamento</option><option ${i.status==='Atingido'?'selected':''}>Atingido</option><option ${i.status==='Atenção'?'selected':''}>Atenção</option></select><button type="button" class="proj-btn danger" onclick="projRemoveIndicador(${idx})">×</button></div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhum indicador registrado para este projeto.</div>'}<div><button type="button" class="proj-btn primary" style="font-size:11px;padding:5px 12px" onclick="projAddIndicador()">+ Indicador</button></div></div>`;}
-function projAddIndicador(){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj)return;if(!proj.execucao)proj.execucao={planner_link:'',percentual:0,reunioes:[],tarefas:[]};if(!proj.execucao.indicadores)proj.execucao.indicadores=[];proj.execucao.indicadores.push({nome:'Novo indicador',meta:'',atual:'',status:'Em acompanhamento'});projSave();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
-function projUpdateIndicador(idx,field,value){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.execucao?.indicadores?.[idx])return;proj.execucao.indicadores[idx][field]=value;projSave();}
 function projRemoveIndicador(idx){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.execucao?.indicadores)return;proj.execucao.indicadores.splice(idx,1);projSave();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
 function projFlattenTasksForExport(tasks,prefix){let rows=[];(tasks||[]).forEach((t,i)=>{const num=prefix?prefix+'.'+(i+1):String(i+1);rows.push({Numero:num,Nome:t.nome||'',PPE:t.ppe?'Sim':'Não',Marco:t.marco?'Sim':'Não',Inicio:t.dt_inicio||'',Fim:t.dt_fim||'',Responsavel:t.responsavel||'',Conclusao:t.conclusao||0,Concluida:t.concluida?'Sim':'Não'});rows=rows.concat(projFlattenTasksForExport(t.subtarefas||[],num));});return rows;}
 function projExportCronogramaXLSX(){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj)return;const rows=projFlattenTasksForExport(proj.execucao?.tarefas||[]);if(!rows.length){projToast('Não há tarefas para exportar.','#d97706');return;}if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');return;}const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:10},{wch:42},{wch:8},{wch:8},{wch:12},{wch:12},{wch:24},{wch:10},{wch:10}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cronograma SIGA');XLSX.writeFile(wb,'Cronograma_SIGA_'+(proj.nome||'projeto').replace(/[^\w]+/g,'_').slice(0,40)+'.xlsx');}
@@ -3892,8 +3637,7 @@ async function projUploadConclusaoImagens(inputEl){
   files.forEach(file=>{if(!file.type.startsWith('image/')){pending--;return;}const reader=new FileReader();reader.onload=e=>{proj.conclusao.imagens.push({nome:file.name,data:e.target.result});pending--;if(pending<=0){projSave();projDetalheTab('conclusao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(5)'));}};reader.readAsDataURL(file);});
 }
 function projRemoveConclusaoImagem(idx){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.conclusao?.imagens)return;proj.conclusao.imagens.splice(idx,1);projSave();projDetalheTab('conclusao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(5)'));}
-function projRenderStatusReport(){projLoad();progLoad();const el=document.getElementById('proj-status-report-content');if(!el)return;const ativos=PROJETOS.filter(p=>p.status==='ativo');const grupos={};ativos.forEach(p=>{const g=projProgramaNome(p);if(!grupos[g])grupos[g]=[];grupos[g].push(p);});el.innerHTML=`<div class="proj-ib proj-ib-blue">Status Report Executivo agrupado por programa. O campo abaixo de cada projeto será usado como <strong>Sumário Executivo</strong> no PDF.</div><div class="proj-status-grid">${Object.entries(grupos).map(([prog,items])=>`<div><div class="proj-v9-program-title">${projEsc(prog)}</div>${items.map(p=>{const pct=Math.max(0,Math.min(100,p.percentual||0));return `<div class="proj-status-card"><div class="proj-status-head"><div class="proj-status-icon">${p.icone_url?`<img src="${projEsc(p.icone_url)}" alt="">`:projEsc(p.icone_emoji||'▣')}</div><div style="flex:1"><div class="proj-status-name">${projEsc(p.nome)}</div><div class="proj-status-meta">Patrocinador: ${projEsc(p.patrocinador||'Não informado')} · Gerente: ${projEsc(p.gerente||'Não informado')}</div></div><div class="proj-status-pct">${pct}%</div></div><div class="proj-status-bar"><div style="width:${pct}%"></div></div><div class="proj-fg" style="margin:.8rem 0 0"><label class="proj-fl">Sumário Executivo</label><textarea class="proj-fi proj-status-note" data-proj-id="${projEsc(String(p.id))}" rows="3" onchange="projSalvarStatusReportObs('${projEsc(String(p.id))}',this.value)">${projEsc(p.status_report_obs||'')}</textarea></div></div>`;}).join('')}</div>`).join('')}</div>`;}
-function projBuildStatusReportHTML(){progLoad();const ativos=PROJETOS.filter(p=>p.status==='ativo');const data=new Date().toLocaleDateString('pt-BR');const grupos={};ativos.forEach(p=>{const g=projProgramaNome(p);if(!grupos[g])grupos[g]=[];grupos[g].push(p);});const groupsHtml=Object.entries(grupos).map(([prog,items])=>`<h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p=>{const pct=Math.max(0,Math.min(100,p.percentual||0));const obs=projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>');return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div class="sr-icon">${p.icone_url?`<img src="${projEsc(p.icone_url)}" alt="">`:projEsc(p.icone_emoji||'▣')}</div><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div></div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`}).join('')}`).join('');return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540;margin:0;background:#fff}.sr-cover{border-left:8px solid var(--blue);padding:18px 22px;margin-bottom:18px;background:linear-gradient(90deg,#eaf4ff,#fff)}.sr-brand{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-brand b{color:#00a89a}.sr-cover h1{margin:4px 0;font-size:26px;color:#0f2746}.sr-date{font-size:12px;color:#5f6b80}.sr-summary{display:flex;gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:8px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:18px;color:var(--blue);display:block}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid #00a89a;padding-bottom:5px;margin:18px 0 10px}.sr-card{display:grid;grid-template-columns:1.45fr .9fr;gap:14px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid}.sr-title-row{display:flex;align-items:center;gap:10px}.sr-icon{width:36px;height:36px;border-radius:9px;background:var(--blue-l);display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden}.sr-icon img{width:100%;height:100%;object-fit:cover}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{margin-left:auto;font-size:24px;font-weight:800;color:#00a89a}.sr-progress{height:7px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="sr-cover"><div class="sr-brand">CAGE-RS · <b>Escritório de Projetos e Processos</b></div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></header><div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${ativos.length?Math.round(ativos.reduce((a,p)=>a+(p.percentual||0),0)/ativos.length):0}%</strong>Média de conclusão</div><div class="sr-chip"><strong>${Object.keys(grupos).length}</strong>Programas</div></div>${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}<script>setTimeout(function(){window.print();},350);<\/script></body></html>`;}// ── Init ao carregar ──────────────────────────────────────────────
+// ── Init ao carregar ──────────────────────────────────────────────
 // ── Ajustes v9.1: indicadores, memorial e report executivo ───────
 const PROJ_CAGE_REPORT_LOGO = 'file:///C:/Users/ewwoy/OneDrive/Imagens/04091256_2280_GD.png';
 
@@ -3924,19 +3668,6 @@ function projMultiValues(...sources) {
   };
   sources.forEach(add);
   return out;
-}
-
-function projDimensoesProjeto(p) {
-  const objetivos = projMultiValues(p.objetivos_estrategicos, p.ideacao?.objetivo_estrategico);
-  const macros = projMultiValues(p.macroprocessos, p.macroprocesso);
-  return {
-    patrocinador:p.patrocinador||'',
-    objetivo:objetivos[0]||'',
-    objetivos,
-    macro:macros[0]||'',
-    macros,
-    divisao:p.divisao||''
-  };
 }
 
 function projOptionsFromProjetos(projects, getter) {
@@ -4192,21 +3923,6 @@ function projTabConclusao(p) {
   const selectedSuccess = conc.tipo === 'sucesso';
   const selectedCancel = conc.tipo === 'cancelamento';
   return `<div class="proj-form-section"><div class="proj-form-section-title">Fase 5: Conclusão</div><div class="proj-ib proj-ib-blue">Registre o encerramento oficial, o Memorial do Projeto, as notícias e os aprendizados.</div><div class="proj-fg"><label class="proj-fl">Tipo de Conclusão<span>*</span></label><div class="proj-conclusao-tipo"><div class="proj-conclusao-card ${selectedSuccess?'selected-success':''}" onclick="projSelecionarTipoConclusao('sucesso')"><div class="proj-conclusao-icon">OK</div><div class="proj-conclusao-label">Conclusão com Sucesso</div><div class="proj-conclusao-desc">Projeto entregue conforme planejado</div></div><div class="proj-conclusao-card ${selectedCancel?'selected-cancel':''}" onclick="projSelecionarTipoConclusao('cancelamento')"><div class="proj-conclusao-icon">X</div><div class="proj-conclusao-label">Cancelamento</div><div class="proj-conclusao-desc">Projeto encerrado sem conclusão das entregas</div></div></div></div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data de Conclusão/Cancelamento</label><input type="date" class="proj-fi" id="conc-data" value="${projEsc(conc.dt_conclusao||'')}"></div><div class="proj-fg"><label class="proj-fl">Link para o Termo de Aceite</label><input type="url" class="proj-fi" id="conc-termo" value="${projEsc(conc.link_termo_aceite||'')}" placeholder="https://..."></div></div><div class="proj-fg"><label class="proj-fl">História do Projeto</label><textarea class="proj-fi" id="conc-historia" rows="5" placeholder="Conte a história e trajetória do projeto, principais marcos, aprendizados...">${projEsc(conc.historia||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Links de Notícias / Resultados <span style="font-size:10px;color:var(--ink3)">(um por linha)</span></label><textarea class="proj-fi" id="conc-links" rows="3" placeholder="https://noticia1.gov.br&#10;https://noticia2.gov.br">${projEsc(conc.links_noticias||'')}</textarea></div><div class="proj-form-section" style="background:#fff;margin-top:1rem"><div class="proj-form-section-title">Anexos de Imagens do Memorial</div><div class="proj-fg"><input type="file" class="proj-fi" accept="image/*" multiple onchange="projUploadConclusaoImagens(this)">${(conc.imagens||[]).length ? `<div class="proj-v9-attach-grid">${(conc.imagens||[]).map((img,i)=>`<div><img src="${projEsc(img.data)}" alt="${projEsc(img.nome||'Imagem')}"><button type="button" class="proj-btn danger" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%" onclick="projRemoveConclusaoImagem(${i})">Remover</button></div>`).join('')}</div>` : '<div style="font-size:11px;color:var(--ink3);margin-top:4px">Nenhuma imagem anexada.</div>'}</div></div><div class="proj-form-section" style="background:#f8fbff;margin-top:1rem"><div class="proj-form-section-title">Reunião de Lições Aprendidas</div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data da reunião</label><input type="date" class="proj-fi" id="conc-lic-data" value="${projEsc(conc.licoes_data||'')}"></div><div class="proj-fg"><label class="proj-fl">Participantes</label><input type="text" class="proj-fi" id="conc-lic-part" value="${projEsc(conc.licoes_participantes||'')}" placeholder="Nomes dos participantes"></div></div><div class="proj-g3"><div class="proj-fg"><label class="proj-fl">O que deu certo?</label><textarea class="proj-fi" id="conc-lic-certo" rows="4">${projEsc(conc.licoes_certo||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">O que pode melhorar?</label><textarea class="proj-fi" id="conc-lic-melhorar" rows="4">${projEsc(conc.licoes_melhorar||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Sugestões / ideias</label><textarea class="proj-fi" id="conc-lic-ideias" rows="4">${projEsc(conc.licoes_ideias||'')}</textarea></div></div></div><div class="proj-btn-row"><button type="button" class="proj-btn teal" onclick="projSalvarConclusao()">Salvar</button>${p.status !== 'concluido' && p.status !== 'cancelado' ? `<button type="button" class="proj-btn primary" onclick="projFinalizarProjeto()">Encerrar Projeto</button>` : `<div style="font-size:12.5px;color:var(--teal);font-weight:600;align-self:center">Projeto encerrado</div>`}</div></div>`;
-}
-
-function projMemorialNewsEmbeds(conc) {
-  const links = String(conc.links_noticias||'').split(/\n+/).map(s => s.trim()).filter(Boolean);
-  if(!links.length) return '';
-  return `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Notícias e Resultados</div>${links.map((url,i) => `<div class="proj-v9-news-card"><div class="proj-v9-news-head"><span>Notícia ${i+1}</span><a href="${projEsc(url)}" target="_blank" rel="noopener">Abrir em nova aba</a></div><iframe class="proj-v9-news-frame" src="${projEsc(url)}" loading="lazy"></iframe></div>`).join('')}</div>`;
-}
-
-function projRenderMemorial(p) {
-  const conc = p.conclusao || {};
-  const content = document.getElementById('proj-detalhe-content');
-  if(!content) return;
-  const licoes = [conc.licoes_data, conc.licoes_participantes, conc.licoes_certo, conc.licoes_melhorar, conc.licoes_ideias].some(Boolean);
-  const imgs = (conc.imagens||[]).length ? `<div class="proj-v9-attach-grid">${(conc.imagens||[]).map(img => `<a href="${projEsc(img.data)}" target="_blank"><img src="${projEsc(img.data)}" alt="${projEsc(img.nome||'Imagem do memorial')}"></a>`).join('')}</div>` : '<div style="font-size:12px;color:var(--ink3)">Nenhuma imagem anexada ao Memorial.</div>';
-  content.innerHTML = `<div class="proj-ph"><div><div class="proj-ph-t">Memorial do Projeto</div><div class="proj-ph-s">${projEsc(p.nome||'Projeto')}</div></div><button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">Voltar ao Portfólio</button></div><div class="proj-form-section"><div class="proj-form-section-title">Informações Gerais</div><div class="proj-g3"><div><div class="proj-fl">Projeto</div><strong>${projEsc(p.nome||'')}</strong></div><div><div class="proj-fl">Patrocinador</div><strong>${projEsc(p.patrocinador||'Não informado')}</strong></div><div><div class="proj-fl">Gerente</div><strong>${projEsc(p.gerente||'Não informado')}</strong></div></div></div><div class="proj-form-section"><div class="proj-form-section-title">História do Projeto</div><div style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia||'História ainda não registrada.')}</div></div>${projMemorialNewsEmbeds(conc)}<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Anexos de Imagens do Memorial</div>${imgs}</div>${licoes ? `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Lições Aprendidas</div><div class="proj-g2"><div><div class="proj-fl">Data da reunião</div><strong>${projFormatDate(conc.licoes_data)||'Não informada'}</strong></div><div><div class="proj-fl">Participantes</div><strong>${projEsc(conc.licoes_participantes||'Não informado')}</strong></div></div><div class="proj-g3" style="margin-top:1rem"><div><div class="proj-fl">O que deu certo?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_certo||'')}</div></div><div><div class="proj-fl">O que pode melhorar?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_melhorar||'')}</div></div><div><div class="proj-fl">Sugestões / ideias</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_ideias||'')}</div></div></div></div>` : ''}`;
 }
 
 function projBuildStatusReportHTML() {

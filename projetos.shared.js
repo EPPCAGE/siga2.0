@@ -100,13 +100,6 @@ function _popularUsuarioProjetos(user) {
   if (roleEl) roleEl.textContent = _roleText(user);
 }
 
-function _atualizarCardsHub() {
-  const cardProc = document.getElementById('hub-card-proc');
-  const cardProj = document.getElementById('hub-card-proj');
-  if (cardProc) cardProc.style.display = hasProcessosAccess() ? '' : 'none';
-  if (cardProj) cardProj.style.display = hasProjetosAccess() ? '' : 'none';
-}
-
 function aplicarPermissoes() {
   const podeEditarTudo = isEP();
   document.querySelectorAll('.ep-only').forEach(el => {
