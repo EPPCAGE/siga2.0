@@ -10616,7 +10616,11 @@ function salvarModalMeta(){
   const modal=document.getElementById('meta-modal');
   if(!modal)return;
   const item=modal._item;
-  item.nome=document.getElementById('mm-nome').value.trim()||item.nome;
+  const novoNome=document.getElementById('mm-nome').value.trim()||item.nome;
+  if(novoNome!==item.nome){
+    processos.forEach(proc=>{if(proc.arq_id===item.id)proc.nome=novoNome;});
+  }
+  item.nome=novoNome;
   item.natureza=document.getElementById('mm-nat').value;
   item.area=document.getElementById('mm-area').value.trim();
   item.gerente=document.getElementById('mm-ger').value.trim();
@@ -10716,6 +10720,9 @@ function editMacro(mid){
   if(!m) return;
   _pedirNome('Renomear macroprocesso',m.nome,nome=>{
     m.nome=nome;
+    const arqIds=new Set();
+    m.processos.forEach(p=>{arqIds.add(p.id);(p.subprocessos||[]).forEach(s=>arqIds.add(s.id));});
+    processos.forEach(proc=>{if(proc.arq_id&&arqIds.has(proc.arq_id))proc.macro=nome;});
     rArq();
     fbAutoSave('editMacro');
   });
