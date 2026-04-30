@@ -876,6 +876,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   right:22px;
   top:50%;
   transform:translateY(-50%);
+  z-index:2;
 }
 
 /* Cards do dashboard */

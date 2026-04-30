@@ -146,7 +146,11 @@ function abrirModuloProjetos() {
   if (mobBar) mobBar.style.display = 'none';
   if (mobBackdrop) mobBackdrop.style.display = 'none';
   if (typeof projLoad === 'function') projLoad();
-  if (typeof projGo === 'function') projGo('inicio', document.getElementById('pnb-inicio'));
+  if (typeof projRenderCurrentPage === 'function') {
+    projRenderCurrentPage();
+  } else if (typeof projGo === 'function') {
+    projGo('inicio', document.getElementById('pnb-inicio'));
+  }
 }
 
 function voltarAoHub() {

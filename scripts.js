@@ -49,6 +49,7 @@ function _fsClean(v, insideArray){
 let PROJETOS = [];
 let PROGRAMAS = [];
 let _projCurrentId = null; // ID do projeto em visualização
+let _projCurrentPage = 'inicio';
 let _progCurrentId = null; // ID do programa em visualização
 let _hubVisible = false;
 const PROJ_STORAGE_KEY = 'cagePROJETOS_v6';
@@ -252,9 +253,14 @@ function projFbAutoSave(label){
 
 function projRenderCurrentPage(){
   const active = document.querySelector('.proj-nav-btn.on');
-  const page = active ? (active.id||'').replace('pnb-','') : 'inicio';
+  const page = _projCurrentPage || (active ? (active.id||'').replace('pnb-','') : 'inicio');
   if(document.getElementById('proj-shell')?.classList.contains('on')){
-    projGo(page || 'inicio', active || document.getElementById('pnb-inicio'));
+    if(page === 'detalhe' && _projCurrentId){
+      projAbrirDetalhe(_projCurrentId);
+      return;
+    }
+    const btn = document.getElementById('pnb-' + page) || active || document.getElementById('pnb-inicio');
+    projGo(page || 'inicio', btn);
   }
 }
 
@@ -504,6 +510,7 @@ function projFixDefaults(p) {
 
 // ── Navegação interna do módulo de projetos ──────────────────────
 function projGo(pageId, btnEl) {
+  _projCurrentPage = pageId || 'inicio';
   // Hide all pages
   document.querySelectorAll('.proj-page').forEach(p => p.classList.remove('on'));
   // Deactivate all nav buttons
@@ -1838,6 +1845,7 @@ function projExcluir(id) {
 function projAbrirDetalhe(id, forceWorkflow) {
   projLoad();
   _projCurrentId = String(id);
+  _projCurrentPage = 'detalhe';
   const proj = PROJETOS.find(p => String(p.id) === String(id));
   if(!proj) { projToast('Projeto não encontrado.', '#b91c1c'); return; }
 
