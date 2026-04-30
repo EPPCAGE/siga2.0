@@ -4312,6 +4312,9 @@ const ACOES = {
     <div class="fg"><label class="fl">Atividades principais <small style="font-weight:400;color:var(--ink3)">(uma por linha)</small></label><textarea class="fi" id="r-atividades" style="min-height:80px" placeholder="1. Receber demanda&#10;2. Analisar documentação&#10;...">${esc(p.ent.atividades_principais||'')}</textarea></div>
     <div class="fg"><label class="fl">Saídas${hint(p.ent.saidas,ai.entregas)}</label><textarea class="fi" id="r-saidas" style="min-height:54px" placeholder="Produtos, documentos, resultados gerados...">${esc(fg(p.ent.saidas,ai.entregas))}</textarea></div>
     <div class="fg"><label class="fl">Atores${hint(p.ent.atores,ai.atores)}</label><input class="fi" id="r-atores" value="${esc(fg(p.ent.atores,ai.atores))}" placeholder="Unidades e pessoas que participam do processo"></div>
+    <div class="fg"><label class="fl">Definições e siglas</label><textarea class="fi" id="r-def" style="min-height:60px" placeholder="Termo: Definição, uma por linha">${esc(p.form?.pop?.def||'')}</textarea></div>
+    <div class="fg"><label class="fl">Formulários / sistemas utilizados</label><input class="fi" id="r-forms" placeholder="Nome do formulário ou sistema — link se houver" value="${esc(p.form?.forms||'')}"></div>
+    <div class="fg"><label class="fl">Documentos correlatos</label><textarea class="fi" id="r-docs" style="min-height:50px" placeholder="Normas, regulamentos, formulários relacionados...">${esc(p.form?.pop?.docs||'')}</textarea></div>
     <hr>
     <div class="card-t">Volumetria e tempos</div>
     <div class="g3" style="margin-top:.5rem">
@@ -4584,10 +4587,8 @@ const ACOES = {
     </div>
     <div id="pp2" class="tab-p" style="display:none">
       <div class="fg"><label class="fl">Objetivo</label><textarea class="fi" id="pp-obj" style="min-height:80px">${esc(p.form?.pop?.obj||p.objetivo||'')}</textarea></div>
-      <div class="fg"><label class="fl">Definições e siglas</label><textarea class="fi" id="pp-def" style="min-height:60px" placeholder="Termo: Definição, uma por linha">${esc(p.form?.pop?.def||'')}</textarea></div>
       <div class="fg"><label class="fl">Entradas do processo <span style="font-size:10px;color:var(--teal);font-weight:400">← SIPOC</span></label><textarea class="fi" id="pp-ent" style="min-height:54px" placeholder="O que inicia o processo?">${esc(p.form?.pop?.ent||p.ent?.entradas||'')}</textarea></div>
       <div class="fg"><label class="fl">Saídas do processo <span style="font-size:10px;color:var(--teal);font-weight:400">← SIPOC</span></label><textarea class="fi" id="pp-sai" style="min-height:54px" placeholder="O que é produzido ao final?">${esc(p.form?.pop?.sai||p.ent?.saidas||'')}</textarea></div>
-      <div class="fg"><label class="fl">Documentos correlatos</label><textarea class="fi" id="pp-docs" style="min-height:50px" placeholder="Normas, regulamentos, formulários relacionados...">${esc(p.form?.pop?.docs||'')}</textarea></div>
     </div>
     <div id="pp3" class="tab-p" style="display:none">
       <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Atividades puxadas do detalhamento feito pelo dono (etapa de validação AS IS). Revise tipo, descrição, responsável e etapa seguinte.</div>
@@ -4605,7 +4606,6 @@ const ACOES = {
       </div>
       <div class="fg"><label class="fl">Exceções / casos especiais</label><textarea class="fi" id="a-excecoes" style="min-height:70px" placeholder="Situações fora do fluxo padrão que devem ser documentadas...">${esc(p.form?.excecoes||'')}</textarea></div>
       <div class="fg"><label class="fl">Contatos-chave do processo</label><textarea class="fi" id="a-contatos" style="min-height:60px" placeholder="Nome — Função — E-mail ou ramal">${esc(p.form?.contatos||'')}</textarea></div>
-      <div class="fg"><label class="fl">Formulários / sistemas utilizados</label><input class="fi" id="aforms" placeholder="Nome do formulário ou sistema — link se houver" value="${esc(p.form?.forms||'')}"></div>
       <div class="fg"><label class="fl">Observações complementares</label><textarea class="fi" id="aobs-pop" style="min-height:60px" placeholder="Observações adicionais sobre o processo...">${esc(p.form?.obs_complement||'')}</textarea></div>
     </div>
     <div class="btn-row">
@@ -5117,6 +5117,14 @@ function _rsReuniao(p){
   p.ent.atividades_principais=document.getElementById('r-atividades')?.value||p.ent.atividades_principais;
   p.ent.saidas=document.getElementById('r-saidas')?.value||p.ent.saidas;
   p.ent.atores=document.getElementById('r-atores')?.value||p.ent.atores;
+  p.form=p.form||{};
+  p.form.pop=p.form.pop||{};
+  const defVal=document.getElementById('r-def')?.value;
+  const formsVal=document.getElementById('r-forms')?.value;
+  const docsVal=document.getElementById('r-docs')?.value;
+  if(defVal!=null) p.form.pop.def=defVal;
+  if(formsVal!=null) p.form.forms=formsVal;
+  if(docsVal!=null) p.form.pop.docs=docsVal;
   if(!p.ent.vol)p.ent.vol={};
   p.ent.vol.exec=document.getElementById('r-exec')?.value||p.ent.vol.exec;
   const tc=Number.parseFloat(document.getElementById('r-tciclo')?.value);
@@ -5736,6 +5744,11 @@ function salvarReuniao(avancar=true){
   p.ent.atividades_principais=document.getElementById('r-atividades')?.value||'';
   p.ent.saidas=document.getElementById('r-saidas')?.value||'';
   p.ent.atores=document.getElementById('r-atores')?.value||'';
+  p.form=p.form||{};
+  p.form.pop=p.form.pop||{};
+  p.form.pop.def=document.getElementById('r-def')?.value||'';
+  p.form.forms=document.getElementById('r-forms')?.value||'';
+  p.form.pop.docs=document.getElementById('r-docs')?.value||'';
   if(!p.ent.vol)p.ent.vol={};
   p.ent.vol.exec_mensal=Number.parseFloat(document.getElementById('r-exec-mensal')?.value)||null;
   p.ent.t_ciclo=Number.parseFloat(document.getElementById('r-tciclo')?.value)||null;
@@ -9519,6 +9532,16 @@ function cancelarEditReuniao(){
   el('nr-form-title').textContent='+ Registrar nova reunião';
   el('nr-btn-cancel').style.display='none';
 }
+function _vincularReuniaoEtapaFluxo(p,tipo,dados){
+  if(!p || tipo!=='reuniao_apresentacao') return false;
+  if(!p.form) p.form={};
+  p.form.reuniao_apresentacao={
+    data:dados?.data||'',
+    participantes:dados?.participantes||'',
+    ata:dados?.ata||''
+  };
+  return true;
+}
 
 async function excluirReuniao(id){
   const p=curProc; if(!p) return;
@@ -9539,17 +9562,29 @@ async function salvarReuniaoAvulsa(){
   const data=document.getElementById('nr-data')?.value||'';
   const part=document.getElementById('nr-part')?.value||'';
   const ata=document.getElementById('nr-ata')?.value||'';
+  const dadosReuniao={data,participantes:part,ata};
   if(!data){toast('Informe a data da reunião','var(--red)');return;}
   if(!p.reunioes) p.reunioes=[];
+  const vinculouEtapa=_vincularReuniaoEtapaFluxo(p,tipo,dadosReuniao);
   if(editId){
-    const r=p.reunioes.find(x=>x.id===editId);
-    if(r){r.tipo=tipo;r.data=data;r.participantes=part;r.ata=ata;}
+    const idx=p.reunioes.findIndex(x=>x.id===editId);
+    if(idx>=0){
+      if(vinculouEtapa){
+        p.reunioes.splice(idx,1);
+      } else {
+        const r=p.reunioes[idx];
+        r.tipo=tipo;r.data=data;r.participantes=part;r.ata=ata;
+      }
+    }
   } else {
-    p.reunioes.push({id:'rn_'+Date.now(),tipo,data,participantes:part,ata,registrada_em:now()});
-    push(p,'','EP','Reunião registrada: '+(REUNIAO_TIPOS[tipo]||tipo)+' — '+data);
+    if(!vinculouEtapa){
+      p.reunioes.push({id:'rn_'+Date.now(),tipo,data,participantes:part,ata,registrada_em:now()});
+    }
+    push(p,vinculouEtapa?'apresentacao':'','EP','Reunião registrada: '+(REUNIAO_TIPOS[tipo]||tipo)+' — '+data);
   }
   await fbSaveAll();
-  toast(editId?'Reunião atualizada!':'Reunião registrada!','var(--teal)');
+  toast(vinculouEtapa?'Reunião registrada e vinculada à etapa Aprovação pelo Gestor!':(editId?'Reunião atualizada!':'Reunião registrada!'),'var(--teal)');
+  cancelarEditReuniao();
   rReun(p);
 }
 
