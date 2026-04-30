@@ -648,6 +648,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
 /* Label card */
 .proj-rocket-label {
+  position: relative;
   background: rgba(12,20,35,.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -658,6 +659,21 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   max-width: 320px;
   box-shadow: 0 2px 8px rgba(0,0,0,.2);
 }
+
+.proj-rocket-status-dot {
+  position: absolute;
+  right: -9px;
+  top: 10px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(15,23,42,.28);
+}
+
+.proj-rocket-status-dot.ok { background: #16a34a; }
+.proj-rocket-status-dot.warn { background: #f59e0b; }
+.proj-rocket-status-dot.danger { background: #dc2626; }
 
 .proj-rocket-name {
   font-family: var(--fb);

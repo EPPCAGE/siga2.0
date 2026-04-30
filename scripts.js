@@ -50,6 +50,7 @@ let PROJETOS = [];
 let PROGRAMAS = [];
 let _projCurrentId = null; // ID do projeto em visualização
 let _projCurrentPage = 'inicio';
+let _projCurrentWorkflowTab = null;
 let _progCurrentId = null; // ID do programa em visualização
 const PROJ_STORAGE_KEY = 'cagePROJETOS_v6';
 const PROG_STORAGE_KEY = 'cagePROGRAMAS_v6';
@@ -255,7 +256,7 @@ function projRenderCurrentPage(){
   const page = _projCurrentPage || (active ? (active.id||'').replace('pnb-','') : 'inicio');
   if(document.getElementById('proj-shell')?.classList.contains('on')){
     if(page === 'detalhe' && _projCurrentId){
-      projAbrirDetalhe(_projCurrentId);
+      projAbrirDetalhe(_projCurrentId, false, true);
       return;
     }
     const btn = document.getElementById('pnb-' + page) || active || document.getElementById('pnb-inicio');
@@ -521,6 +522,7 @@ function projGo(pageId, btnEl) {
   // Render page
   switch(pageId) {
     case 'inicio':    projRenderInicio(); break;
+    case 'painel-geral': projRenderPainelGeral(); break;
     case 'portfolio': projRenderPortfolio(); break;
     case 'concluidos': projRenderConcluidos(); break;
     case 'programas': progRenderPage(); break;
@@ -656,6 +658,31 @@ function _confirmarNao() {
 // ════════════════════════════════════════════════════════════════════
 // PÁGINA: INÍCIO (Dashboard)
 // ════════════════════════════════════════════════════════════════════
+function projRenderPainelGeral() {
+  projLoad();
+  projRenderDashV9();
+}
+
+function projAtrasoStatusProjeto(p) {
+  const atrasadas = projTarefasAtrasadasProjeto(p);
+  if(!atrasadas.length) return { cls:'ok', label:'Em dia' };
+
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+  let maxDias = 0;
+  atrasadas.forEach(t => {
+    const d = projParseIsoDate(t.dt_fim);
+    if(!d) return;
+    const venc = new Date(d.ano, d.mes, d.dia);
+    venc.setHours(0,0,0,0);
+    const dias = Math.max(0, Math.floor((hoje - venc) / 86400000));
+    if(dias > maxDias) maxDias = dias;
+  });
+
+  if(maxDias > 30) return { cls:'danger', label:'Tarefa atrasada ha mais de 30 dias' };
+  return { cls:'warn', label:'Tarefa atrasada ate 30 dias' };
+}
+
 function projRenderInicio() {
   projLoad();
   const now = new Date();
@@ -688,6 +715,7 @@ function projRenderInicio() {
     ordered.forEach((p, idx) => {
       const pct = p.percentual || 0;
       const emoji = p.icone_emoji || '📋';
+      const atrasoStatus = projAtrasoStatusProjeto(p);
       lanesHTML += `
         <div class="proj-launchpad-lane" id="proj-lane-${p.id}" data-id="${p.id}" data-idx="${idx}">
           <div class="proj-launchpad-lane-grid">${gridSegs}</div>
@@ -701,6 +729,7 @@ function projRenderInicio() {
               ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">` : emoji}
             </div>
             <div class="proj-rocket-label">
+              <span class="proj-rocket-status-dot ${atrasoStatus.cls}" title="${projEsc(atrasoStatus.label)}"></span>
               <div class="proj-rocket-name" title="${projEsc(p.nome)}">${projEsc(p.nome)}</div>
               <div class="proj-rocket-mgr">${projEsc(p.gerente||'')}</div>
               <div class="proj-rocket-pct">${pct}%</div>
@@ -1787,12 +1816,16 @@ function projExcluir(id) {
 // ════════════════════════════════════════════════════════════════════
 // DETALHE DO PROJETO
 // ════════════════════════════════════════════════════════════════════
-function projAbrirDetalhe(id, forceWorkflow) {
+function projAbrirDetalhe(id, forceWorkflow, preserveWorkflowTab) {
   projLoad();
+  const sameProject = String(_projCurrentId || '') === String(id);
   _projCurrentId = String(id);
   _projCurrentPage = 'detalhe';
   const proj = PROJETOS.find(p => String(p.id) === String(id));
   if(!proj) { projToast('Projeto não encontrado.', '#b91c1c'); return; }
+  if(!preserveWorkflowTab || !sameProject) {
+    _projCurrentWorkflowTab = proj.fase_atual || 'aprovacao';
+  }
 
   document.querySelectorAll('.proj-page').forEach(p => p.classList.remove('on'));
   document.querySelectorAll('.proj-nav-btn').forEach(b => b.classList.remove('on'));
@@ -1862,7 +1895,7 @@ function projRenderDetalhe(p) {
     if(fIdx < PROJ_FASES.length - 1){ const b=document.createElement('button'); b.type='button'; b.className='proj-btn'; b.style.cssText='font-size:12px;padding:5px 11px'; b.textContent='Avançar Fase →'; b.onclick=()=>projAvancarFase(pid); faseBtn.appendChild(b);}
   }
   // Render first tab
-  var faseToOpen = p.fase_atual || 'aprovacao';
+  var faseToOpen = _projCurrentWorkflowTab || p.fase_atual || 'aprovacao';
   var tabIdx = {aprovacao:0, ideacao:1, planejamento:2, execucao:3, conclusao:4};
   var tIdx = tabIdx[faseToOpen] || 0;
   var tabEls = el.querySelectorAll('#proj-detalhe-tabs .proj-tab');
@@ -1870,6 +1903,7 @@ function projRenderDetalhe(p) {
 }
 
 function projDetalheTab(faseId, tabEl) {
+  _projCurrentWorkflowTab = faseId;
   document.querySelectorAll('#proj-detalhe-tabs .proj-tab').forEach(t => t.classList.remove('on'));
   if(tabEl) tabEl.classList.add('on');
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
