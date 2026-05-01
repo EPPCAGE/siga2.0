@@ -13073,7 +13073,36 @@ async function salvarUsr(){
 
   if(idxStr===''){
     if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
-    USUARIOS.push({email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos});
+    USUARIOS.push({email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos, trocar_senha:true});
+    document.getElementById('usr-modal').style.display = 'none';
+    renderAdmin();
+    await fbSaveAll();
+    // Cria conta Firebase Auth e envia senha temporária
+    if(fbReady()){
+      const {initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
+      const senhaTemp = gerarSenhaTemp();
+      let contaCriada = false;
+      try {
+        const secApp = initializeApp(FIREBASE_CONFIG, 'sec_usr_'+Date.now());
+        const secAuth = getAuth(secApp);
+        try {
+          await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
+          contaCriada = true;
+        } catch(e){
+          if(e.code !== 'auth/email-already-in-use') console.warn('Firebase Auth create err:', e);
+        } finally {
+          await deleteApp(secApp).catch(()=>{});
+        }
+      } catch(e){ console.warn('Erro ao inicializar app secundária:', e); }
+      if(contaCriada){
+        _enviarSenhaAcesso(email, nome, senhaTemp);
+        toast('Usuário criado! Senha temporária enviada para '+email+'.', 'var(--teal)');
+      } else {
+        toast('Usuário salvo. Este e-mail já possui conta — o acesso está mantido.', 'var(--amber)');
+      }
+    } else {
+      toast('Usuário salvo (Firebase indisponível — ative o acesso pelo "Primeiro acesso").', 'var(--amber)');
+    }
   } else {
     const idx = Number.parseInt(idxStr);
     if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
@@ -13083,11 +13112,11 @@ async function salvarUsr(){
       document.getElementById('aside-name').textContent = nome;
       document.getElementById('aside-role').textContent = PERFIL_LABELS[perfil]||perfil;
     }
+    document.getElementById('usr-modal').style.display = 'none';
+    renderAdmin();
+    await fbSaveAll();
+    toast('Usuário atualizado.', 'var(--teal)');
   }
-  document.getElementById('usr-modal').style.display = 'none';
-  renderAdmin();
-  await fbSaveAll();
-  toast('Usuário salvo');
 }
 
 async function deletarUsr(){
