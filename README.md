@@ -46,13 +46,15 @@ Usuários com perfil `ep` têm acesso total a ambos os módulos. Usuários podem
 
 Um mesmo usuário pode ter múltiplos perfis. O campo `perfis` no Firestore armazena um array; o campo legado `perfil` mantém o primeiro perfil para retrocompatibilidade.
 
-### Primeiro acesso
+### Perfis padrão para novos usuários
 
-Usuários criados pelo EP recebem `trocar_senha: true` no cadastro. Ao fazer login pela primeira vez, um modal bloqueia o acesso aos módulos e exige:
-1. Definição de uma senha definitiva (mín. 6 caracteres)
-2. Seleção do(s) perfil(is) de acesso (para usuários não-EP)
+Usuários que se auto-cadastram pelo "Primeiro acesso" recebem automaticamente os perfis **Dono de Processo + Gerente de Projeto**, dando acesso a ambos os módulos desde o início. O EPP pode ajustar os perfis a qualquer momento pelo painel de administração.
 
-O hub de módulos só é exibido após a conclusão desse fluxo.
+### Primeiro acesso e troca de senha obrigatória
+
+Usuários criados pelo sistema (tanto pelo EPP quanto por auto-cadastro) recebem `trocar_senha: true`. Ao fazer login com a senha temporária, um modal bloqueia o acesso aos módulos e exige apenas a **definição de uma senha definitiva** (mínimo 6 caracteres). Os perfis já estão atribuídos e não precisam ser selecionados pelo usuário.
+
+O hub de módulos só é exibido após essa etapa.
 
 ---
 
