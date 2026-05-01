@@ -1965,21 +1965,31 @@ async function _primeiroAcessoExistente(email, showErr, showOk){
   if(!fbReady()){ showErr('Firebase não configurado.'); return; }
   try {
     const {auth, sendPasswordResetEmail, initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
-    // Usuário cadastrado manualmente pelo EPP pode não ter conta Firebase Auth ainda.
-    // Usa app secundária para criar, evitando disparar onAuthStateChanged na auth principal.
     const secApp = initializeApp(FIREBASE_CONFIG, 'sec_exist_'+Date.now());
     const secAuth = getAuth(secApp);
+    let contaCriada = false;
+    const senhaTemp = gerarSenhaTemp();
     try {
-      const tmpPass = gerarSenhaTemp() + gerarSenhaTemp();
-      await createUserWithEmailAndPassword(secAuth, email, tmpPass);
+      await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
+      contaCriada = true;
     } catch(createErr){
       if(createErr.code !== 'auth/email-already-in-use') throw createErr;
-      // conta já existe no Firebase Auth → segue para o reset
     } finally {
       await deleteApp(secApp).catch(()=>{});
     }
-    await sendPasswordResetEmail(auth, email);
-    showOk('Link de redefinição enviado para '+email+'. Verifique sua caixa de entrada (e a pasta de spam).');
+    if(contaCriada){
+      // Conta Firebase Auth recém-criada (EPP havia cadastrado o usuário manualmente).
+      // Envia senha temporária por e-mail em vez de link de reset que pode expirar.
+      const user = USUARIOS.find(u=>u.email===email);
+      if(user){ user.trocar_senha=true; await fbSaveAll(); }
+      const nome = user?.nome || email;
+      _enviarSenhaAcesso(email, nome, senhaTemp);
+      showOk('Acesso liberado! Enviamos uma senha temporária para '+email+'. Use-a para entrar e defina sua senha definitiva.');
+    } else {
+      // Conta Firebase Auth já existe — usuário esqueceu a senha.
+      await sendPasswordResetEmail(auth, email);
+      showOk('Link de redefinição enviado para '+email+'. Verifique sua caixa de entrada (e a pasta de spam).');
+    }
   } catch(err){ showErr('Erro ao enviar e-mail: '+err.message); }
 }
 
