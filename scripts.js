@@ -950,6 +950,7 @@ function projRenderReunioesDoMes() {
     return;
   }
 
+  todas.sort((a,b) => (a.data || '9999-12-31').localeCompare(b.data || '9999-12-31') || String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
   reunEl.innerHTML = todas.map(r => `
     <div class="proj-reunion-item ${r.realizada ? 'proj-reunion-done' : ''}" id="reunion-item-${projEsc(r.id)}">
       <div class="proj-reunion-check ${r.realizada ? 'done' : ''}" onclick="projToggleReuniao('${r._projeto_id}','${projEsc(r.id)}')">
@@ -1219,6 +1220,59 @@ function projExportReunioesRealizadasPDF() {
   w.document.close();
 }
 
+function projQuarterValue(date) {
+  const d = date || new Date();
+  return d.getFullYear() + '-T' + (Math.floor(d.getMonth() / 3) + 1);
+}
+function projQuarterLabel(value) {
+  const m = String(value||'').match(/^(\d{4})-T([1-4])$/);
+  return m ? (m[2] + 'º Trimestre de ' + m[1]) : 'Trimestre';
+}
+function projQuarterRange(value) {
+  const m = String(value||'').match(/^(\d{4})-T([1-4])$/);
+  const ano = m ? Number(m[1]) : new Date().getFullYear();
+  const tri = m ? Number(m[2]) : Math.floor(new Date().getMonth()/3)+1;
+  const startMonth = (tri - 1) * 3;
+  return { start:new Date(ano,startMonth,1), end:new Date(ano,startMonth+3,0), months:[0,1,2].map(i => { const v = new Date(ano,startMonth+i,1).toISOString().slice(0,7); return {value:v,label:projMonthLabel(v)}; }) };
+}
+function projQuarterOptionsHtml() {
+  const selected = projQuarterValue();
+  let html = '';
+  for(let y=2026; y<=new Date().getFullYear()+1; y++) {
+    for(let q=1; q<=4; q++) {
+      if(y===2026 && q<2) continue;
+      const v = y + '-T' + q;
+      html += `<option value="${v}" ${v===selected?'selected':''}>${projQuarterLabel(v)}</option>`;
+    }
+  }
+  return html;
+}
+function projExportReunioesRealizadasPDF() {
+  projLoad();
+  const quarterValue = document.getElementById('greuniao-rel-tri')?.value || projQuarterValue();
+  const label = projQuarterLabel(quarterValue);
+  const range = projQuarterRange(quarterValue);
+  const reunioes = [];
+  PROJETOS.forEach(p => {
+    (p.execucao?.reunioes||[]).forEach(r => {
+      if(!r.data) return;
+      const d = new Date(r.data + 'T00:00:00');
+      if(d >= range.start && d <= range.end) reunioes.push({ ...r, _projeto:p });
+    });
+  });
+  const mesesHtml = range.months.map(month => {
+    const items = reunioes.filter(r => projIsoInMonth(r.data, month.value)).sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+    const rows = items.map(r => `<tr><td>${projFormatDate(r.data)}</td><td>${projEsc(r._projeto.nome)}</td><td>${projEsc(r.nome)}</td><td>${r.realizada?'Concluída':'Planejada'}</td><td>${projEsc(r.participantes||'')}</td><td>${projEsc(r.observacoes||'')}</td></tr>`).join('');
+    return `<section class="month"><h2>${projEsc(month.label)}</h2>${items.length ? `<table><thead><tr><th>Data</th><th>Projeto</th><th>Reunião</th><th>Status</th><th>Participantes</th><th>Observações</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">Nenhuma reunião planejada ou concluída neste mês.</div>'}</section>`;
+  }).join('');
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Trimestral de Reuniões</title><style>:root{--blue:#005a9c;--teal:#00bfb3}@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540}.head{border-left:8px solid var(--blue);padding:14px 18px;background:#f0f6ff;margin-bottom:16px}.k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#00a89a;font-weight:700}h1{margin:4px 0;color:var(--blue);font-size:24px}.sub{font-size:12px;color:#5f6b80}.month{margin-top:18px;break-inside:avoid}.month h2{font-size:15px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px}table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:var(--blue);color:#fff;text-align:left;padding:8px}td{border-bottom:1px solid #d9e2ef;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}.empty{padding:12px;border:1px solid #d9e2ef;border-radius:8px;color:#5f6b80;font-size:12px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Relatório Trimestral de Reuniões</h1><div class="sub">${label} · ${reunioes.length} reunião(ões) planejada(s) ou concluída(s)</div></div>${mesesHtml}<script>setTimeout(function(){window.print();},350);</script></body></html>`;
+  const w = window.open('', '_blank');
+  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
 function projAddMonths(date, months) {
   const d = date || new Date();
   return new Date(d.getFullYear(), d.getMonth() + (months||0), 1);
@@ -1424,12 +1478,12 @@ function projRenderReunioesPage() {
     <div class="proj-form-section" style="margin-bottom:1rem">
       <div class="proj-form-section-title">
         <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-        Relatório de Reuniões Realizadas
+        Relatório Trimestral de Reuniões
       </div>
       <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div class="proj-fg" style="margin:0;min-width:180px">
-          <label class="proj-fl" for="greuniao-rel-mes">Mês/Ano</label>
-          <input type="month" class="proj-fi" id="greuniao-rel-mes" value="${projMonthValue()}">
+          <label class="proj-fl" for="greuniao-rel-tri">Trimestre</label>
+          <select class="proj-fi" id="greuniao-rel-tri">${projQuarterOptionsHtml()}</select>
         </div>
         <button type="button" class="proj-btn primary" onclick="projExportReunioesRealizadasPDF()">Gerar relatório PDF</button>
       </div>
@@ -3946,7 +4000,7 @@ function projRenderDashV9() {
   const alertasEl = document.getElementById('proj-dash-alertas');
   if(alertasEl) {
     const comAtraso = filtrados.map(p => ({ p, tarefas:projTarefasAtrasadasProjeto(p) })).filter(x => x.tarefas.length);
-    alertasEl.innerHTML = `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><strong>${projIconHtml(p)} ${projEsc(p.nome)}</strong><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`;
+    alertasEl.innerHTML = `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><a href="#" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)" style="font-weight:800;color:var(--blue);text-decoration:none">${projIconHtml(p)} ${projEsc(p.nome)}</a><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`;
   }
 
   const graficosEl = document.getElementById('proj-dash-graficos');
