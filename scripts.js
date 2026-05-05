@@ -2514,6 +2514,7 @@ function projTabExecucao(p) {
   const cronMode = exec.cron_mode || 'planner'; // 'planner' or 'siga'
   const pctMode = exec.pct_mode || 'manual'; // 'manual' or 'derivado'
   const tarefas = exec.tarefas || [];
+  projSyncDerivedTaskDates(tarefas);
   const derivedPct = projCalcDerivedPct(tarefas);
   const displayPct = pctMode === 'derivado' ? derivedPct : (p.percentual||0);
 
@@ -2613,7 +2614,7 @@ function projTabExecucao(p) {
         ${atrasadas.length > 0 ? `
           <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.6rem .8rem;margin-bottom:1rem">
             <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:4px">⚠ Tarefas Atrasadas:</div>
-            ${atrasadas.map(t => `<div style="font-size:11px;color:#991b1b">• ${projEsc(t.nome)} (prev: ${projFormatDate(t.dt_fim)})</div>`).join('')}
+            ${atrasadas.map(t => `<div style="font-size:11px;color:#991b1b">• ${t._parentName ? `<strong>${projEsc(t._parentName)}</strong> / ` : ''}${projEsc(t.nome)} (prev: ${projFormatDate(t.dt_fim)})</div>`).join('')}
           </div>
         ` : ''}
         <!-- Tabela de tarefas -->
@@ -2642,6 +2643,7 @@ function projTabExecucao(p) {
         <div style="margin-top:.6rem;display:flex;gap:8px">
           <button type="button" class="proj-btn primary" style="font-size:11px;padding:5px 12px" onclick="projAddTarefa(null)">+ Tarefa</button>
           <button type="button" class="proj-btn" style="font-size:11px;padding:5px 12px" onclick="projExportCronogramaXLSX()">Exportar .xlsx</button>
+          <button type="button" class="proj-btn" style="font-size:11px;padding:5px 12px" onclick="projImportCronogramaXLSX()">Importar .xlsx</button>
         </div>
       </div>
     </div>
@@ -2713,13 +2715,27 @@ function projTabExecucao(p) {
 }
 
 // ── Planner SIGA: helpers ──
-function projFlattenTasks(tarefas, depth) {
+function projSyncDerivedTaskDates(tarefas) {
+  (tarefas||[]).forEach(t => {
+    const subs = t.subtarefas || [];
+    if(subs.length) {
+      projSyncDerivedTaskDates(subs);
+      const starts = subs.map(s => s.dt_inicio).filter(Boolean).sort();
+      const ends = subs.map(s => s.dt_fim).filter(Boolean).sort();
+      t.dt_inicio = starts[0] || '';
+      t.dt_fim = ends.length ? ends[ends.length - 1] : '';
+    }
+  });
+  return tarefas || [];
+}
+
+function projFlattenTasks(tarefas, depth, parentName) {
   let result = [];
   (tarefas||[]).forEach(t => {
-    const copy = Object.assign({}, t, {_depth: depth||0, _children: t.subtarefas||[]});
+    const copy = Object.assign({}, t, {_depth: depth||0, _children: t.subtarefas||[], _parentName: parentName || ''});
     result.push(copy);
     if(t.subtarefas && t.subtarefas.length > 0) {
-      result = result.concat(projFlattenTasks(t.subtarefas, (depth||0)+1));
+      result = result.concat(projFlattenTasks(t.subtarefas, (depth||0)+1, t.nome || 'Tarefa superior'));
     }
   });
   return result;
@@ -2766,8 +2782,8 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3">
         <button type="button" class="proj-task-flag marco ${t.marco?'on':''}" onclick="projToggleTarefaFlag('${path}','marco')">Marco</button>
       </td>
-      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}"><input type="date" value="${t.dt_inicio||''}" onchange="projUpdateTarefa('${path}','dt_inicio',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%"></td>
-      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}${overdue?';color:#dc2626;font-weight:600':''}"><input type="date" value="${t.dt_fim||''}" onchange="projUpdateTarefa('${path}','dt_fim',this.value)" style="font-size:11px;border:1px solid ${overdue?'#fca5a5':'#ddd'};border-radius:4px;padding:2px 4px;width:100%"></td>
+      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}"><input type="date" value="${t.dt_inicio||''}" ${hasSubs?'disabled title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_inicio',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
+      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}${overdue?';color:#dc2626;font-weight:600':''}"><input type="date" value="${t.dt_fim||''}" ${hasSubs?'disabled title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_fim',this.value)" style="font-size:11px;border:1px solid ${overdue?'#fca5a5':'#ddd'};border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike}"><input type="text" value="${projEsc(t.responsavel||'')}" onchange="projUpdateTarefa('${path}','responsavel',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%" placeholder="—"></td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}">
         ${hasSubs ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${pct}%</span>` :
@@ -2814,6 +2830,7 @@ function projAddTarefa(parentPath) {
       ref.list[ref.index].subtarefas.push(nova);
     }
   }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
 }
@@ -2824,6 +2841,7 @@ function projRemoveTarefa(path) {
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
   const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
   if(ref) ref.list.splice(ref.index, 1);
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
 }
@@ -2838,6 +2856,7 @@ function projUpdateTarefa(path, field, value) {
     if(field === 'conclusao' && value >= 100) ref.list[ref.index].concluida = true;
     if(field === 'conclusao' && value < 100) ref.list[ref.index].concluida = false;
   }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   // Update derived pct
   if(proj.execucao.pct_mode === 'derivado') {
     proj.percentual = projCalcDerivedPct(proj.execucao.tarefas);
@@ -2855,6 +2874,7 @@ function projToggleTarefaFlag(path, field) {
   if(ref && ref.list[ref.index]) {
     ref.list[ref.index][field] = !ref.list[ref.index][field];
   }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
 }
@@ -2868,6 +2888,7 @@ function projToggleTarefa(path) {
     ref.list[ref.index].concluida = !ref.list[ref.index].concluida;
     ref.list[ref.index].conclusao = ref.list[ref.index].concluida ? 100 : 0;
   }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   if(proj.execucao.pct_mode === 'derivado') {
     proj.percentual = projCalcDerivedPct(proj.execucao.tarefas);
     proj.execucao.percentual = proj.percentual;
@@ -3634,11 +3655,65 @@ function projShowEmojiPicker(projId) {
 function projProgramaNome(p) { if(p && p.programa_id){ const pg=(PROGRAMAS||[]).find(x=>String(x.id)===String(p.programa_id)); if(pg)return pg.nome; } return 'Sem programa'; }
 function projGetDashFiltro(){return {patrocinador:document.getElementById('proj-f-patrocinador')?.value||'',objetivo:document.getElementById('proj-f-objetivo')?.value||'',macro:document.getElementById('proj-f-macro')?.value||'',divisao:document.getElementById('proj-f-divisao')?.value||''};}
 function projGroupCount(projects,getter){const map={};projects.forEach(p=>{const k=getter(p)||'Não informado';map[k]=(map[k]||0)+1;});return Object.entries(map).map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count).slice(0,8);}
-function projTarefasAtrasadasProjeto(p){const today=new Date().toISOString().slice(0,10);return projFlattenTasks(p.execucao?.tarefas||[]).filter(t=>!(t._children&&t._children.length)&&!t.concluida&&t.dt_fim&&t.dt_fim<today);}
+function projTarefasAtrasadasProjeto(p){const today=new Date().toISOString().slice(0,10);projSyncDerivedTaskDates(p.execucao?.tarefas||[]);return projFlattenTasks(p.execucao?.tarefas||[]).filter(t=>!(t._children&&t._children.length)&&!t.concluida&&t.dt_fim&&t.dt_fim<today);}
 function projRenderIndicadoresExecucao(p){const inds=p.execucao?.indicadores||[];return `<div style="display:flex;flex-direction:column;gap:8px">${inds.length?inds.map((i,idx)=>`<div class="proj-v9-ind-grid"><input class="proj-fi" value="${projEsc(i.nome||'')}" onchange="projUpdateIndicador(${idx},'nome',this.value)" placeholder="Indicador"><input class="proj-fi" type="number" value="${projEsc(String(i.meta||''))}" onchange="projUpdateIndicador(${idx},'meta',this.value)" placeholder="Meta"><input class="proj-fi" type="number" value="${projEsc(String(i.atual||''))}" onchange="projUpdateIndicador(${idx},'atual',this.value)" placeholder="Atual"><select class="proj-fi" onchange="projUpdateIndicador(${idx},'status',this.value)"><option ${i.status==='Em acompanhamento'?'selected':''}>Em acompanhamento</option><option ${i.status==='Atingido'?'selected':''}>Atingido</option><option ${i.status==='Atenção'?'selected':''}>Atenção</option></select><button type="button" class="proj-btn danger" onclick="projRemoveIndicador(${idx})">×</button></div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhum indicador registrado para este projeto.</div>'}<div><button type="button" class="proj-btn primary" style="font-size:11px;padding:5px 12px" onclick="projAddIndicador()">+ Indicador</button></div></div>`;}
 function projRemoveIndicador(idx){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.execucao?.indicadores)return;proj.execucao.indicadores.splice(idx,1);projSave();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
-function projFlattenTasksForExport(tasks,prefix){let rows=[];(tasks||[]).forEach((t,i)=>{const num=prefix?prefix+'.'+(i+1):String(i+1);rows.push({Numero:num,Nome:t.nome||'',PPE:t.ppe?'Sim':'Não',Marco:t.marco?'Sim':'Não',Inicio:t.dt_inicio||'',Fim:t.dt_fim||'',Responsavel:t.responsavel||'',Conclusao:t.conclusao||0,Concluida:t.concluida?'Sim':'Não'});rows=rows.concat(projFlattenTasksForExport(t.subtarefas||[],num));});return rows;}
-function projExportCronogramaXLSX(){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj)return;const rows=projFlattenTasksForExport(proj.execucao?.tarefas||[]);if(!rows.length){projToast('Não há tarefas para exportar.','#d97706');return;}if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');return;}const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:10},{wch:42},{wch:8},{wch:8},{wch:12},{wch:12},{wch:24},{wch:10},{wch:10}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cronograma SIGA');XLSX.writeFile(wb,'Cronograma_SIGA_'+(proj.nome||'projeto').replace(/[^\w]+/g,'_').slice(0,40)+'.xlsx');}
+const PROJ_CRON_XLSX_HEADERS = ['Numero','Nome','PPE','Marco','Inicio','Fim','Responsavel','Conclusao','Concluida'];
+function projFlattenTasksForExport(tasks,prefix){let rows=[];projSyncDerivedTaskDates(tasks||[]);(tasks||[]).forEach((t,i)=>{const num=prefix?prefix+'.'+(i+1):String(i+1);rows.push({Numero:num,Nome:t.nome||'',PPE:t.ppe?'Sim':'Não',Marco:t.marco?'Sim':'Não',Inicio:t.dt_inicio||'',Fim:t.dt_fim||'',Responsavel:t.responsavel||'',Conclusao:t.conclusao||0,Concluida:t.concluida?'Sim':'Não'});rows=rows.concat(projFlattenTasksForExport(t.subtarefas||[],num));});return rows;}
+function projExportCronogramaXLSX(){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj)return;projSyncDerivedTaskDates(proj.execucao?.tarefas||[]);const rows=projFlattenTasksForExport(proj.execucao?.tarefas||[]);if(!rows.length){projToast('Não há tarefas para exportar.','#d97706');return;}if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');return;}const ws=XLSX.utils.json_to_sheet(rows,{header:PROJ_CRON_XLSX_HEADERS});ws['!cols']=[{wch:10},{wch:42},{wch:8},{wch:8},{wch:12},{wch:12},{wch:24},{wch:10},{wch:10}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cronograma SIGA');XLSX.writeFile(wb,'Cronograma_SIGA_'+(proj.nome||'projeto').replace(/[^\w]+/g,'_').slice(0,40)+'.xlsx');}
+function projCronXlsxBool(v){const s=String(v||'').trim().toLowerCase();if(['sim','s','true','1'].includes(s))return true;if(['não','nao','n','false','0',''].includes(s))return false;throw new Error('Campo Sim/Não inválido.');}
+function projCronXlsxDate(v){const s=String(v||'').trim();if(!s)return '';if(!/^\d{4}-\d{2}-\d{2}$/.test(s))throw new Error('Datas devem estar no formato AAAA-MM-DD exportado pelo SIGA.');return s;}
+function projImportCronogramaXLSX(inputEl){
+  if(!inputEl){
+    const inp=document.createElement('input');
+    inp.type='file';inp.accept='.xlsx';inp.style.display='none';
+    inp.onchange=function(){projImportCronogramaXLSX(inp);setTimeout(()=>inp.remove(),0);};
+    document.body.appendChild(inp);inp.click();return;
+  }
+  const file=inputEl.files&&inputEl.files[0]; if(!file)return;
+  if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');inputEl.value='';return;}
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+      const headers=(matrix[0]||[]).map(h=>String(h).trim());
+      if(headers.length!==PROJ_CRON_XLSX_HEADERS.length || PROJ_CRON_XLSX_HEADERS.some((h,i)=>headers[i]!==h)) throw new Error('Arquivo incompatível. Use o mesmo .xlsx exportado pelo SIGA.');
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false}).filter(r=>String(r.Numero||r.Nome||'').trim());
+      const tarefas=[];
+      rows.forEach((r,idx)=>{
+        const numero=String(r.Numero||'').trim().replace(/\.$/,'');
+        if(!/^(\d+)(\.\d+)*$/.test(numero)) throw new Error('Numeração inválida na linha '+(idx+2)+'.');
+        const parts=numero.split('.').map(n=>Number(n)-1);
+        if(parts.some(n=>!Number.isInteger(n)||n<0)) throw new Error('Numeração inválida na linha '+(idx+2)+'.');
+        let list=tarefas;
+        for(let i=0;i<parts.length-1;i++){
+          const parent=list[parts[i]];
+          if(!parent) throw new Error('Subtarefa sem tarefa superior na linha '+(idx+2)+'.');
+          if(!parent.subtarefas) parent.subtarefas=[];
+          list=parent.subtarefas;
+        }
+        const pos=parts[parts.length-1];
+        if(pos!==list.length) throw new Error('Numeração fora de ordem na linha '+(idx+2)+'.');
+        const conclusao=Math.max(0,Math.min(100,Number(String(r.Conclusao||'0').replace(',','.'))||0));
+        list.push({id:'t'+Date.now()+'_'+idx,nome:String(r.Nome||'Nova tarefa').trim()||'Nova tarefa',ppe:projCronXlsxBool(r.PPE),marco:projCronXlsxBool(r.Marco),dt_inicio:projCronXlsxDate(r.Inicio),dt_fim:projCronXlsxDate(r.Fim),responsavel:String(r.Responsavel||'').trim(),conclusao,concluida:projCronXlsxBool(r.Concluida),subtarefas:[]});
+      });
+      projConfirmar('Importar cronograma? Isso substituirá as tarefas atuais deste projeto.', function(){
+        projLoad();
+        const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId); if(!proj)return;
+        if(!proj.execucao)proj.execucao={planner_link:'',percentual:0,reunioes:[],tarefas:[]};
+        proj.execucao.tarefas=projSyncDerivedTaskDates(tarefas);
+        if(proj.execucao.pct_mode==='derivado'){proj.percentual=projCalcDerivedPct(proj.execucao.tarefas);proj.execucao.percentual=proj.percentual;}
+        projSave();
+        projToast('Cronograma importado com sucesso!');
+        projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+      });
+    }catch(e){projToast('Erro ao importar .xlsx: '+e.message,'#dc2626');}
+    finally{inputEl.value='';}
+  };
+  reader.readAsArrayBuffer(file);
+}
 async function projUploadConclusaoImagens(inputEl){
   const files=Array.from(inputEl.files||[]);
   if(!files.length)return;
@@ -3871,7 +3946,7 @@ function projRenderDashV9() {
   const alertasEl = document.getElementById('proj-dash-alertas');
   if(alertasEl) {
     const comAtraso = filtrados.map(p => ({ p, tarefas:projTarefasAtrasadasProjeto(p) })).filter(x => x.tarefas.length);
-    alertasEl.innerHTML = `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><strong>${projIconHtml(p)} ${projEsc(p.nome)}</strong><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`;
+    alertasEl.innerHTML = `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><strong>${projIconHtml(p)} ${projEsc(p.nome)}</strong><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`;
   }
 
   const graficosEl = document.getElementById('proj-dash-graficos');
@@ -3999,8 +4074,6 @@ function projBuildStatusReportHTML(){
   const reportLogo = new URL(PROJ_CAGE_REPORT_LOGO, window.location.href).href;
   const grupos = {};
   ativos.forEach(p => { const g = projProgramaNome(p); if(!grupos[g]) grupos[g] = []; grupos[g].push(p); });
-  const alertas = ativos.map(p => ({p, tarefas:projTarefasAtrasadasProjeto(p)})).filter(x => x.tarefas.length);
-  const alertasHtml = `<section class="sr-alerts"><h2>Painel de tarefas atrasadas</h2>${alertas.length ? alertas.map(({p,tarefas}) => `<div class="sr-alert-project"><strong>${projEsc(p.nome)}</strong><span>${tarefas.length} tarefa(s) atrasada(s)</span>${tarefas.slice(0,5).map(t => `<div class="sr-alert-task">${projEsc(t.nome)} · ${projFormatDate(t.dt_fim)}</div>`).join('')}</div>`).join('') : '<p>Nenhuma tarefa atrasada registrada nos projetos em andamento.</p>'}</section>`;
   const projectIndicators = p => {
     const inds = p.execucao?.indicadores || [];
     if(!inds.length) return '';
@@ -4011,8 +4084,13 @@ function projBuildStatusReportHTML(){
       return `<div><strong>${projEsc(ind.nome||'Indicador')}</strong><em>${projEsc(atual)} / ${projEsc(meta)} · ${projPctFmt(pct)}</em></div>`;
     }).join('')}</div>`;
   };
-  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div>${projectIndicators(p)}</div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}`).join('');
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:var(--muted)}.sr-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:20px;color:var(--blue);display:block}.sr-intro,.sr-alerts{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-intro a{color:var(--blue);font-weight:700;text-decoration:none}.sr-alerts{background:#fffaf2;border-color:#fde2b5}.sr-alerts h2,.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:0 0 10px}.sr-alert-project{border-top:1px solid #f3d6a7;padding:7px 0}.sr-alert-project strong{color:#0f2746}.sr-alert-project span{float:right;color:#b45309;font-weight:700}.sr-alert-task{font-size:11px;color:#6b4e16;margin-top:3px}.sr-program{margin:18px 0 10px}.sr-card{display:grid;grid-template-columns:1.45fr .9fr;gap:14px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span,.sr-project-indicators>span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-project-indicators{margin-top:10px;border-top:1px solid #edf2f7;padding-top:7px}.sr-project-indicators div{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:3px 0}.sr-project-indicators em{font-style:normal;color:#0b8f84;font-weight:700}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="sr-cover"><div><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do Sistema Integrado de Gestão Estratégica (SIGA), módulo de Projetos. Acesse o SIGA em <a href="https://sigaepp.web.app/">https://sigaepp.web.app/</a>.</section>${alertasHtml}<div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${media}%</strong>Média de conclusão</div></div>${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}<script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
+  const projectOverdue = p => {
+    const tarefas = projTarefasAtrasadasProjeto(p);
+    if(!tarefas.length) return '';
+    return `<div class="sr-project-overdue"><span>Tarefas atrasadas</span>${tarefas.slice(0,6).map(t => `<div><strong>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</strong><em>${projFormatDate(t.dt_fim)}</em></div>`).join('')}${tarefas.length>6?`<small>+${tarefas.length-6} tarefa(s) atrasada(s)</small>`:''}</div>`;
+  };
+  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<section class="sr-program-block"><h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div>${projectIndicators(p)}${projectOverdue(p)}</div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}</section>`).join('');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:var(--muted)}.sr-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:20px;color:var(--blue);display:block}.sr-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-intro a{color:var(--blue);font-weight:700;text-decoration:none}.sr-program-block{margin-top:34px}.sr-summary + .sr-program-block{margin-top:18px}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:0 0 12px}.sr-card{display:grid;grid-template-columns:.95fr 1.25fr;gap:16px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span,.sr-project-indicators>span,.sr-project-overdue>span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-project-indicators,.sr-project-overdue{margin-top:10px;border-top:1px solid #edf2f7;padding-top:7px}.sr-project-indicators div,.sr-project-overdue div{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:3px 0}.sr-project-indicators em{font-style:normal;color:#0b8f84;font-weight:700}.sr-project-overdue{background:#fffaf2;border:1px solid #fde2b5;border-radius:8px;padding:7px 8px}.sr-project-overdue em{font-style:normal;color:#b45309;font-weight:700;white-space:nowrap}.sr-project-overdue small{display:block;color:#b45309;font-size:10px;margin-top:3px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="sr-cover"><div><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do Sistema Integrado de Gestão Estratégica (SIGA), módulo de Projetos. Acesse o SIGA em <a href="https://sigaepp.web.app/">https://sigaepp.web.app/</a>.</section><div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${media}%</strong>Média de conclusão</div></div>${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}<script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
 }
 
 function projStrategyBaseName(v) {
