@@ -1218,17 +1218,50 @@ function projCanvasTextWidth(ctx, text, maxWidth) {
   return value.length < String(text || '').length ? `${value}...` : value;
 }
 
+function projCanvasWrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  words.forEach(word => {
+    const test = line ? `${line} ${word}` : word;
+    if(ctx.measureText(test).width <= maxWidth) line = test;
+    else {
+      if(line) lines.push(line);
+      line = word;
+    }
+  });
+  if(line) lines.push(line);
+  const limited = maxLines ? lines.slice(0, maxLines) : lines;
+  if(maxLines && lines.length > maxLines && limited.length) {
+    let last = limited[limited.length - 1];
+    while(last.length && ctx.measureText(`${last}...`).width > maxWidth) last = last.slice(0, -1);
+    limited[limited.length - 1] = `${last}...`;
+  }
+  limited.forEach((ln, i) => ctx.fillText(ln, x, y + (i * lineHeight)));
+  return limited.length * lineHeight;
+}
+
 async function projDownloadStatusReportPNG() {
   progLoad();
   const ativos = PROJETOS.filter(p => p.status === 'ativo');
   const concluidos = PROJETOS.filter(p => p.status === 'concluido');
   const media = ativos.length ? Math.round(ativos.reduce((a,p)=>a+(Number(p.percentual ?? p.execucao?.percentual ?? 0)),0)/ativos.length) : 0;
   const projetos = ativos.slice().sort((a,b)=>Number(b.percentual ?? b.execucao?.percentual ?? 0)-Number(a.percentual ?? a.execucao?.percentual ?? 0));
+  const grupos = {};
+  ativos.forEach(p => { const g = projProgramaNome(p); if(!grupos[g]) grupos[g] = []; grupos[g].push(p); });
+  const detailHeight = Object.values(grupos).reduce((sum, items) => {
+    return sum + 56 + items.reduce((projectSum, p) => {
+      const indicatorLines = (p.execucao?.indicadores || []).length;
+      const overdueLines = projTarefasAtrasadasProjeto(p).length;
+      const noteLines = Math.min(5, Math.max(2, Math.ceil(String(p.status_report_obs || '').length / 92)));
+      return projectSum + 154 + (indicatorLines * 18) + (Math.min(4, overdueLines) * 18) + (noteLines * 18);
+    }, 0);
+  }, 0);
   const scale = 2;
   const w = 1200;
   const rowH = 48;
   const doneRows = Math.max(1, concluidos.length);
-  const h = 410 + (projetos.length * rowH) + 70 + (doneRows * 32);
+  const h = 430 + (projetos.length * rowH) + 80 + (doneRows * 30) + detailHeight + 60;
   const canvas = document.createElement('canvas');
   canvas.width = w * scale;
   canvas.height = h * scale;
@@ -1276,10 +1309,12 @@ async function projDownloadStatusReportPNG() {
   ctx.fillStyle = '#005a9c';
   ctx.font = '800 30px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`${media}%`, ringX, ringY + 4);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${media}%`, ringX, ringY - 7);
   ctx.fillStyle = '#5f6b80';
   ctx.font = '12px Arial';
-  ctx.fillText('M\u00c9DIA', ringX, ringY + 28);
+  ctx.fillText('M\u00c9DIA', ringX, ringY + 19);
+  ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
   let y = 300;
   projCanvasRoundRect(ctx, 42, y, 1116, 86, 12);
@@ -1347,13 +1382,93 @@ async function projDownloadStatusReportPNG() {
       ctx.fill();
       ctx.fillStyle = '#334155';
       ctx.font = '14px Arial';
-      ctx.fillText(projCanvasTextWidth(ctx, `${p.nome} · ${p.gerente || 'Gerente nao informado'}`, 990), 94, py);
+      ctx.fillText(projCanvasTextWidth(ctx, p.nome, 990), 94, py);
     });
   } else {
     ctx.fillStyle = '#5f6b80';
     ctx.font = '14px Arial';
     ctx.fillText('Nenhum projeto concluido registrado.', 70, y + 66);
   }
+  y += doneRows * 32 + 106;
+  Object.entries(grupos).forEach(([programa, items]) => {
+    ctx.fillStyle = '#005a9c';
+    ctx.font = '800 20px Arial';
+    ctx.fillText(programa, 42, y);
+    ctx.fillStyle = '#00bfb3';
+    ctx.fillRect(42, y + 12, 1116, 3);
+    y += 34;
+    items.forEach(p => {
+      const pct = Math.max(0, Math.min(100, Number(p.percentual ?? p.execucao?.percentual ?? 0)));
+      const indicadores = p.execucao?.indicadores || [];
+      const atrasadas = projTarefasAtrasadasProjeto(p);
+      const noteLines = Math.min(5, Math.max(2, Math.ceil(String(p.status_report_obs || '').length / 92)));
+      const cardH = 154 + (indicadores.length * 18) + (Math.min(4, atrasadas.length) * 18) + (noteLines * 18);
+      projCanvasRoundRect(ctx, 42, y, 1116, cardH, 14);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = '#d9e5f5';
+      ctx.stroke();
+      ctx.fillStyle = '#0f2746';
+      ctx.font = '800 18px Arial';
+      ctx.fillText(projCanvasTextWidth(ctx, p.nome, 520), 70, y + 34);
+      ctx.fillStyle = '#00a89a';
+      ctx.font = '800 28px Arial';
+      ctx.fillText(`${pct}%`, 600, y + 36);
+      ctx.fillStyle = '#e7edf5';
+      projCanvasRoundRect(ctx, 70, y + 54, 560, 9, 5);
+      ctx.fill();
+      ctx.fillStyle = '#005a9c';
+      projCanvasRoundRect(ctx, 70, y + 54, Math.max(2, pct * 5.6), 9, 5);
+      ctx.fill();
+      ctx.fillStyle = '#005a9c';
+      ctx.font = '800 11px Arial';
+      ctx.fillText('PATROCINADOR', 70, y + 88);
+      ctx.fillText('GERENTE', 310, y + 88);
+      ctx.fillText('GERENTE SUBSTITUTO', 550, y + 88);
+      ctx.fillStyle = '#334155';
+      ctx.font = '13px Arial';
+      ctx.fillText(projCanvasTextWidth(ctx, p.patrocinador || 'Nao informado', 200), 70, y + 108);
+      ctx.fillText(projCanvasTextWidth(ctx, p.gerente || 'Nao informado', 200), 310, y + 108);
+      ctx.fillText(projCanvasTextWidth(ctx, p.gerente_substituto || 'Nao informado', 200), 550, y + 108);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(760, y + 24, 4, Math.max(82, noteLines * 18 + 20));
+      ctx.fillStyle = '#005a9c';
+      ctx.font = '800 11px Arial';
+      ctx.fillText('SUMARIO EXECUTIVO', 778, y + 34);
+      ctx.fillStyle = '#334155';
+      ctx.font = '13px Arial';
+      projCanvasWrapText(ctx, p.status_report_obs || 'Sem sumario executivo registrado.', 778, y + 56, 330, 18, noteLines);
+      let infoY = y + 136;
+      if(indicadores.length) {
+        ctx.fillStyle = '#005a9c';
+        ctx.font = '800 11px Arial';
+        ctx.fillText('INDICADORES', 70, infoY);
+        ctx.fillStyle = '#334155';
+        ctx.font = '12px Arial';
+        indicadores.forEach(ind => {
+          infoY += 18;
+          const meta = projIndicadorValor(ind,'meta');
+          const atual = projIndicadorValor(ind,'resultado');
+          const ating = meta ? (atual / meta) * 100 : 0;
+          ctx.fillText(projCanvasTextWidth(ctx, `${ind.nome || 'Indicador'}: ${atual}/${meta} (${projPctFmt(ating)})`, 520), 70, infoY);
+        });
+      }
+      if(atrasadas.length) {
+        infoY += 22;
+        ctx.fillStyle = '#b45309';
+        ctx.font = '800 11px Arial';
+        ctx.fillText('TAREFAS ATRASADAS', 70, infoY);
+        ctx.fillStyle = '#334155';
+        ctx.font = '12px Arial';
+        atrasadas.slice(0,4).forEach(t => {
+          infoY += 18;
+          ctx.fillText(projCanvasTextWidth(ctx, `${t._parentName ? `${t._parentName} / ` : ''}${t.nome} - ${projFormatDate(t.dt_fim)}`, 640), 70, infoY);
+        });
+      }
+      y += cardH + 18;
+    });
+    y += 28;
+  });
   const a = document.createElement('a');
   a.download = `Status_Report_Executivo_Email_${new Date().toISOString().slice(0,10)}.png`;
   a.href = canvas.toDataURL('image/png');
@@ -4301,7 +4416,7 @@ function projBuildStatusReportHTML(){
   const grupos = {};
   ativos.forEach(p => { const g = projProgramaNome(p); if(!grupos[g]) grupos[g] = []; grupos[g].push(p); });
   const projectBars = ativos.slice().sort((a,b)=>Number(b.percentual ?? b.execucao?.percentual ?? 0)-Number(a.percentual ?? a.execucao?.percentual ?? 0)).map(p => { const pct=Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); return `<div class="sr-mini-row"><span>${projEsc(p.nome)}</span><div><i style="width:${pct}%"></i></div><strong>${pct}%</strong><em>${projEsc(p.gerente||'Gerente n\u00e3o informado')}</em></div>`; }).join('');
-  const completedList = concluidos.length ? `<ul class="sr-completed-list">${concluidos.map(p => `<li><strong>${projEsc(p.nome)}</strong><span>${projEsc(p.gerente||'Gerente n\u00e3o informado')}</span></li>`).join('')}</ul>` : '<p>Nenhum projeto conclu\u00eddo registrado.</p>';
+  const completedList = concluidos.length ? `<ul class="sr-completed-list">${concluidos.map(p => `<li><strong>${projEsc(p.nome)}</strong></li>`).join('')}</ul>` : '<p>Nenhum projeto conclu\u00eddo registrado.</p>';
   const execHtml = `<section class="sr-exec"><div class="sr-exec-head"><div><span>Resumo Gr\u00e1fico</span><h2>Vis\u00e3o imediata do portf\u00f3lio</h2></div><div class="sr-ring" style="--pct:${media}"><strong>${media}%</strong><small>m\u00e9dia</small></div></div><div class="sr-exec-grid"><div class="sr-exec-panel sr-exec-panel-wide"><h3>Projetos por conclus\u00e3o</h3>${projectBars || '<p>Nenhum projeto em andamento.</p>'}</div><div class="sr-exec-panel"><h3>Projetos conclu\u00eddos</h3>${completedList}</div></div></section>`;
   const projectIndicators = p => {
     const inds = p.execucao?.indicadores || [];
@@ -4319,7 +4434,7 @@ function projBuildStatusReportHTML(){
     return `<div class="sr-project-overdue"><span>Tarefas atrasadas</span>${tarefas.slice(0,6).map(t => `<div><strong>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</strong><em>${projFormatDate(t.dt_fim)}</em></div>`).join('')}${tarefas.length>6?`<small>+${tarefas.length-6} tarefa(s) atrasada(s)</small>`:''}</div>`;
   };
   const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<section class="sr-program-block"><h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div>${projectIndicators(p)}${projectOverdue(p)}</div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}</section>`).join('');
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-page{background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:var(--muted)}.sr-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:20px;color:var(--blue);display:block}.sr-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-intro a{color:var(--blue);font-weight:700;text-decoration:none}.sr-exec{border:1px solid #d9e5f5;border-radius:14px;padding:16px;margin:0 0 18px;background:linear-gradient(135deg,#f8fbff,#fff)}.sr-exec-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px}.sr-exec-head span{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);font-weight:800}.sr-exec-head h2{font-size:18px;margin:3px 0 0;color:#0f2746}.sr-ring{width:94px;height:94px;border-radius:50%;background:conic-gradient(var(--teal) calc(var(--pct)*1%),#e7edf5 0);display:grid;place-items:center;position:relative}.sr-ring:before{content:'';position:absolute;inset:10px;border-radius:50%;background:#fff}.sr-ring strong,.sr-ring small{position:relative}.sr-ring strong{font-size:22px;color:var(--blue)}.sr-ring small{display:block;font-size:9px;color:var(--muted);text-transform:uppercase}.sr-exec-grid{display:grid;grid-template-columns:1.6fr .7fr;gap:14px}.sr-exec-panel{border:1px solid #edf2f7;border-radius:10px;background:#fff;padding:12px}.sr-exec-panel h3{font-size:12px;margin:0 0 10px;color:#0f2746;text-transform:uppercase;letter-spacing:.06em}.sr-mini-row{display:grid;grid-template-columns:minmax(240px,1.25fr) 1.1fr 42px minmax(120px,.75fr);gap:8px;align-items:center;font-size:10.5px;margin:7px 0}.sr-completed-list{margin:0;padding:0;list-style:none}.sr-completed-list li{border-bottom:1px solid #edf2f7;padding:6px 0;font-size:10.5px}.sr-completed-list strong{display:block;color:#0f2746}.sr-completed-list span{display:block;color:#5f6b80;font-size:9.5px;margin-top:2px}.sr-mini-row span{color:#334155;white-space:normal;overflow:visible;text-overflow:clip}.sr-mini-row div{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden}.sr-mini-row i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-mini-row strong{font-size:10.5px;color:var(--blue);text-align:right}.sr-mini-row em{font-style:normal;color:#5f6b80;font-size:9.8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sr-top-list{margin:12px 0 0;padding:0;list-style:none;border-top:1px solid #edf2f7}.sr-top-list li{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;padding:6px 0;border-bottom:1px solid #edf2f7}.sr-top-list span{color:#0b8f84;font-weight:800}.sr-program-block{margin-top:34px}.sr-summary + .sr-exec{margin-top:0}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:0 0 12px}.sr-card{display:grid;grid-template-columns:.95fr 1.25fr;gap:16px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span,.sr-project-indicators>span,.sr-project-overdue>span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-project-indicators,.sr-project-overdue{margin-top:10px;border-top:1px solid #edf2f7;padding-top:7px}.sr-project-indicators div,.sr-project-overdue div{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:3px 0}.sr-project-indicators em{font-style:normal;color:#0b8f84;font-weight:700}.sr-project-overdue{background:#fffaf2;border:1px solid #fde2b5;border-radius:8px;padding:7px 8px}.sr-project-overdue em{font-style:normal;color:#b45309;font-weight:700;white-space:nowrap}.sr-project-overdue small{display:block;color:#b45309;font-size:10px;margin-top:3px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="sr-page"><header class="sr-cover"><div><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do Sistema Integrado de Gestão Estratégica (SIGA), módulo de Projetos. Acesse o SIGA em <a href="https://sigaepp.web.app/">https://sigaepp.web.app/</a>.</section><div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${media}%</strong>Média de conclusão</div></div>${execHtml}${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}</div><script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-page{background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:var(--muted)}.sr-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:20px;color:var(--blue);display:block}.sr-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-intro a{color:var(--blue);font-weight:700;text-decoration:none}.sr-exec{border:1px solid #d9e5f5;border-radius:14px;padding:16px;margin:0 0 18px;background:linear-gradient(135deg,#f8fbff,#fff)}.sr-exec-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px}.sr-exec-head span{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);font-weight:800}.sr-exec-head h2{font-size:18px;margin:3px 0 0;color:#0f2746}.sr-ring{width:94px;height:94px;border-radius:50%;background:conic-gradient(var(--teal) calc(var(--pct)*1%),#e7edf5 0);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative}.sr-ring:before{content:'';position:absolute;inset:10px;border-radius:50%;background:#fff}.sr-ring strong,.sr-ring small{position:relative;z-index:1;line-height:1}.sr-ring strong{font-size:22px;color:var(--blue)}.sr-ring small{display:block;font-size:9px;color:var(--muted);text-transform:uppercase}.sr-exec-grid{display:grid;grid-template-columns:1fr;gap:14px}.sr-exec-panel{border:1px solid #edf2f7;border-radius:10px;background:#fff;padding:12px}.sr-exec-panel h3{font-size:12px;margin:0 0 10px;color:#0f2746;text-transform:uppercase;letter-spacing:.06em}.sr-mini-row{display:grid;grid-template-columns:minmax(240px,1.25fr) 1.1fr 42px minmax(120px,.75fr);gap:8px;align-items:center;font-size:10.5px;margin:7px 0}.sr-completed-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px}.sr-completed-list li{border-bottom:1px solid #edf2f7;padding:6px 0;font-size:10.5px}.sr-completed-list strong{display:block;color:#0f2746}.sr-mini-row span{color:#334155;white-space:normal;overflow:visible;text-overflow:clip}.sr-mini-row div{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden}.sr-mini-row i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-mini-row strong{font-size:10.5px;color:var(--blue);text-align:right}.sr-mini-row em{font-style:normal;color:#5f6b80;font-size:9.8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sr-top-list{margin:12px 0 0;padding:0;list-style:none;border-top:1px solid #edf2f7}.sr-top-list li{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;padding:6px 0;border-bottom:1px solid #edf2f7}.sr-top-list span{color:#0b8f84;font-weight:800}.sr-program-block{margin-top:34px}.sr-summary + .sr-exec{margin-top:0}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:0 0 12px}.sr-card{display:grid;grid-template-columns:.95fr 1.25fr;gap:16px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span,.sr-project-indicators>span,.sr-project-overdue>span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-project-indicators,.sr-project-overdue{margin-top:10px;border-top:1px solid #edf2f7;padding-top:7px}.sr-project-indicators div,.sr-project-overdue div{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:3px 0}.sr-project-indicators em{font-style:normal;color:#0b8f84;font-weight:700}.sr-project-overdue{background:#fffaf2;border:1px solid #fde2b5;border-radius:8px;padding:7px 8px}.sr-project-overdue em{font-style:normal;color:#b45309;font-weight:700;white-space:nowrap}.sr-project-overdue small{display:block;color:#b45309;font-size:10px;margin-top:3px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="sr-page"><header class="sr-cover"><div><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do Sistema Integrado de Gestão Estratégica (SIGA), módulo de Projetos. Acesse o SIGA em <a href="https://sigaepp.web.app/">https://sigaepp.web.app/</a>.</section><div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${media}%</strong>Média de conclusão</div></div>${execHtml}${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}</div><script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
 }
 
 function projStrategyBaseName(v) {
