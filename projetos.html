@@ -151,7 +151,7 @@
   <div id="proj-aside">
     <div class="proj-aside-inner">
       <!-- Export/Import JSON buttons -->
-      <div style="padding:.6rem 1rem;border-bottom:1px solid var(--bdr);display:flex;gap:6px">
+      <div class="ep-only" style="padding:.6rem 1rem;border-bottom:1px solid var(--bdr);display:flex;gap:6px">
         <button type="button" class="proj-btn" style="font-size:10.5px;padding:4px 8px;flex:1" onclick="projExportJSON()">📤 Exportar</button>
         <button type="button" class="proj-btn" style="font-size:10.5px;padding:4px 8px;flex:1" onclick="projImportJSON()">📥 Importar</button>
         <input type="file" id="proj-import-file" accept=".json" style="display:none" onchange="projProcessImport(this)">

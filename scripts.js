@@ -2984,6 +2984,7 @@ function projTabExecucao(p) {
   const cronMode = exec.cron_mode || 'planner'; // 'planner' or 'siga'
   const pctMode = exec.pct_mode || 'manual'; // 'manual' or 'derivado'
   const tarefas = exec.tarefas || [];
+  const canScheduleIO = projCanWriteSchedule(String(p.id));
   projSyncDerivedTaskDates(tarefas);
   const derivedPct = projCalcDerivedPct(tarefas);
   const displayPct = pctMode === 'derivado' ? derivedPct : (p.percentual||0);
@@ -3112,8 +3113,10 @@ function projTabExecucao(p) {
         </div>
         <div style="margin-top:.6rem;display:flex;gap:8px">
           <button type="button" class="proj-btn primary" style="font-size:11px;padding:5px 12px" onclick="projAddTarefa(null)">+ Tarefa</button>
+          ${canScheduleIO ? `
           <button type="button" class="proj-btn" style="font-size:11px;padding:5px 12px" onclick="projExportCronogramaXLSX()">Exportar .xlsx</button>
           <button type="button" class="proj-btn" style="font-size:11px;padding:5px 12px" onclick="projImportCronogramaXLSX()">Importar .xlsx</button>
+          ` : ''}
         </div>
       </div>
     </div>
@@ -3916,7 +3919,14 @@ function projDeduplicarReunioesGlobal(){
 
 
 // ── Exportar / Importar JSON ──────────────────────────────────
+function projEnsureEPJson(msg='Apenas o perfil EPP pode exportar ou importar o JSON do sistema.'){
+  if(isEP()) return true;
+  projToast(msg, '#d97706');
+  return false;
+}
+
 function projExportJSON(){
+  if(!projEnsureEPJson()) return;
   projLoad();
   var data = {
     projetos: PROJETOS,
@@ -3939,6 +3949,7 @@ function projExportJSON(){
 }
 
 function projImportJSON(){
+  if(!projEnsureEPJson()) return;
   var inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = '.json';
@@ -4003,6 +4014,7 @@ function projImportJSON(){
 }
 
 function projProcessImport(inputEl){
+  if(!projEnsureEPJson()){ if(inputEl) inputEl.value=''; return; }
   if(!inputEl || !inputEl.files || !inputEl.files[0]) return;
   var file = inputEl.files[0];
   var reader = new FileReader();
@@ -4154,11 +4166,11 @@ function projRenderIndicadoresExecucao(p){const inds=p.execucao?.indicadores||[]
 function projRemoveIndicador(idx){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.execucao?.indicadores)return;proj.execucao.indicadores.splice(idx,1);projSave();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
 const PROJ_CRON_XLSX_HEADERS = ['Numero','Nome','PPE','Marco','Inicio','Fim','Responsavel','Conclusao','Concluida'];
 function projFlattenTasksForExport(tasks,prefix){let rows=[];projSyncDerivedTaskDates(tasks||[]);(tasks||[]).forEach((t,i)=>{const num=prefix?prefix+'.'+(i+1):String(i+1);rows.push({Numero:num,Nome:t.nome||'',PPE:t.ppe?'Sim':'Não',Marco:t.marco?'Sim':'Não',Inicio:t.dt_inicio||'',Fim:t.dt_fim||'',Responsavel:t.responsavel||'',Conclusao:t.conclusao||0,Concluida:t.concluida?'Sim':'Não'});rows=rows.concat(projFlattenTasksForExport(t.subtarefas||[],num));});return rows;}
-function projExportCronogramaXLSX(){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj)return;projSyncDerivedTaskDates(proj.execucao?.tarefas||[]);const rows=projFlattenTasksForExport(proj.execucao?.tarefas||[]);if(!rows.length){projToast('Não há tarefas para exportar.','#d97706');return;}if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');return;}const ws=XLSX.utils.json_to_sheet(rows,{header:PROJ_CRON_XLSX_HEADERS});ws['!cols']=[{wch:10},{wch:42},{wch:8},{wch:8},{wch:12},{wch:12},{wch:24},{wch:10},{wch:10}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cronograma SIGA');XLSX.writeFile(wb,'Cronograma_SIGA_'+(proj.nome||'projeto').replace(/[^\w]+/g,'_').slice(0,40)+'.xlsx');}
+function projExportCronogramaXLSX(){if(!projEnsureWriteSchedule('Apenas o perfil EPP ou o gerente vinculado ao projeto pode exportar o cronograma.')) return;projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj)return;projSyncDerivedTaskDates(proj.execucao?.tarefas||[]);const rows=projFlattenTasksForExport(proj.execucao?.tarefas||[]);if(!rows.length){projToast('Não há tarefas para exportar.','#d97706');return;}if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');return;}const ws=XLSX.utils.json_to_sheet(rows,{header:PROJ_CRON_XLSX_HEADERS});ws['!cols']=[{wch:10},{wch:42},{wch:8},{wch:8},{wch:12},{wch:12},{wch:24},{wch:10},{wch:10}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cronograma SIGA');XLSX.writeFile(wb,'Cronograma_SIGA_'+(proj.nome||'projeto').replace(/[^\w]+/g,'_').slice(0,40)+'.xlsx');}
 function projCronXlsxBool(v){const s=String(v||'').trim().toLowerCase();if(['sim','s','true','1'].includes(s))return true;if(['não','nao','n','false','0',''].includes(s))return false;throw new Error('Campo Sim/Não inválido.');}
 function projCronXlsxDate(v){const s=String(v||'').trim();if(!s)return '';if(!/^\d{4}-\d{2}-\d{2}$/.test(s))throw new Error('Datas devem estar no formato AAAA-MM-DD exportado pelo SIGA.');return s;}
 function projImportCronogramaXLSX(inputEl){
-  if(!projEnsureWriteSchedule()) return;
+  if(!projEnsureWriteSchedule('Apenas o perfil EPP ou o gerente vinculado ao projeto pode importar o cronograma.')) return;
   if(!inputEl){
     const inp=document.createElement('input');
     inp.type='file';inp.accept='.xlsx';inp.style.display='none';
