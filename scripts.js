@@ -1182,11 +1182,10 @@ function projSaveStatusReportFromForm() {
 function projExportStatusReportPDF() {
   projLoad();
   projSaveStatusReportFromForm();
-  const w = window.open('', '_blank');
-  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); return; }
-  w.document.open();
-  w.document.write(projBuildStatusReportHTML());
-  w.document.close();
+  const blob = new Blob([projBuildStatusReportHTML()], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); URL.revokeObjectURL(url); return; }
 }
 
 async function projExportStatusReportImagem() {
@@ -1526,14 +1525,13 @@ function projExportReunioesRealizadasPDF() {
   `).join('');
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Reuniões Realizadas</title>
     <style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540}.head{border-left:8px solid var(--blue);padding:14px 18px;background:#f0f6ff;margin-bottom:16px}.k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#00a89a;font-weight:700}h1{margin:4px 0;color:var(--blue);font-size:24px}.sub{font-size:12px;color:#5f6b80}table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:var(--blue);color:#fff;text-align:left;padding:8px}td{border-bottom:1px solid #d9e2ef;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}.empty{padding:18px;border:1px solid #d9e2ef;border-radius:8px;color:#5f6b80}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
-    </head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Reuniões Realizadas</h1><div class="sub">${label} · ${realizadas.length} reunião(ões)</div></div>
+    </head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Reuniões Realizadas</h1><div class="sub">${projEsc(label)} · ${realizadas.length} reunião(ões)</div></div>
     ${realizadas.length ? `<table><thead><tr><th>Data</th><th>Projeto</th><th>Reunião</th><th>Participantes</th><th>Observações</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">Nenhuma reunião realizada encontrada para o mês/ano selecionado.</div>'}
     <script>setTimeout(function(){window.print();},350);</script></body></html>`;
-  const w = window.open('', '_blank');
-  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); URL.revokeObjectURL(url); return; }
 }
 
 function projQuarterValue(date) {
@@ -1581,12 +1579,11 @@ function projExportReunioesRealizadasPDF() {
     const rows = items.map(r => `<tr><td>${projFormatDate(r.data)}</td><td>${projEsc(r._projeto.nome)}</td><td>${projEsc(r.nome)}</td><td>${r.realizada?'Concluída':'Planejada'}</td><td>${projEsc(r.participantes||'')}</td><td>${projEsc(r.observacoes||'')}</td></tr>`).join('');
     return `<section class="month"><h2>${projEsc(month.label)}</h2>${items.length ? `<table><thead><tr><th>Data</th><th>Projeto</th><th>Reunião</th><th>Status</th><th>Participantes</th><th>Observações</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">Nenhuma reunião planejada ou concluída neste mês.</div>'}</section>`;
   }).join('');
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Trimestral de Reuniões</title><style>:root{--blue:#005a9c;--teal:#00bfb3}@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540}.head{border-left:8px solid var(--blue);padding:14px 18px;background:#f0f6ff;margin-bottom:16px}.k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#00a89a;font-weight:700}h1{margin:4px 0;color:var(--blue);font-size:24px}.sub{font-size:12px;color:#5f6b80}.month{margin-top:18px;break-inside:avoid}.month h2{font-size:15px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px}table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:var(--blue);color:#fff;text-align:left;padding:8px}td{border-bottom:1px solid #d9e2ef;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}.empty{padding:12px;border:1px solid #d9e2ef;border-radius:8px;color:#5f6b80;font-size:12px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Relatório Trimestral de Reuniões</h1><div class="sub">${label} · ${reunioes.length} reunião(ões) planejada(s) ou concluída(s)</div></div>${mesesHtml}<script>setTimeout(function(){window.print();},350);</script></body></html>`;
-  const w = window.open('', '_blank');
-  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Trimestral de Reuniões</title><style>:root{--blue:#005a9c;--teal:#00bfb3}@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540}.head{border-left:8px solid var(--blue);padding:14px 18px;background:#f0f6ff;margin-bottom:16px}.k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#00a89a;font-weight:700}h1{margin:4px 0;color:var(--blue);font-size:24px}.sub{font-size:12px;color:#5f6b80}.month{margin-top:18px;break-inside:avoid}.month h2{font-size:15px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px}table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:var(--blue);color:#fff;text-align:left;padding:8px}td{border-bottom:1px solid #d9e2ef;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}.empty{padding:12px;border:1px solid #d9e2ef;border-radius:8px;color:#5f6b80;font-size:12px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Relatório Trimestral de Reuniões</h1><div class="sub">${projEsc(label)} · ${reunioes.length} reunião(ões) planejada(s) ou concluída(s)</div></div>${mesesHtml}<script>setTimeout(function(){window.print();},350);</script></body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); URL.revokeObjectURL(url); return; }
 }
 
 function projAddMonths(date, months) {
