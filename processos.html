@@ -1948,18 +1948,14 @@ async function doLogin(){
     mostrarErrLogin('Acesso restrito a e-mails institucionais.');return;
   }
 
-  // Valida se está na lista de usuários autorizados
-  const user = USUARIOS.find(u=>u.email===email);
-  if(!user){mostrarErrLogin('Acesso não encontrado. Use "Primeiro acesso" para criar seu cadastro.');return;}
-
-  // Autentica via Firebase Auth
+  // Com Firebase: tenta autenticar diretamente — onAuthStateChanged cuida do resto
   if(fbReady()){
     const btn = document.querySelector('.login-btn');
     btn.textContent = 'Entrando…'; btn.disabled = true;
     try {
       const {auth, signInWithEmailAndPassword} = fb();
       await signInWithEmailAndPassword(auth, email, senha);
-      // onAuthStateChanged vai aplicar o usuário
+      // onAuthStateChanged vai carregar dados e aplicar o usuário
     } catch(e){
       btn.textContent = 'Entrar'; btn.disabled = false;
       const msgs = {
@@ -1972,6 +1968,8 @@ async function doLogin(){
     }
   } else {
     // Fallback sem Firebase (modo local)
+    const user = USUARIOS.find(u=>u.email===email);
+    if(!user){mostrarErrLogin('Acesso não encontrado. Use "Primeiro acesso" para criar seu cadastro.');return;}
     lsSet('siga_user', user.email);
     _aplicarUsuario(user);
   }
@@ -15525,14 +15523,16 @@ async function bootApp() {
   // Restaurar sessão após reload
   if(fbReady()){
     const {auth, onAuthStateChanged} = fb();
-    onAuthStateChanged(auth, firebaseUser => {
+    onAuthStateChanged(auth, async firebaseUser => {
       const btn = document.querySelector('.login-btn');
       if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
       if(firebaseUser){
-        const user = USUARIOS.find(u=>u.email===firebaseUser.email);
+        let user = USUARIOS.find(u=>u.email===firebaseUser.email);
+        // USUARIOS pode estar vazio se fbLoad() rodou antes da auth estar pronta.
+        // Com auth válida agora, tenta recarregar para buscar o usuário.
+        if(!user){ await fbLoad(); user = USUARIOS.find(u=>u.email===firebaseUser.email); }
         if(user){ _iniciarSessaoUnica(firebaseUser.uid); _aplicarUsuario(user); }
         else {
-          // Usuário autenticado no Firebase mas não na lista — desloga
           const {signOut} = fb();
           signOut(auth).catch(()=>{});
           mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');
