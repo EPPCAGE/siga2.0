@@ -13974,7 +13974,7 @@ function gerarStatusReportPDF(){
   const trimProx=TRIM_ORD[(TRIM_ORD.indexOf(trimAtual)+1)%4];
   const dtFmt=hoje.toLocaleDateString('pt-BR');
   const dtMesL=hoje.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-  const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);umMesAtras.setHours(0,0,0,0);
+  const _umMesAtrasStr=(()=>{const d=new Date(hoje);d.setMonth(d.getMonth()-1);return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');})();
   const _e=s=>{const v=s==null?'—':s;return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');};
   const _ea=s=>_e(s).replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const _corPct=(p,hi=70,mid=40)=>{
@@ -13992,7 +13992,7 @@ function gerarStatusReportPDF(){
     }
     return d.includes('-') ? d.split('-').reverse().join('/') : d;
   };
-  const _recente=d=>d&&new Date(d.includes('/')?d.split('/').reverse().join('-'):d)>=umMesAtras;
+  const _recente=d=>{if(!d)return false;const s=d.includes('/')?d.split('/').reverse().join('-'):d;return s>=_umMesAtrasStr;};
 
   // ── PAT métricas ──────────────────────────────────────────────────────────────
   const doAno=plano.filter(a=>a.ano===ano);
@@ -14135,12 +14135,12 @@ function gerarStatusReportPDF(){
 
   ${SEC(1,'Mapeamentos e Análises de Aderência em Andamento')}
   ${SUB('Mapeamentos em andamento ('+mapAndamento.length+')')}
-  ${tbl(['Processo','Macroprocesso','Dono','EP Responsável','Etapa atual','Prazo global'],
+  ${tbl(['Processo','Objetivo do trabalho','Macroprocesso','Dono','EP Responsável','Etapa atual','Prazo global'],
     mapAndamento.map(p=>{
       const dtPrev=p.ent?.dt_prev;
       const vencido=dtPrev&&new Date(dtPrev+'T00:00:00')<hoje;
       const prazoCell=dtPrev?(vencido?`<span style="color:#dc2626;font-weight:700">${_d(dtPrev)}</span>`:_d(dtPrev)):'—';
-      return[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),etBadge(p.etapa),prazoCell];
+      return[_e(p.nome),_e(p.objetivo||'—'),_e(p.macro),_e(p.dono),_e(p.resp_ep),etBadge(p.etapa),prazoCell];
     })
   )}
   ${SUB('Análises de Aderência em andamento ('+audAndamento.length+')')}
@@ -14150,10 +14150,10 @@ function gerarStatusReportPDF(){
 
   ${SEC(2,'Concluídos no Último Mês')}
   ${SUB('Mapeamentos concluídos ('+mapConclMes.length+')')}
-  ${tbl(['Processo','Macroprocesso','Dono','EP','Prazo previsto','Entrega efetiva','Tempo total'],
+  ${tbl(['Processo','Objetivo do trabalho','Macroprocesso','Dono','EP','Prazo previsto','Entrega efetiva','Tempo total'],
     mapConclMes.map(p=>{
       const _tTotal=_calcTotalDias(p.ent);
-      return [_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(p.ent?.dt_prev),_d(p.ent?.dt_efetiva||_fimCiclo(p)),_e(_tTotal)];
+      return [_e(p.nome),_e(p.objetivo||'—'),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(p.ent?.dt_prev),_d(p.ent?.dt_efetiva||_fimCiclo(p)),_e(_tTotal)];
     })
   )}
   ${SUB('Análises de Aderência concluídas ('+audConclMes.length+')')}
