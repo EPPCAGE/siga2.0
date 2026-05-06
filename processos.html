@@ -8626,6 +8626,35 @@ function _rEntIlpCard(ilpData){
   else{ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';}
   const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
   const nat=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
+  // ── Interpretação contextual ──
+  const issues=[];
+  const pctRA=total?Math.round((R+A)/total*100):0;
+  const pctCD=total?Math.round((C+D)/total*100):0;
+  if(R+A>0) issues.push(`${R+A} etapa${R+A>1?'s':''} de revisão/aprovação — avalie delegação ou eliminação`);
+  if(pctCD>=25) issues.push(`${C+D} atividade${C+D>1?'s':''} de comunicação/distribuição (${pctCD}% do total) — simplifique o fluxo de informações`);
+  if(gxorDiv>=3) issues.push(`${gxorDiv} pontos de decisão exclusivos — consolide critérios para reduzir variabilidade`);
+  if(nAtores>=4) issues.push(`${nAtores} atores distintos — avalie concentrar responsabilidades`);
+  if(nAuto+nSemi===0&&total>=5) issues.push('nenhuma atividade automatizada — identifique etapas repetitivas para automação');
+  let interpretacao;
+  if(ilp>=85){
+    interpretacao='✅ Processo altamente enxuto. As atividades são predominantemente produtivas. Mantenha o perfil e monitore futuras inclusões de etapas de controle.';
+  } else if(ilp>=75){
+    interpretacao=issues.length
+      ? '👍 Processo bem estruturado. Para elevar ainda mais a nota: '+issues.slice(0,2).join('; ')+'.'
+      : '👍 Processo bem estruturado. Nenhuma ação urgente identificada.';
+  } else if(ilp>=60){
+    interpretacao=issues.length
+      ? '⚠️ Há oportunidade de melhoria. Foque em: '+issues.slice(0,2).join('; ')+'.'
+      : '⚠️ Revise a proporção de atividades produtivas versus etapas de controle.';
+  } else if(ilp>=50){
+    interpretacao=issues.length
+      ? '⚠️ Nível de controle elevado. Priorize: '+issues.slice(0,3).join('; ')+'.'
+      : '⚠️ O processo tem muitas etapas de controle em relação às produtivas.';
+  } else {
+    interpretacao=issues.length
+      ? `🔴 Processo com alto overhead de controle (${pctRA}% revisão/aprovação). Ações recomendadas: `+issues.slice(0,3).join('; ')+'.'
+      : '🔴 A maior parte das atividades não agrega valor direto ao produto. Revise cada etapa de controle.';
+  }
   return `<div class="card" style="margin-bottom:1rem;border-left:4px solid ${ilpColor}">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:.6rem">
       <div>
@@ -8640,6 +8669,7 @@ function _rEntIlpCard(ilpData){
       ${nat('Comunicação',C,'#f59e0b')}${nat('Distribuição',D,'#8b5cf6')}
       ${nat('Revisão',R,'#ef4444')}${nat('Aprovação',A,'#f97316')}
     </div>
+    <div style="font-size:11.5px;color:var(--ink2);background:${ilpBg}22;border:1px solid ${ilpColor}33;border-radius:6px;padding:.45rem .65rem;margin-bottom:.5rem;line-height:1.5">${interpretacao}</div>
     <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.4rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span>Total: <strong>${total}</strong></span>
       ${nAuto?`<span>⚙ Auto: <strong>${nAuto}</strong></span>`:''}
