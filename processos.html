@@ -13927,7 +13927,7 @@ function gerarStatusReportPDF(){
   const trimProx=TRIM_ORD[(TRIM_ORD.indexOf(trimAtual)+1)%4];
   const dtFmt=hoje.toLocaleDateString('pt-BR');
   const dtMesL=hoje.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-  const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);
+  const umMesAtras=new Date(hoje);umMesAtras.setMonth(umMesAtras.getMonth()-1);umMesAtras.setHours(0,0,0,0);
   const _e=s=>{const v=s==null?'—':s;return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');};
   const _ea=s=>_e(s).replaceAll('"','&quot;').replaceAll("'",'&#39;');
   const _corPct=(p,hi=70,mid=40)=>{
