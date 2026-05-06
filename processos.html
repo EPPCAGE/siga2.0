@@ -3129,7 +3129,7 @@ function renderProcs(){
       return `<div class="prc" onclick="abrirProc(${p.id})" style="border-left:3px solid var(--green,#16a34a)">
         <div><div class="prc-t">${esc(p.nome)}</div>
         <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div>
-        ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_concCor}">Ciclo encerrado em ${_fmtD(p.dt_ciclo_fim||'')} · Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_concWarn}</div>`:''}
+        ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_concCor}">${p.ent&&p.ent.dt_efetiva?'Entrega efetiva em '+_fmtD(p.ent.dt_efetiva)+' · ':''}Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_concWarn}</div>`:''}
         </div>
         <div class="prc-r"><span class="badge bg" style="font-size:10px">✓ Mapeado</span>${eBadge(p.etapa)}</div>
       </div>`;
@@ -4658,7 +4658,7 @@ const ACOES = {
       }).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma reunião registrada ainda.</div>';
       const _fmtDtAcomp = d => d ? d.split('-').reverse().join('/') : '—';
       const _dtProx = p.dt_proximo_acompanhamento;
-      const _dtFim  = p.dt_ciclo_fim;
+      const _dtEfetiva = p.ent && p.ent.dt_efetiva;
       const _diasAteAcomp = _dtProx ? Math.round((new Date(_dtProx) - Date.now()) / (1000*60*60*24)) : null;
       const _acompVencido = _diasAteAcomp !== null && _diasAteAcomp < 0;
       const _bgCor   = _acompVencido ? 'var(--red-l,#fef2f2)'  : 'var(--green-l,#f0fdf4)';
@@ -4666,7 +4666,7 @@ const ACOES = {
       const _icon    = _acompVencido ? '⚠'                    : '📅';
       const _txtCor  = _acompVencido ? 'var(--red)'            : 'var(--green,#16a34a)';
       const _titulo  = _acompVencido ? 'Acompanhamento em atraso' : 'Próximo acompanhamento agendado';
-      const _cicloTx = _dtFim ? 'Ciclo encerrado em <strong>' + _fmtDtAcomp(_dtFim) + '</strong> · ' : '';
+      const _cicloTx = _dtEfetiva ? 'Entrega efetiva em <strong>' + _fmtDtAcomp(_dtEfetiva) + '</strong> · ' : '';
       let _diasLabel = '';
       if (_diasAteAcomp !== null) {
         if (_acompVencido) _diasLabel = ' (' + Math.abs(_diasAteAcomp) + ' dias em atraso)';
@@ -6140,14 +6140,13 @@ function publicarProcesso(){
     fbAutoSave('mapeados');
   }
 
-  // Registrar fim do ciclo de mapeamento e agendar próximo acompanhamento
+  // Agendar próximo acompanhamento com base na data de entrega efetiva
   const _hoje = new Date().toISOString().slice(0,10);
-  p.dt_ciclo_fim = _hoje;
   if(p.ent.dt_inicio){
     const _diasCiclo = Math.round((new Date(_hoje) - new Date(p.ent.dt_inicio)) / (1000*60*60*24));
     if(_diasCiclo > 0) p.ent.t_total = _diasCiclo + ' dias';
   }
-  p.dt_proximo_acompanhamento = _addDias(_hoje, 180);
+  p.dt_proximo_acompanhamento = _addDias(p.ent.dt_efetiva || _hoje, 180);
 
   // Criar publicação tipo POP automaticamente se ainda não existir para este processo
   const jaTemPop = publicacoes.some(pub=>(pub.proc_ids||[]).includes(p.id) && pub.categoria==='POPs');
