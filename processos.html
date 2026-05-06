@@ -15542,14 +15542,20 @@ async function bootApp() {
   // Restaurar sessão após reload
   if(fbReady()){
     const {auth, onAuthStateChanged} = fb();
-    onAuthStateChanged(auth, firebaseUser => {
+    onAuthStateChanged(auth, async firebaseUser => {
       const btn = document.querySelector('.login-btn');
       if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
       if(firebaseUser){
-        const user = USUARIOS.find(u=>u.email===firebaseUser.email);
+        let user = USUARIOS.find(u=>u.email===firebaseUser.email);
+        // Se USUARIOS ainda não foi carregado (race condition: onAuthStateChanged dispara
+        // antes de fbLoad() terminar), recarrega agora que temos autenticação válida.
+        if(!user){
+          await fbLoad();
+          user = USUARIOS.find(u=>u.email===firebaseUser.email);
+        }
         if(user){ _iniciarSessaoUnica(firebaseUser.uid); _aplicarUsuario(user); }
         else {
-          // Usuário autenticado no Firebase mas não na lista — desloga
+          // Usuário autenticado no Firebase mas realmente não cadastrado na lista
           const {signOut} = fb();
           signOut(auth).catch(()=>{});
           mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');
