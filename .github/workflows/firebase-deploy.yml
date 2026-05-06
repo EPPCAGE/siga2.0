@@ -36,9 +36,39 @@ jobs:
           projectId: gesproc2
           channelId: live
 
-      - name: Deploy Firestore Rules
+      - name: Autenticar no Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Configurar gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Firestore Rules via REST API
         run: |
-          npm install -g firebase-tools
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
-          GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json firebase deploy --only firestore:rules --project gesproc2
-          rm /tmp/sa.json
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          PROJECT_ID=gesproc2
+
+          # Publica as regras via Firebase Rules REST API (não chama serviceusage.googleapis.com)
+          RULES=$(jq -Rs . < firestore.rules)
+
+          RULESET=$(curl -sf -X POST \
+            "https://firebaserules.googleapis.com/v1/projects/${PROJECT_ID}/rulesets" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"source\":{\"files\":[{\"content\":${RULES},\"name\":\"firestore.rules\"}]}}")
+
+          RULESET_NAME=$(echo "$RULESET" | jq -r '.name')
+          if [ -z "$RULESET_NAME" ] || [ "$RULESET_NAME" = "null" ]; then
+            echo "Erro ao criar ruleset: $RULESET"
+            exit 1
+          fi
+          echo "Ruleset criado: $RULESET_NAME"
+
+          curl -sf -X PATCH \
+            "https://firebaserules.googleapis.com/v1/projects/${PROJECT_ID}/releases/cloud.firestore" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"release\":{\"name\":\"projects/${PROJECT_ID}/releases/cloud.firestore\",\"rulesetName\":\"${RULESET_NAME}\"}}"
+
+          echo "Regras do Firestore publicadas com sucesso."
