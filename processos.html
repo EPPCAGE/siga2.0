@@ -1522,6 +1522,32 @@ const REUNIAO_TIPOS = Object.freeze({
 const lsGet = (k, d='') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { console.warn('localStorage indisponível'); } };
 const lsRemove = (k) => { try { localStorage.removeItem(k); } catch {} };
+
+// ── Sessão única ─────────────────────────────────────────────────────────────
+let _sessionUnsub = null;
+
+async function _iniciarSessaoUnica(uid) {
+  if (!fbReady()) return;
+  const { db, doc, setDoc, onSnapshot } = fb();
+  const sid = Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+  lsSet('siga_sid', sid);
+  try {
+    await setDoc(doc(db, 'sessions', uid), { sid, ts: new Date().toISOString() });
+    if (_sessionUnsub) _sessionUnsub();
+    _sessionUnsub = onSnapshot(doc(db, 'sessions', uid), snap => {
+      if (!snap.exists()) return;
+      if (snap.data().sid !== lsGet('siga_sid')) {
+        if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
+        lsRemove('siga_sid');
+        doLogout().then(() =>
+          mostrarErrLogin('Sessão encerrada: acesso realizado em outro dispositivo.')
+        );
+      }
+    });
+  } catch (e) {
+    console.warn('Sessão única: erro ao registrar.', e.message);
+  }
+}
 function jsonArrayFromStorage(key, fallback='[]'){
   const raw = lsGet(key, fallback);
   try {
@@ -2246,6 +2272,8 @@ async function salvarAlterarSenha() {
 
 async function doLogout(){
   _stopInactivityWatch();
+  if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
+  lsRemove('siga_sid');
   if(globalThis._fbExternalWatcher){ globalThis._fbExternalWatcher(); globalThis._fbExternalWatcher=null; }
   globalThis._fbLoadedAt = 0;
   if(fbReady()){
@@ -15309,7 +15337,7 @@ async function bootApp() {
       if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
       if(firebaseUser){
         const user = USUARIOS.find(u=>u.email===firebaseUser.email);
-        if(user){ _aplicarUsuario(user); }
+        if(user){ _iniciarSessaoUnica(firebaseUser.uid); _aplicarUsuario(user); }
         else {
           // Usuário autenticado no Firebase mas não na lista — desloga
           const {signOut} = fb();

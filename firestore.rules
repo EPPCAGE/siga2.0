@@ -91,6 +91,11 @@ service cloud.firestore {
       allow write: if isEP();
     }
 
+    // ── Sessão única — cada usuário lê/escreve apenas o seu documento ────────
+    match /sessions/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+    }
+
     // ── Projetos / Programas (módulo SIGA Projetos) ──────────────────────────
     match /projPROJETOS/{id} {
       allow read: if isAuth();
