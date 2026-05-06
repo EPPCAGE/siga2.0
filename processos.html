@@ -8571,20 +8571,29 @@ function extrairBpmn(){
 // β=0.5: cada ator extra além do primeiro equivale a 0.5
 function calcILP(etapas){
   if(!etapas||!etapas.length)return null;
-  // Retorna os nós ao longo do caminho mais longo (pior caso).
-  // Para qualquer gateway (XOR ou AND/paralelo), escolhe o ramo com mais nós.
+  // AND/paralelo: todos os ramos são obrigatórios → inclui todos.
+  // XOR/exclusivo: pior caso → inclui só o ramo mais longo.
+  const _NON_XOR=new Set(['paralelo','inclusivo','complexo']);
+  const _normN=s=>(s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
+  const _isAnd=n=>_NON_XOR.has(n.subtipo_gateway)||_normN(n.nome).includes('paralelo');
   function longestPath(nodes){
     const out=[];
     for(const n of nodes){
       out.push(n);
       const cams=n.caminhos||[];
       if(cams.length>0){
-        let best=[], bestW=-1;
-        for(const cam of cams){
-          const br=longestPath(cam.acoes||[]);
-          if(br.length>bestW){bestW=br.length; best=br;}
+        if(_isAnd(n)){
+          // paralelo: percorre todos os ramos
+          for(const cam of cams) for(const a of longestPath(cam.acoes||[])) out.push(a);
+        } else {
+          // exclusivo: pior caso = ramo com mais nós
+          let best=[], bestW=-1;
+          for(const cam of cams){
+            const br=longestPath(cam.acoes||[]);
+            if(br.length>bestW){bestW=br.length; best=br;}
+          }
+          for(const a of best) out.push(a);
         }
-        for(const a of best) out.push(a);
       }
     }
     return out;
