@@ -13971,7 +13971,12 @@ function gerarStatusReportPDF(){
   ${SEC(1,'Mapeamentos e Análises de Aderência em Andamento')}
   ${SUB('Mapeamentos em andamento ('+mapAndamento.length+')')}
   ${tbl(['Processo','Macroprocesso','Dono','EP Responsável','Etapa atual','Prazo global'],
-    mapAndamento.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),etBadge(p.etapa),_d(p.ent?.dt_prev)])
+    mapAndamento.map(p=>{
+      const dtPrev=p.ent?.dt_prev;
+      const vencido=dtPrev&&new Date(dtPrev+'T00:00:00')<hoje;
+      const prazoCell=dtPrev?(vencido?`<span style="color:#dc2626;font-weight:700">${_d(dtPrev)}</span>`:_d(dtPrev)):'—';
+      return[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),etBadge(p.etapa),prazoCell];
+    })
   )}
   ${SUB('Análises de Aderência em andamento ('+audAndamento.length+')')}
   ${tbl(['Processo','Macroprocesso','Dono','Equipe','Início análise de aderência','Objetivo'],
@@ -13980,8 +13985,8 @@ function gerarStatusReportPDF(){
 
   ${SEC(2,'Concluídos no Último Mês')}
   ${SUB('Mapeamentos concluídos ('+mapConclMes.length+')')}
-  ${tbl(['Processo','Macroprocesso','Dono','EP','Entrega efetiva','Tempo total'],
-    mapConclMes.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(p.ent?.dt_efetiva||_fimCiclo(p)),_e(p.ent?.t_total)])
+  ${tbl(['Processo','Macroprocesso','Dono','EP','Prazo previsto','Entrega efetiva','Tempo total'],
+    mapConclMes.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(p.ent?.dt_prev),_d(p.ent?.dt_efetiva||_fimCiclo(p)),_e(p.ent?.t_total)])
   )}
   ${SUB('Análises de Aderência concluídas ('+audConclMes.length+')')}
   ${tbl(['Processo','Macroprocesso','Conformidade','Data conclusão','Achados','Ações'],
