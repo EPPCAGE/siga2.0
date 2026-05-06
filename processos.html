@@ -8764,7 +8764,7 @@ function rEnt(p){
     <div class="card">
       <div class="card-t">Identificação temporal</div>
       <div class="g2">
-        ${[['Início',e.dt_inicio||'—'],['Prev. entrega',e.dt_prev||'—'],['Entrega efetiva',e.dt_efetiva||'—'],['Fim do ciclo',p.dt_ciclo_fim||'—'],['Próx. acompanhamento',p.dt_proximo_acompanhamento||'—'],['Produto',p.produto||'—'],['Tempo total',e.t_total||'—'],['Tempo sem fila',e.t_sem_fila||'—']].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
+        ${[['Início',e.dt_inicio||'—'],['Prev. entrega',e.dt_prev||'—'],['Entrega efetiva',e.dt_efetiva||'—'],['Próx. acompanhamento',p.dt_proximo_acompanhamento||'—'],['Produto',p.produto||'—'],['Tempo total',e.t_total||'—'],['Tempo sem fila',e.t_sem_fila||'—']].map(([l,v])=>`<div><div class="sec-lbl">${l}</div><div style="font-size:13px;font-weight:500">${v}</div></div>`).join('')}
         ${desvioHtml}
         ${prazoEpHtml}
       </div>
@@ -13873,7 +13873,7 @@ function gerarStatusReportPDF(){
   const DONE_ETAPAS=new Set(['publicacao','acompanha','auditoria']);
   const mapAndamento=processos.filter(p=>!DONE_ETAPAS.has(p.etapa)&&p.status_ciclo!=='cancelado'&&p.status_ciclo!=='suspenso'&&p.arq_id);
   const audAndamento=processos.filter(p=>p.etapa==='auditoria'&&!p.auditoria?.concluida);
-  const _fimCiclo=p=>p.dt_ciclo_fim||p.dt_etapas?.publicacao||p.dt_etapas?.acompanha;
+  const _fimCiclo=p=>p.ent?.dt_efetiva||p.dt_etapas?.publicacao||p.dt_etapas?.acompanha;
   const mapConclMes=processos.filter(p=>DONE_ETAPAS.has(p.etapa)&&_recente(_fimCiclo(p)));
   const audConclMes=processos.filter(p=>p.auditoria?.concluida&&_recente(p.auditoria?.data||p.dt_etapas?.auditoria));
   const proxTrabs=doAno.filter(a=>planoStatusEfetivo(a)==='planejado'&&(a.trimestre===trimAtual||a.trimestre===trimProx)&&['mapeamento','auditoria'].includes(a.categoria))
@@ -13980,8 +13980,8 @@ function gerarStatusReportPDF(){
 
   ${SEC(2,'Concluídos no Último Mês')}
   ${SUB('Mapeamentos concluídos ('+mapConclMes.length+')')}
-  ${tbl(['Processo','Macroprocesso','Dono','EP','Fim do ciclo','Tempo total'],
-    mapConclMes.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(_fimCiclo(p)),_e(p.ent?.t_total)])
+  ${tbl(['Processo','Macroprocesso','Dono','EP','Entrega efetiva','Tempo total'],
+    mapConclMes.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(p.ent?.dt_efetiva||_fimCiclo(p)),_e(p.ent?.t_total)])
   )}
   ${SUB('Análises de Aderência concluídas ('+audConclMes.length+')')}
   ${tbl(['Processo','Macroprocesso','Conformidade','Data conclusão','Achados','Ações'],
