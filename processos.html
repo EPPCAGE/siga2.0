@@ -9651,11 +9651,16 @@ async function salvarReuniaoAvulsa(){
 // BPMN EDITOR
 // ═══════════════════════════════════════════
 function _syncBpmnElName(epId, newName){
-  const which=['esboco_tobe','det_valid_tobe'].includes(curProc?.etapa)?'tobe':'asis';
+  const which=['esboco_tobe','det_valid_tobe'].includes(epRetroEtapa||curProc?.etapa)?'tobe':'asis';
   const mod=bpmnModelers[which];
   if(!mod) return;
   const et=(curProc?.mod?.[_ekey()]||[]).find(x=>x.id===epId);
-  if(!et?.bpmn_id) return;
+  if(!et) return;
+  // Auto-backfill bpmn_id por nome se ainda não estiver definido
+  if(!et.bpmn_id){
+    const match=mod.get('elementRegistry').getAll().find(x=>x.type!=='label'&&x.businessObject?.name===et.nome);
+    if(match) et.bpmn_id=match.id; else return;
+  }
   try{
     const el=mod.get('elementRegistry').get(et.bpmn_id);
     if(el) mod.get('modeling').updateLabel(el, newName);
