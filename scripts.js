@@ -4,18 +4,37 @@
 // Dependências compartilhadas de autenticação/sessão ficam em projetos.shared.js.
 // ═══════════════════════════════════════════════════════════════════
 
+let _projScheduleWriteContext = false;
 function projCanWriteAll(){ return isEP(); }
-function projCanWriteExec(){ return isEP() || isGerenteProjeto(); }
-function projCanViewOnly(){ return isDono() && !isEP() && !isGerenteProjeto(); }
+function projProjetosVinculadosUsuario(u = usuarioLogado){
+  return Array.isArray(u?.projetos_vinculados) ? u.projetos_vinculados.map(id => String(id)) : [];
+}
+function projIsLinkedManager(projectId = _projCurrentId, u = usuarioLogado){
+  return isGerenteProjeto() && projProjetosVinculadosUsuario(u).includes(String(projectId || ''));
+}
+function projCanWriteExec(){ return isEP(); }
+function projCanWriteSchedule(projectId = _projCurrentId){ return isEP() || projIsLinkedManager(projectId); }
+function projCanViewOnly(){ return !isEP(); }
 function projEnsureWriteAll(msg='Apenas EPP pode editar esta seção do módulo de projetos.'){
   if(projCanWriteAll()) return true;
   projToast(msg, '#d97706');
   return false;
 }
-function projEnsureWriteExec(msg='Apenas EPP e Gerente de Projeto podem executar esta ação.'){
+function projEnsureWriteExec(msg='Apenas EPP pode executar esta ação.'){
   if(projCanWriteExec()) return true;
   projToast(msg, '#d97706');
   return false;
+}
+function projEnsureWriteSchedule(msg='Gerente de Projeto só pode editar o cronograma dos projetos vinculados.'){
+  if(projCanWriteSchedule()) return true;
+  projToast(msg, '#d97706');
+  return false;
+}
+function projWithScheduleWrite(fn){
+  if(!projEnsureWriteSchedule()) return;
+  _projScheduleWriteContext = true;
+  try { return fn(); }
+  finally { _projScheduleWriteContext = false; }
 }
 
 function _fsClean(v, insideArray){
@@ -395,15 +414,21 @@ function projLoad() {
 }
 
 function projSave() {
+  if(usuarioLogado && !isEP() && !_projScheduleWriteContext){
+    projToast('Seu perfil tem acesso somente de visualização no SIGA Projetos.', '#d97706');
+    return false;
+  }
   if(fbReady()){
     projFbAutoSave('projetos').catch(()=>{});
-    return;
+    return true;
   }
   try {
     localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS));
     projFbAutoSave('projetos');
+    return true;
   } catch(e) {
     projToast('Erro ao salvar dados.', 'var(--red)');
+    return false;
   }
 }
 
@@ -424,15 +449,21 @@ function progLoad() {
 }
 
 function progSave() {
+  if(usuarioLogado && !isEP()){
+    projToast('Apenas EPP pode editar programas.', '#d97706');
+    return false;
+  }
   if(fbReady()){
     projFbAutoSave('programas').catch(()=>{});
-    return;
+    return true;
   }
   try {
     localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS));
     projFbAutoSave('programas');
+    return true;
   } catch(e) {
     projToast('Erro ao salvar programas.', 'var(--red)');
+    return false;
   }
 }
 
@@ -1158,7 +1189,7 @@ function projRenderStatusReport() {
 }
 
 function projSalvarStatusReportObs(projId, value, silent) {
-  if(!projCanWriteExec()){ if(!silent) projToast('Somente EPP ou Gerente de Projeto pode salvar status report.','#d97706'); return; }
+  if(!projCanWriteExec()){ if(!silent) projToast('Somente EPP pode salvar status report.','#d97706'); return; }
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === String(projId));
   if(!proj) return;
@@ -2294,6 +2325,35 @@ function projDetalheTab(faseId, tabEl) {
     case 'execucao':     content.innerHTML = projTabExecucao(proj); break;
     case 'conclusao':    content.innerHTML = projTabConclusao(proj); break;
   }
+  projApplyProjectReadonly(faseId);
+}
+
+function projApplyProjectReadonly(faseId){
+  if(isEP()) return;
+  const content = document.getElementById('proj-detalhe-tab-content');
+  if(!content) return;
+  const controls = content.querySelectorAll('input, textarea, select, button');
+  controls.forEach(el => {
+    if(el.tagName === 'A') return;
+    el.disabled = true;
+    el.setAttribute('data-proj-readonly', '1');
+  });
+  if(faseId === 'execucao' && projCanWriteSchedule()){
+    const cron = content.querySelector('#exec-cronograma-section');
+    if(cron){
+      cron.querySelectorAll('input, textarea, select, button').forEach(el => {
+        if(el.hasAttribute('data-derived-disabled')) return;
+        el.disabled = false;
+        el.removeAttribute('data-proj-readonly');
+      });
+    }
+  }
+  if(!content.querySelector('.proj-readonly-banner')){
+    const msg = projCanWriteSchedule()
+      ? 'Visualização geral. Como Gerente de Projeto vinculado, você pode editar apenas o cronograma deste projeto.'
+      : 'Seu perfil de Gerente de Projeto tem acesso apenas de visualização neste projeto.';
+    content.insertAdjacentHTML('afterbegin', `<div class="proj-readonly-banner">${projEsc(msg)}</div>`);
+  }
 }
 
 // ── ABA: APROVAÇÃO ───────────────────────────────────────────────
@@ -2934,7 +2994,7 @@ function projTabExecucao(p) {
     </div>
 
     <!-- Cronograma -->
-    <div class="proj-form-section">
+    <div class="proj-form-section" id="exec-cronograma-section">
       <div class="proj-form-section-title">
         <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1" y="3" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
         Cronograma / Planner
@@ -3152,8 +3212,8 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3">
         <button type="button" class="proj-task-flag marco ${t.marco?'on':''}" onclick="projToggleTarefaFlag('${path}','marco')">Marco</button>
       </td>
-      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}"><input type="date" value="${t.dt_inicio||''}" ${hasSubs?'disabled title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_inicio',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
-      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}${overdue?';color:#dc2626;font-weight:600':''}"><input type="date" value="${t.dt_fim||''}" ${hasSubs?'disabled title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_fim',this.value)" style="font-size:11px;border:1px solid ${overdue?'#fca5a5':'#ddd'};border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
+      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}"><input type="date" value="${t.dt_inicio||''}" ${hasSubs?'disabled data-derived-disabled="1" title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_inicio',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
+      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}${overdue?';color:#dc2626;font-weight:600':''}"><input type="date" value="${t.dt_fim||''}" ${hasSubs?'disabled data-derived-disabled="1" title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_fim',this.value)" style="font-size:11px;border:1px solid ${overdue?'#fca5a5':'#ddd'};border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike}"><input type="text" value="${projEsc(t.responsavel||'')}" onchange="projUpdateTarefa('${path}','responsavel',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%" placeholder="—"></td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}">
         ${hasSubs ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${pct}%</span>` :
@@ -3185,6 +3245,7 @@ function projGetTarefaByPath(tarefas, path) {
 }
 
 function projAddTarefa(parentPath) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -3203,9 +3264,11 @@ function projAddTarefa(parentPath) {
   projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projRemoveTarefa(path) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
@@ -3214,9 +3277,11 @@ function projRemoveTarefa(path) {
   projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projUpdateTarefa(path, field, value) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
@@ -3234,9 +3299,11 @@ function projUpdateTarefa(path, field, value) {
   }
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projToggleTarefaFlag(path, field) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
@@ -3247,9 +3314,11 @@ function projToggleTarefaFlag(path, field) {
   projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projToggleTarefa(path) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
@@ -3265,10 +3334,12 @@ function projToggleTarefa(path) {
   }
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 // ── Toggle cron mode / pct mode ──
 function projToggleCronMode() {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -3277,9 +3348,11 @@ function projToggleCronMode() {
   proj.execucao.cron_mode = toggle && toggle.checked ? 'siga' : 'planner';
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projTogglePctMode() {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -3292,22 +3365,29 @@ function projTogglePctMode() {
   }
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projSalvarExecucao() {
-  if(!projEnsureWriteExec()) return;
+  const canFullExec = projCanWriteExec();
+  const canSchedule = projCanWriteSchedule();
+  if(!canFullExec && !canSchedule){
+    projEnsureWriteSchedule();
+    return;
+  }
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
   if(!proj.execucao) proj.execucao = { planner_link:'', percentual:0, reunioes:[], tarefas:[], cron_mode:'planner', pct_mode:'manual' };
   proj.execucao.planner_link = document.getElementById('exec-planner')?.value || proj.execucao.planner_link || '';
-  if(proj.execucao.pct_mode !== 'derivado') {
+  if(canFullExec && proj.execucao.pct_mode !== 'derivado') {
     proj.percentual = parseInt(document.getElementById('exec-percentual')?.value)||0;
-  } else {
+  } else if(proj.execucao.pct_mode === 'derivado') {
     proj.percentual = projCalcDerivedPct(proj.execucao.tarefas||[]);
   }
   proj.execucao.percentual = proj.percentual;
-  projSave();
+  if(canFullExec) projSave();
+  else projWithScheduleWrite(() => projSave());
   projToast('Execução salva!');
 }
 
@@ -4034,6 +4114,7 @@ function projExportCronogramaXLSX(){projLoad();const proj=PROJETOS.find(p=>Strin
 function projCronXlsxBool(v){const s=String(v||'').trim().toLowerCase();if(['sim','s','true','1'].includes(s))return true;if(['não','nao','n','false','0',''].includes(s))return false;throw new Error('Campo Sim/Não inválido.');}
 function projCronXlsxDate(v){const s=String(v||'').trim();if(!s)return '';if(!/^\d{4}-\d{2}-\d{2}$/.test(s))throw new Error('Datas devem estar no formato AAAA-MM-DD exportado pelo SIGA.');return s;}
 function projImportCronogramaXLSX(inputEl){
+  if(!projEnsureWriteSchedule()) return;
   if(!inputEl){
     const inp=document.createElement('input');
     inp.type='file';inp.accept='.xlsx';inp.style.display='none';
@@ -4070,6 +4151,7 @@ function projImportCronogramaXLSX(inputEl){
         list.push({id:'t'+Date.now()+'_'+idx,nome:String(r.Nome||'Nova tarefa').trim()||'Nova tarefa',ppe:projCronXlsxBool(r.PPE),marco:projCronXlsxBool(r.Marco),dt_inicio:projCronXlsxDate(r.Inicio),dt_fim:projCronXlsxDate(r.Fim),responsavel:String(r.Responsavel||'').trim(),conclusao,concluida:projCronXlsxBool(r.Concluida),subtarefas:[]});
       });
       projConfirmar('Importar cronograma? Isso substituirá as tarefas atuais deste projeto.', function(){
+        projWithScheduleWrite(() => {
         projLoad();
         const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId); if(!proj)return;
         if(!proj.execucao)proj.execucao={planner_link:'',percentual:0,reunioes:[],tarefas:[]};
@@ -4078,6 +4160,7 @@ function projImportCronogramaXLSX(inputEl){
         projSave();
         projToast('Cronograma importado com sucesso!');
         projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+        });
       });
     }catch(e){projToast('Erro ao importar .xlsx: '+e.message,'#dc2626');}
     finally{inputEl.value='';}

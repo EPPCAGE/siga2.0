@@ -631,7 +631,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <div id="usr-gerproj-extra" style="display:none;margin-bottom:.85rem">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink2)">
-        <input type="checkbox" id="usr-gerproj-chk" style="width:15px;height:15px;cursor:pointer">
+        <input type="checkbox" id="usr-gerproj-chk" style="width:15px;height:15px;cursor:pointer" onchange="_onUsrGerProjChg()">
         <span>Também é <strong>Gerente de Projeto</strong> (acesso ao SIGA Projetos)</span>
       </label>
     </div>
@@ -659,6 +659,20 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <button type="button" class="btn btn-p" style="font-size:12px" onclick="addVinculoProc()">+ Vincular</button>
       </div>
       <div id="usr-vinculos-list"></div>
+    </div>
+    <div id="usr-proj-section" style="display:none">
+      <hr style="margin:.8rem 0">
+      <div class="card-t" style="margin-bottom:.5rem">Projetos vinculados</div>
+      <div class="ib ibb" style="font-size:11px;margin-bottom:.7rem">
+        Gerentes de Projeto têm visualização geral no SIGA Projetos. Ao vincular um projeto, podem editar somente o cronograma no workflow daquele projeto.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:.6rem;flex-wrap:wrap">
+        <select class="fi" id="usr-proj-add-sel" style="flex:1;max-width:420px">
+          <option value="">Selecione um projeto para vincular...</option>
+        </select>
+        <button type="button" class="btn btn-p" style="font-size:12px" onclick="addVinculoProj()">+ Vincular</button>
+      </div>
+      <div id="usr-proj-vinculos-list"></div>
     </div>
     <div class="btn-row">
       <button type="button" class="btn btn-r" id="usr-del-btn" onclick="deletarUsr()" style="margin-right:auto;display:none">Remover usuário</button>
@@ -720,7 +734,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <input class="hub-srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
     </div>
     <div class="hub-tbl-wrap">
-      <table class="hub-tbl"><thead><tr><th></th><th>Nome</th><th>Cargo</th><th>E-mail</th><th>Perfil</th><th>Processos vinculados</th><th>Ações</th></tr></thead>
+      <table class="hub-tbl"><thead><tr><th></th><th>Nome</th><th>Cargo</th><th>E-mail</th><th>Perfil</th><th>Vínculos</th><th>Ações</th></tr></thead>
       <tbody id="usr-tbody"></tbody></table>
     </div>
   </div>
@@ -1536,6 +1550,7 @@ function jsonArrayFromStorage(key, fallback='[]'){
 let USUARIOS = [
   {email:'ep@sefaz.rs.gov.br',nome:'Equipe EP',perfil:'ep',iniciais:'EP'},
 ];
+let PROJETOS_USUARIOS = [];
 let dominios = [{dominio:'sefaz.rs.gov.br',perfil:'ep'},{dominio:'cage.rs.gov.br',perfil:'ep'}];
 
 const APONTAMENTOS_PADRAO = [
@@ -12785,7 +12800,14 @@ function renderAdmin(){
     const idx = USUARIOS.indexOf(u);
     const isMe = usuarioLogado?.email===u.email;
     const vinculos = (u.processos_vinculados||[]);
+    const projetosVinc = (u.projetos_vinculados||[]).map(id => String(id));
     const noVinculoHtml = u.perfil==='ep'?'<span style="color:rgba(255,255,255,.35)">Todos (EP)</span>':'<span style="color:#f87171">Nenhum vínculo</span>';
+    const projetosHtml = projetosVinc.length
+      ? projetosVinc.map(pid => {
+          const p = (PROJETOS_USUARIOS||[]).find(x => String(x.id) === String(pid));
+          return `<span class="badge bp" style="margin:1px;font-size:10px">${p ? p.nome : pid}</span>`;
+        }).join('')
+      : '';
     const bloqStyle = u.bloqueado ? 'background:rgba(176,28,28,.25);color:#f87171;border-color:rgba(176,28,28,.4);' : '';
     const bloqLabel = u.bloqueado ? 'Desbloquear' : 'Bloquear';
     let trStyle = '';
@@ -12802,7 +12824,9 @@ function renderAdmin(){
               const u2=getUnidadesMapeaveis().find(u=>u.arq_id===vid);
               return u2?`<span class="badge bgr" style="margin:1px;font-size:10px">${u2.nome}</span>`:'';
             }).join('')
-          : noVinculoHtml}
+          : ''}
+        ${projetosHtml}
+        ${(!vinculos.length && !projetosVinc.length) ? noVinculoHtml : ''}
       </td>
       <td style="white-space:nowrap">
         <button type="button" class="btn" style="font-size:11px;padding:3px 8px;margin-right:4px" onclick="abrirModalUsr(${idx})">Editar</button>
@@ -12830,6 +12854,7 @@ function onUsrPerfilChg(){
   const extraProc = document.getElementById('usr-proc-also-extra');
   const chkProc   = document.getElementById('usr-proc-also-chk');
   const selProc   = document.getElementById('usr-proc-also-sel');
+  const projSec   = document.getElementById('usr-proj-section');
 
   const isDono   = perfil==='dono';
   const isGestor = perfil==='gestor';
@@ -12849,6 +12874,14 @@ function onUsrPerfilChg(){
       if (selProc) { selProc.style.display = 'none'; }
     }
   }
+  if(projSec) projSec.style.display = (isGerproj || chk?.checked) ? 'block' : 'none';
+}
+
+function _onUsrGerProjChg(){
+  const perfil = document.getElementById('usr-perfil')?.value;
+  const chk = document.getElementById('usr-gerproj-chk');
+  const projSec = document.getElementById('usr-proj-section');
+  if(projSec) projSec.style.display = (perfil==='gerente_projeto' || chk?.checked) ? 'block' : 'none';
 }
 
 function _onUsrProcAlsoChg(){
@@ -12876,6 +12909,12 @@ function abrirModalUsr(idx){
   const units = getUnidadesMapeaveis();
   sel.innerHTML = '<option value="">Selecione um processo para vincular...</option>' +
     units.map(u=>`<option value="${u.arq_id}">${u.label}</option>`).join('');
+  const projSel = document.getElementById('usr-proj-add-sel');
+  if(projSel) {
+    const projetos = getProjetosVinculaveis();
+    projSel.innerHTML = '<option value="">Selecione um projeto para vincular...</option>' +
+      projetos.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('');
+  }
 
   // Reset secondary-module fields
   const _resetSecondary = () => {
@@ -12896,6 +12935,8 @@ function abrirModalUsr(idx){
     document.getElementById('usr-proc-section').style.display = 'block';
     const extra=document.getElementById('usr-gerproj-extra');if(extra)extra.style.display='block';
     const chk=document.getElementById('usr-gerproj-chk');if(chk)chk.checked=false;
+    const projSec=document.getElementById('usr-proj-section');if(projSec)projSec.style.display='none';
+    renderVinculosProj([]);
     _resetSecondary();
     delBtn.style.display = 'none';
   } else {
@@ -12915,6 +12956,8 @@ function abrirModalUsr(idx){
     const showExtra = primaryPerfil==='dono'||primaryPerfil==='gestor';
     if(extra) extra.style.display=showExtra?'block':'none';
     if(chk) chk.checked=perfis.includes('gerente_projeto')&&primaryPerfil!=='gerente_projeto';
+    const projSec=document.getElementById('usr-proj-section');
+    if(projSec) projSec.style.display=(primaryPerfil==='gerente_projeto'||perfis.includes('gerente_projeto'))?'block':'none';
 
     // Reverse: gerente_projeto primary with dono/gestor secondary
     const extraProc=document.getElementById('usr-proc-also-extra');
@@ -12932,12 +12975,14 @@ function abrirModalUsr(idx){
     }
 
     renderVinculos(u.processos_vinculados||[]);
+    renderVinculosProj(u.projetos_vinculados||[]);
     delBtn.style.display = 'inline-flex';
   }
 }
 
 // Render vinculo list inside modal (temp, not saved yet)
 let _tempVinculos = [];
+let _tempProjetoVinculos = [];
 function renderVinculos(vinculos){
   _tempVinculos = [...vinculos];
   const el = document.getElementById('usr-vinculos-list');
@@ -12959,6 +13004,34 @@ function renderVinculos(vinculos){
   }).join('');
 }
 
+function getProjetosVinculaveis(){
+  return (PROJETOS_USUARIOS||[])
+    .filter(p => String(p.status||'ativo') !== 'cancelado')
+    .map(p => ({ id:String(p.id), nome:p.nome||('Projeto '+p.id), fase:p.fase_atual||'', status:p.status||'ativo' }))
+    .sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+function renderVinculosProj(vinculos){
+  _tempProjetoVinculos = [...(vinculos||[]).map(id => String(id))];
+  const el = document.getElementById('usr-proj-vinculos-list');
+  if(!el) return;
+  const projetos = getProjetosVinculaveis();
+  if(!_tempProjetoVinculos.length){
+    el.innerHTML = '<div class="ib iba" style="font-size:11px">Nenhum projeto vinculado. O Gerente de Projeto terá apenas visualização no SIGA Projetos.</div>';
+    return;
+  }
+  el.innerHTML = _tempProjetoVinculos.map((pid,i)=>{
+    const p = projetos.find(x => x.id === String(pid));
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:4px;font-size:12px">
+      <div style="flex:1">
+        <div style="font-weight:500">${p?p.nome:pid}</div>
+        ${p?`<div style="font-size:11px;color:var(--ink3)">${p.status}${p.fase?' · '+p.fase:''}</div>`:''}
+      </div>
+      <button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="remVinculoProj(${i})">× Remover</button>
+    </div>`;
+  }).join('');
+}
+
 function addVinculoProc(){
   const sel = document.getElementById('usr-proc-add-sel');
   const vid = sel.value;
@@ -12972,6 +13045,21 @@ function addVinculoProc(){
 function remVinculo(i){
   _tempVinculos.splice(i,1);
   renderVinculos(_tempVinculos);
+}
+
+function addVinculoProj(){
+  const sel = document.getElementById('usr-proj-add-sel');
+  const pid = sel?.value;
+  if(!pid) return;
+  if(_tempProjetoVinculos.includes(String(pid))){ toast('Projeto já vinculado','var(--amber)'); return; }
+  _tempProjetoVinculos.push(String(pid));
+  renderVinculosProj(_tempProjetoVinculos);
+  sel.value = '';
+}
+
+function remVinculoProj(i){
+  _tempProjetoVinculos.splice(i,1);
+  renderVinculosProj(_tempProjetoVinculos);
 }
 
 function gerarIniciaisUsuario(nome=''){
@@ -13069,11 +13157,12 @@ async function salvarUsr(){
   else                      perfisArr = [perfil];
   const effectiveDono = perfisArr.includes('dono');
   const vinculos = effectiveDono ? [..._tempVinculos] : [];
+  const projetosVinculados = perfisArr.includes('gerente_projeto') ? [..._tempProjetoVinculos.map(id => String(id))] : [];
   const idxStr = document.getElementById('usr-idx').value;
 
   if(idxStr===''){
     if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
-    USUARIOS.push({email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos, trocar_senha:true});
+    USUARIOS.push({email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos, projetos_vinculados:projetosVinculados, trocar_senha:true});
     document.getElementById('usr-modal').style.display = 'none';
     renderAdmin();
     await fbSaveAll();
@@ -13106,7 +13195,7 @@ async function salvarUsr(){
   } else {
     const idx = Number.parseInt(idxStr);
     if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
-    USUARIOS[idx] = {...USUARIOS[idx], email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos};
+    USUARIOS[idx] = {...USUARIOS[idx], email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos, projetos_vinculados:projetosVinculados};
     if(usuarioLogado?.email===email){
       usuarioLogado = USUARIOS[idx];
       document.getElementById('aside-name').textContent = nome;
@@ -14381,6 +14470,13 @@ async function fbLoad(){
     const usrDoc = await getDoc(doc(db,'config','usuarios'));
     if(usrDoc.exists() && usrDoc.data().data){
       try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(e){ console.error('Erro ao parsear usuarios:', e); }
+    }
+
+    const projSnap = await getDocs(collection(db,'projetos'));
+    if(!projSnap.empty){
+      PROJETOS_USUARIOS = [];
+      projSnap.forEach(d => PROJETOS_USUARIOS.push(d.data()));
+      PROJETOS_USUARIOS.sort((a,b) => String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
     }
 
     // mapeados manualmente

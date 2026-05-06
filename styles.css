@@ -1556,6 +1556,16 @@ select.proj-fi { cursor:pointer; }
   border-top:1px solid var(--bdr);
   padding-top:10px;
 }
+.proj-readonly-banner {
+  margin:0 0 1rem;
+  padding:.7rem .9rem;
+  border:1px solid #d9e5f5;
+  border-radius:10px;
+  background:#f8fbff;
+  color:#475569;
+  font-size:12px;
+  font-weight:600;
+}
 .proj-v10-related-title {
   font-size:11px;
   font-weight:800;
