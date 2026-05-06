@@ -13873,7 +13873,7 @@ function gerarStatusReportPDF(){
   const DONE_ETAPAS=new Set(['publicacao','acompanha','auditoria']);
   const mapAndamento=processos.filter(p=>!DONE_ETAPAS.has(p.etapa)&&p.status_ciclo!=='cancelado'&&p.status_ciclo!=='suspenso'&&p.arq_id);
   const audAndamento=processos.filter(p=>p.etapa==='auditoria'&&!p.auditoria?.concluida);
-  const mapConclMes=processos.filter(p=>['acompanha','auditoria'].includes(p.etapa)&&_recente(p.dt_ciclo_fim));
+  const mapConclMes=processos.filter(p=>DONE_ETAPAS.has(p.etapa)&&_recente(p.dt_ciclo_fim));
   const audConclMes=processos.filter(p=>p.auditoria?.concluida&&_recente(p.auditoria?.data||p.dt_etapas?.auditoria));
   const proxTrabs=doAno.filter(a=>planoStatusEfetivo(a)==='planejado'&&(a.trimestre===trimAtual||a.trimestre===trimProx)&&['mapeamento','auditoria'].includes(a.categoria))
     .sort((a,b)=>(a.trimestre===trimAtual?0:1)-(b.trimestre===trimAtual?0:1)||(a.prazo||'').localeCompare(b.prazo||''));
