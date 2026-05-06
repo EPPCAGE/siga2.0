@@ -8571,18 +8571,35 @@ function extrairBpmn(){
 // β=0.5: cada ator extra além do primeiro equivale a 0.5
 function calcILP(etapas){
   if(!etapas||!etapas.length)return null;
-  // Flatten: conta atividades em todos os níveis (etapas raiz + acoes em gateways)
-  function flatAcoes(nodes){
+  // Retorna os nós ao longo do caminho mais longo (pior caso).
+  // Para qualquer gateway (XOR ou AND/paralelo), escolhe o ramo com mais nós.
+  function longestPath(nodes){
     const out=[];
     for(const n of nodes){
       out.push(n);
-      for(const cam of (n.caminhos||[])){
-        for(const a of flatAcoes(cam.acoes||[])) out.push(a);
+      const cams=n.caminhos||[];
+      if(cams.length>0){
+        let best=[], bestW=-1;
+        for(const cam of cams){
+          const br=longestPath(cam.acoes||[]);
+          if(br.length>bestW){bestW=br.length; best=br;}
+        }
+        for(const a of best) out.push(a);
       }
     }
     return out;
   }
-  const all=flatAcoes(etapas);
+  // Lista completa (todos os ramos) — usada só para detecção de vinculo_gw
+  function flatAll(nodes){
+    const out=[];
+    for(const n of nodes){
+      out.push(n);
+      for(const cam of (n.caminhos||[])) for(const a of flatAll(cam.acoes||[])) out.push(a);
+    }
+    return out;
+  }
+  const all=longestPath(etapas);
+  const allFlat=flatAll(etapas);
   const atividades=all.filter(n=>n.tipo==='Atividade');
   const total=atividades.length;
   if(!total)return null;
@@ -8597,12 +8614,13 @@ function calcILP(etapas){
   const NON_XOR=new Set(['paralelo','inclusivo','complexo']);
   const _normGw=s=>(s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
   const _isParalelo=n=>NON_XOR.has(n.subtipo_gateway)||_normGw(n.nome).includes('paralelo');
+  // Gateways XOR no caminho mais longo; vinculo_gw detectado via lista completa
   const gwXorNodes=all.filter(n=>
     n.tipo==='Decisao' &&
     !_isParalelo(n) &&
     (
       (n.caminhos||[]).length>1 ||
-      all.some(a=>a.vinculo_gw?.gw_ep_id===n.id)
+      allFlat.some(a=>a.vinculo_gw?.gw_ep_id===n.id)
     )
   );
   const gxorDiv=gwXorNodes.length;
