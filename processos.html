@@ -6143,7 +6143,8 @@ function publicarProcesso(){
   // Agendar próximo acompanhamento com base na data de entrega efetiva
   const _hoje = new Date().toISOString().slice(0,10);
   if(p.ent.dt_inicio){
-    const _diasCiclo = Math.round((new Date(_hoje) - new Date(p.ent.dt_inicio)) / (1000*60*60*24));
+    const _baseCalc = p.ent.dt_efetiva || _hoje;
+    const _diasCiclo = Math.round((new Date(_baseCalc) - new Date(p.ent.dt_inicio)) / (1000*60*60*24));
     if(_diasCiclo > 0) p.ent.t_total = _diasCiclo + ' dias';
   }
   p.dt_proximo_acompanhamento = _addDias(p.ent.dt_efetiva || _hoje, 180);
@@ -14104,7 +14105,17 @@ function gerarStatusReportPDF(){
   ${SEC(2,'Concluídos no Último Mês')}
   ${SUB('Mapeamentos concluídos ('+mapConclMes.length+')')}
   ${tbl(['Processo','Macroprocesso','Dono','EP','Prazo previsto','Entrega efetiva','Tempo total'],
-    mapConclMes.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(p.ent?.dt_prev),_d(p.ent?.dt_efetiva||_fimCiclo(p)),_e(p.ent?.t_total)])
+    mapConclMes.map(p=>{
+      const _tTotal=(()=>{
+        if(p.ent?.t_total) return p.ent.t_total;
+        if(p.ent?.dt_inicio&&p.ent?.dt_efetiva){
+          const _d=Math.round((new Date(p.ent.dt_efetiva)-new Date(p.ent.dt_inicio))/(1000*60*60*24));
+          return _d>0?_d+' dias':'';
+        }
+        return '';
+      })();
+      return [_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),_d(p.ent?.dt_prev),_d(p.ent?.dt_efetiva||_fimCiclo(p)),_e(_tTotal)];
+    })
   )}
   ${SUB('Análises de Aderência concluídas ('+audConclMes.length+')')}
   ${tbl(['Processo','Macroprocesso','Conformidade','Data conclusão','Achados','Ações'],
