@@ -4,7 +4,7 @@ const PERFIL_LABELS = {
   ep: 'EPP',
   dono: 'Executor de Processo',
   gestor: 'Gestor / Adjunto',
-  gerente_projeto: 'Gerente de Projeto'
+  gerente_projeto: 'Projetos'
 };
 
 const lsGet = (k, d = '') => {

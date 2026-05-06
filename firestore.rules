@@ -7,29 +7,51 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userData() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
     function userPerfil() {
-      // Reads the caller's profile from the 'usuarios' collection
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.perfil;
+      return userData().perfil;
+    }
+
+    function userHasPerfil(perfil) {
+      return isAuth()
+        && (userData().perfil == perfil
+            || (('perfis' in userData()) && userData().perfis.hasAny([perfil])));
     }
 
     function isEP() {
-      return isAuth() && userPerfil() == 'ep';
+      return userHasPerfil('ep');
     }
 
     function isDono() {
-      return isAuth() && userPerfil() == 'dono';
+      return userHasPerfil('dono');
     }
 
     function isGestor() {
-      return isAuth() && userPerfil() == 'gestor';
+      return userHasPerfil('gestor');
     }
 
     function isGerenteProjeto() {
-      return isAuth() && userPerfil() == 'gerente_projeto';
+      return userHasPerfil('gerente_projeto');
     }
 
     function canWriteProjetos() {
       return isEP();
+    }
+
+    function isLinkedProjeto(id) {
+      return isGerenteProjeto()
+        && (('projetos_vinculados' in userData()) && userData().projetos_vinculados.hasAny([id]));
+    }
+
+    function canWriteProjetoSchedule(id) {
+      return isLinkedProjeto(id)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['execucao','percentual'])
+        && ('execucao' in request.resource.data)
+        && ('execucao' in resource.data)
+        && request.resource.data.execucao.diff(resource.data.execucao).affectedKeys().hasOnly(['planner_link','percentual','tarefas','cron_mode','pct_mode']);
     }
 
     // ── Usuários ──────────────────────────────────────────────────────────────
@@ -99,7 +121,8 @@ service cloud.firestore {
     // ── Projetos / Programas (módulo SIGA Projetos) ──────────────────────────
     match /projPROJETOS/{id} {
       allow read: if isAuth();
-      allow write: if canWriteProjetos();
+      allow create, delete: if canWriteProjetos();
+      allow update: if canWriteProjetos() || canWriteProjetoSchedule(id);
     }
     match /projPROGRAMAS/{id} {
       allow read: if isAuth();

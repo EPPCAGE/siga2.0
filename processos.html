@@ -626,13 +626,13 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <option value="ep">EPP</option>
         <option value="dono">Executor de Processo</option>
         <option value="gestor">Gestor / Adjunto</option>
-        <option value="gerente_projeto">Gerente de Projeto</option>
+        <option value="gerente_projeto">Projetos</option>
       </select>
     </div>
     <div id="usr-gerproj-extra" style="display:none;margin-bottom:.85rem">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink2)">
         <input type="checkbox" id="usr-gerproj-chk" style="width:15px;height:15px;cursor:pointer" onchange="_onUsrGerProjChg()">
-        <span>Também é <strong>Gerente de Projeto</strong> (acesso ao SIGA Projetos)</span>
+        <span>Também é <strong>Projetos</strong> (acesso ao SIGA Projetos)</span>
       </label>
     </div>
     <div id="usr-proc-also-extra" style="display:none;margin-bottom:.85rem">
@@ -664,7 +664,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <hr style="margin:.8rem 0">
       <div class="card-t" style="margin-bottom:.5rem">Projetos vinculados</div>
       <div class="ib ibb" style="font-size:11px;margin-bottom:.7rem">
-        Gerentes de Projeto têm visualização geral no SIGA Projetos. O vínculo identifica os projetos sob sua responsabilidade, sem liberar edição.
+        O perfil Projetos tem visualização geral no SIGA Projetos. O vínculo identifica os projetos sob sua responsabilidade e libera edição apenas do cronograma.
       </div>
       <div style="display:flex;gap:8px;margin-bottom:.6rem;flex-wrap:wrap">
         <select class="fi" id="usr-proj-add-sel" style="flex:1;max-width:420px">
@@ -729,7 +729,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <button type="button" class="hub-chip" onclick="filtUsr('ep',this)">EPP</button>
         <button type="button" class="hub-chip" onclick="filtUsr('dono',this)">Executor</button>
         <button type="button" class="hub-chip" onclick="filtUsr('gestor',this)">Gestor</button>
-        <button type="button" class="hub-chip" onclick="filtUsr('gerente_projeto',this)">Ger. Projeto</button>
+        <button type="button" class="hub-chip" onclick="filtUsr('gerente_projeto',this)">Projetos</button>
       </div>
       <input class="hub-srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
     </div>
@@ -1515,7 +1515,7 @@ Não responda este e-mail.</pre>
 // ═══════════════════════════════════════════
 // DADOS CENTRAIS
 // ═══════════════════════════════════════════
-const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto',gerente_projeto:'Gerente de Projeto'};
+const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto',gerente_projeto:'Projetos'};
 const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
 // Enums frozen — usar em vez de strings literais em código novo
 const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor', GERENTE_PROJETO:'gerente_projeto'});
@@ -13096,7 +13096,7 @@ function renderVinculosProj(vinculos){
   if(!el) return;
   const projetos = getProjetosVinculaveis();
   if(!_tempProjetoVinculos.length){
-    el.innerHTML = '<div class="ib iba" style="font-size:11px">Nenhum projeto vinculado. O Gerente de Projeto terá apenas visualização no SIGA Projetos.</div>';
+    el.innerHTML = '<div class="ib iba" style="font-size:11px">Nenhum projeto vinculado. O perfil Projetos terá apenas visualização no SIGA Projetos.</div>';
     return;
   }
   el.innerHTML = _tempProjetoVinculos.map((pid,i)=>{

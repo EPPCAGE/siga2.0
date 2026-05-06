@@ -13,7 +13,7 @@ function projIsLinkedManager(projectId = _projCurrentId, u = usuarioLogado){
   return isGerenteProjeto() && projProjetosVinculadosUsuario(u).includes(String(projectId || ''));
 }
 function projCanWriteExec(){ return isEP(); }
-function projCanWriteSchedule(projectId = _projCurrentId){ return isEP(); }
+function projCanWriteSchedule(projectId = _projCurrentId){ return isEP() || projIsLinkedManager(projectId); }
 function projCanViewOnly(){ return !isEP(); }
 function projEnsureWriteAll(msg='Apenas EPP pode editar esta seção do módulo de projetos.'){
   if(projCanWriteAll()) return true;
@@ -25,7 +25,7 @@ function projEnsureWriteExec(msg='Apenas EPP pode executar esta ação.'){
   projToast(msg, '#d97706');
   return false;
 }
-function projEnsureWriteSchedule(msg='Apenas EPP pode editar o SIGA Projetos.'){
+function projEnsureWriteSchedule(msg='O perfil Projetos só pode editar o cronograma dos projetos vinculados.'){
   if(projCanWriteSchedule()) return true;
   projToast(msg, '#d97706');
   return false;
@@ -148,11 +148,13 @@ function projLoadListas(){
   }catch(e){}
 }
 function projSaveListas(){
+  if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.')) return false;
   if(!fbReady()){
     localStorage.setItem('cagePROJ_MACROS_v6',JSON.stringify(PROJ_MACROS));
     localStorage.setItem('cage_objetivos_v6',JSON.stringify(PROJ_OBJETIVOS));
   }
   projFbAutoSave('listas');
+  return true;
 }
 
 async function projFbSyncCollection(col, items){
@@ -172,6 +174,24 @@ async function projFbSyncCollection(col, items){
     });
     await batch.commit();
   }
+}
+
+async function projFbSaveCurrentScheduleProject(){
+  if(!fbReady()) throw new Error('Firebase indisponível.');
+  const proj = (PROJETOS||[]).find(p => String(p.id) === String(_projCurrentId));
+  if(!proj) throw new Error('Projeto não encontrado.');
+  const {db, doc, setDoc} = fb();
+  const exec = proj.execucao || {};
+  await setDoc(doc(db, PROJ_FB.colProjetos, String(proj.id)), _fsClean({
+    percentual: proj.percentual || 0,
+    execucao: {
+      planner_link: exec.planner_link || '',
+      percentual: exec.percentual || proj.percentual || 0,
+      tarefas: exec.tarefas || [],
+      cron_mode: exec.cron_mode || 'planner',
+      pct_mode: exec.pct_mode || 'manual'
+    }
+  }), { merge: true });
 }
 
 function projIsDataUrl(value){
@@ -417,6 +437,22 @@ function projSave() {
   if(usuarioLogado && !isEP() && !_projScheduleWriteContext){
     projToast('Seu perfil tem acesso somente de visualização no SIGA Projetos.', '#d97706');
     return false;
+  }
+  if(usuarioLogado && !isEP() && _projScheduleWriteContext){
+    if(fbReady()){
+      projFbSaveCurrentScheduleProject().catch(e => {
+        console.warn('projFbSaveCurrentScheduleProject:', e.message);
+        try { projToast('Erro ao salvar cronograma na nuvem: ' + e.message, '#dc2626'); } catch(_e){}
+      });
+      return true;
+    }
+    try {
+      localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS));
+      return true;
+    } catch(e) {
+      projToast('Erro ao salvar cronograma.', 'var(--red)');
+      return false;
+    }
   }
   if(fbReady()){
     projFbAutoSave('projetos').catch(()=>{});
@@ -997,6 +1033,7 @@ function projRenderReunioesDoMes() {
 }
 
 function projToggleReuniao(projetoId, reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.')) return;
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === String(projetoId));
   if(!proj) return;
@@ -1623,6 +1660,7 @@ function projAddMonths(date, months) {
 }
 
 function projAutoAddReunioesTipo(tipo, monthOffset) {
+  if(!projEnsureWriteAll('Apenas EPP pode criar reuniões automáticas.')) return;
   projLoad();
   const target = projAddMonths(new Date(), monthOffset || 0);
   const mn = projMonthLabel(projMonthValue(target));
@@ -1797,6 +1835,7 @@ function projMeetingCalendarDragOver(ev) {
 
 function projDropReuniaoCalendar(ev, novaData) {
   ev.preventDefault();
+  if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.')) return;
   let payload = null;
   try { payload = JSON.parse(ev.dataTransfer.getData('text/plain') || '{}'); } catch(e) { payload = null; }
   if(!payload?.projetoId || !payload?.reuniaoId || !novaData) return;
@@ -2055,6 +2094,7 @@ function projRenderReuniaoItem(projId, r, isDone) {
 }
 
 function projAdicionarReuniaoGlobal() {
+  if(!projEnsureWriteAll('Apenas EPP pode criar reuniões.')) return;
   const projId = document.getElementById('greuniao-proj')?.value;
   const nome = document.getElementById('greuniao-nome')?.value.trim();
   if(!projId) { projToast('Selecione um projeto.', '#d97706'); return; }
@@ -2079,6 +2119,7 @@ function projAdicionarReuniaoGlobal() {
 }
 
 function projEditarReuniaoModal(projetoId, reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode editar reuniões.')) return;
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === String(projetoId));
   if(!proj) return;
@@ -2110,6 +2151,7 @@ function projEditarReuniaoModal(projetoId, reuniaoId) {
 }
 
 function projSalvarEdicaoReuniao(projetoId, reuniaoId, btn) {
+  if(!projEnsureWriteAll('Apenas EPP pode editar reuniões.')) return;
   const nome = document.getElementById('edit-r-nome')?.value.trim();
   if(!nome) { projToast('Informe o nome.','#d97706'); return; }
   projLoad();
@@ -2135,6 +2177,7 @@ function projToggleReuniaoPage(projetoId, reuniaoId) {
 }
 
 function projExcluirReuniao(projetoId, reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode excluir reuniões.')) return;
   projConfirmar('Tem certeza que deseja excluir esta reunião?\n\nEsta ação não pode ser desfeita.', () => {
     projLoad();
     const proj = PROJETOS.find(p => String(p.id) === String(projetoId));
@@ -2347,7 +2390,7 @@ function projApplyProjectReadonly(faseId){
   }
   if(!content.querySelector('.proj-readonly-banner')){
     const msg = projIsLinkedManager()
-      ? 'Visualização geral. Este projeto está vinculado ao seu perfil de Gerente de Projeto, mas a edição do SIGA Projetos é restrita ao EPP.'
+      ? 'Visualização geral. Este projeto está vinculado ao seu perfil Projetos; você pode editar apenas o cronograma.'
       : 'Seu perfil tem acesso apenas de visualização no SIGA Projetos.';
     content.insertAdjacentHTML('afterbegin', `<div class="proj-readonly-banner">${projEsc(msg)}</div>`);
   }
@@ -2518,10 +2561,10 @@ function projSalvarAprovacao() {
   projToast('Dados salvos!');
 }
 
-function projAddMacro(){var s=document.getElementById('aprov-macro-sel');if(!s||!s.value){projToast('Selecione um macroprocesso.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(p.macroprocessos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.macroprocessos.push(s.value);projSave();projPopulateVinculacoes();}
-function projRemoverMacro(i){projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.macroprocessos)return;p.macroprocessos.splice(i,1);projSave();projPopulateVinculacoes();}
-function projAddObj(){var s=document.getElementById('aprov-obj-sel');if(!s||!s.value){projToast('Selecione um objetivo.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(p.objetivos_estrategicos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.objetivos_estrategicos.push(s.value);projSave();projPopulateVinculacoes();}
-function projRemoverObj(i){projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.objetivos_estrategicos)return;p.objetivos_estrategicos.splice(i,1);projSave();projPopulateVinculacoes();}
+function projAddMacro(){if(!projEnsureWriteAll())return;var s=document.getElementById('aprov-macro-sel');if(!s||!s.value){projToast('Selecione um macroprocesso.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(p.macroprocessos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.macroprocessos.push(s.value);projSave();projPopulateVinculacoes();}
+function projRemoverMacro(i){if(!projEnsureWriteAll())return;projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.macroprocessos)return;p.macroprocessos.splice(i,1);projSave();projPopulateVinculacoes();}
+function projAddObj(){if(!projEnsureWriteAll())return;var s=document.getElementById('aprov-obj-sel');if(!s||!s.value){projToast('Selecione um objetivo.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(p.objetivos_estrategicos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.objetivos_estrategicos.push(s.value);projSave();projPopulateVinculacoes();}
+function projRemoverObj(i){if(!projEnsureWriteAll())return;projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.objetivos_estrategicos)return;p.objetivos_estrategicos.splice(i,1);projSave();projPopulateVinculacoes();}
 
 // ── ABA: IDEAÇÃO (Canvas) ────────────────────────────────────────
 function projTabIdeacao(p) {
@@ -3389,6 +3432,7 @@ function projSalvarExecucao() {
 }
 
 function projAdicionarReuniao() {
+  if(!projEnsureWriteAll('Apenas EPP pode criar reuniões.')) return;
   const nome = document.getElementById('reuniao-nome')?.value.trim();
   if(!nome) { projToast('Informe o nome da reunião.', '#d97706'); return; }
   projLoad();
@@ -3412,6 +3456,7 @@ function projAdicionarReuniao() {
 }
 
 function projToggleReuniaoExec(reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.')) return;
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -3425,6 +3470,7 @@ function projToggleReuniaoExec(reuniaoId) {
 }
 
 function projExcluirReuniaoExec(reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode excluir reuniões.')) return;
   projConfirmar('Excluir esta reunião?', () => {
     projLoad();
     const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
@@ -3437,8 +3483,8 @@ function projExcluirReuniaoExec(reuniaoId) {
   });
 }
 
-function projAutoAddReunioesMes(){projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj)return;if(!proj.execucao)proj.execucao={planner_link:'',percentual:0,reunioes:[]};if(!proj.execucao.reunioes)proj.execucao.reunioes=[];var now=new Date();var dataStatus=projMonthFirstDay(now);var mn=projMonthLabel(projMonthValue(now));var nome='Reunião de Status Patrocinador - '+mn;var ja=proj.execucao.reunioes.some(function(r){return r.nome===nome||(r.auto&&r.data===dataStatus);});if(ja){projToast('Reunião deste mês já existe.','#d97706');return;}proj.execucao.reunioes.push({id:'r'+Date.now(),nome:nome,data:dataStatus,participantes:'',observacoes:'Reunião mensal de acompanhamento com o patrocinador',realizada:false,auto:true});projSave();projToast('Reunião de Status adicionada!');projAtualizarBadgeReunioes();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
-function projDeduplicarReunioes(){projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj||!proj.execucao||!proj.execucao.reunioes)return;var seen={};var orig=proj.execucao.reunioes.length;proj.execucao.reunioes=proj.execucao.reunioes.filter(function(r){var k=r.nome+'|'+(r.data||'');if(seen[k])return false;seen[k]=true;return true;});var rem=orig-proj.execucao.reunioes.length;projSave();if(rem>0){projToast(rem+' duplicada(s) removida(s).');projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}else{projToast('Nenhuma duplicata encontrada.');}}
+function projAutoAddReunioesMes(){if(!projEnsureWriteAll('Apenas EPP pode criar reuniões automáticas.'))return;projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj)return;if(!proj.execucao)proj.execucao={planner_link:'',percentual:0,reunioes:[]};if(!proj.execucao.reunioes)proj.execucao.reunioes=[];var now=new Date();var dataStatus=projMonthFirstDay(now);var mn=projMonthLabel(projMonthValue(now));var nome='Reunião de Status Patrocinador - '+mn;var ja=proj.execucao.reunioes.some(function(r){return r.nome===nome||(r.auto&&r.data===dataStatus);});if(ja){projToast('Reunião deste mês já existe.','#d97706');return;}proj.execucao.reunioes.push({id:'r'+Date.now(),nome:nome,data:dataStatus,participantes:'',observacoes:'Reunião mensal de acompanhamento com o patrocinador',realizada:false,auto:true});projSave();projToast('Reunião de Status adicionada!');projAtualizarBadgeReunioes();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
+function projDeduplicarReunioes(){if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.'))return;projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj||!proj.execucao||!proj.execucao.reunioes)return;var seen={};var orig=proj.execucao.reunioes.length;proj.execucao.reunioes=proj.execucao.reunioes.filter(function(r){var k=r.nome+'|'+(r.data||'');if(seen[k])return false;seen[k]=true;return true;});var rem=orig-proj.execucao.reunioes.length;projSave();if(rem>0){projToast(rem+' duplicada(s) removida(s).');projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}else{projToast('Nenhuma duplicata encontrada.');}}
 
 // ── ABA: CONCLUSÃO ───────────────────────────────────────────────
 let _tipoConclusaoSelecionado = '';
@@ -3843,6 +3889,7 @@ function projAutoAddReunioesStatusTodos(){
 
 // ── Excluir reuniões duplicadas em TODOS os projetos ──
 function projDeduplicarReunioesGlobal(){
+  if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.')) return;
   projLoad();
   var totalRem = 0;
   PROJETOS.forEach(function(proj){
@@ -4580,7 +4627,7 @@ function projNormalizeStrategyLists() {
   }
   PROJ_MACROS = projNormalizeStrategyList(PROJ_MACROS);
   PROJ_OBJETIVOS = projNormalizeStrategyList(PROJ_OBJETIVOS);
-  if(oldM !== JSON.stringify(PROJ_MACROS) || oldO !== JSON.stringify(PROJ_OBJETIVOS)) projSaveListas();
+  if(isEP() && (oldM !== JSON.stringify(PROJ_MACROS) || oldO !== JSON.stringify(PROJ_OBJETIVOS))) projSaveListas();
 }
 
 function projCanonicalStrategyValue(v, list) {
@@ -4708,10 +4755,12 @@ function projRenderEstrategiaPage() {
   projNormalizeStrategyLists();
   const el = document.getElementById('proj-estrategia-content');
   if(!el) return;
-  el.innerHTML = `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'Objetivos estratégicos agrupados por perspectiva, com os projetos vinculados em cada área.', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'Macroprocessos organizados por tipo, com acesso direto aos projetos relacionados.', 'macros')}<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Macroprocessos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('macro')">Abrir edição</button></div><div id="proj-strategy-editor-macro" class="proj-strategy-editor-body"><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div></div></div><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Objetivos Estratégicos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('objetivo')">Abrir edição</button></div><div id="proj-strategy-editor-objetivo" class="proj-strategy-editor-body"><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div></div></div></div>`;
+  const editors = isEP() ? `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Macroprocessos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('macro')">Abrir edição</button></div><div id="proj-strategy-editor-macro" class="proj-strategy-editor-body"><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div></div></div><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Objetivos Estratégicos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('objetivo')">Abrir edição</button></div><div id="proj-strategy-editor-objetivo" class="proj-strategy-editor-body"><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div></div></div></div>` : '';
+  el.innerHTML = `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'Objetivos estratégicos agrupados por perspectiva, com os projetos vinculados em cada área.', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'Macroprocessos organizados por tipo, com acesso direto aos projetos relacionados.', 'macros')}${editors}`;
 }
 
 function projSalvarEstrategia(kind) {
+  if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.')) return;
   const id = kind === 'macro' ? 'estrat-macros' : 'estrat-objetivos';
   const lines = (document.getElementById(id)?.value||'').split(/\n+/).map(s => s.trim()).filter(Boolean);
   if(kind === 'macro') PROJ_MACROS = projNormalizeStrategyList(lines);
@@ -4736,8 +4785,8 @@ function projPopulateVinculacoes() {
   if(os) os.innerHTML = '<option value="">Selecione...</option>' + PROJ_OBJETIVOS.map(function(o){return '<option value="'+projEsc(o)+'">'+projEsc(o)+'</option>';}).join('');
 }
 
-function projAddMacroNovo(){var inp=document.getElementById('aprov-macro-novo');if(!inp||!inp.value.trim()){projToast('Digite o macroprocesso.','#d97706');return;}var v=inp.value.trim();PROJ_MACROS=projNormalizeStrategyList([].concat(PROJ_MACROS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_MACROS);projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(!p.macroprocessos.includes(v))p.macroprocessos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
-function projAddObjNovo(){var inp=document.getElementById('aprov-obj-novo');if(!inp||!inp.value.trim()){projToast('Digite o objetivo.','#d97706');return;}var v=inp.value.trim();PROJ_OBJETIVOS=projNormalizeStrategyList([].concat(PROJ_OBJETIVOS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_OBJETIVOS);projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(!p.objetivos_estrategicos.includes(v))p.objetivos_estrategicos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
+function projAddMacroNovo(){if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.'))return;var inp=document.getElementById('aprov-macro-novo');if(!inp||!inp.value.trim()){projToast('Digite o macroprocesso.','#d97706');return;}var v=inp.value.trim();PROJ_MACROS=projNormalizeStrategyList([].concat(PROJ_MACROS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_MACROS);projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(!p.macroprocessos.includes(v))p.macroprocessos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
+function projAddObjNovo(){if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.'))return;var inp=document.getElementById('aprov-obj-novo');if(!inp||!inp.value.trim()){projToast('Digite o objetivo.','#d97706');return;}var v=inp.value.trim();PROJ_OBJETIVOS=projNormalizeStrategyList([].concat(PROJ_OBJETIVOS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_OBJETIVOS);projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(!p.objetivos_estrategicos.includes(v))p.objetivos_estrategicos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
 
 function projNewsTitleFromUrl(url, i) {
   try {
