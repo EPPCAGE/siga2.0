@@ -13,7 +13,7 @@ function projIsLinkedManager(projectId = _projCurrentId, u = usuarioLogado){
   return isGerenteProjeto() && projProjetosVinculadosUsuario(u).includes(String(projectId || ''));
 }
 function projCanWriteExec(){ return isEP(); }
-function projCanWriteSchedule(projectId = _projCurrentId){ return isEP() || projIsLinkedManager(projectId); }
+function projCanWriteSchedule(projectId = _projCurrentId){ return isEP(); }
 function projCanViewOnly(){ return !isEP(); }
 function projEnsureWriteAll(msg='Apenas EPP pode editar esta seção do módulo de projetos.'){
   if(projCanWriteAll()) return true;
@@ -25,7 +25,7 @@ function projEnsureWriteExec(msg='Apenas EPP pode executar esta ação.'){
   projToast(msg, '#d97706');
   return false;
 }
-function projEnsureWriteSchedule(msg='Gerente de Projeto só pode editar o cronograma dos projetos vinculados.'){
+function projEnsureWriteSchedule(msg='Apenas EPP pode editar o SIGA Projetos.'){
   if(projCanWriteSchedule()) return true;
   projToast(msg, '#d97706');
   return false;
@@ -2346,9 +2346,9 @@ function projApplyProjectReadonly(faseId){
     }
   }
   if(!content.querySelector('.proj-readonly-banner')){
-    const msg = projCanWriteSchedule()
-      ? 'Visualização geral. Como Gerente de Projeto vinculado, você pode editar apenas o cronograma deste projeto.'
-      : 'Seu perfil de Gerente de Projeto tem acesso apenas de visualização neste projeto.';
+    const msg = projIsLinkedManager()
+      ? 'Visualização geral. Este projeto está vinculado ao seu perfil de Gerente de Projeto, mas a edição do SIGA Projetos é restrita ao EPP.'
+      : 'Seu perfil tem acesso apenas de visualização no SIGA Projetos.';
     content.insertAdjacentHTML('afterbegin', `<div class="proj-readonly-banner">${projEsc(msg)}</div>`);
   }
 }

@@ -664,7 +664,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <hr style="margin:.8rem 0">
       <div class="card-t" style="margin-bottom:.5rem">Projetos vinculados</div>
       <div class="ib ibb" style="font-size:11px;margin-bottom:.7rem">
-        Gerentes de Projeto têm visualização geral no SIGA Projetos. Ao vincular um projeto, podem editar somente o cronograma no workflow daquele projeto.
+        Gerentes de Projeto têm visualização geral no SIGA Projetos. O vínculo identifica os projetos sob sua responsabilidade, sem liberar edição.
       </div>
       <div style="display:flex;gap:8px;margin-bottom:.6rem;flex-wrap:wrap">
         <select class="fi" id="usr-proj-add-sel" style="flex:1;max-width:420px">
@@ -2786,7 +2786,7 @@ function getPerfisUsuario(u){
 }
 function hasPerfil(p, u){ return getPerfisUsuario(u || usuarioLogado).includes(p); }
 function hasProcessosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('dono')||ps.includes('gestor'); }
-function hasProjetosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('gerente_projeto'); }
+function hasProjetosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('gestor')||ps.includes('gerente_projeto'); }
 function isEP(){ return hasPerfil('ep'); }
 function isDono(){ return hasPerfil('dono'); }
 
@@ -14540,7 +14540,7 @@ async function fbLoad(){
       try { USUARIOS = JSON.parse(usrDoc.data().data); } catch(e){ console.error('Erro ao parsear usuarios:', e); }
     }
 
-    const projSnap = await getDocs(collection(db,'projetos'));
+    const projSnap = await getDocs(collection(db,'projPROJETOS'));
     if(!projSnap.empty){
       PROJETOS_USUARIOS = [];
       projSnap.forEach(d => PROJETOS_USUARIOS.push(d.data()));

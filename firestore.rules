@@ -29,7 +29,7 @@ service cloud.firestore {
     }
 
     function canWriteProjetos() {
-      return isEP() || isGerenteProjeto();
+      return isEP();
     }
 
     // ── Usuários ──────────────────────────────────────────────────────────────
