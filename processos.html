@@ -8526,7 +8526,8 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
 }
 function extrairBpmn(){
   const p=curProc;
-  const isTobe=['esboco_tobe','det_valid_tobe'].includes(p.etapa);
+  const etapaAtiva=epRetroEtapa||p.etapa;
+  const isTobe=['esboco_tobe','det_valid_tobe'].includes(etapaAtiva);
   const bpmnXml=isTobe?p.mod?.bpmnToBe:p.mod?.bpmnAsIs;
   if(!bpmnXml){
     toast('Nenhum fluxo BPMN '+(isTobe?'TO BE':'AS IS')+' salvo. Salve o BPMN na aba de Esboço primeiro.','var(--amber)');
