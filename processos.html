@@ -1948,9 +1948,13 @@ async function doLogin(){
     mostrarErrLogin('Acesso restrito a e-mails institucionais.');return;
   }
 
-  // Valida se está na lista de usuários autorizados
-  const user = USUARIOS.find(u=>u.email===email);
-  if(!user){mostrarErrLogin('Acesso não encontrado. Use "Primeiro acesso" para criar seu cadastro.');return;}
+  // Verifica rápido se USUARIOS já tem o email (carregado no boot)
+  // Se não encontrar, pode ser que fbLoad() rodou antes da auth estar pronta —
+  // tenta autenticar no Firebase e recarrega USUARIOS com credenciais válidas.
+  const userRapido = USUARIOS.find(u=>u.email===email);
+  if(!userRapido && !fbReady()){
+    mostrarErrLogin('Acesso não encontrado. Use "Primeiro acesso" para criar seu cadastro.');return;
+  }
 
   // Autentica via Firebase Auth
   if(fbReady()){
@@ -1959,6 +1963,18 @@ async function doLogin(){
     try {
       const {auth, signInWithEmailAndPassword} = fb();
       await signInWithEmailAndPassword(auth, email, senha);
+      // Se USUARIOS não foi carregado no boot (sessão expirada), recarrega agora
+      // que o usuário está autenticado e as regras do Firestore permitem a leitura
+      if(!userRapido){
+        await fbLoad();
+        const userPos = USUARIOS.find(u=>u.email===email);
+        if(!userPos){
+          const {signOut} = fb(); signOut(auth).catch(()=>{});
+          btn.textContent = 'Entrar'; btn.disabled = false;
+          mostrarErrLogin('Acesso não encontrado. Use "Primeiro acesso" para criar seu cadastro.');
+          return;
+        }
+      }
       // onAuthStateChanged vai aplicar o usuário
     } catch(e){
       btn.textContent = 'Entrar'; btn.disabled = false;
@@ -1972,8 +1988,9 @@ async function doLogin(){
     }
   } else {
     // Fallback sem Firebase (modo local)
-    lsSet('siga_user', user.email);
-    _aplicarUsuario(user);
+    if(!userRapido){mostrarErrLogin('Acesso não encontrado. Use "Primeiro acesso" para criar seu cadastro.');return;}
+    lsSet('siga_user', userRapido.email);
+    _aplicarUsuario(userRapido);
   }
 }
 
