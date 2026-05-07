@@ -8617,6 +8617,8 @@ function calcILPFromBpmn(bpmnXml, etapas){
   let pathIds=[];
   roots.forEach(rid=>{const p=traverse(rid,new Set());if(p.length>pathIds.length)pathIds=p;});
   if(!pathIds.length)return null;
+  // Deduplica: nós após AND-join são visitados uma vez por ramo AND — manter só a primeira ocorrência
+  {const _seen=new Set(); pathIds=pathIds.filter(id=>{if(_seen.has(id))return false;_seen.add(id);return true;});}
   // Mapeia bpmn_id → etapa_proc para preservar natureza/modo editados pelo usuário
   const bpmnIdToEtapa={};
   (etapas||[]).forEach(e=>{if(e.bpmn_id)bpmnIdToEtapa[e.bpmn_id]=e;});
