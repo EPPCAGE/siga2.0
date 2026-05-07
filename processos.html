@@ -8631,7 +8631,7 @@ function calcILPFromBpmn(bpmnXml, etapas){
   const nAtores=Math.max(atoresMap.size,1);
   // Fórmula: numerador=Σeficiência | denominador=numerador+penalidades
   const numerador=actIds.reduce((s,id)=>s+_ef(id),0);
-  const overhead=0.5*gxorDiv+0.5*Math.max(0,nAtores-1);
+  const overhead=1.5*gxorDiv+1.0*Math.max(0,nAtores-1);
   const denominador=numerador+overhead;
   const ilp=Math.min(Math.round((numerador/denominador)*100),100);
   const autoNames=id=>nodeInfo[id]?.nome||id;
@@ -8742,9 +8742,9 @@ function _testCalcILP(){
     {id:'t3',t:'task',n:'Comu'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'t3'},{f:'t3',t:'e'}]);
   const r=calcILPFromBpmn(xml,[et('t1','Ator1'),et('t2','Ator2'),et('t3','Ator1')]);
-  // 3 Manual tasks (natureza irrelevante), 0 gxor, 2 atores
-  // num = 3×1.0 = 3.0 | overhead = 0 + 0.5×(2-1) = 0.5 | den = 3.5 | ilp = round(3/3.5*100)=86
-  eq('T8 formula ilp',r?.ilp,86);eq('T8 formula numerador',r?.numerador,3);eq('T8 formula overhead',r?.overhead,0.5);}
+  // 3 Manual tasks, 0 gxor, 2 atores
+  // num = 3×1.0 = 3.0 | overhead = 1.5×0 + 1.0×(2-1) = 1.0 | den = 4.0 | ilp = round(3/4*100)=75
+  eq('T8 formula ilp',r?.ilp,75);eq('T8 formula numerador',r?.numerador,3);eq('T8 formula overhead',r?.overhead,1);}
 
   // Resultado final
   console.log(`\n════ calcILP TEST SUITE: ${pass} ✅  ${fail} ❌ ════`);
@@ -8839,7 +8839,7 @@ function abrirIlpAuditoria(p){
   const formulaHtml=`<div style="background:var(--bg2);border-radius:6px;padding:.8rem;font-size:12px;margin-bottom:1.2rem;line-height:1.9">
     <div style="font-family:monospace;color:var(--ink2)">ILP = Σeficiência / (Σeficiência + 0,5×gwXOR + 0,5×(nAtores−1)) × 100</div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;Σeficiência = ${efDesc}</div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;overhead = 0,5×${gxorDiv} + 0,5×max(0,${nAtores}−1) = ${overhead.toFixed(2)}</div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;overhead = 1,5×${gxorDiv} + 1,0×max(0,${nAtores}−1) = ${overhead.toFixed(2)}</div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= <strong>${numerador.toFixed(2)}</strong> / <strong>${denominador.toFixed(2)}</strong> × 100</div>
     <div style="margin-top:.3rem;font-size:14px;font-weight:700;color:var(--ink)">= ${ilp} / 100</div>
   </div>`;
