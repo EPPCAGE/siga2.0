@@ -167,7 +167,8 @@ select.fi{cursor:pointer}
 .et-evento-fim{background:var(--red-b);color:var(--red)}
 .et-decisao{background:var(--amber-l);color:var(--amber)}
 .et-coment{background:var(--bg3);color:var(--ink3)}
-.etapa-nome{font-size:13px;font-weight:600;color:var(--ink);flex:1}
+.etapa-nome{font-size:13px;font-weight:600;color:var(--ink);flex:1;min-width:0}
+.etapa-proc-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
 /* audit executive report */
 .aud-report{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:.5rem}
 .aud-rep-header{background:linear-gradient(135deg,#1e40af,#6d28d9);padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
@@ -275,6 +276,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   .bpmn-bar .btn{font-size:10px;padding:3px 7px;min-height:28px}
   .prc{grid-template-columns:1fr}
   .prc-r{flex-direction:row;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:5px}
+  .etapa-proc-hd{flex-wrap:wrap;row-gap:6px}
+  .etapa-proc-actions{width:100%;justify-content:flex-end}
   .ri-item{grid-template-columns:1fr auto auto auto;font-size:11px}
   .arq-filtros-avancados{display:none!important}
   .ind-filtros-avancados{display:none!important}
