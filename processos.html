@@ -11119,8 +11119,6 @@ function _metaFieldsMapeamentoHTML(item, proc){
       ${proc.produto?`<div><span style="font-weight:600;color:var(--ink2)">Produto:</span> <span style="color:var(--ink3)">${proc.produto}</span></div>`:''}
     </div>
     ${_procCentralInteligenciaHTML(proc)}
-    ${analise&&analise.gargalos?.length?`<div style="margin-top:.5rem;font-size:11px"><span style="font-weight:600;color:var(--red)">Gargalos:</span> <span style="color:var(--ink3)">${analise.gargalos.join(' · ')}</span></div>`:''}
-    ${analise&&analise.oportunidades?.length?`<div style="margin-top:3px;font-size:11px"><span style="font-weight:600;color:var(--green)">Oportunidades:</span> <span style="color:var(--ink3)">${analise.oportunidades.slice(0,2).join(' · ')}${opElipsis}</span></div>`:''}
   </div>`;
 }
 // Render metadata fields read-only (expandable view) + linked mapeamento data
