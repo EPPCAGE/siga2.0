@@ -10484,35 +10484,16 @@ function rArqPopulateFilters(){
   }
   const dSel = document.getElementById('arq-f-dono');
   if(dSel){
-    // Filtra donos pelos filtros ativos (exceto o próprio filtro de dono)
-    const fSemDono = {
-      srch:    (document.getElementById('arq-srch')?.value||'').toLowerCase().trim(),
-      macro:   document.getElementById('arq-f-macro')?.value||'',
-      area:    document.getElementById('arq-f-area')?.value||'',
-      nat:     document.getElementById('arq-f-nat')?.value||'',
-      obje:    document.getElementById('arq-f-obje')?.value||'',
-      mapeado: document.getElementById('arq-f-map')?.value||'',
-      critico: document.getElementById('arq-f-crit')?.value||'',
-      dono: '',
-    };
-    const hasOutroFiltro = fSemDono.srch||fSemDono.macro||fSemDono.area||fSemDono.nat||fSemDono.obje||fSemDono.mapeado||fSemDono.critico;
+    // Reconstrói donos a partir do ARQUITETURA atual — quem não tem processo some
     const donos = new Set();
-    ARQUITETURA.forEach(m=>{
-      if(fSemDono.macro && m.nome!==fSemDono.macro) return;
-      m.processos.forEach(p=>{
-        const subs = p.subprocessos||[];
-        if(subs.length>0){
-          subs.forEach(s=>{ if(!hasOutroFiltro||itemMatchesFilters(s,m.nome,fSemDono)){ if(s.gerente) donos.add(s.gerente); } });
-        } else {
-          if(!hasOutroFiltro||itemMatchesFilters(p,m.nome,fSemDono)){ if(p.gerente) donos.add(p.gerente); }
-        }
-      });
-    });
+    ARQUITETURA.forEach(m=>m.processos.forEach(p=>{
+      if(p.gerente) donos.add(p.gerente);
+      (p.subprocessos||[]).forEach(s=>{ if(s.gerente) donos.add(s.gerente); });
+    }));
     const cur = dSel.value;
     dSel.innerHTML = '<option value="">Todos</option>' +
       [...donos].sort().map(d=>`<option ${cur===d?'selected':''}>${d}</option>`).join('');
-    // Se o dono selecionado já não existe na lista filtrada, limpa a seleção
-    if(cur && !donos.has(cur)){ dSel.value=''; }
+    if(cur && !donos.has(cur)) dSel.value='';
   }
 }
 
