@@ -8367,7 +8367,8 @@ function _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap){
     const tag=e.localName.toLowerCase();
     const typeInfo = _bpmnNodeType(tag, GW_TAGS, TASK_TAGS);
     if(!typeInfo) return;
-    nodeInfo[e.id]={xmlId:e.id, nome:e.getAttribute('name')||'', executor:laneMap[e.id]||'', ...typeInfo};
+    const gatewayDir = GW_TAGS.has(tag) ? (e.getAttribute('gatewayDirection')||'') : '';
+    nodeInfo[e.id]={xmlId:e.id, nome:e.getAttribute('name')||'', executor:laneMap[e.id]||'', gatewayDir, ...typeInfo};
   });
   return nodeInfo;
 }
@@ -8550,7 +8551,12 @@ function calcILPFromBpmn(bpmnXml, etapas){
   const nManual=total-nAuto-nSemi;
   const gwXorNodes=pathIds.filter(id=>{
     const n=nodeInfo[id]; if(!n||n.tipo!=='Decisao'||_isAnd(n))return false;
-    return(outgoing[id]||[]).filter(t=>nodeInfo[t]).length>1;
+    if(n.gatewayDir==='Converging') return false;
+    const outs=(outgoing[id]||[]).filter(t=>nodeInfo[t]).length;
+    const ins=(incoming[id]||0);
+    // gateway de união pura: 1 saída e ≥2 entradas — não é ponto de decisão
+    if(outs<=1&&ins>1) return false;
+    return outs>1;
   }).map(id=>{const n=nodeInfo[id];return{nome:n.nome||'Gateway',subtipo:n.subtipo_gateway||'exclusivo',caminhos:(outgoing[id]||[]).length};});
   const gxorDiv=gwXorNodes.length;
   // Atores distintos a partir das raias (laneMap → executor de cada atividade)
