@@ -4426,7 +4426,7 @@ const ACOES = {
         <div style="font-weight:600;margin-bottom:.4rem">Suas responsabilidades nesta etapa:</div>
         <ul style="font-size:13px;line-height:1.8;margin:.2rem 0 0 1.2rem;padding:0">
           <li>Passe o cursor sobre uma etapa para iluminá-la no diagrama ao lado</li>
-          <li>Clique em <strong>✎ Detalhar</strong> em cada etapa e preencha natureza, modo de execução, executor e descrição</li>
+          <li>Clique em <strong>✎ Detalhar</strong> em cada etapa e preencha modo de execução, executor e descrição</li>
           <li>Revise o fluxo AS IS e aprove ou solicite ajustes</li>
         </ul>
       </div>
@@ -8143,7 +8143,7 @@ function exportarEtapasAsIsXlsx(){
   if(!etapas.length){ toast('Nenhuma etapa cadastrada.','var(--amber)'); return; }
 
   const rows = [];
-  rows.push(['Seq','Nome','Tipo','Subtipo/Evento','Natureza','Modo de execução','Executor','Descrição detalhada']);
+  rows.push(['Seq','Nome','Tipo','Subtipo/Evento','Modo de execução','Executor','Descrição detalhada']);
 
   function flatEtapa(e, prefixSeq){
     const seq = prefixSeq === undefined ? (e.seq||'') : prefixSeq;
@@ -8152,7 +8152,6 @@ function exportarEtapasAsIsXlsx(){
       e.nome||'',
       e.tipo||'',
       e.subtipo_evento||'',
-      e.tipo==='Atividade'?(e.natureza||''):'',
       e.tipo==='Atividade'?(e.modo||'Manual'):'',
       e.tipo==='Atividade'?(e.executor||''):'',
       e.desc||'',
@@ -8672,19 +8671,19 @@ function _testCalcILP(){
     const f=flows.map((f,i)=>`<sequenceFlow id="sf${i}" sourceRef="${f.f}" targetRef="${f.t}" name="${f.n||''}"/>`).join('');
     return `<?xml version="1.0"?><definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"><process id="p">${e}${f}</process></definitions>`;
   }
-  function et(id,nat,exe='A1'){return{bpmn_id:id,nome:id,natureza:nat,executor:exe,modo:'Manual'};}
+  function et(id,exe='A1'){return{bpmn_id:id,nome:id,executor:exe,modo:'Manual'};}
 
   // T1 — Fluxo linear sem gateway
   {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'t2',t:'task',n:'B'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Execucao'),et('t2','Revisao')]);
+  const r=calcILPFromBpmn(xml,[et('t1'),et('t2')]);
   eq('T1 linear total',r?.total,2);eq('T1 linear gxorDiv',r?.gxorDiv,0);eq('T1 linear nManual',r?.nManual,2);}
 
   // T2 — XOR simples: toma ramo mais longo (Sim: B→C, Não: D)
   {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'gw',t:'exclusiveGateway'},
     {id:'t2',t:'task',n:'B'},{id:'t3',t:'task',n:'C'},{id:'t4',t:'task',n:'D'},{id:'e1',t:'endEvent'},{id:'e2',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'gw'},{f:'gw',t:'t2',n:'Sim'},{f:'t2',t:'t3'},{f:'t3',t:'e1'},{f:'gw',t:'t4',n:'Não'},{f:'t4',t:'e2'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Execucao'),et('t2','Execucao'),et('t3','Execucao'),et('t4','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('t1'),et('t2'),et('t3'),et('t4')]);
   eq('T2 XOR total (ramo longo=3)',r?.total,3);eq('T2 XOR gxorDiv',r?.gxorDiv,1);}
 
   // T3 — AND simples: todos os ramos contam, dedup após join
@@ -8692,7 +8691,7 @@ function _testCalcILP(){
     {id:'t2',t:'task',n:'B'},{id:'t3',t:'task',n:'C'},{id:'jn',t:'parallelGateway',n:'Join'},
     {id:'t4',t:'task',n:'D'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'sp'},{f:'sp',t:'t2'},{f:'sp',t:'t3'},{f:'t2',t:'jn'},{f:'t3',t:'jn'},{f:'jn',t:'t4'},{f:'t4',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Execucao'),et('t2','Execucao'),et('t3','Execucao'),et('t4','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('t1'),et('t2'),et('t3'),et('t4')]);
   eq('T3 AND total (4 ativ)',r?.total,4);eq('T3 AND gxorDiv',r?.gxorDiv,0);}
 
   // T4 — AND seguido de XOR: XOR não contado 2x (bug dedup)
@@ -8701,7 +8700,7 @@ function _testCalcILP(){
     {id:'gx',t:'exclusiveGateway',n:'Decisão'},{id:'tc',t:'task',n:'C'},{id:'td',t:'task',n:'D'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'sp'},{f:'sp',t:'ta'},{f:'sp',t:'tb'},{f:'ta',t:'jn'},{f:'tb',t:'jn'},
      {f:'jn',t:'gx'},{f:'gx',t:'tc'},{f:'gx',t:'td'},{f:'tc',t:'e'},{f:'td',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta','Execucao'),et('tb','Execucao'),et('tc','Execucao'),et('td','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),et('td')]);
   eq('T4 AND+XOR dedup total',r?.total,3);eq('T4 AND+XOR dedup gxorDiv (deve ser 1, não 2)',r?.gxorDiv,1);}
 
   // T5 — XOR dentro de XOR: gateways em ramos exclusivos — conta só 2 (outer+1 inner)
@@ -8713,8 +8712,8 @@ function _testCalcILP(){
     [{f:'s',t:'ta'},{f:'ta',t:'gw1'},
      {f:'gw1',t:'tb'},{f:'tb',t:'gw2'},{f:'gw2',t:'tc'},{f:'gw2',t:'td'},{f:'tc',t:'e'},{f:'td',t:'e'},
      {f:'gw1',t:'te'},{f:'te',t:'gw3'},{f:'gw3',t:'tf'},{f:'gw3',t:'tg'},{f:'tf',t:'e'},{f:'tg',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta','Execucao'),et('tb','Execucao'),et('tc','Execucao'),
-    et('td','Execucao'),et('te','Execucao'),et('tf','Execucao'),et('tg','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),
+    et('td'),et('te'),et('tf'),et('tg')]);
   eq('T5 XOR-em-XOR total (A+B+C=3)',r?.total,3);
   eq('T5 XOR-em-XOR gxorDiv (outer+1inner=2, não 3)',r?.gxorDiv,2);}
 
@@ -8726,8 +8725,8 @@ function _testCalcILP(){
     [{f:'s',t:'sp'},{f:'sp',t:'gx1'},{f:'sp',t:'gx2'},
      {f:'gx1',t:'ta'},{f:'gx1',t:'tc'},{f:'ta',t:'tb'},{f:'tb',t:'e'},{f:'tc',t:'e'},
      {f:'gx2',t:'td'},{f:'gx2',t:'tf'},{f:'td',t:'te'},{f:'te',t:'e'},{f:'tf',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta','Execucao'),et('tb','Execucao'),et('tc','Execucao'),
-    et('td','Execucao'),et('te','Execucao'),et('tf','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),
+    et('td'),et('te'),et('tf')]);
   eq('T6 XOR-em-AND total (A1+A2+B1+B2=4)',r?.total,4);
   eq('T6 XOR-em-AND gxorDiv (2)',r?.gxorDiv,2);}
 
@@ -8735,14 +8734,14 @@ function _testCalcILP(){
   {const xml=bpmn([{id:'s',t:'startEvent'},{id:'ta',t:'task',n:'A'},{id:'gw',t:'exclusiveGateway',n:'OK?'},
     {id:'tb',t:'task',n:'B'},{id:'tc',t:'task',n:'C'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'ta'},{f:'ta',t:'gw'},{f:'gw',t:'tb',n:'Não'},{f:'tb',t:'ta'},{f:'gw',t:'tc',n:'Sim'},{f:'tc',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta','Execucao'),et('tb','Execucao'),et('tc','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc')]);
   eq('T7 loop total (A+C=2)',r?.total,2);eq('T7 loop gxorDiv',r?.gxorDiv,1);}
 
   // T8 — Formula: Σeficiência / (Σeficiência + 0.5*gxor + 0.5*(atores-1)) * 100
   {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'Exec'},{id:'t2',t:'task',n:'Revis'},
     {id:'t3',t:'task',n:'Comu'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'t3'},{f:'t3',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Execucao','Ator1'),et('t2','Revisao','Ator2'),et('t3','Comunicacao','Ator1')]);
+  const r=calcILPFromBpmn(xml,[et('t1','Ator1'),et('t2','Ator2'),et('t3','Ator1')]);
   // 3 Manual tasks (natureza irrelevante), 0 gxor, 2 atores
   // num = 3×1.0 = 3.0 | overhead = 0 + 0.5×(2-1) = 0.5 | den = 3.5 | ilp = round(3/3.5*100)=86
   eq('T8 formula ilp',r?.ilp,86);eq('T8 formula numerador',r?.numerador,3);eq('T8 formula overhead',r?.overhead,0.5);}
@@ -9088,7 +9087,6 @@ function _rFormHtml(p){
           const execDefault=isStructural?'':(e.executor||'');
     const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:execDefault;
           const modo=normModo(e.modo);
-          const nat=e.natureza||'';
           const gw=e.vinculo_gw?.gw_ep_id?etapas.find(x=>x.id===e.vinculo_gw.gw_ep_id):null;
           const gwCellLabel=gw&&e.vinculo_gw.label?' · '+esc(e.vinculo_gw.label):'';
           const gwCell=gw?`<div style="font-size:10px;color:var(--ink3)">⤷ ${esc(gw.nome||'Gateway')}${gwCellLabel}</div>`:'';
@@ -9096,7 +9094,6 @@ function _rFormHtml(p){
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3);white-space:nowrap">${i+1}</td>
             <td style="padding:5px 8px;font-size:12px;font-weight:600">${esc(e.nome||'')}${gwCell}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(tipo)}</td>
-            <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(nat)}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(modo)}</td>
             <td style="padding:5px 8px;font-size:12px">${esc(desc)}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(resp)}</td>
@@ -9109,7 +9106,6 @@ function _rFormHtml(p){
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">#</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Etapa</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Tipo</th>
-              <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Natureza</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Modo</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Descrição</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Responsável</th>
