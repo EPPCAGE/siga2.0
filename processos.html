@@ -8506,7 +8506,7 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
         tipo:n.tipo, subtipo_evento:n.subtipo||null,
         natureza:n.natureza||naturezaFallback, modo:n.modo||null,
         executor:n.executor||'', desc:n.desc||'', caminhos:[],
-        vinculo_gw: (myCtx&&n.tipo!=='Decisao') ? {gw_ep_id:myCtx.epId,label:myCtx.label} : null
+        vinculo_gw: myCtx ? {gw_ep_id:myCtx.epId,label:myCtx.label} : null
       };
       // For split gateways: pre-populate caminhos labels from flow labels
       if(n.tipo==='Decisao'){
@@ -8639,16 +8639,22 @@ function calcILP(etapas){
   const NON_XOR=new Set(['paralelo','inclusivo','complexo']);
   const _normGw=s=>(s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
   const _isParalelo=n=>NON_XOR.has(n.subtipo_gateway)||_normGw(n.nome).includes('paralelo');
-  // Gateways XOR no caminho mais longo; vinculo_gw detectado via lista completa
-  const gwXorNodes=all.filter(n=>
-    n.tipo==='Decisao' &&
-    !_isParalelo(n) &&
-    (
-      (n.caminhos||[]).length>1 ||
-      allFlat.some(a=>a.vinculo_gw?.gw_ep_id===n.id)
-    )
-  );
-  const gxorDiv=gwXorNodes.length;
+  const _isDivXor=n=>n.tipo==='Decisao'&&!_isParalelo(n)&&((n.caminhos||[]).length>1||allFlat.some(a=>a.vinculo_gw?.gw_ep_id===n.id));
+  // IDs de todos os gateways XOR divergentes (lista completa — para detectar aninhamento)
+  const _xorGwIds=new Set(allFlat.filter(_isDivXor).map(n=>n.id));
+  // Gateways de topo: não estão dentro de um ramo XOR (se estiverem em AND, contam normalmente)
+  const gwXorNodes=all.filter(n=>_isDivXor(n)&&!_xorGwIds.has(n.vinculo_gw?.gw_ep_id));
+  // Gateways aninhados dentro de ramos XOR: agrupa por (pai, ramo) e soma só o pior ramo por pai
+  const _nestedInXor=all.filter(n=>_isDivXor(n)&&_xorGwIds.has(n.vinculo_gw?.gw_ep_id));
+  const _nestedGroups=new Map();
+  _nestedInXor.forEach(n=>{
+    const pid=n.vinculo_gw.gw_ep_id,lbl=n.vinculo_gw.label||'__';
+    if(!_nestedGroups.has(pid))_nestedGroups.set(pid,new Map());
+    const m=_nestedGroups.get(pid);m.set(lbl,(m.get(lbl)||0)+1);
+  });
+  let _nestedCount=0;
+  _nestedGroups.forEach(m=>{_nestedCount+=Math.max(...m.values());});
+  const gxorDiv=gwXorNodes.length+_nestedCount;
   // Atores distintos: normaliza caixa e acentuação antes de deduplicar
   const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
   const atoresMap=new Map(); // key=normalizado → value=primeira ocorrência original
@@ -10000,8 +10006,14 @@ function bpmnImport(which){
   m.importXML(xml).then(()=>{
     m.get('canvas').zoom('fit-viewport');
     ta.style.display='none';ta.value='';
-    bpmnDirty[which]=true;
-    const lbl=document.getElementById('bpmn-'+which+'-dirty');if(lbl)lbl.style.display='inline';
+    // Persiste imediatamente — evita perda se o usuário sair sem clicar Salvar
+    const key=which==='asis'?'bpmnAsIs':'bpmnToBe';
+    if(!curProc.mod)curProc.mod={asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,etapas_proc:[],obs:''};
+    curProc.mod[key]=xml;
+    bpmnDirty[which]=false;
+    const lbl=document.getElementById('bpmn-'+which+'-dirty');if(lbl)lbl.style.display='none';
+    fbAutoSave('bpmnImport');
+    toast('✓ Fluxo importado e salvo');
   }).catch(err=>toast('XML inválido: '+(err.message||err),'var(--red)'));
 }
 
