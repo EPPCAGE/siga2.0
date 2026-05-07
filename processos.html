@@ -8830,7 +8830,7 @@ function abrirIlpAuditoria(p){
   modal.id='ilp-audit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
   modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
-  const {ilp,total,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,numerador,overhead,denominador}=d;
+  const {ilp,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,numerador,overhead,denominador}=d;
   const _sec=(titulo,html)=>`<div style="margin-bottom:1.1rem"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:.4rem">${titulo}</div>${html}</div>`;
   const _tag=(txt,cor)=>`<span style="display:inline-block;background:${cor}22;color:${cor};border:1px solid ${cor}55;border-radius:4px;padding:1px 7px;font-size:11px;margin:2px;line-height:1.6">${esc(txt)}</span>`;
   const _vazia=msg=>`<span style="font-size:12px;color:var(--ink3);font-style:italic">${msg}</span>`;
@@ -11156,7 +11156,6 @@ function _metaFieldsMapeamentoHTML(item, proc){
   const analise = proc.ent?.analise;
   const matNivel = proc.ent?.mat||0;
   const progBar = _metaFieldsProgBar(proc);
-  const opElipsis = analise&&analise.oportunidades&&analise.oportunidades.length>2 ? ' …' : '';
   const mapeandoBadge = ['acompanha','auditoria'].includes(proc.etapa) ? '' : '<span class="badge ba" style="font-size:10px;margin-left:auto">Em mapeamento</span>';
   return `
   <div style="margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">
