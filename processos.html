@@ -14629,7 +14629,7 @@ function _fsClean(v){
   return v;
 }
 async function fbSaveAll(){
-  if(!fbReady()) return;
+  if(!fbReady() || !globalThis._fbLoadedAt) return;
   try {
     const {db, doc, writeBatch, setDoc} = fb();
 
@@ -15496,7 +15496,7 @@ function _fbWatchExternalChanges(){
 // ── END CONCURRENT EDIT ──────────────────────────────────────
 
 function fbSaveNow(label){
-  if(!fbReady()) return;
+  if(!fbReady() || !globalThis._fbLoadedAt) return;
   clearTimeout(globalThis._fbSaveTimer);
   fbSaveAll().catch(e=>{
     console.error('fbSaveNow error ('+label+'):', e);
@@ -15504,7 +15504,7 @@ function fbSaveNow(label){
   });
 }
 function fbAutoSave(label){
-  if(!fbReady()) return;
+  if(!fbReady() || !globalThis._fbLoadedAt) return;
   // Q023: snapshot dos campos editáveis antes de salvar (operações de edição)
   const editOps=['editarMetadados','reatribuirEP','alterarPrio','epEditouDono'];
   if(editOps.includes(label) && curProc){
