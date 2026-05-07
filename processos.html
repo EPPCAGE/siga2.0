@@ -11438,7 +11438,6 @@ async function importarArqExcel(input){
         return null;
       }
 
-      // Map columns — order matters: more specific first
       const cMacro  = findCol('macroprocesso');
       const cSub    = findCol('subprocessos','subprocesso');
       const cProc   = findCol('processo');  // after sub/macro so they don't steal it
@@ -11451,6 +11450,8 @@ async function importarArqExcel(input){
       const cEntr   = findCol('entregas do processo','entregas processo','entrega');
       const cCli    = findCol('clientes do processo','clientes processo','cliente');
       const cDocs   = findCol('documentacao e regulamentacoes','documentacao e regulamentacao','regulamentacao','documentacao');
+      const cMap    = findCol('processo mapeado','mapeado');
+      const cCrit   = findCol('processo critico','processo crítico','critico','crítico');
 
       // Debug log — remove after confirming import works
       console.table({
@@ -11466,10 +11467,13 @@ async function importarArqExcel(input){
         entr:   cEntr   || 'NAO ENCONTRADA',
         cli:    cCli    || 'NAO ENCONTRADA',
         docs:   cDocs   || 'NAO ENCONTRADA',
+        mapeado: cMap   || 'NAO ENCONTRADA',
+        critico: cCrit  || 'NAO ENCONTRADA',
       });
 
       // Helper to get value safely
       function gv(row, col){ return col ? (row[col]||'').toString().trim() : ''; }
+      const _isSim = v => /^(sim|s|yes|y|x|1|true)$/i.test(v.trim());
 
       let added=0;
       rows.forEach(row=>{
@@ -11499,7 +11503,7 @@ async function importarArqExcel(input){
         const sub = gv(row, cSub);
         const subValido = sub && !/^n[ãa]o[\s_-]*h[aá]/i.test(sub) && sub.toLowerCase()!=='nenhum' && sub.toLowerCase()!=='-' && sub.toLowerCase()!=='n/a';
         if(subValido && !p.subprocessos.some(s=>s.nome===sub)){
-          p.subprocessos.push({
+          const newSub={
             id:'s'+arqIdC++, nome:sub,
             natureza:             gv(row,cNat) ? gv(row,cNat).charAt(0).toUpperCase()+gv(row,cNat).slice(1).toLowerCase() : '',
             gerente:              gv(row,cGer),
@@ -11511,9 +11515,17 @@ async function importarArqExcel(input){
             clientes:             gv(row,cCli),
             docs:                 gv(row,cDocs),
             proc_id:null
-          });
+          };
+          p.subprocessos.push(newSub);
+          if(_isSim(gv(row,cMap)))  mapeadosManual.add(newSub.id);
+          if(_isSim(gv(row,cCrit))) criticosManual.add(newSub.id);
+        } else if(!subValido){
+          if(_isSim(gv(row,cMap)))  mapeadosManual.add(p.id);
+          if(_isSim(gv(row,cCrit))) criticosManual.add(p.id);
         }
       });
+      lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
+      lsSet('criticosManual',  JSON.stringify([...criticosManual]));
       rArq();
       fbAutoSave('importarArq');
       toast('Importação concluída: '+added+' processo(s) adicionado(s)');
