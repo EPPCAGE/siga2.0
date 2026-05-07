@@ -1683,6 +1683,14 @@ function nextEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.i
 function prevEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.id===id);return i>0?et[i-1].id:null;}
 function fBadge(etId){const f=etFase(etId);return '<span class="badge '+(FASE_COR[f]||'bgr')+'">'+f+'</span>';}
 function eBadge(etId){return '<span class="badge '+(EBADGE[etId]||'bgr')+'">'+etLb(etId)+'</span>';}
+function _eBadgeAcomp(p){
+  if(p.etapa!=='acompanha') return eBadge(p.etapa);
+  const dtProx=p.dt_proximo_acompanhamento;
+  const vencido=dtProx&&dtProx<new Date().toISOString().slice(0,10);
+  return vencido
+    ?'<span class="badge" style="background:var(--red-l);color:var(--red)">⚠ Acompanhamento</span>'
+    :eBadge('acompanha');
+}
 function _pBadgeCls(p){if(p==='Critica'){return 'br';}if(p==='Alta'){return 'ba';}return 'bgr';}
 function pBadge(p){return '<span class="badge '+_pBadgeCls(p)+'">'+p+'</span>';}
 
@@ -3149,13 +3157,13 @@ function renderProcs(){
         <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div>
         ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_concCor}">${p.ent&&p.ent.dt_efetiva?'Entrega efetiva em '+_fmtD(p.ent.dt_efetiva)+' · ':''}Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_concWarn}</div>`:''}
         </div>
-        <div class="prc-r"><span class="badge bg" style="font-size:10px">✓ Mapeado</span>${eBadge(p.etapa)}</div>
+        <div class="prc-r"><span class="badge bg" style="font-size:10px">✓ Mapeado</span>${_eBadgeAcomp(p)}</div>
       </div>`;
     }
     return `<div class="prc ${p.prio==='Critica'?'urg':''} ${isVencido(p)?'venc':''}" onclick="abrirProc(${p.id})" style="${isVencido(p)?'border-left:3px solid var(--red);':''}">
       <div><div class="prc-t">${esc(p.nome)}</div>
       <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div></div>
-      <div class="prc-r">${fBadge(p.etapa)}${eBadge(p.etapa)}${_statusBadge(p)}${isVencido(p)?'<span class="badge" style="background:var(--red-l);color:var(--red);margin-left:3px">⚠ Vencido</span>':''}${pBadge(p.prio)}${isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
+      <div class="prc-r">${fBadge(p.etapa)}${_eBadgeAcomp(p)}${_statusBadge(p)}${isVencido(p)?'<span class="badge" style="background:var(--red-l);color:var(--red);margin-left:3px">⚠ Vencido</span>':''}${pBadge(p.prio)}${isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -3192,7 +3200,7 @@ function abrirProc(id){
 function rDetalhe(){
   const p=curProc;
   document.getElementById('det-titulo').textContent=p.nome;
-  document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+eBadge(p.etapa)+_statusBadge(p);
+  document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+_eBadgeAcomp(p)+_statusBadge(p);
   document.getElementById('det-prio').innerHTML=pBadge(p.prio)
     +(isEP()?` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Editar dono, interessados e produto" onclick="abrirEditarMetadados()">✎ Editar</button>`:'')
     +(isEP()||usuarioLogado?.perfil==='gestor' ? _renderCicloBar(p) : '');
@@ -6049,6 +6057,7 @@ async function registrarReuniaoAcomp(){
   }
   if(r.data){
     p.reunioes_acomp.push(r);
+    p.dt_proximo_acompanhamento = _addDias(r.data, 180);
     push(p,'acompanha','EP','Reunião de acompanhamento registrada — '+r.data+' — '+r.conformidade);
     await fbSaveAll();
     toast('Reunião registrada!','var(--teal)');
@@ -6109,6 +6118,8 @@ async function salvarEditReuniaoAcomp(){
     economia_h:volNovo&&trealNovo&&p.ent?.total_h_mensal!=null?+(p.ent.total_h_mensal-volNovo*trealNovo).toFixed(1):null,
   };
   p.reunioes_acomp[idx]=updated;
+  const _latestAcomp=[...p.reunioes_acomp].sort((a,b)=>a.data<b.data?1:-1)[0];
+  if(_latestAcomp?.data) p.dt_proximo_acompanhamento=_addDias(_latestAcomp.data,180);
   await fbSaveAll();
   toast('Reunião atualizada!','var(--teal)');
   globalThis._acEditIdx=null;
@@ -11157,7 +11168,6 @@ function _procCentralInteligenciaHTML(proc){
 }
 
 function _metaFieldsMapeamentoHTML(item, proc){
-  const analise = proc.ent?.analise;
   const matNivel = proc.ent?.mat||0;
   const progBar = _metaFieldsProgBar(proc);
   const mapeandoBadge = ['acompanha','auditoria'].includes(proc.etapa) ? '' : '<span class="badge ba" style="font-size:10px;margin-left:auto">Em mapeamento</span>';
