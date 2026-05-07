@@ -8582,124 +8582,91 @@ function extrairBpmn(){
 // ABAS SECUNDÁRIAS DO DETALHE
 // ═══════════════════════════════════════════
 // ── Índice Lean Processual ─────────────────
+// Calcula ILP diretamente do grafo BPMN XML — caminho mais longo correto (XOR→pior ramo, AND→todos)
+function calcILPFromBpmn(bpmnXml, etapas){
+  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
+  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
+  const xml=new DOMParser().parseFromString(bpmnXml,'text/xml');
+  const laneMap=_bpmnBuildLaneMap(xml);
+  const nodeInfo=_bpmnBuildNodeInfo(xml,GW_TAGS,TASK_TAGS,laneMap);
+  const outgoing=_bpmnBuildOutgoing(xml);
+  if(!Object.keys(nodeInfo).length)return null;
+  const incoming={};
+  Object.entries(outgoing).forEach(([src,tgts])=>tgts.forEach(t=>{incoming[t]=(incoming[t]||0)+1;}));
+  const NON_XOR=new Set(['paralelo','inclusivo','complexo']);
+  const _normN=s=>(s||'').toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'');
+  const _isAnd=n=>NON_XOR.has(n.subtipo_gateway)||_normN(n.nome||'').includes('paralelo');
+  // DFS longest-path: XOR→ramo mais longo, AND→todos os ramos
+  function traverse(id,vis){
+    if(vis.has(id))return[];
+    const n=nodeInfo[id]; if(!n)return[];
+    const vis2=new Set(vis); vis2.add(id);
+    const nexts=(outgoing[id]||[]).filter(t=>nodeInfo[t]&&!vis2.has(t));
+    if(n.tipo==='Decisao'&&nexts.length>1){
+      if(_isAnd(n)){
+        const r=[id]; nexts.forEach(t=>traverse(t,vis2).forEach(x=>r.push(x))); return r;
+      } else {
+        let best=[]; nexts.forEach(t=>{const br=traverse(t,vis2);if(br.length>best.length)best=br;});
+        return[id,...best];
+      }
+    }
+    const r=[id]; nexts.forEach(t=>traverse(t,vis2).forEach(x=>r.push(x))); return r;
+  }
+  const startIds=Object.keys(nodeInfo).filter(id=>nodeInfo[id].subtipo==='Início');
+  const roots=startIds.length?startIds:Object.keys(nodeInfo).filter(id=>!incoming[id]);
+  let pathIds=[];
+  roots.forEach(rid=>{const p=traverse(rid,new Set());if(p.length>pathIds.length)pathIds=p;});
+  if(!pathIds.length)return null;
+  // Mapeia bpmn_id → etapa_proc para preservar natureza/modo editados pelo usuário
+  const bpmnIdToEtapa={};
+  (etapas||[]).forEach(e=>{if(e.bpmn_id)bpmnIdToEtapa[e.bpmn_id]=e;});
+  const actIds=pathIds.filter(id=>nodeInfo[id]?.tipo==='Atividade');
+  const total=actIds.length; if(!total)return null;
+  const atividades=actIds.map(id=>{
+    const et=bpmnIdToEtapa[id]; if(et)return et;
+    const n=nodeInfo[id];
+    return{nome:n.nome||'?',natureza:inferNatureza(n.nome||''),executor:n.executor||'',modo:'Manual'};
+  });
+  const cnt=nat=>atividades.filter(a=>a.natureza===nat).length;
+  const E=cnt('Execucao'),P=cnt('Preparacao'),C=cnt('Comunicacao'),D=cnt('Distribuicao');
+  const PESO_MODO={'Automatica':0.5,'Semi-automatica':0.75};
+  const _pesoModo=a=>PESO_MODO[a.modo]??1;
+  const nAuto=atividades.filter(a=>a.modo==='Automatica').length;
+  const nSemi=atividades.filter(a=>a.modo==='Semi-automatica').length;
+  const nManual=total-nAuto-nSemi;
+  // Conta gateways XOR divergentes no caminho mais longo (corretamente, pois pathIds já é o caminho certo)
+  const gwXorNodes=pathIds.filter(id=>{
+    const n=nodeInfo[id]; if(!n||n.tipo!=='Decisao'||_isAnd(n))return false;
+    return(outgoing[id]||[]).filter(t=>nodeInfo[t]).length>1;
+  }).map(id=>{const n=nodeInfo[id];return{nome:n.nome||'Gateway',subtipo:n.subtipo_gateway||'exclusivo',caminhos:(outgoing[id]||[]).length};});
+  const gxorDiv=gwXorNodes.length;
+  const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'');
+  const atoresMap=new Map();
+  atividades.forEach(a=>{const raw=(a.executor||'').trim();if(!raw)return;const k=_normAtor(raw);if(!atoresMap.has(k))atoresMap.set(k,raw);});
+  const nAtores=Math.max(atoresMap.size,1);
+  const numerador=E+P+0.5*(C+D);
+  const denominadorBase=atividades.reduce((s,a)=>s+_pesoModo(a),0);
+  const denominador=denominadorBase+0.5*gxorDiv+0.5*Math.max(0,nAtores-1);
+  const ilp=Math.min(Math.round((numerador/denominador)*100),100);
+  const _byNat=nat=>atividades.filter(a=>a.natureza===nat).map(a=>a.nome||'?');
+  return{
+    ilp,total,E,P,C,D,R:cnt('Revisao'),A:cnt('Aprovacao'),
+    gxorDiv,nAtores,nAuto,nSemi,nManual,
+    atoresList:[...atoresMap.values()],
+    gwXorList:gwXorNodes,
+    ativNatDetail:{Execucao:_byNat('Execucao'),Preparacao:_byNat('Preparacao'),Comunicacao:_byNat('Comunicacao'),Distribuicao:_byNat('Distribuicao'),Revisao:_byNat('Revisao'),Aprovacao:_byNat('Aprovacao'),SemNat:atividades.filter(a=>!a.natureza).map(a=>a.nome||'?')},
+    autoDetail:{Automatica:_byNat('Automatica'),'Semi-automatica':_byNat('Semi-automatica')},
+    numerador,denominadorBase,denominador,
+  };
+}
+
 // ILP = (E + P + 0.5*(C+D)) / (Total + α*GxorDiv + β*(Atores-1)) * 100
 // α=1: cada exclusive gateway divergente equivale a 1 atividade improdutiva
 // β=0.5: cada ator extra além do primeiro equivale a 0.5
-function calcILP(etapas){
-  if(!etapas||!etapas.length)return null;
-  // AND/paralelo: todos os ramos são obrigatórios → inclui todos.
-  // XOR/exclusivo: pior caso → inclui só o ramo mais longo.
-  const _NON_XOR=new Set(['paralelo','inclusivo','complexo']);
-  const _normN=s=>(s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
-  const _isAnd=n=>_NON_XOR.has(n.subtipo_gateway)||_normN(n.nome).includes('paralelo');
-  function longestPath(nodes){
-    const out=[];
-    for(const n of nodes){
-      out.push(n);
-      const cams=n.caminhos||[];
-      if(cams.length>0){
-        if(_isAnd(n)){
-          // paralelo: percorre todos os ramos
-          for(const cam of cams) for(const a of longestPath(cam.acoes||[])) out.push(a);
-        } else {
-          // exclusivo: pior caso = ramo com mais nós
-          let best=[], bestW=-1;
-          for(const cam of cams){
-            const br=longestPath(cam.acoes||[]);
-            if(br.length>bestW){bestW=br.length; best=br;}
-          }
-          for(const a of best) out.push(a);
-        }
-      }
-    }
-    return out;
-  }
-  // Lista completa (todos os ramos) — usada só para detecção de vinculo_gw
-  function flatAll(nodes){
-    const out=[];
-    for(const n of nodes){
-      out.push(n);
-      for(const cam of (n.caminhos||[])) for(const a of flatAll(cam.acoes||[])) out.push(a);
-    }
-    return out;
-  }
-  const all=longestPath(etapas);
-  const allFlat=flatAll(etapas);
-  const atividades=all.filter(n=>n.tipo==='Atividade');
-  const total=atividades.length;
-  if(!total)return null;
-  const cnt=nat=>atividades.filter(n=>n.natureza===nat).length;
-  const E=cnt('Execucao'), P=cnt('Preparacao'), C=cnt('Comunicacao'), D=cnt('Distribuicao');
-  // Gateways XOR divergentes: exclui tipos não-exclusivos (paralelo, inclusivo, complexo).
-  // Dados antigos sem subtipo_gateway são tratados como exclusivo (XOR) por default,
-  // EXCETO se o nome do gateway contiver "paralelo" (normalizado, sem acento/caixa).
-  // Detecta divergência por estrutura:
-  //   a) caminhos.length>1   → estrutura manual OU BPMN novo (extrator popula caminhos)
-  //   b) vinculo_gw.gw_ep_id → estrutura BPMN plana (atividades dentro de branches)
-  const NON_XOR=new Set(['paralelo','inclusivo','complexo']);
-  const _normGw=s=>(s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
-  const _isParalelo=n=>NON_XOR.has(n.subtipo_gateway)||_normGw(n.nome).includes('paralelo');
-  const _isDivXor=n=>n.tipo==='Decisao'&&!_isParalelo(n)&&((n.caminhos||[]).length>1||allFlat.some(a=>a.vinculo_gw?.gw_ep_id===n.id));
-  // IDs de todos os gateways XOR divergentes (lista completa — para detectar aninhamento)
-  const _xorGwIds=new Set(allFlat.filter(_isDivXor).map(n=>n.id));
-  // Gateways de topo: não estão dentro de um ramo XOR (se estiverem em AND, contam normalmente)
-  const gwXorNodes=all.filter(n=>_isDivXor(n)&&!_xorGwIds.has(n.vinculo_gw?.gw_ep_id));
-  // Gateways aninhados dentro de ramos XOR: agrupa por (pai, ramo) e soma só o pior ramo por pai
-  const _nestedInXor=all.filter(n=>_isDivXor(n)&&_xorGwIds.has(n.vinculo_gw?.gw_ep_id));
-  const _nestedGroups=new Map();
-  _nestedInXor.forEach(n=>{
-    const pid=n.vinculo_gw.gw_ep_id,lbl=n.vinculo_gw.label||'__';
-    if(!_nestedGroups.has(pid))_nestedGroups.set(pid,new Map());
-    const m=_nestedGroups.get(pid);m.set(lbl,(m.get(lbl)||0)+1);
-  });
-  let _nestedCount=0;
-  _nestedGroups.forEach(m=>{_nestedCount+=Math.max(...m.values());});
-  const gxorDiv=gwXorNodes.length+_nestedCount;
-  // Atores distintos: normaliza caixa e acentuação antes de deduplicar
-  const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
-  const atoresMap=new Map(); // key=normalizado → value=primeira ocorrência original
-  atividades.forEach(n=>{
-    const raw=(n.executor||'').trim();
-    if(!raw)return;
-    const key=_normAtor(raw);
-    if(!atoresMap.has(key))atoresMap.set(key,raw);
-  });
-  const nAtores=Math.max(atoresMap.size,1);
-  const atoresList=[...atoresMap.values()];
-  // Peso por modo de execução: automação reduz overhead no denominador
-  // Manual=1.0 | Semi-automática=0.75 | Automática=0.5
-  const PESO_MODO={'Automatica':0.5,'Semi-automatica':0.75};
-  const _pesoModo=n=>PESO_MODO[n.modo]??1;
-  // Atividades agrupadas por natureza e por modo (para auditoria)
-  const _byNat=nat=>atividades.filter(n=>n.natureza===nat).map(n=>n.nome||'?');
-  const _byModo=modo=>atividades.filter(n=>n.modo===modo).map(n=>n.nome||'?');
-  const nAuto=atividades.filter(n=>n.modo==='Automatica').length;
-  const nSemi=atividades.filter(n=>n.modo==='Semi-automatica').length;
-  const nManual=total-nAuto-nSemi;
-  const numerador=E + P + 0.5*(C+D);
-  // Denominador base: Σ peso_modo(i) — atividades automatizadas pesam menos
-  const denominadorBase=atividades.reduce((s,n)=>s+_pesoModo(n),0);
-  const denominador=denominadorBase + 0.5*gxorDiv + 0.5*Math.max(0,nAtores-1);
-  // Cap em 100: processos altamente automatizados podem ter numerador > denominador
-  const ilp=Math.min(Math.round((numerador/denominador)*100),100);
-  return {
-    ilp,total,E,P,C,D,R:cnt('Revisao'),A:cnt('Aprovacao'),
-    gxorDiv,nAtores,nAuto,nSemi,nManual,
-    // Dados de auditoria
-    atoresList,
-    gwXorList:gwXorNodes.map(n=>({nome:n.nome||'Gateway',subtipo:n.subtipo_gateway||'exclusivo',caminhos:(n.caminhos||[]).length})),
-    ativNatDetail:{
-      Execucao:_byNat('Execucao'),Preparacao:_byNat('Preparacao'),
-      Comunicacao:_byNat('Comunicacao'),Distribuicao:_byNat('Distribuicao'),
-      Revisao:_byNat('Revisao'),Aprovacao:_byNat('Aprovacao'),
-      SemNat:atividades.filter(n=>!n.natureza).map(n=>n.nome||'?'),
-    },
-    autoDetail:{
-      Automatica:_byModo('Automatica'),
-      'Semi-automatica':_byModo('Semi-automatica'),
-    },
-    numerador,denominadorBase,denominador,
-  };
+function calcILP(etapas, bpmnXml){
+  if(!bpmnXml) return null;
+  try{const r=calcILPFromBpmn(bpmnXml,etapas);if(r)return r;}catch(e){console.warn('calcILPFromBpmn falhou:',e.message);}
+  return null;
 }
 function _rEntMatBadges(e){
   const mat=e.mat||0;
@@ -8775,7 +8742,7 @@ function _rEntIlpCard(ilpData){
   </div>`;
 }
 function abrirIlpAuditoria(p){
-  const d=calcILP(p?.mod?.etapas_proc||[]);
+  const d=calcILP(p?.mod?.etapas_proc||[], p?.mod?.bpmnAsIs||null);
   if(!d){toast('Nenhuma atividade mapeada para calcular o ILP.','var(--amber)');return;}
   document.getElementById('ilp-audit-modal')?.remove();
   const modal=document.createElement('div');
@@ -8854,7 +8821,7 @@ function rEnt(p){
     if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
-  const ilpCard=_rEntIlpCard(calcILP(p.mod?.etapas_proc||[]));
+  const ilpCard=_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null));
       const linkPubHtml = p.form?.link_pub
         ? '<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="'+esc(p.form.link_pub)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(p.form.link_pub)+'</a></div></div>'
         : '';
@@ -9199,7 +9166,7 @@ async function _popPdfAnexo(p){
   }
 
   // ── 7.0 Índice Lean Processual ────────────────────────────────────────────
-  const ilpData=calcILP(p.mod?.etapas_proc||[]);
+  const ilpData=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null);
   if(ilpData){
     const {ilp,total,E,P,C,D,R,A,gxorDiv,nAtores}=ilpData;
     let ilpBg,ilpColor,ilpLabel,ilpDesc;
