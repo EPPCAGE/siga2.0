@@ -10455,22 +10455,18 @@ function rArqPopulateFilters(){
     mSel.innerHTML = '<option value="">Todos</option>' +
       ARQUITETURA.map(m=>`<option ${cur===m.nome?'selected':''}>${m.nome}</option>`).join('');
   }
-  // Área — collect from all processos and subprocessos
+  // Área e Obj. estratégico — coletados de todos os itens (sem filtro)
   const areas = new Set();
   const objEs = new Set();
-  // Split by ";" since many processes have multiple strategic objectives
   function addObje(val){
     if(!val) return;
     val.split(';').map(s=>s.trim()).filter(Boolean).forEach(o=>objEs.add(o));
   }
-  const donos = new Set();
   ARQUITETURA.forEach(m=>m.processos.forEach(p=>{
     if(p.area) areas.add(p.area);
-    if(p.gerente) donos.add(p.gerente);
     addObje(p.objetivo_estrategico);
     (p.subprocessos||[]).forEach(s=>{
       if(s.area) areas.add(s.area);
-      if(s.gerente) donos.add(s.gerente);
       addObje(s.objetivo_estrategico);
     });
   }));
@@ -10488,9 +10484,16 @@ function rArqPopulateFilters(){
   }
   const dSel = document.getElementById('arq-f-dono');
   if(dSel){
+    // Reconstrói donos a partir do ARQUITETURA atual — quem não tem processo some
+    const donos = new Set();
+    ARQUITETURA.forEach(m=>m.processos.forEach(p=>{
+      if(p.gerente) donos.add(p.gerente);
+      (p.subprocessos||[]).forEach(s=>{ if(s.gerente) donos.add(s.gerente); });
+    }));
     const cur = dSel.value;
     dSel.innerHTML = '<option value="">Todos</option>' +
       [...donos].sort().map(d=>`<option ${cur===d?'selected':''}>${d}</option>`).join('');
+    if(cur && !donos.has(cur)) dSel.value='';
   }
 }
 
@@ -11116,8 +11119,6 @@ function _metaFieldsMapeamentoHTML(item, proc){
       ${proc.produto?`<div><span style="font-weight:600;color:var(--ink2)">Produto:</span> <span style="color:var(--ink3)">${proc.produto}</span></div>`:''}
     </div>
     ${_procCentralInteligenciaHTML(proc)}
-    ${analise&&analise.gargalos?.length?`<div style="margin-top:.5rem;font-size:11px"><span style="font-weight:600;color:var(--red)">Gargalos:</span> <span style="color:var(--ink3)">${analise.gargalos.join(' · ')}</span></div>`:''}
-    ${analise&&analise.oportunidades?.length?`<div style="margin-top:3px;font-size:11px"><span style="font-weight:600;color:var(--green)">Oportunidades:</span> <span style="color:var(--ink3)">${analise.oportunidades.slice(0,2).join(' · ')}${opElipsis}</span></div>`:''}
   </div>`;
 }
 // Render metadata fields read-only (expandable view) + linked mapeamento data
