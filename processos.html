@@ -1639,6 +1639,7 @@ let ARQUITETURA = [
   ]},
 ];
 let arqIdC = 200;
+let _arqSaveEnabled = false; // set true only after fbLoad confirms Firestore state; blocks accidental demo-data overwrite
 
 // PIPELINE
 const ETAPAS = [
@@ -14641,7 +14642,7 @@ async function fbSaveAll(){
     TRILHAS.forEach(t => ops.push({ref: doc(db,'trilhas',String(t.id)), data: _fsClean(t)}));
     PAT_METAS.forEach(m => ops.push({ref: doc(db,'plano_metas',String(m.id)), data: _fsClean(m)}));
     ops.push(
-      {ref: doc(db,'config','arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}},
+      ...(_arqSaveEnabled ? [{ref: doc(db,'config','arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}}] : []),
       {ref: doc(db,'config','usuarios'),    data: {data: JSON.stringify(USUARIOS)}},
       {ref: doc(db,'config','mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}},
       {ref: doc(db,'config','criticos'),    data: {data: JSON.stringify([...criticosManual])}}
@@ -14741,6 +14742,7 @@ async function fbLoad(){
     if(arqDoc.exists() && arqDoc.data().data){
       try { ARQUITETURA = JSON.parse(arqDoc.data().data); } catch(e){ console.error('Erro ao parsear arquitetura:', e); }
     }
+    _arqSaveEnabled = true; // Firestore confirmed: either loaded real data or genuinely absent (new install)
 
 
 
