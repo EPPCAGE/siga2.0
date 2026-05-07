@@ -5271,6 +5271,7 @@ const _RS_MAP={
 function salvarRetroativo(etId){
   const p=curProc;
   if(_RS_MAP[etId]) _RS_MAP[etId](p);
+  if(p.etapas_puladas) p.etapas_puladas=p.etapas_puladas.filter(id=>id!==etId);
   push(p,etId,'EP','Dados revisados retroativamente pelo EP');
   epRetroEtapa=null;
   toast('Revisão salva.','var(--blue)');
@@ -5281,6 +5282,7 @@ function salvarRetroativo(etId){
 function salvarEIrProximo(etId){
   const p=curProc;
   if(_RS_MAP[etId]) _RS_MAP[etId](p);
+  if(p.etapas_puladas) p.etapas_puladas=p.etapas_puladas.filter(id=>id!==etId);
   push(p,etId,'EP','Dados revisados retroativamente pelo EP');
   fbAutoSave('retroativo');
   toast('Revisão salva.','var(--blue)');
