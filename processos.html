@@ -9114,22 +9114,22 @@ function rForm(p){
 async function _bpmnGetSvg(which,p){
   const m=bpmnModelers[which];
   if(m&&bpmnProcIds[which]===p?.id){
-    try{const {svg}=await m.saveSVG();return svg;}catch{}
+    try{const {svg}=await m.saveSVG();if(svg)return svg;}catch(e){console.warn('_bpmnGetSvg active modeler failed',e);}
   }
   const xml=which==='asis'?p.mod?.bpmnAsIs:p.mod?.bpmnToBe;
   if(!xml||typeof BpmnJS==='undefined')return null;
   return new Promise(resolve=>{
     const tmp=document.createElement('div');
-    // Sem opacity:0 nem z-index negativo — BpmnJS precisa de container visível para renderizar
+    // BpmnJS precisa de container visível — position:fixed fora da viewport é suficiente
     tmp.style.cssText='position:fixed;left:-9999px;top:0;width:1600px;height:900px;overflow:hidden;';
     document.body.appendChild(tmp);
-    const tid=setTimeout(()=>{try{viewer?.destroy();}catch{}tmp.remove();resolve(null);},20000);
+    const tid=setTimeout(()=>{console.warn('_bpmnGetSvg offscreen timeout');try{viewer?.destroy();}catch{}tmp.remove();resolve(null);},20000);
     let viewer;
-    try{viewer=new BpmnJS({container:tmp});}catch{clearTimeout(tid);tmp.remove();return resolve(null);}
+    try{viewer=new BpmnJS({container:tmp});}catch(e){console.warn('_bpmnGetSvg BpmnJS init failed',e);clearTimeout(tid);tmp.remove();return resolve(null);}
     viewer.importXML(xml)
       .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
-      .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg);})
-      .catch(()=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(null);});
+      .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg||null);})
+      .catch(e=>{console.warn('_bpmnGetSvg offscreen render failed',e);clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(null);});
   });
 }
 
@@ -9277,40 +9277,41 @@ async function _popPdfAnexo(p){
   const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs);
   const hasBpmnT=!!(p.mod?.bpmnToBe);
   if(hasFluxoA||hasBpmnT){
-    let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">12.0 Desenho do Processo</div>`;
-    // Normaliza o SVG para caber na largura da página sem encoding frágil
-    const _svgForPdf=svg=>{
-      // Substitui width/height fixos por 100%/auto para escalar ao container
-      return svg.replace(/<svg([^>]*)>/,(m,a)=>{
-        let at=a.replaceAll(/\bwidth="[^"]*"/g,'width="100%"').replaceAll(/\bheight="[^"]*"/g,'height="auto"');
-        if(!/\bwidth=/.test(at)) at+=' width="100%"';
-        if(!/\bheight=/.test(at)) at+=' height="auto"';
-        return `<svg${at}>`;
-      });
+    // Converte SVG para data URI de <img> — mais confiável no print que SVG inline
+    // (height="auto" não é atributo SVG válido e causa altura 0 em alguns motores de impressão)
+    const _svgToImg=(svg,alt)=>{
+      const uri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+      return `<img src="${uri}" alt="${alt}" style="max-width:100%;height:auto;display:block">`;
     };
+    let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">12.0 Desenho do Processo</div>`;
+    let hasDiagramContent=false;
     if(hasFluxoA){
       const svg=await _bpmnGetSvg('asis',p);
       if(svg){
-        bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;margin-bottom:1.4rem;background:#fff">${_svgForPdf(svg)}</div>`;
+        bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;margin-bottom:1.4rem;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma AS IS')}</div>`;
+        hasDiagramContent=true;
       }else{
         const png=await _getFluxogramaAsIsPng(p);
         if(png){
-          bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;margin-bottom:1.4rem;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma AS IS"></div>`;
+          bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;margin-bottom:1.4rem;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma AS IS" style="max-width:100%;height:auto;display:block"></div>`;
+          hasDiagramContent=true;
         }
       }
     }
     if(hasBpmnT){
       const svg=await _bpmnGetSvg('tobe',p);
       if(svg){
-        bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff">${_svgForPdf(svg)}</div>`;
+        bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma TO BE')}</div>`;
+        hasDiagramContent=true;
       }else{
         const png=await _getFluxogramaToBePng(p);
         if(png){
-          bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma TO BE"></div>`;
+          bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma TO BE" style="max-width:100%;height:auto;display:block"></div>`;
+          hasDiagramContent=true;
         }
       }
     }
-    bpmnLandscape=`<div class="bpmn-landscape">${bpInner}</div>`;
+    if(hasDiagramContent) bpmnLandscape=`<div class="bpmn-landscape">${bpInner}</div>`;
   }
 
   if(!sections.length&&!bpmnLandscape)return '';
