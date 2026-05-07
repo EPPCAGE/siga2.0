@@ -4426,7 +4426,7 @@ const ACOES = {
         <div style="font-weight:600;margin-bottom:.4rem">Suas responsabilidades nesta etapa:</div>
         <ul style="font-size:13px;line-height:1.8;margin:.2rem 0 0 1.2rem;padding:0">
           <li>Passe o cursor sobre uma etapa para iluminá-la no diagrama ao lado</li>
-          <li>Clique em <strong>✎ Detalhar</strong> em cada etapa e preencha natureza, modo de execução, executor e descrição</li>
+          <li>Clique em <strong>✎ Detalhar</strong> em cada etapa e preencha modo de execução, executor e descrição</li>
           <li>Revise o fluxo AS IS e aprove ou solicite ajustes</li>
         </ul>
       </div>
@@ -8059,13 +8059,7 @@ function renderAcaoGw(camPath,ai,ac,depth){
           <option ${subtFim}>Fim</option>
         </select></div>`:''}
     </div>
-    ${tipo==='Atividade'?`<div class="g3" style="margin-bottom:.35rem">
-      <div class="fg"><label class="fl" style="font-size:10px">Natureza</label>
-        <select class="fi" style="font-size:12px" onchange="resolveGwPath('${camPath}').acoes[${ai}].natureza=this.value">
-          <option value="">Selecione...</option>
-          ${NATUREZAS.map(n=>`<option ${ac.natureza===n?'selected':''}>${n}</option>`).join('')}
-        </select>
-      </div>
+    ${tipo==='Atividade'?`<div class="g2" style="margin-bottom:.35rem">
       <div class="fg"><label class="fl" style="font-size:10px">Modo</label>
         <select class="fi" style="font-size:12px" onchange="resolveGwPath('${camPath}').acoes[${ai}].modo=this.value">
           <option ${modoManual}>Manual</option>
@@ -8118,13 +8112,7 @@ function renderGatewaySection(path,depth=0){
 
 function _renderEtapaAtividadeFields(e, id){
   if(e.tipo !== 'Atividade') return '';
-  return `<div class="g3" style="margin-top:.4rem">
-    <div class="fg"><label class="fl">Natureza</label>
-      <select class="fi" onchange="curProc.mod[_ekey()].find(x=>x.id==='${id}').natureza=this.value">
-        <option value="">Selecione...</option>
-        ${NATUREZAS.map(n=>`<option ${e.natureza===n?'selected':''}>${n}</option>`).join('')}
-      </select>
-    </div>
+  return `<div class="g2" style="margin-top:.4rem">
     <div class="fg"><label class="fl">Modo</label>
       <select class="fi" onchange="curProc.mod[_ekey()].find(x=>x.id==='${id}').modo=this.value">
         <option ${e.modo==='Manual'?'selected':''}>Manual</option>
@@ -8155,7 +8143,7 @@ function exportarEtapasAsIsXlsx(){
   if(!etapas.length){ toast('Nenhuma etapa cadastrada.','var(--amber)'); return; }
 
   const rows = [];
-  rows.push(['Seq','Nome','Tipo','Subtipo/Evento','Natureza','Modo de execução','Executor','Descrição detalhada']);
+  rows.push(['Seq','Nome','Tipo','Subtipo/Evento','Modo de execução','Executor','Descrição detalhada']);
 
   function flatEtapa(e, prefixSeq){
     const seq = prefixSeq === undefined ? (e.seq||'') : prefixSeq;
@@ -8164,7 +8152,6 @@ function exportarEtapasAsIsXlsx(){
       e.nome||'',
       e.tipo||'',
       e.subtipo_evento||'',
-      e.tipo==='Atividade'?(e.natureza||''):'',
       e.tipo==='Atividade'?(e.modo||'Manual'):'',
       e.tipo==='Atividade'?(e.executor||''):'',
       e.desc||'',
@@ -8596,7 +8583,6 @@ function calcILPFromBpmn(bpmnXml, etapas){
   const NON_XOR=new Set(['paralelo','inclusivo','complexo']);
   const _normN=s=>(s||'').toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'');
   const _isAnd=n=>NON_XOR.has(n.subtipo_gateway)||_normN(n.nome||'').includes('paralelo');
-  // DFS longest-path: XOR→ramo mais longo, AND→todos os ramos
   function traverse(id,vis){
     if(vis.has(id))return[];
     const n=nodeInfo[id]; if(!n)return[];
@@ -8617,48 +8603,48 @@ function calcILPFromBpmn(bpmnXml, etapas){
   let pathIds=[];
   roots.forEach(rid=>{const p=traverse(rid,new Set());if(p.length>pathIds.length)pathIds=p;});
   if(!pathIds.length)return null;
-  // Deduplica: nós após AND-join são visitados uma vez por ramo AND — manter só a primeira ocorrência
   {const _seen=new Set(); pathIds=pathIds.filter(id=>{if(_seen.has(id))return false;_seen.add(id);return true;});}
-  // Mapeia bpmn_id → etapa_proc para preservar natureza/modo editados pelo usuário
-  const bpmnIdToEtapa={};
-  (etapas||[]).forEach(e=>{if(e.bpmn_id)bpmnIdToEtapa[e.bpmn_id]=e;});
+  // Modo de execução: lê do etapas_proc (override manual) ou do tipo BPMN
+  const bpmnIdToModo={};
+  (etapas||[]).forEach(e=>{if(e.bpmn_id&&e.modo)bpmnIdToModo[e.bpmn_id]=e.modo;});
   const actIds=pathIds.filter(id=>nodeInfo[id]?.tipo==='Atividade');
   const total=actIds.length; if(!total)return null;
-  const atividades=actIds.map(id=>{
-    const et=bpmnIdToEtapa[id]; if(et)return et;
-    const n=nodeInfo[id];
-    return{nome:n.nome||'?',natureza:inferNatureza(n.nome||''),executor:n.executor||'',modo:'Manual'};
-  });
-  const cnt=nat=>atividades.filter(a=>a.natureza===nat).length;
-  const E=cnt('Execucao'),P=cnt('Preparacao'),C=cnt('Comunicacao'),D=cnt('Distribuicao');
-  const PESO_MODO={'Automatica':0.5,'Semi-automatica':0.75};
-  const _pesoModo=a=>PESO_MODO[a.modo]??1;
-  const nAuto=atividades.filter(a=>a.modo==='Automatica').length;
-  const nSemi=atividades.filter(a=>a.modo==='Semi-automatica').length;
+  const _getModo=id=>bpmnIdToModo[id]||nodeInfo[id]?.modo||'Manual';
+  // Eficiência por modo: Automática=1.5, Semi=1.25, Manual=1.0
+  const EF={'Automatica':1.5,'Semi-automatica':1.25};
+  const _ef=id=>EF[_getModo(id)]??1;
+  const nAuto=actIds.filter(id=>_getModo(id)==='Automatica').length;
+  const nSemi=actIds.filter(id=>_getModo(id)==='Semi-automatica').length;
   const nManual=total-nAuto-nSemi;
-  // Conta gateways XOR divergentes no caminho mais longo (corretamente, pois pathIds já é o caminho certo)
   const gwXorNodes=pathIds.filter(id=>{
     const n=nodeInfo[id]; if(!n||n.tipo!=='Decisao'||_isAnd(n))return false;
     return(outgoing[id]||[]).filter(t=>nodeInfo[t]).length>1;
   }).map(id=>{const n=nodeInfo[id];return{nome:n.nome||'Gateway',subtipo:n.subtipo_gateway||'exclusivo',caminhos:(outgoing[id]||[]).length};});
   const gxorDiv=gwXorNodes.length;
+  // Atores distintos a partir das raias (laneMap → executor de cada atividade)
   const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'');
   const atoresMap=new Map();
-  atividades.forEach(a=>{const raw=(a.executor||'').trim();if(!raw)return;const k=_normAtor(raw);if(!atoresMap.has(k))atoresMap.set(k,raw);});
+  actIds.forEach(id=>{
+    const raw=(nodeInfo[id]?.executor||'').trim(); if(!raw)return;
+    const k=_normAtor(raw); if(!atoresMap.has(k))atoresMap.set(k,raw);
+  });
   const nAtores=Math.max(atoresMap.size,1);
-  const numerador=E+P+0.5*(C+D);
-  const denominadorBase=atividades.reduce((s,a)=>s+_pesoModo(a),0);
-  const denominador=denominadorBase+0.5*gxorDiv+0.5*Math.max(0,nAtores-1);
+  // Fórmula: numerador=Σeficiência | denominador=numerador+penalidades
+  const numerador=actIds.reduce((s,id)=>s+_ef(id),0);
+  const overhead=0.5*gxorDiv+0.5*Math.max(0,nAtores-1);
+  const denominador=numerador+overhead;
   const ilp=Math.min(Math.round((numerador/denominador)*100),100);
-  const _byNat=nat=>atividades.filter(a=>a.natureza===nat).map(a=>a.nome||'?');
+  const autoNames=id=>nodeInfo[id]?.nome||id;
   return{
-    ilp,total,E,P,C,D,R:cnt('Revisao'),A:cnt('Aprovacao'),
-    gxorDiv,nAtores,nAuto,nSemi,nManual,
+    ilp,total,gxorDiv,nAtores,nAuto,nSemi,nManual,
     atoresList:[...atoresMap.values()],
     gwXorList:gwXorNodes,
-    ativNatDetail:{Execucao:_byNat('Execucao'),Preparacao:_byNat('Preparacao'),Comunicacao:_byNat('Comunicacao'),Distribuicao:_byNat('Distribuicao'),Revisao:_byNat('Revisao'),Aprovacao:_byNat('Aprovacao'),SemNat:atividades.filter(a=>!a.natureza).map(a=>a.nome||'?')},
-    autoDetail:{Automatica:_byNat('Automatica'),'Semi-automatica':_byNat('Semi-automatica')},
-    numerador,denominadorBase,denominador,
+    autoDetail:{
+      Automatica:actIds.filter(id=>_getModo(id)==='Automatica').map(autoNames),
+      'Semi-automatica':actIds.filter(id=>_getModo(id)==='Semi-automatica').map(autoNames),
+      Manual:actIds.filter(id=>_getModo(id)==='Manual').map(autoNames),
+    },
+    numerador,overhead,denominador,
   };
 }
 
@@ -8685,19 +8671,19 @@ function _testCalcILP(){
     const f=flows.map((f,i)=>`<sequenceFlow id="sf${i}" sourceRef="${f.f}" targetRef="${f.t}" name="${f.n||''}"/>`).join('');
     return `<?xml version="1.0"?><definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"><process id="p">${e}${f}</process></definitions>`;
   }
-  function et(id,nat,exe='A1'){return{bpmn_id:id,nome:id,natureza:nat,executor:exe,modo:'Manual'};}
+  function et(id,exe='A1'){return{bpmn_id:id,nome:id,executor:exe,modo:'Manual'};}
 
   // T1 — Fluxo linear sem gateway
   {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'t2',t:'task',n:'B'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Execucao'),et('t2','Revisao')]);
-  eq('T1 linear total',r?.total,2);eq('T1 linear gxorDiv',r?.gxorDiv,0);eq('T1 linear E',r?.E,1);eq('T1 linear R',r?.R,1);}
+  const r=calcILPFromBpmn(xml,[et('t1'),et('t2')]);
+  eq('T1 linear total',r?.total,2);eq('T1 linear gxorDiv',r?.gxorDiv,0);eq('T1 linear nManual',r?.nManual,2);}
 
   // T2 — XOR simples: toma ramo mais longo (Sim: B→C, Não: D)
   {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'gw',t:'exclusiveGateway'},
     {id:'t2',t:'task',n:'B'},{id:'t3',t:'task',n:'C'},{id:'t4',t:'task',n:'D'},{id:'e1',t:'endEvent'},{id:'e2',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'gw'},{f:'gw',t:'t2',n:'Sim'},{f:'t2',t:'t3'},{f:'t3',t:'e1'},{f:'gw',t:'t4',n:'Não'},{f:'t4',t:'e2'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Execucao'),et('t2','Execucao'),et('t3','Execucao'),et('t4','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('t1'),et('t2'),et('t3'),et('t4')]);
   eq('T2 XOR total (ramo longo=3)',r?.total,3);eq('T2 XOR gxorDiv',r?.gxorDiv,1);}
 
   // T3 — AND simples: todos os ramos contam, dedup após join
@@ -8705,7 +8691,7 @@ function _testCalcILP(){
     {id:'t2',t:'task',n:'B'},{id:'t3',t:'task',n:'C'},{id:'jn',t:'parallelGateway',n:'Join'},
     {id:'t4',t:'task',n:'D'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'sp'},{f:'sp',t:'t2'},{f:'sp',t:'t3'},{f:'t2',t:'jn'},{f:'t3',t:'jn'},{f:'jn',t:'t4'},{f:'t4',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Execucao'),et('t2','Execucao'),et('t3','Execucao'),et('t4','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('t1'),et('t2'),et('t3'),et('t4')]);
   eq('T3 AND total (4 ativ)',r?.total,4);eq('T3 AND gxorDiv',r?.gxorDiv,0);}
 
   // T4 — AND seguido de XOR: XOR não contado 2x (bug dedup)
@@ -8714,7 +8700,7 @@ function _testCalcILP(){
     {id:'gx',t:'exclusiveGateway',n:'Decisão'},{id:'tc',t:'task',n:'C'},{id:'td',t:'task',n:'D'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'sp'},{f:'sp',t:'ta'},{f:'sp',t:'tb'},{f:'ta',t:'jn'},{f:'tb',t:'jn'},
      {f:'jn',t:'gx'},{f:'gx',t:'tc'},{f:'gx',t:'td'},{f:'tc',t:'e'},{f:'td',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta','Execucao'),et('tb','Execucao'),et('tc','Execucao'),et('td','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),et('td')]);
   eq('T4 AND+XOR dedup total',r?.total,3);eq('T4 AND+XOR dedup gxorDiv (deve ser 1, não 2)',r?.gxorDiv,1);}
 
   // T5 — XOR dentro de XOR: gateways em ramos exclusivos — conta só 2 (outer+1 inner)
@@ -8726,8 +8712,8 @@ function _testCalcILP(){
     [{f:'s',t:'ta'},{f:'ta',t:'gw1'},
      {f:'gw1',t:'tb'},{f:'tb',t:'gw2'},{f:'gw2',t:'tc'},{f:'gw2',t:'td'},{f:'tc',t:'e'},{f:'td',t:'e'},
      {f:'gw1',t:'te'},{f:'te',t:'gw3'},{f:'gw3',t:'tf'},{f:'gw3',t:'tg'},{f:'tf',t:'e'},{f:'tg',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta','Execucao'),et('tb','Execucao'),et('tc','Execucao'),
-    et('td','Execucao'),et('te','Execucao'),et('tf','Execucao'),et('tg','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),
+    et('td'),et('te'),et('tf'),et('tg')]);
   eq('T5 XOR-em-XOR total (A+B+C=3)',r?.total,3);
   eq('T5 XOR-em-XOR gxorDiv (outer+1inner=2, não 3)',r?.gxorDiv,2);}
 
@@ -8739,8 +8725,8 @@ function _testCalcILP(){
     [{f:'s',t:'sp'},{f:'sp',t:'gx1'},{f:'sp',t:'gx2'},
      {f:'gx1',t:'ta'},{f:'gx1',t:'tc'},{f:'ta',t:'tb'},{f:'tb',t:'e'},{f:'tc',t:'e'},
      {f:'gx2',t:'td'},{f:'gx2',t:'tf'},{f:'td',t:'te'},{f:'te',t:'e'},{f:'tf',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta','Execucao'),et('tb','Execucao'),et('tc','Execucao'),
-    et('td','Execucao'),et('te','Execucao'),et('tf','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),
+    et('td'),et('te'),et('tf')]);
   eq('T6 XOR-em-AND total (A1+A2+B1+B2=4)',r?.total,4);
   eq('T6 XOR-em-AND gxorDiv (2)',r?.gxorDiv,2);}
 
@@ -8748,17 +8734,17 @@ function _testCalcILP(){
   {const xml=bpmn([{id:'s',t:'startEvent'},{id:'ta',t:'task',n:'A'},{id:'gw',t:'exclusiveGateway',n:'OK?'},
     {id:'tb',t:'task',n:'B'},{id:'tc',t:'task',n:'C'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'ta'},{f:'ta',t:'gw'},{f:'gw',t:'tb',n:'Não'},{f:'tb',t:'ta'},{f:'gw',t:'tc',n:'Sim'},{f:'tc',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta','Execucao'),et('tb','Execucao'),et('tc','Execucao')]);
+  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc')]);
   eq('T7 loop total (A+C=2)',r?.total,2);eq('T7 loop gxorDiv',r?.gxorDiv,1);}
 
-  // T8 — Formula: E+P+0.5*(C+D) / (base + 0.5*gxor + 0.5*(atores-1)) * 100
+  // T8 — Formula: Σeficiência / (Σeficiência + 0.5*gxor + 0.5*(atores-1)) * 100
   {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'Exec'},{id:'t2',t:'task',n:'Revis'},
     {id:'t3',t:'task',n:'Comu'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'t3'},{f:'t3',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Execucao','Ator1'),et('t2','Revisao','Ator2'),et('t3','Comunicacao','Ator1')]);
-  // E=1, P=0, C=1, D=0, R=1, A=0 | base=3 | gxor=0 | atores=2
-  // num = 1+0+0.5*1 = 1.5 | den = 3 + 0 + 0.5 = 3.5 | ilp = round(1.5/3.5*100)=43
-  eq('T8 formula ilp',r?.ilp,43);eq('T8 formula numerador',r?.numerador,1.5);eq('T8 formula denominador',r?.denominador,3.5);}
+  const r=calcILPFromBpmn(xml,[et('t1','Ator1'),et('t2','Ator2'),et('t3','Ator1')]);
+  // 3 Manual tasks (natureza irrelevante), 0 gxor, 2 atores
+  // num = 3×1.0 = 3.0 | overhead = 0 + 0.5×(2-1) = 0.5 | den = 3.5 | ilp = round(3/3.5*100)=86
+  eq('T8 formula ilp',r?.ilp,86);eq('T8 formula numerador',r?.numerador,3);eq('T8 formula overhead',r?.overhead,0.5);}
 
   // Resultado final
   console.log(`\n════ calcILP TEST SUITE: ${pass} ✅  ${fail} ❌ ════`);
@@ -8779,19 +8765,15 @@ function _rEntMatBadges(e){
 }
 function _rEntIlpCard(ilpData){
   if(!ilpData) return '';
-  const {ilp,total,E,P,C,D,R,A,gxorDiv,nAtores,nAuto=0,nSemi=0}=ilpData;
+  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
   let ilpBg,ilpColor,ilpLabel;
   if(ilp>=75){ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';}
   else if(ilp>=50){ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';}
   else{ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';}
   const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
-  const nat=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
+  const modeRow=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
   // ── Interpretação contextual ──
   const issues=[];
-  const pctRA=total?Math.round((R+A)/total*100):0;
-  const pctCD=total?Math.round((C+D)/total*100):0;
-  if(R+A>0) issues.push(`${R+A} etapa${R+A>1?'s':''} de revisão/aprovação — avalie delegação ou eliminação`);
-  if(pctCD>=25) issues.push(`${C+D} atividade${C+D>1?'s':''} de comunicação/distribuição (${pctCD}% do total) — simplifique o fluxo de informações`);
   if(gxorDiv>=3) issues.push(`${gxorDiv} pontos de decisão exclusivos — consolide critérios para reduzir variabilidade`);
   if(nAtores>=4) issues.push(`${nAtores} atores distintos — avalie concentrar responsabilidades`);
   if(nAuto+nSemi===0&&total>=5) issues.push('nenhuma atividade automatizada — identifique etapas repetitivas para automação');
@@ -8812,8 +8794,8 @@ function _rEntIlpCard(ilpData){
       : '⚠️ O processo tem muitas etapas de controle em relação às produtivas.';
   } else {
     interpretacao=issues.length
-      ? `🔴 Processo com alto overhead de controle (${pctRA}% revisão/aprovação). Ações recomendadas: `+issues.slice(0,3).join('; ')+'.'
-      : '🔴 A maior parte das atividades não agrega valor direto ao produto. Revise cada etapa de controle.';
+      ? '🔴 Processo com alto overhead. Ações recomendadas: '+issues.slice(0,3).join('; ')+'.'
+      : '🔴 O processo tem muitos pontos de decisão e/ou atores. Revise o fluxo para simplificar.';
   }
   return `<div class="card" style="margin-bottom:1rem;border-left:4px solid ${ilpColor}">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:.6rem">
@@ -8824,10 +8806,10 @@ function _rEntIlpCard(ilpData){
       </div>
       <div style="flex:1">${bar(Math.min(ilp,100))}</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:.5rem">
-      ${nat('Execução',E,'#0d9488')}${nat('Preparação',P,'#6366f1')}
-      ${nat('Comunicação',C,'#f59e0b')}${nat('Distribuição',D,'#8b5cf6')}
-      ${nat('Revisão',R,'#ef4444')}${nat('Aprovação',A,'#f97316')}
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 12px;margin-bottom:.5rem">
+      ${modeRow('Manual',nManual,'#6b7280')}
+      ${modeRow('Semi-automática',nSemi,'#6366f1')}
+      ${modeRow('Automática',nAuto,'#10b981')}
     </div>
     <div style="font-size:11.5px;color:var(--ink2);background:${ilpBg}22;border:1px solid ${ilpColor}33;border-radius:6px;padding:.45rem .65rem;margin-bottom:.5rem;line-height:1.5">${interpretacao}</div>
     <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.4rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -8848,17 +8830,16 @@ function abrirIlpAuditoria(p){
   modal.id='ilp-audit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
   modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
-  const {ilp,total,E,P,C,D,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,ativNatDetail,autoDetail,numerador,denominadorBase,denominador}=d;
+  const {ilp,total,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,numerador,overhead,denominador}=d;
   const _sec=(titulo,html)=>`<div style="margin-bottom:1.1rem"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:.4rem">${titulo}</div>${html}</div>`;
   const _tag=(txt,cor)=>`<span style="display:inline-block;background:${cor}22;color:${cor};border:1px solid ${cor}55;border-radius:4px;padding:1px 7px;font-size:11px;margin:2px;line-height:1.6">${esc(txt)}</span>`;
   const _vazia=msg=>`<span style="font-size:12px;color:var(--ink3);font-style:italic">${msg}</span>`;
-  // Fórmula com automação
-  const pesoDesc=nAuto||nSemi
-    ?`Manual×1,0 (${nManual}) + Semi×0,75 (${nSemi}) + Auto×0,5 (${nAuto}) = ${denominadorBase.toFixed(2)}`
-    :`${total} atividades × 1,0 = ${denominadorBase.toFixed(2)}`;
+  // Fórmula
+  const efDesc=`Manual×1,0 (${nManual}) + Semi×1,25 (${nSemi}) + Auto×1,5 (${nAuto}) = ${numerador.toFixed(2)}`;
   const formulaHtml=`<div style="background:var(--bg2);border-radius:6px;padding:.8rem;font-size:12px;margin-bottom:1.2rem;line-height:1.9">
-    <div style="font-family:monospace;color:var(--ink2)">ILP = (E + P + 0,5×(C+D)) / (Σpeso_modo + 0,5×gwXOR + 0,5×(nAtores−1)) × 100</div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= (${E} + ${P} + 0,5×(${C}+${D})) / (${pesoDesc} + 0,5×${gxorDiv} + 0,5×(${nAtores}−1)) × 100</div>
+    <div style="font-family:monospace;color:var(--ink2)">ILP = Σeficiência / (Σeficiência + 0,5×gwXOR + 0,5×(nAtores−1)) × 100</div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;Σeficiência = ${efDesc}</div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;overhead = 0,5×${gxorDiv} + 0,5×max(0,${nAtores}−1) = ${overhead.toFixed(2)}</div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= <strong>${numerador.toFixed(2)}</strong> / <strong>${denominador.toFixed(2)}</strong> × 100</div>
     <div style="margin-top:.3rem;font-size:14px;font-weight:700;color:var(--ink)">= ${ilp} / 100</div>
   </div>`;
@@ -8881,14 +8862,6 @@ function abrirIlpAuditoria(p){
     gxorDiv?gwXorList.map(g=>_tag(`${g.nome}${g.caminhos>1?' ('+g.caminhos+' caminhos)':''}${g.subtipo&&g.subtipo!=='exclusivo'?' ['+g.subtipo+']':''}`, '#f59e0b')).join('')
            :_vazia('Nenhum gateway XOR divergente detectado')
   );
-  // Atividades por natureza
-  const NAT=[['Execucao','Execução','#0d9488'],['Preparacao','Preparação','#6366f1'],['Comunicacao','Comunicação','#f59e0b'],['Distribuicao','Distribuição','#8b5cf6'],['Revisao','Revisão','#ef4444'],['Aprovacao','Aprovação','#f97316']];
-  const natHtml=NAT.filter(([k])=>ativNatDetail[k]?.length).map(([k,lbl,cor])=>
-    _sec(`${lbl} (${ativNatDetail[k].length})`,ativNatDetail[k].map(a=>_tag(a,cor)).join(''))
-  ).join('');
-  const semNatHtml=ativNatDetail.SemNat?.length
-    ?_sec(`Sem natureza (${ativNatDetail.SemNat.length})`,ativNatDetail.SemNat.map(a=>_tag(a,'#9ca3af')).join(''))
-    :'';
   modal.innerHTML=`<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:600px;max-height:88vh;overflow-y:auto;box-shadow:var(--sh2)">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.1rem">
       <div style="flex:1;font-family:var(--fh);font-size:16px;font-weight:700">Análise de Aderência — Índice Lean Processual</div>
@@ -8898,10 +8871,8 @@ function abrirIlpAuditoria(p){
     ${modoHtml}
     ${atoresHtml}
     ${gwHtml}
-    ${natHtml}
-    ${semNatHtml}
     <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.6rem;margin-top:.3rem">
-      Pesos por modo: Manual = 1,0 · Semi-automática = 0,75 · Automática = 0,5
+      Eficiência por modo: Manual = 1,0 · Semi-automática = 1,25 · Automática = 1,5
     </div>
     <div style="text-align:right;margin-top:.6rem">
       <button type="button" class="btn" onclick="document.getElementById('ilp-audit-modal').remove()">Fechar</button>
@@ -9116,7 +9087,6 @@ function _rFormHtml(p){
           const execDefault=isStructural?'':(e.executor||'');
     const resp=(d.resp!==undefined&&d.resp!=='')?d.resp:execDefault;
           const modo=normModo(e.modo);
-          const nat=e.natureza||'';
           const gw=e.vinculo_gw?.gw_ep_id?etapas.find(x=>x.id===e.vinculo_gw.gw_ep_id):null;
           const gwCellLabel=gw&&e.vinculo_gw.label?' · '+esc(e.vinculo_gw.label):'';
           const gwCell=gw?`<div style="font-size:10px;color:var(--ink3)">⤷ ${esc(gw.nome||'Gateway')}${gwCellLabel}</div>`:'';
@@ -9124,7 +9094,6 @@ function _rFormHtml(p){
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3);white-space:nowrap">${i+1}</td>
             <td style="padding:5px 8px;font-size:12px;font-weight:600">${esc(e.nome||'')}${gwCell}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(tipo)}</td>
-            <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(nat)}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(modo)}</td>
             <td style="padding:5px 8px;font-size:12px">${esc(desc)}</td>
             <td style="padding:5px 8px;font-size:11px;color:var(--ink3)">${esc(resp)}</td>
@@ -9137,7 +9106,6 @@ function _rFormHtml(p){
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">#</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Etapa</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Tipo</th>
-              <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Natureza</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Modo</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Descrição</th>
               <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--ink3)">Responsável</th>
