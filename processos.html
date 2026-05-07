@@ -10642,6 +10642,20 @@ function rArq(){
   const el = document.getElementById('arq-content');
   if(!el) return;
 
+  // Preserva quais seções estão abertas para restaurar após re-render
+  const _openIds = new Set(
+    [...document.querySelectorAll('[id^="arq-body-"],[id^="arq-sub-"],[id^="arq-ssub-"]')]
+      .filter(e=>e.style.display!=='none').map(e=>e.id)
+  );
+  function _restoreOpen(){
+    _openIds.forEach(id=>{
+      const e=document.getElementById(id);
+      if(!e||e.style.display!=='none') return;
+      const chvId=id.replace(/^arq-body-/,'chv-').replace(/^arq-sub-/,'chvp-').replace(/^arq-ssub-/,'chvss-');
+      toggleEl(id,chvId);
+    });
+  }
+
   // Cards de métricas no topo
   const arqStatsEl = document.getElementById('arq-stats');
   if(arqStatsEl) arqStatsEl.innerHTML = buildArqStatsHTML();
@@ -10661,6 +10675,7 @@ function rArq(){
   if(!hasFilter){
     // Normal tree view
     el.innerHTML = ARQUITETURA.map(m=>macroArqHTML(m)).join('');
+    _restoreOpen();
     document.getElementById('arq-result-cnt').textContent = '';
     document.getElementById('arq-sub').textContent = 'Macroprocesso → Processo → Subprocesso';
     return;
