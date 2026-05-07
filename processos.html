@@ -8268,9 +8268,11 @@ function renderEtapasProc(etapas){
           ${e.nome}
           ${_gwBadge(e)}
         </div>
-        ${e.executor?`<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue-b);white-space:nowrap;flex-shrink:0" title="Ator / raia">👤 ${esc(e.executor)}</span>`:''}
-        <button type="button" class="btn" style="font-size:11px;padding:3px 8px" onclick="toggleEtapaDetalhe('${e.id}')">✎ Detalhar</button>
-        <button type="button" class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red-b)" onclick="remEtapaProc('${e.id}')" aria-label="Remover etapa">×</button>
+        <div class="etapa-proc-actions">
+          ${e.executor?`<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue-b);white-space:nowrap" title="Ator / raia">👤 ${esc(e.executor)}</span>`:''}
+          <button type="button" class="btn" style="font-size:11px;padding:3px 8px" onclick="toggleEtapaDetalhe('${e.id}')">✎ Detalhar</button>
+          <button type="button" class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);border-color:var(--red-b)" onclick="remEtapaProc('${e.id}')" aria-label="Remover etapa">×</button>
+        </div>
       </div>
       <div id="ed-${e.id}" style="display:none">${renderEtapaDetalheConteudo(e)}</div>
     </div>`).join('');
