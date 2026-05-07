@@ -1812,11 +1812,6 @@ function getDonoEmail(proc){
   const u=USUARIOS.find(u=>u.nome===proc.dono||u.email===proc.dono);
   return u?.email||proc.dono_email||'';
 }
-function getEPEmail(proc){
-  const u=USUARIOS.find(u=>u.nome===proc.resp_ep||u.email===proc.resp_ep);
-  return u?.email||'';
-}
-
 function openModuleHub(){
   const hub=document.getElementById('module-hub');
   const shell=document.getElementById('proc-shell');
@@ -2398,7 +2393,6 @@ function _confirmarNao() {
 }
 function pbBadge(p){return '<span class="badge '+({Baixa:'bg',Media:'ba',Alta:'br'}[p]||'bgr')+'">'+p+'</span>';}
 function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'br',Critico:'br'}[v]||'bgr')+'"'+(v==='Critico'?' style="background:var(--red);color:#fff"':'')+'>'+v+'</span>';}
-function mBadge(s){return '<span class="badge '+({Identificada:'bsl','Em analise':'bp','Em execucao':'bb',Concluida:'bg'}[s]||'bgr')+'">'+s+'</span>';}
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.filter(isProcessoEmAndamento).length;
   document.getElementById('nb-pend').textContent=getPendenciasDashboard().length;
@@ -3731,43 +3725,6 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
   rDetalhe();updCounts();
   fbSaveNow('av');
 }
-// Solicita prazo ao EP antes de passar tarefa ao dono
-function perguntarNotifDono(etapaProxId){
-  const p=curProc;
-  if(!p||!p.dono) return;
-  const d=new Date(); d.setDate(d.getDate()+7);
-  const defaultPrazo=d.toISOString().split('T')[0];
-  const hoje=new Date().toISOString().split('T')[0];
-  const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
-  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:2rem 1.8rem;max-width:440px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.5rem">📋 Tarefa encaminhada ao dono</div>
-    <div style="font-size:13px;color:var(--ink3);margin-bottom:1rem">A etapa <em><strong>${etLb(etapaProxId)}</strong></em> aguarda ação de <strong>${p.dono}</strong>. Defina o prazo para que o dono conclua esta tarefa.</div>
-    <div class="fg" style="margin-bottom:1.2rem">
-      <label class="fl">Prazo para conclusão <span style="color:var(--red)">*</span></label>
-      <input class="fi" type="date" id="prazo-dono-inp" value="${defaultPrazo}" min="${hoje}">
-    </div>
-    <div class="btn-row">
-      <button type="button" class="btn" onclick="salvarPrazoDono('${etapaProxId||''}',false)">Salvar sem notificar</button>
-      <button type="button" class="btn btn-p" onclick="salvarPrazoDono('${etapaProxId||''}',true)">Salvar e notificar dono →</button>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-  globalThis._prazoDonoOv=ov;
-}
-function salvarPrazoDono(etapaProxId, notificar){
-  const prazo=document.getElementById('prazo-dono-inp')?.value;
-  if(!prazo){toast('Informe o prazo antes de continuar.','var(--red)');return;}
-  if(curProc){
-    curProc.prazo_dono=prazo; // mantém campo legado para compatibilidade
-    if(!curProc.prazos_dono) curProc.prazos_dono={};
-    curProc.prazos_dono[etapaProxId]=prazo;
-  }
-  if(globalThis._prazoDonoOv){globalThis._prazoDonoOv.remove();globalThis._prazoDonoOv=null;}
-  fbAutoSave('prazo_dono');
-  if(notificar) confirmarNotifDono(etapaProxId);
-  else toast('Prazo registrado para '+etLb(etapaProxId),'var(--teal)');
-}
 function confirmarNotifDono(etapaProxId){
   const p=curProc;
   if(!p||!p.dono) return;
@@ -5030,23 +4987,6 @@ const ACOES = {
 
 // ─── Funções nomeadas para os formulários do ACOES ──────────────────────────
 // Permite referenciar _formXxx(p) em vez de ACOES.xxx.form(p) em código novo
-function _formAbertura(p)    { return ACOES.abertura.form(p); }
-function _formQuestionario(p){ return ACOES.questionario.form(p); }
-function _formReuniao(p)     { return ACOES.reuniao.form(p); }
-function _formRiscos(p)      { return ACOES.riscos.form(p); }
-function _formAnalise(p)     { return ACOES.analise.form(p); }
-function _formEsbocoAsis(p)  { return ACOES.esboco_asis.form(p); }
-function _formDetValidAsis(p){ return ACOES.det_valid_asis.form(p); }
-function _formEsbocoTobe(p)  { return ACOES.esboco_tobe.form(p); }
-function _formDetValidTobe(p){ return ACOES.det_valid_tobe.form(p); }
-function _formMelhorias(p)   { return ACOES.melhorias.form(p); }
-function _formDesenhoFinal(p){ return ACOES.desenho_final.form(p); }
-function _formPop(p)         { return ACOES.pop.form(p); }
-function _formApresentacao(p){ return ACOES.apresentacao.form(p); }
-function _formPublicacao(p)  { return ACOES.publicacao.form(p); }
-function _formAcompanha(p)   { return ACOES.acompanha.form(p); }
-function _formAuditoria(p)   { return ACOES.auditoria.form(p); }
-
 function navegarRetro(etId){
   if(etId===curProc?.etapa){fecharRetro();return;}
   epRetroEtapa=etId;
@@ -5331,6 +5271,7 @@ const _RS_MAP={
 function salvarRetroativo(etId){
   const p=curProc;
   if(_RS_MAP[etId]) _RS_MAP[etId](p);
+  if(p.etapas_puladas) p.etapas_puladas=p.etapas_puladas.filter(id=>id!==etId);
   push(p,etId,'EP','Dados revisados retroativamente pelo EP');
   epRetroEtapa=null;
   toast('Revisão salva.','var(--blue)');
@@ -5341,6 +5282,7 @@ function salvarRetroativo(etId){
 function salvarEIrProximo(etId){
   const p=curProc;
   if(_RS_MAP[etId]) _RS_MAP[etId](p);
+  if(p.etapas_puladas) p.etapas_puladas=p.etapas_puladas.filter(id=>id!==etId);
   push(p,etId,'EP','Dados revisados retroativamente pelo EP');
   fbAutoSave('retroativo');
   toast('Revisão salva.','var(--blue)');
@@ -7208,22 +7150,6 @@ function salvarPlanejamentoAuditoria(){
   });
   fbAutoSave('salvar');toast('Planejamento salvo!','var(--teal)');
 }
-function adicionarQuestaoAuditoria(){
-  const p=curProc;if(!p)return;
-  if(!p.auditoria)p.auditoria={};
-  if(!p.auditoria.questoes)p.auditoria.questoes=[];
-  const q={
-    questao:document.getElementById('aud-q-texto')?.value||'',
-    criterio:document.getElementById('aud-q-crit')?.value||'',
-    responsavel:document.getElementById('aud-q-resp')?.value||'',
-    resposta:'',anexos:[],criada_em:now()
-  };
-  if(!q.questao){toast('Informe a questão','var(--red)');return;}
-  p.auditoria.questoes.push(q);
-  fbAutoSave('salvar');toast('Questão adicionada!','var(--teal)');
-  rDetalhe();
-}
-
 async function salvarQuestaoAuditoria(){
   const p=curProc;if(!p)return;
   if(!p.auditoria)p.auditoria={};
@@ -7526,9 +7452,6 @@ async function salvarProcedimentoAuditoria(){
   await fbSaveAll();
   rDetalhe();
   _reabrirAbaAcoesAuditoria();
-}
-function adicionarProcedimentoAuditoria(){
-  return salvarProcedimentoAuditoria();
 }
 function editarProcedimentoAuditoria(idx){
   const p=curProc;if(!p)return;
@@ -7937,12 +7860,6 @@ function visPopPreview(){
   prev.ativ_detalhes=ativ_detalhes;
   stab('form',document.querySelectorAll('.tab')[3]);
   rForm(p);
-}
-function gerarAtivPop(etapas){
-  if(!etapas||!etapas.length)return '';
-  const grupos={};
-  etapas.forEach(e=>{if(!grupos[e.executor]){grupos[e.executor]=[];} grupos[e.executor].push(e);});
-  return Object.entries(grupos).map(([exec,ets])=>exec+'\n'+ets.map(e=>'- '+e.nome+(e.desc?' ('+e.desc+')':'')).join('\n')).join('\n\n');
 }
 function popAtivCards(p){
   const etapas=p.mod?.etapas_proc||[];
@@ -10359,20 +10276,6 @@ function sstab(id,el){
 // ═══════════════════════════════════════════
 // RISCOS
 // ═══════════════════════════════════════════
-const RISCO_MATRIZ_COR = {
-  'Alta|Baixo':   {bg:'#fef9c3',bd:'#ca8a04'},
-  'Alta|Medio':   {bg:'#fed7aa',bd:'#ea580c'},
-  'Alta|Alto':    {bg:'#fecaca',bd:'#dc2626'},
-  'Alta|Critico': {bg:'#f87171',bd:'#b91c1c'},
-  'Media|Baixo':  {bg:'#dcfce7',bd:'#16a34a'},
-  'Media|Medio':  {bg:'#fef9c3',bd:'#ca8a04'},
-  'Media|Alto':   {bg:'#fed7aa',bd:'#ea580c'},
-  'Media|Critico':{bg:'#fecaca',bd:'#dc2626'},
-  'Baixa|Baixo':  {bg:'#dcfce7',bd:'#16a34a'},
-  'Baixa|Medio':  {bg:'#dcfce7',bd:'#16a34a'},
-  'Baixa|Alto':   {bg:'#fef9c3',bd:'#ca8a04'},
-  'Baixa|Critico':{bg:'#fed7aa',bd:'#ea580c'},
-};
 function zona(s){
   if(s<=2) return {bg:'#d1fae5',tx:'#065f46',lb:'Baixo'};
   if(s<=4) return {bg:'#fef3c7',tx:'#92400e',lb:'Moderado'};
@@ -13053,11 +12956,6 @@ function deletarPub(id){
   });
 }
 
-function simImport(){
-  // kept for compatibility — now does nothing
-  toast('Use o botão "↑ Importar planilha" para carregar dados reais.','var(--amber)');
-}
-
 // ═══════════════════════════════════════════
 // ── BACKUP JSON ──────────────────────────────────────────────────────────────
 function exportarBackupJSON(){
@@ -14909,58 +14807,6 @@ async function fbLoad(){
 }
 
 // ─── QUADRO DE AVISOS ────────────────────────────────────────
-
-function rCarrosselAvisos(){
-  const el = document.getElementById('avisos-carousel');
-  if(!el || !usuarioLogado) return;
-  const perfil = usuarioLogado.perfil;
-  const ativos = AVISOS.filter(a => a.ativo && a.perfis && (a.perfis.includes('todos') || a.perfis.includes(perfil)));
-  if(!ativos.length){ el.style.display='none'; el.innerHTML=''; return; }
-
-  if(globalThis._avTimer){ clearInterval(globalThis._avTimer); globalThis._avTimer=null; }
-  let idx = 0;
-
-  function render(){
-    const a = ativos[idx];
-    const dotSpans = ativos.map((_,i)=>{
-      const w  = i===idx ? 18 : 6;
-      const bg = i===idx ? 'var(--blue)' : 'var(--blue-b)';
-      return `<span style="width:${w}px;height:6px;border-radius:99px;background:${bg};transition:width .2s"></span>`;
-    }).join('');
-    const dots = ativos.length > 1
-      ? `<div style="display:flex;gap:5px;align-items:center">${dotSpans}</div>`
-      : '';
-    const nav = ativos.length > 1
-      ? `<button type="button" onclick="globalThis._avPrev()" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">‹</button>
-         <button type="button" onclick="globalThis._avNext()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.7);border:1px solid var(--blue-b);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;color:var(--blue);display:flex;align-items:center;justify-content:center;line-height:1">›</button>`
-      : '';
-    el.innerHTML = `
-      <div style="position:relative;background:var(--blue-l);border:1px solid var(--blue-b);border-radius:var(--rl);padding:1rem ${ativos.length>1?'2.8rem':'1.2rem'} 1rem 1.2rem;margin-bottom:1.2rem">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H9l-1 2-1-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="var(--blue)" stroke-width="1.5"/></svg>
-          <span style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:.08em;text-transform:uppercase">Aviso ${ativos.length>1?idx+1+' / '+ativos.length:''}</span>
-        </div>
-        <div style="font-family:var(--fh);font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">${esc(a.titulo)}</div>
-        <div style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:.6rem">${esc(a.corpo)}</div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-size:11px;color:var(--ink4)">${esc(a.autor)} · ${esc(a.data)}</span>
-          ${dots}
-        </div>
-        ${nav}
-      </div>`;
-  }
-
-  globalThis._avNext = ()=>{ idx=(idx+1)%ativos.length; render(); };
-  globalThis._avPrev = ()=>{ idx=(idx-1+ativos.length)%ativos.length; render(); };
-  el.style.display = '';
-  render();
-  if(ativos.length > 1) globalThis._avTimer = setInterval(globalThis._avNext, 6000);
-}
-
-function updAvisosCnt(){
-  const el = document.getElementById('nb-avisos-cnt');
-  if(el) el.textContent = AVISOS.filter(a=>a.ativo).length;
-}
 
 function rAvisos(){
   renderHubAvisosCards();
