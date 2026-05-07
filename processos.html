@@ -2817,6 +2817,7 @@ function _aplicarPermissoesNavBtns(){
           <input type="file" id="xlsx-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarArqExcel(this)">
         </label>
         <button type="button" class="btn" style="font-size:11px" onclick="deduplicarArquitetura()" title="Remove processos e subprocessos com nome duplicado">🧹 Limpar duplicatas</button>
+        <button type="button" class="btn" style="font-size:11px" onclick="revinculaArquitetura()" title="Reconcilia arq_id dos processos em mapeamento pelo nome, após reimportação da arquitetura">🔗 Revincular processos</button>
         <button type="button" class="btn btn-p" onclick="novoMacro()">+ Macroprocesso</button>
        </div>`
     : '';
@@ -11651,6 +11652,59 @@ function deduplicarArquitetura(){
     : 'Nenhuma duplicata encontrada.';
   toast(msg,'var(--amber)');
 }
+function revinculaArquitetura(){
+  if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
+  const norm=s=>s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  // Mapa nome normalizado → item da arquitetura (subprocesso tem prioridade sobre processo)
+  const map=new Map();
+  ARQUITETURA.forEach(m=>{
+    m.processos.forEach(p=>{
+      if(p.subprocessos&&p.subprocessos.length){
+        p.subprocessos.forEach(s=>{ const k=norm(s.nome); if(!map.has(k)) map.set(k,s); });
+      } else {
+        const k=norm(p.nome); if(!map.has(k)) map.set(k,p);
+      }
+    });
+  });
+  let linked=0; const semVinculo=[];
+  processos.forEach(proc=>{
+    const match=map.get(norm(proc.nome));
+    if(match){
+      proc.arq_id=match.id;
+      match.proc_id=proc.id;
+      // garante mapeadosManual consistente
+      if(!mapeadosManual.has(match.id)) mapeadosManual.add(match.id);
+      linked++;
+    } else {
+      semVinculo.push(proc.nome);
+    }
+  });
+  // Revincular processos_vinculados dos usuários pelo nome
+  const flatArq=new Map();
+  ARQUITETURA.forEach(m=>m.processos.forEach(p=>{
+    if(p.subprocessos&&p.subprocessos.length) p.subprocessos.forEach(s=>flatArq.set(norm(s.nome),s.id));
+    else flatArq.set(norm(p.nome),p.id);
+  }));
+  USUARIOS.forEach(u=>{
+    if(!u.processos_vinculados?.length) return;
+    // Se já são IDs válidos, mantém; se não acha na arquitetura, tenta revinculação pelo nome de unidade
+    u.processos_vinculados=u.processos_vinculados.map(vid=>{
+      // já existe na arquitetura atual → mantém
+      if([...flatArq.values()].includes(vid)) return vid;
+      // tenta achar pelo id antigo via nome
+      const unidade=getUnidadesMapeaveis().find(u=>u.arq_id===vid);
+      if(unidade){ const novo=flatArq.get(norm(unidade.nome)); return novo||vid; }
+      return vid;
+    }).filter(Boolean);
+  });
+  lsSet('mapeadosManual',JSON.stringify([...mapeadosManual]));
+  fbAutoSave('revinculaArq');
+  rArq(); renderProcs();
+  const msg=`${linked} processo(s) revinculado(s) à arquitetura.`
+    +(semVinculo.length?` Sem correspondência por nome: ${semVinculo.join(', ')}. Vincule manualmente.`:'');
+  toast(msg, semVinculo.length?'var(--amber)':'var(--teal)');
+  if(semVinculo.length) console.warn('revinculaArquitetura — sem match:',semVinculo);
+}
 // Retorna apenas as unidades onde o usuário logado tem acesso
 function getMinhasUnidades(){
   if(!usuarioLogado) return [];
@@ -15397,7 +15451,7 @@ function excluirTrilhaModal(){
 // ── END TRILHAS ────────────────────────────
 
 // ── AUTO-LOGOUT POR INATIVIDADE ──────────────────────────────
-const _INACTIVITY_MS   = 5 * 60 * 1000; // 5 min até logout
+const _INACTIVITY_MS   = 15 * 60 * 1000; // 15 min até logout
 const _INACTIVITY_WARN = 30 * 1000;      // aviso 30s antes
 const _INACT_EVENTS = ['mousemove','mousedown','keydown','touchstart','scroll','click'];
 let _inactTimer = null;
