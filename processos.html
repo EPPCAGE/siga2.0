@@ -8506,7 +8506,7 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
         tipo:n.tipo, subtipo_evento:n.subtipo||null,
         natureza:n.natureza||naturezaFallback, modo:n.modo||null,
         executor:n.executor||'', desc:n.desc||'', caminhos:[],
-        vinculo_gw: (myCtx&&n.tipo!=='Decisao') ? {gw_ep_id:myCtx.epId,label:myCtx.label} : null
+        vinculo_gw: myCtx ? {gw_ep_id:myCtx.epId,label:myCtx.label} : null
       };
       // For split gateways: pre-populate caminhos labels from flow labels
       if(n.tipo==='Decisao'){
