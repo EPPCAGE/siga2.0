@@ -2828,12 +2828,19 @@ function aplicarPermissoes(){
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
 }
 
-function buildArqStatsHTML(){
+function buildArqStatsHTML(f){
   updCounts();
-  const mx=getMetricasArq();
+  const mx=getMetricasArq(f);
   const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
-  const eco=processos.reduce((s,p)=>{const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);return s+(r.length?r[r.length-1].economia_h:0);},0);
+  const hasFilter=f&&(f.srch||f.macro||f.area||f.nat||f.obje||f.mapeado||f.critico||f.dono);
+  // economia: só dos processos cujo arq_id está nos itens filtrados
+  const eco=processos.reduce((s,p)=>{
+    if(hasFilter&&p.arq_id&&!mx.matchedIds.has(p.arq_id)) return s;
+    const r=(p.reunioes_acomp||[]).filter(r=>r.economia_h!=null);
+    return s+(r.length?r[r.length-1].economia_h:0);
+  },0);
   const ecoSign = eco > 0 ? '+' : '';
+  const filtLabel = hasFilter ? ' <span style="font-size:10px;font-weight:400;opacity:.6">(filtrado)</span>' : '';
   return `<div class="stat cb">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <div><div class="stat-n">${pct}%</div><div class="stat-l">Processos mapeados</div></div>
@@ -2845,10 +2852,10 @@ function buildArqStatsHTML(){
         </div>
       </div>
     </div>`+
-    '<div class="stat ca"><div class="stat-n">'+mx.nMacros+'</div><div class="stat-l">Macroprocessos</div></div>'+
-    '<div class="stat cb"><div class="stat-n">'+mx.nProc+'</div><div class="stat-l">Processos</div></div>'+
-    '<div class="stat cg"><div class="stat-n">'+mx.nSub+'</div><div class="stat-l">Subprocessos</div></div>'+
-    (eco===0?'': `<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${ecoSign}${eco.toFixed(1)}h</div><div class="stat-l">Economia de horas/mês estimada</div></div>`);
+    `<div class="stat ca"><div class="stat-n">${mx.nMacros}</div><div class="stat-l">Macroprocessos${filtLabel}</div></div>`+
+    `<div class="stat cb"><div class="stat-n">${mx.nProc}</div><div class="stat-l">Processos${filtLabel}</div></div>`+
+    `<div class="stat cg"><div class="stat-n">${mx.nSub}</div><div class="stat-l">Subprocessos${filtLabel}</div></div>`+
+    (eco===0?'': `<div class="stat cg" title="Soma da economia de horas/mês da última reavaliação de cada processo"><div class="stat-n">${ecoSign}${eco.toFixed(1)}h</div><div class="stat-l">Economia/mês estimada${filtLabel}</div></div>`);
 }
 
 function rDash(){
@@ -10667,16 +10674,16 @@ function rArq(){
     });
   }
 
-  // Cards de métricas no topo
+  const f = getArqFilters();
+  // Cards de métricas no topo — refletem o filtro ativo
   const arqStatsEl = document.getElementById('arq-stats');
-  if(arqStatsEl) arqStatsEl.innerHTML = buildArqStatsHTML();
+  if(arqStatsEl) arqStatsEl.innerHTML = buildArqStatsHTML(f);
 
   if(!ARQUITETURA.length){
     el.innerHTML='<div class="ib ibb">Nenhum macroprocesso cadastrado. Importe uma planilha ou clique em "+ Macroprocesso".</div>';
     return;
   }
 
-  const f = getArqFilters();
   const hasFilter = f.srch || f.macro || f.area || f.nat || f.obje || f.mapeado || f.critico || f.dono;
 
   // Hide import hint when filtering
@@ -11499,24 +11506,38 @@ function toggleCriticoManual(arqId,ev){
   fbAutoSave('criticos');
   rArq();
 }
-function getMetricasArq(){
-  let nMacros=ARQUITETURA.length,nProc=0,nSub=0,nUnid=0,nMap=0;
+function getMetricasArq(f){
+  // f: filtro opcional (getArqFilters()). Sem filtro → conta tudo.
+  let nMacros=0,nProc=0,nSub=0,nUnid=0,nMap=0;
+  const matchedIds=new Set();
   ARQUITETURA.forEach(m=>{
+    if(f&&f.macro&&m.nome!==f.macro) return;
+    let macroMatch=false;
     const vistosProc=new Set();
     m.processos.forEach(p=>{
-      if(vistosProc.has(p.nome)) return; // ignora duplicatas de nome dentro do mesmo macro
+      if(vistosProc.has(p.nome)) return;
       vistosProc.add(p.nome);
       if(p.subprocessos&&p.subprocessos.length>0){
         const vistosSub=new Set();
         p.subprocessos.forEach(s=>{
-          if(vistosSub.has(s.nome)) return; // ignora duplicatas de sub
+          if(vistosSub.has(s.nome)) return;
           vistosSub.add(s.nome);
-          nSub++;nUnid++;if(isMapeado(s.id))nMap++;
+          if(!f||itemMatchesFilters(s,m.nome,f)){
+            nSub++;nUnid++;if(isMapeado(s.id))nMap++;
+            matchedIds.add(s.id);macroMatch=true;
+          }
         });
-      } else {nProc++;nUnid++;if(isMapeado(p.id))nMap++;}
+      } else {
+        if(!f||itemMatchesFilters(p,m.nome,f)){
+          nProc++;nUnid++;if(isMapeado(p.id))nMap++;
+          matchedIds.add(p.id);macroMatch=true;
+        }
+      }
     });
+    if(macroMatch) nMacros++;
   });
-  return{nMacros,nProc,nSub,nUnid,nMap};
+  if(!f) nMacros=ARQUITETURA.length;
+  return{nMacros,nProc,nSub,nUnid,nMap,matchedIds};
 }
 
 // Remove entradas duplicadas de processo/subprocesso dentro de cada macro (mesmo nome)
