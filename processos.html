@@ -10769,7 +10769,7 @@ function resultCardHTML(r, srch){
         ${item.natureza ? `<span class="badge bgr" style="font-size:10px">${highlight(item.natureza, srch)}</span>` : ''}
         <span class="badge ${mapeado?'bg':'bgr'}" style="font-size:10px">${mapeado?'Mapeado':'Não mapeado'}</span>
         ${proc ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px" onclick="abrirProc(${proc.id})">Abrir →</button>` : ''}
-        ${isEP() ? `<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editSubArqFull('${r.macroId}','${r.procId}','${item.id}')" aria-label="Editar item">✎</button>` : ''}
+        ${isEP() ? `<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="${r.isSub ? `editSubArqFull('${r.macroId}','${r.procId}','${item.id}')` : `editProcArq('${r.macroId}','${item.id}')`}" aria-label="Editar item">✎</button>` : ''}
       </div>
     </div>
     ${metaFieldsReadonly(item)}
