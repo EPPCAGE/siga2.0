@@ -205,7 +205,7 @@
       </div>
       <div class="proj-aside-foot">
         <div class="user-chip" style="margin-bottom:6px">
-          <div class="user-av" id="proj-av" onclick="abrirMenuUsuario(event,this)" style="cursor:pointer" title="Opções da conta">?</div>
+          <div class="user-av" id="proj-av" role="button" tabindex="0" onclick="abrirMenuUsuario(event,this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirMenuUsuario(event,this)}" style="cursor:pointer" title="Opções da conta">?</div>
           <div style="min-width:0">
             <div class="user-name" id="proj-nome" style="color:#fff">-</div>
             <div class="user-role" id="proj-perfil" style="font-size:10px;color:rgba(255,255,255,.5)">-</div>
