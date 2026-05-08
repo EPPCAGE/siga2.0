@@ -11574,7 +11574,7 @@ function deduplicarArquitetura(){
 }
 function revinculaArquitetura(){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
-  const norm=s=>s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const norm=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'');
   // Mapa nome normalizado → item da arquitetura (subprocesso tem prioridade sobre processo)
   const map=new Map();
   ARQUITETURA.forEach(m=>{
