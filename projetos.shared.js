@@ -247,18 +247,43 @@ function togglePrimeiroAcesso() {
   if (!visible) document.getElementById('pa-email')?.focus();
 }
 
+function senhaTempRandomIndex(max) {
+  if (!globalThis.crypto?.getRandomValues) {
+    throw new Error('Gerador seguro de números aleatórios indisponível.');
+  }
+  if (!Number.isInteger(max) || max <= 0) {
+    throw new Error('Limite inválido para geração de senha temporária.');
+  }
+  const random = new Uint32Array(1);
+  const limit = Math.floor(0x100000000 / max) * max;
+  do {
+    globalThis.crypto.getRandomValues(random);
+  } while (random[0] >= limit);
+  return random[0] % max;
+}
+
+function senhaTempPick(chars) {
+  return chars[senhaTempRandomIndex(chars.length)];
+}
+
+function senhaTempShuffle(chars) {
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = senhaTempRandomIndex(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
 function gerarSenhaTemp() {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghjkmnpqrstuvwxyz';
   const digits = '23456789';
   const all = upper + lower + digits;
-  let senha = upper[Math.floor(Math.random() * upper.length)]
-    + lower[Math.floor(Math.random() * lower.length)]
-    + digits[Math.floor(Math.random() * digits.length)];
+  const senha = [senhaTempPick(upper), senhaTempPick(lower), senhaTempPick(digits)];
   for (let i = 0; i < 5; i += 1) {
-    senha += all[Math.floor(Math.random() * all.length)];
+    senha.push(senhaTempPick(all));
   }
-  return senha.split('').sort(() => Math.random() - 0.5).join('');
+  return senhaTempShuffle(senha);
 }
 
 async function _primeiroAcessoExistente(email, showErr, showOk) {
