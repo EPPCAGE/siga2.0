@@ -420,7 +420,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   .user-role{font-size:11px}
   .logout-btn{font-size:11px;margin-top:8px}
   .mob-top-bar{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1rem;background:linear-gradient(135deg,#1c1c2e,#2a2a41);position:sticky;top:0;z-index:50;gap:10px;min-height:64px;box-shadow:0 8px 24px rgba(28,28,46,.18)}
-  .mob-ham{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:14px;color:#fff;cursor:pointer;padding:12px 11px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;-webkit-tap-highlight-color:transparent;min-width:48px;min-height:48px;justify-content:center;align-items:center}
+  .mob-ham{background:#343449;border:1px solid #6f7085;border-radius:14px;color:#fff;cursor:pointer;padding:12px 11px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;-webkit-tap-highlight-color:transparent;min-width:48px;min-height:48px;justify-content:center;align-items:center}
   .mob-ham span{display:block;width:22px;height:2px;background:rgba(255,255,255,.92);border-radius:2px;transition:all .2s}
   .mob-page-title{font-size:14px;font-weight:700;color:#fff;flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em}
   .mob-top-bar .user-av{width:42px;height:42px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1)}
@@ -2246,6 +2246,31 @@ function getDonoEmail(proc){
   const u=USUARIOS.find(u=>u.nome===proc.dono||u.email===proc.dono);
   return u?.email||proc.dono_email||'';
 }
+function _normEmail(email=''){
+  return String(email||'').trim().toLowerCase();
+}
+function _findUsuarioByEmail(email){
+  const alvo = _normEmail(email);
+  return USUARIOS.find(u=>_normEmail(u.email)===alvo);
+}
+function _normalizarUsuarioPerfil(user){
+  if(!user) return user;
+  user.email = _normEmail(user.email);
+  const perfis = Array.isArray(user.perfis)
+    ? [...new Set(user.perfis.filter(Boolean))]
+    : [];
+  if(user.perfil && !perfis.includes(user.perfil)) perfis.unshift(user.perfil);
+  if(perfis.includes('ep')) user.perfil = 'ep';
+  else if(!user.perfil && perfis.length) user.perfil = perfis[0];
+  if(perfis.length){
+    user.perfis = perfis;
+  } else if(user.perfil){
+    user.perfis = [user.perfil];
+  } else {
+    user.perfis = [];
+  }
+  return user;
+}
 function _setDisplay(el, visible, shown=''){
   if(el) el.style.display = visible ? shown : 'none';
 }
@@ -2314,6 +2339,7 @@ function openProjectsModule(){
 }
 
 function _aplicarUsuario(user){
+  user = _normalizarUsuarioPerfil(user);
   usuarioLogado=user;
   document.getElementById('login-err').style.display='none';
   document.getElementById('login-screen').style.display='none';
@@ -2420,7 +2446,7 @@ async function doLogin(){
     }
   } else {
     // Fallback sem Firebase (modo local)
-    const user = USUARIOS.find(u=>u.email===email);
+    const user = _findUsuarioByEmail(email);
     if(!user){mostrarErrLogin('Acesso não encontrado. Use "Primeiro acesso" para criar seu cadastro.');return;}
     lsSet('siga_user', user.email);
     _aplicarUsuario(user);
@@ -2454,7 +2480,7 @@ async function _primeiroAcessoExistente(email, showErr, showOk){
     if(contaCriada){
       // Conta Firebase Auth recém-criada (EPP havia cadastrado o usuário manualmente).
       // Envia senha temporária por e-mail em vez de link de reset que pode expirar.
-      const user = USUARIOS.find(u=>u.email===email);
+      const user = _findUsuarioByEmail(email);
       if(user){ user.trocar_senha=true; await fbSaveAll(); }
       const nome = user?.nome || email;
       _enviarSenhaAcesso(email, nome, senhaTemp);
@@ -3536,15 +3562,48 @@ function _workflowRoleLabel(resp){
   if(resp==='gestor')return 'Responsável: Gestor / Adjunto';
   return 'Responsável definido no fluxo';
 }
+function _workflowStatusKey(skipped, past, current){
+  if(skipped) return 'skipped';
+  if(past) return 'done';
+  if(current) return 'current';
+  return 'pending';
+}
+function _workflowStatusLabel(statusKey){
+  if(statusKey==='skipped') return 'Pendente pulada';
+  if(statusKey==='done') return 'Concluída';
+  if(statusKey==='current') return 'Etapa atual';
+  return 'Pendente';
+}
+function _workflowStageClass(statusKey){
+  if(statusKey==='skipped') return 'sk';
+  if(statusKey==='done') return 'dn';
+  if(statusKey==='current') return 'da';
+  return '';
+}
+function _workflowStepIcon(statusKey, index){
+  if(statusKey==='skipped') return '!';
+  if(statusKey==='done') return '✓';
+  return index+1;
+}
+function _workflowStepTip(meta, label){
+  if(meta.skipped) return `Etapa pendente (pulada): ${label}`;
+  if(meta.current) return `Editar etapa atual: ${label}`;
+  return `Editar: ${label}`;
+}
+function _workflowLabelClass(stageCls){
+  if(stageCls==='da') return 'da';
+  if(stageCls==='sk') return 'sk';
+  return '';
+}
 function _workflowStatusMeta(e, i, idx, puladas){
   const skipped=puladas.includes(e.id);
   const past=i<idx;
   const current=i===idx;
-  const statusKey=skipped?'skipped':past?'done':current?'current':'pending';
-  const statusLabel=skipped?'Pendente pulada':past?'Concluída':current?'Etapa atual':'Pendente';
-  const statusChipClass=skipped?'skipped':past?'done':current?'current':'pending';
-  const stageCls=skipped?'sk':past?'dn':current?'da':'';
-  const icon=skipped?'!':past?'✓':i+1;
+  const statusKey=_workflowStatusKey(skipped,past,current);
+  const statusLabel=_workflowStatusLabel(statusKey);
+  const statusChipClass=statusKey;
+  const stageCls=_workflowStageClass(statusKey);
+  const icon=_workflowStepIcon(statusKey,i);
   return { skipped, past, current, statusKey, statusLabel, statusChipClass, stageCls, icon };
 }
 function renderDetalheWorkflow(p, etapas, idx, epUser){
@@ -3556,10 +3615,10 @@ function renderDetalheWorkflow(p, etapas, idx, epUser){
   const itemsHtml=etapas.map((e,i)=>{
     const meta=_workflowStatusMeta(e,i,actualIdx,puladas);
     const clickable=epUser;
-    const tip=meta.skipped?`Etapa pendente (pulada): ${e.lb}`:meta.current?`Editar etapa atual: ${e.lb}`:`Editar: ${e.lb}`;
+    const tip=_workflowStepTip(meta,e.lb);
     const clickAttrs=clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="${tip}"`:'';
     if(!isMobile){
-      const labelCls=meta.stageCls==='da'?'da':meta.stageCls==='sk'?'sk':'';
+      const labelCls=_workflowLabelClass(meta.stageCls);
       return `<div class="prog-s ${meta.stageCls}" ${clickAttrs}>
         <div class="prog-d ${meta.stageCls}">${meta.icon}</div>
         <div class="prog-l ${labelCls}">${e.lb}</div>
@@ -15450,6 +15509,7 @@ async function _fbLoadUsuarios(db, doc, getDoc, getDocFromServer){
       console.warn('fbLoad: erro ao carregar usuarios:', cacheError.message);
     }
   }
+  USUARIOS.forEach(_normalizarUsuarioPerfil);
 }
 async function _fbLoadProcessos(db, collection, getDocs){
   const pSnap = await getDocs(collection(db,'processos'));
@@ -16345,10 +16405,10 @@ async function _bootRestoreSession(){
   _bootRestoreLocalSession();
 }
 async function _bootRestoreFirebaseUser(auth, firebaseUser){
-  let user = USUARIOS.find(u=>u.email===firebaseUser.email);
+  let user = _findUsuarioByEmail(firebaseUser.email);
   if(!user){
     await fbLoad();
-    user = USUARIOS.find(u=>u.email===firebaseUser.email);
+    user = _findUsuarioByEmail(firebaseUser.email);
   }
   if(user){
     _iniciarSessaoUnica(firebaseUser.uid);
@@ -16365,7 +16425,7 @@ function _bootRestoreLocalSession(){
   try {
     const savedEmail = lsGet('siga_user');
     if(!savedEmail) return;
-    const user = USUARIOS.find(u=>u.email===savedEmail);
+    const user = _findUsuarioByEmail(savedEmail);
     if(user) _aplicarUsuario(user);
   } catch(error_){ console.warn('localStorage unavailable', error_); }
 }
