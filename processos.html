@@ -3634,7 +3634,7 @@ function rMeusProc(){
 
   listEl.innerHTML = minhas.map(u=>{
     const proc = u.proc;
-    const mapeado = !!proc;
+    const mapeado = isMapeado(u.arq_id);
     const mat = proc?.ent?.mat||0;
     const cardClick = `abrirInfoMeusProc('${u.arq_id}')`;
     const borderL = mapeado ? 'var(--teal)' : '#2dd4bf';
