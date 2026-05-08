@@ -14787,11 +14787,20 @@ function planoStatsTrimestrais(lista){
 }
 
 function _planoCardBadges(at, cfg, prioC, prazoProximo, prazoText){
+  const categoriaBadge = at.categoria
+    ? `<span style="font-size:10px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px">${esc(PLANO_CAT_LB[at.categoria]||at.categoria)}</span>`
+    : '';
+  const vinculoBadge = at.vinculo_nome
+    ? `<span style="font-size:10px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px">🔗 ${esc(at.vinculo_nome)}</span>`
+    : '';
+  const prazoBadge = prazoProximo
+    ? `<span style="font-size:10px;color:#f59e0b;background:rgba(245,158,11,.1);padding:2px 7px;border-radius:10px">⏰ ${prazoText}</span>`
+    : '';
   return `<span style="font-size:10px;font-weight:700;background:${cfg.bg};color:${cfg.cor};padding:2px 8px;border-radius:10px">${cfg.lb}</span>
     <span style="font-size:10px;color:${prioC.cor};padding:2px 7px;border-radius:10px;background:rgba(0,0,0,.04)">${prioC.lb}</span>
-    ${at.categoria?`<span style="font-size:10px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px">${esc(PLANO_CAT_LB[at.categoria]||at.categoria)}</span>`:''}
-    ${at.vinculo_nome?`<span style="font-size:10px;color:var(--ink3);background:var(--bg2);padding:2px 7px;border-radius:10px">🔗 ${esc(at.vinculo_nome)}</span>`:''}
-    ${prazoProximo?`<span style="font-size:10px;color:#f59e0b;background:rgba(245,158,11,.1);padding:2px 7px;border-radius:10px">⏰ ${prazoText}</span>`:''}`;
+    ${categoriaBadge}
+    ${vinculoBadge}
+    ${prazoBadge}`;
 }
 function _planoCardActions(id){
   return `<button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="abrirPlanoModal(${id})" title="Editar" aria-label="Editar atividade">✎</button>
@@ -14799,10 +14808,19 @@ function _planoCardActions(id){
     <button type="button" class="btn" style="font-size:11px;padding:2px 8px;color:var(--red)" onclick="deletarAtividade(${id})" title="Excluir" aria-label="Excluir atividade">🗑</button>`;
 }
 function _planoCardInfoLine(at, pct, prazoColor, prazoWarn){
+  const responsavelInfo = at.responsavel
+    ? `<span style="font-size:11px;color:var(--ink3)">👤 ${esc(at.responsavel)}</span>`
+    : '';
+  const prazoInfo = at.prazo
+    ? `<span style="font-size:11px;color:${prazoColor}">📅 ${at.prazo}${prazoWarn}</span>`
+    : '';
+  const quantidadeInfo = at.qt_prevista
+    ? `<span style="font-size:11px;color:var(--ink3)">📊 ${at.qt_realizada||0}/${at.qt_prevista} (${pct}%)</span>`
+    : '';
   return `<div style="display:flex;gap:12px;align-items:center;margin-top:.6rem;flex-wrap:wrap">
-    ${at.responsavel?`<span style="font-size:11px;color:var(--ink3)">👤 ${esc(at.responsavel)}</span>`:''}
-    ${at.prazo?`<span style="font-size:11px;color:${prazoColor}">📅 ${at.prazo}${prazoWarn}</span>`:''}
-    ${at.qt_prevista?`<span style="font-size:11px;color:var(--ink3)">📊 ${at.qt_realizada||0}/${at.qt_prevista} (${pct}%)</span>`:''}
+    ${responsavelInfo}
+    ${prazoInfo}
+    ${quantidadeInfo}
   </div>`;
 }
 function _planoCardProgress(at, pct, cfg){
@@ -14818,13 +14836,22 @@ function _planoCardProgress(at, pct, cfg){
   </div>`;
 }
 function _planoCardNotes(at, st, entregaInfo){
-  return `${at.obs?`<div style="margin-top:6px;font-size:11px;color:var(--ink2);background:var(--bg2);border-radius:4px;padding:4px 8px;border-left:2px solid var(--bdr2)">📝 ${esc(at.obs)}</div>`:''}
-    ${at.evidencia&&st==='concluida'?`<div style="margin-top:5px;font-size:11px;color:#14b8a6;background:rgba(20,184,166,.07);border-radius:4px;padding:4px 8px">✅ ${esc(at.evidencia)}</div>`:''}
-    ${st==='concluida'&&at.entrega_status?`<div style="margin-top:5px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;
+  const obsNote = at.obs
+    ? `<div style="margin-top:6px;font-size:11px;color:var(--ink2);background:var(--bg2);border-radius:4px;padding:4px 8px;border-left:2px solid var(--bdr2)">📝 ${esc(at.obs)}</div>`
+    : '';
+  const evidenciaNote = at.evidencia&&st==='concluida'
+    ? `<div style="margin-top:5px;font-size:11px;color:#14b8a6;background:rgba(20,184,166,.07);border-radius:4px;padding:4px 8px">✅ ${esc(at.evidencia)}</div>`
+    : '';
+  const entregaBadge = st==='concluida'&&at.entrega_status
+    ? `<div style="margin-top:5px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;
       background:${entregaInfo.bg};
       color:${entregaInfo.color}">
       ${entregaInfo.label}
-    </div>`:''}`;
+    </div>`
+    : '';
+  return `${obsNote}
+    ${evidenciaNote}
+    ${entregaBadge}`;
 }
 function planoCardHTML(at){
   const st  = planoStatusEfetivo(at);
