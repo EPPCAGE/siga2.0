@@ -14900,6 +14900,33 @@ function statusReportCorPct(p,hi=70,mid=40){
   if(p>=mid) return '#d97706';
   return '#dc2626';
 }
+function statusReportCorCoberturaMacro(p){
+  if(p>=70) return '#16a34a';
+  if(p>=40) return '#eab308';
+  if(p>=10) return '#d97706';
+  return '#dc2626';
+}
+function statusReportCorMeta(realizado, meta){
+  if(meta == null || meta === '') return statusReportCorPct(realizado);
+  const metaNum = Number(meta);
+  if(Number.isNaN(metaNum)) return statusReportCorPct(realizado);
+  if(realizado >= metaNum) return '#16a34a';
+  if(realizado >= metaNum * 0.8) return '#d97706';
+  return '#dc2626';
+}
+function statusReportCorMetaAnual(pct, esperado){
+  if(pct == null) return '#888';
+  if(pct >= esperado) return '#16a34a';
+  if(pct >= esperado * 0.7) return '#eab308';
+  if(pct >= esperado * 0.4) return '#d97706';
+  return '#dc2626';
+}
+function statusReportCorMetaFinalAnual(realizado, metaFinal, avancoAno){
+  if(metaFinal == null || metaFinal === '') return statusReportCorPct(realizado);
+  const metaNum = Number(metaFinal);
+  if(Number.isNaN(metaNum)) return statusReportCorPct(realizado);
+  return statusReportCorMetaAnual(realizado,metaNum * avancoAno / 100);
+}
 function statusReportDateBr(d){
   if(!d) return '—';
   return d.includes('-') ? d.split('-').reverse().join('/') : d;
@@ -14948,12 +14975,6 @@ function gerarStatusReportPDF(){
   const triPlanj=doTri.filter(a=>planoStatusEfetivo(a)==='planejado').length;
   const triTotal=doTri.length;
   const catLabels={mapeamento:'Mapeamento',auditoria:'Análise de Aderência',normativa:'Normativa',capacitacao:'Capacitação',governanca:'Governança',outro:'Outro'};
-  const cats=[...new Set(doAno.map(a=>a.categoria).filter(Boolean))];
-  const catMetrics=cats.map(c=>{
-    const its=doAno.filter(a=>a.categoria===c);
-    const cc=its.filter(a=>planoStatusEfetivo(a)==='concluida').length;
-    return{cat:catLabels[c]||c,total:its.length,concl:cc,pct:Math.round(cc/its.length*100)};
-  }).sort((a,b)=>b.total-a.total);
 
   // ── Cobertura arquitetura ────────────────────────────────────────────────────
   const mx=getMetricasArq();
@@ -14979,15 +15000,16 @@ function gerarStatusReportPDF(){
 
   // ── Metas do escritório ──────────────────────────────────────────────────────
   const metasAno=(PAT_METAS||[]).filter(m=>!m.ano||m.ano===ano);
+  const metaExecucaoAnual=Math.round((mes+1)/12*100);
   const metasRows=metasAno.map(m=>{
     const real=_metaRealizado(m);
     const pct=m.meta?Math.min(100,Math.round(real/m.meta*100)):null;
-    let cor='#dc2626';
-    if(pct===null) cor='#888';
-    else if(pct>=100) cor='#16a34a';
-    else if(pct>=70) cor='#d97706';
+    const cor=statusReportCorMetaAnual(pct,metaExecucaoAnual);
     return{titulo:m.titulo,meta:m.meta,real,unidade:m.unidade,pct,cor,obs:m.obs};
   });
+  const metaCobertura=metasAno.find(m=>m.auto_fonte==='builtin'&&m.auto_campo==='cobertura')?.meta;
+  const corExecucaoAnual=statusReportCorMeta(pctAnual,metaExecucaoAnual);
+  const corCobertura=statusReportCorMetaFinalAnual(pctCob,metaCobertura,metaExecucaoAnual);
 
   // ── Helpers de render ─────────────────────────────────────────────────────────
   const SEC=(n,t)=>`<h2 class="sec">${n}. ${t}</h2>`;
@@ -15014,13 +15036,9 @@ function gerarStatusReportPDF(){
     <div class="bar-meta"><span>${label}</span><strong>${val}</strong></div>
     <div class="bar-track"><div class="bar-fill" style="width:${_pctPart(val,base)}%;background:${cor}"></div></div>
   </div>`;
-  const catBars=catMetrics.length?catMetrics.slice(0,6).map(c=>`<div class="bar-row">
-    <div class="bar-meta"><span>${_e(c.cat)}</span><strong>${c.concl}/${c.total}</strong></div>
-    <div class="bar-track"><div class="bar-fill" style="width:${c.pct}%;background:${_corPct(c.pct)}"></div></div>
-  </div>`).join(''):EMPTY;
   const macroBars=cobMacro.slice(0,8).map(m=>`<div class="bar-row">
     <div class="bar-meta"><span>${_e(m.nome)}</span><strong>${m.pct}%</strong></div>
-    <div class="bar-track"><div class="bar-fill" style="width:${m.pct}%;background:${_corPct(m.pct)}"></div></div>
+    <div class="bar-track"><div class="bar-fill" style="width:${m.pct}%;background:${statusReportCorCoberturaMacro(m.pct)}"></div></div>
   </div>`).join('');
   let pontualidadeResumo='Sem entregas concluídas com prazo informado';
   if(pctPont!==null){
@@ -15067,7 +15085,6 @@ function gerarStatusReportPDF(){
     .hero-top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:14px}
     .hero-title{font-family:var(--pdf-display);font-size:18pt;font-weight:700;color:#1f3b57;line-height:1.05}
     .hero-note{font-size:9pt;color:#607089;margin-top:5px;max-width:390px}
-    .hero-pill{background:#123047;color:#fff;border-radius:999px;padding:8px 13px;font-size:9pt;font-weight:700;white-space:nowrap}
     .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:.8rem 0 1rem}
     .chart-card{background:var(--pdf-card-bg);border:1px solid var(--pdf-card-border);border-radius:14px;padding:13px 15px;box-shadow:0 8px 20px rgba(43,72,95,.06);break-inside:avoid}
     .chart-title{font-size:9pt;font-weight:800;color:#2B485F;text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px}
@@ -15093,16 +15110,10 @@ function gerarStatusReportPDF(){
     @media print{
       body{padding:.8cm 1.2cm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       .cover{padding:.8cm .9cm .75cm}
-      .no-print{display:none}
       @page{margin:.8cm 1.2cm;size:A4}
       h2.sec{page-break-before:auto}
     }
   </style></head><body>
-
-  <div class="no-print" style="position:fixed;top:12px;right:12px;z-index:999;display:flex;gap:8px">
-    <button onclick="window.print()" style="padding:8px 18px;background:#2B485F;color:#fff;border:none;border-radius:6px;font-size:11pt;cursor:pointer;font-family:inherit">🖨 Imprimir / Salvar PDF</button>
-    <button onclick="window.close()" style="padding:8px 14px;background:#e5e7eb;color:#374151;border:none;border-radius:6px;font-size:11pt;cursor:pointer;font-family:inherit">✕ Fechar</button>
-  </div>
 
   <div class="cover" style="position:relative">
     <div class="cover-logos">
@@ -15111,7 +15122,7 @@ function gerarStatusReportPDF(){
     </div>
     <div class="cover-eyebrow">CAGE-RS · ESCRITÓRIO DE PROJETOS E PROCESSOS</div>
     <div class="cover-title">Relatório Executivo</div>
-    <div class="cover-sub">Status executivo de processos · ${dtMesL}</div>
+    <div class="cover-sub">Gestão de Processos · ${dtMesL}</div>
     <div class="cover-meta">
       <span>📅 Gerado em ${dtFmt}</span>
       <span>📋 Referência: ${ano}</span>
@@ -15124,12 +15135,10 @@ function gerarStatusReportPDF(){
     <div class="hero-top">
       <div>
         <div class="hero-title">Visão consolidada do Escritório de Processos</div>
-        <div class="hero-note">Indicadores de execução do PAT, pontualidade das entregas e cobertura da arquitetura priorizados na abertura do relatório.</div>
       </div>
-      <div class="hero-pill">${dtMesL} · ${ano}</div>
     </div>
     <div class="kpis">
-      ${kpi('Total',total,'atividades no PAT')}
+      ${kpi('Total',total,'atividades no Plano Anual de Trabalho')}
       ${kpi('Concluídas',concl,pctAnual+'% do total','#16a34a')}
       ${kpi('Em execução',emExec,'em andamento','#2563eb')}
       ${kpi('Em atraso',emAtraso,'atenção executiva','#dc2626')}
@@ -15137,8 +15146,8 @@ function gerarStatusReportPDF(){
     </div>
   </div>
   <div class="donut-row">
-    ${donut('Execução anual do PAT',pctAnual,_corPct(pctAnual),concl+' concluídas de '+total+' atividades')}
-    ${donut('Cobertura da arquitetura',pctCob,_corPct(pctCob),mx.nMap+' de '+mx.nUnid+' processos/subprocessos mapeados')}
+    ${donut('Execução anual do Plano Anual de Trabalho',pctAnual,corExecucaoAnual,concl+' concluídas de '+total+' atividades')}
+    ${donut('Cobertura da arquitetura',pctCob,corCobertura,mx.nMap+' de '+mx.nUnid+' processos/subprocessos mapeados')}
   </div>
   <div class="chart-grid">
     <div class="chart-card">
@@ -15147,10 +15156,6 @@ function gerarStatusReportPDF(){
       ${statusBar('Em execução',triExec,triTotal,'#2563eb')}
       ${statusBar('Em atraso',triAtras,triTotal,'#dc2626')}
       ${statusBar('Planejadas',triPlanj,triTotal,'#d97706')}
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Execução por categoria</div>
-      ${catBars}
     </div>
     <div class="chart-card">
       <div class="chart-title">Cobertura por macroprocesso</div>
@@ -15209,7 +15214,7 @@ function gerarStatusReportPDF(){
     })
   )}
 
-  ${SEC(4,'A Iniciar no '+trimAtual+' e '+trimProx+' (PAT)')}
+  ${SEC(4,'A Iniciar no '+trimAtual+' e '+trimProx+' (Plano Anual de Trabalho)')}
   ${tbl(['Atividade','Categoria','Trimestre','Prazo','Responsável','Vínculo processo'],
     proxTrabs.map(a=>[_e(a.nome),_e(catLabels[a.categoria]||a.categoria),a.trimestre,_d(a.prazo),_e(a.responsavel),_e(a.vinculo_nome)])
   )}
