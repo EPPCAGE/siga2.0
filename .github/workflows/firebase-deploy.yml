@@ -13,7 +13,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout do código
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Gerar config.deploy.js com secrets
         env:
@@ -37,12 +37,12 @@ jobs:
           channelId: live
 
       - name: Autenticar no Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Configurar gcloud CLI
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2
 
       - name: Deploy Firestore Rules via REST API
         run: |
