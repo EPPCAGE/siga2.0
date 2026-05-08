@@ -3643,8 +3643,8 @@ function rMeusProc(){
       ? 'background:#0d9488;color:#fff;font-size:10px;flex-shrink:0;border-radius:4px;padding:2px 7px'
       : 'background:#0d9488;color:#fff;font-size:10px;flex-shrink:0;border-radius:4px;padding:2px 7px';
     const matText = mat ? 'Maturidade '+mat+'/5 — '+MATURIDADE_LABELS[mat] : 'Maturidade não avaliada';
-    const ei = mapeado ? etIdx(proc.etapa) : -1;
-    const progressBar = mapeado ? ETAPAS.map((_,i)=>{
+    const ei = (mapeado && proc) ? etIdx(proc.etapa) : -1;
+    const progressBar = (mapeado && proc) ? ETAPAS.map((_,i)=>{
       let bg;
       if(i<ei){bg='var(--teal)';}
       else if(i===ei){bg='var(--blue)';}
