@@ -3619,12 +3619,12 @@ function rMeusProc(){
     : 'Acesso rápido aos processos e subprocessos vinculados ao seu macroprocesso';
   if(emptyEl) emptyEl.style.display = minhas.length ? 'none' : 'block';
   if(summaryEl){
-    const mapeados = minhas.filter(u=>u.proc).length;
+    const mapeados = minhas.filter(u=>isMapeado(u.arq_id)).length;
     summaryEl.innerHTML = minhas.length
       ? `<div class="card" style="border-left:4px solid var(--teal);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
             <div class="card-t" style="margin-bottom:3px">${minhas.length} processo${minhas.length===1?'':'s'} no(s) macroprocesso(s) vinculado(s) ao seu usuário</div>
-            <div style="font-size:12px;color:var(--ink3)">${mapeados} com mapeamento aberto/concluído · ${minhas.length-mapeados} apenas na arquitetura</div>
+            <div style="font-size:12px;color:var(--ink3)">${mapeados} mapeado${mapeados===1?'':'s'} na arquitetura · ${minhas.length-mapeados} não mapeado${(minhas.length-mapeados)===1?'':'s'}</div>
           </div>
           <button type="button" class="btn" onclick="go('arq',document.getElementById('nb-arq'))" style="font-size:12px">Ver arquitetura</button>
         </div>`
