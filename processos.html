@@ -3637,8 +3637,11 @@ function rMeusProc(){
     const mapeado = !!proc;
     const mat = proc?.ent?.mat||0;
     const cardClick = `abrirInfoMeusProc('${u.arq_id}')`;
-    const borderColor = mapeado ? 'var(--teal-b)' : 'var(--bdr)';
-    const borderL = mapeado ? 'var(--teal)' : 'var(--bdr2)';
+    const borderL = mapeado ? 'var(--teal)' : '#7c8cf8';
+    const bgCard = mapeado ? 'var(--surf)' : 'color-mix(in srgb,#7c8cf8 6%,var(--surf))';
+    const badgeStyle = mapeado
+      ? 'background:var(--teal);color:#fff;font-size:10px;flex-shrink:0;border-radius:4px;padding:2px 7px'
+      : 'background:#7c8cf8;color:#fff;font-size:10px;flex-shrink:0;border-radius:4px;padding:2px 7px';
     const matText = mat ? 'Maturidade '+mat+'/5 — '+MATURIDADE_LABELS[mat] : 'Maturidade não avaliada';
     const ei = mapeado ? etIdx(proc.etapa) : -1;
     const progressBar = mapeado ? ETAPAS.map((_,i)=>{
@@ -3649,16 +3652,21 @@ function rMeusProc(){
       return `<span style="flex:1;height:3px;border-radius:2px;background:${bg}"></span>`;
     }).join('') : '';
     const tipo = u.isSub ? 'Subprocesso' : 'Processo';
-    return `<div class="card" style="border:1px solid ${borderColor};border-left:4px solid ${borderL};cursor:pointer;transition:all .13s" onclick="${cardClick}" title="Ver informações do processo">
+    const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && p.url);
+    const popBadges = popsVinc.map(p=>`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:var(--green-b,#dcfce7);color:var(--green,#16a34a);padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">📄 ${esc(p.titulo)}</a>`).join('');
+    return `<div class="card" style="background:${bgCard};border:1px solid color-mix(in srgb,${borderL} 30%,var(--bdr));border-left:4px solid ${borderL};cursor:pointer;transition:box-shadow .13s,transform .13s;display:flex;flex-direction:column" onmouseenter="this.style.boxShadow='var(--sh2)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''" onclick="${cardClick}" title="Ver informações do processo">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
         <div style="font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3">${esc(u.nome)}</div>
-        <span class="badge ${mapeado?'bg':'bgr'}" style="font-size:10px;flex-shrink:0">${mapeado?'Mapeado':'Não mapeado'}</span>
+        <span style="${badgeStyle}">${mapeado?'Mapeado':'Não mapeado'}</span>
       </div>
       <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">${tipo} · ${esc(u.macro)}${u.parentNome?' › '+esc(u.parentNome):''}</div>
+      <div style="margin-top:auto">
       ${mapeado ? `
         <div style="display:flex;gap:2px;margin-bottom:4px">${progressBar}</div>
         <div style="font-size:11px;color:var(--ink3)">${matText}</div>
-      ` : `<div style="font-size:11px;color:var(--ink4)">Clique para ver informações</div>`}
+      ` : `<div style="font-size:11px;color:#7c8cf8;font-weight:500">Ver informações →</div>`}
+      ${popBadges ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${popBadges}</div>` : ''}
+      </div>
     </div>`;
   }).join('');
   updCounts();
@@ -3701,6 +3709,15 @@ function abrirInfoMeusProc(arqId){
       ${row('Clientes do processo',item.clientes)}
       ${row('Documentações e regulamentações',item.docs)}
     </div>
+    ${(()=>{
+      const pops = publicacoes.filter(p=>(p.arq_ids||[]).includes(arqId) && p.url);
+      if(!pops.length) return '';
+      const links = pops.map(p=>`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':''}</a>`).join('');
+      return `<div style="border-top:1px solid var(--bdr);padding-top:.75rem;margin-top:.5rem">
+        <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">POPs / Documentos vinculados</div>
+        <div style="display:flex;flex-direction:column;gap:6px">${links}</div>
+      </div>`;
+    })()}
     <div class="btn-row" style="margin-top:1rem">
       <button type="button" class="btn" onclick="document.getElementById('info-proc-modal').remove()">Fechar</button>
       ${proc ? `<button type="button" class="btn btn-p" onclick="document.getElementById('info-proc-modal').remove();abrirProc(${proc.id})">Abrir mapeamento</button>` : ''}
@@ -13991,9 +14008,11 @@ function filtPub(cat, el){
 }
 
 function _pubProcsHtml(p){
-  const procs=(p.proc_ids||[]).map(pid=>processos.find(x=>x.id===pid)).filter(Boolean);
-  if(!procs.length) return '';
-  const chips=procs.map(x=>'<span style="font-size:10px;background:var(--green-b,#dcfce7);color:var(--green,#16a34a);padding:1px 7px;border-radius:99px;font-weight:600">'+esc(x.nome)+'</span>').join('');
+  const arqIds = p.arq_ids||[];
+  if(!arqIds.length) return '';
+  const items = arqIds.map(id=>findArqItemById(id)).filter(Boolean);
+  if(!items.length) return '';
+  const chips = items.map(x=>'<span style="font-size:10px;background:var(--green-b,#dcfce7);color:var(--green,#16a34a);padding:1px 7px;border-radius:99px;font-weight:600">'+esc(x.nome)+'</span>').join('');
   return '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">'+chips+'</div>';
 }
 function rPub(){
@@ -14039,11 +14058,11 @@ function rPub(){
     }).join('') + '</div>';
 }
 
-function _pubPopularSelectProcs(selectedIds){
+function _pubPopularSelectProcs(selectedArqIds){
   const sel = document.getElementById('pub-procs');
   if(!sel) return;
-  const arqProcs = processos.filter(p=>p.arq_id).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
-  sel.innerHTML = arqProcs.map(p=>`<option value="${p.id}"${(selectedIds||[]).includes(p.id)?' selected':''}>${esc(p.nome)}</option>`).join('');
+  const unidades = getUnidadesMapeaveis().sort((a,b)=>a.label.localeCompare(b.label));
+  sel.innerHTML = unidades.map(u=>`<option value="${esc(u.arq_id)}"${(selectedArqIds||[]).includes(u.arq_id)?' selected':''}>${esc(u.label)}</option>`).join('');
 }
 function _pubCatChange(cat){
   const wrap = document.getElementById('pub-procs-wrap');
@@ -14087,7 +14106,7 @@ function editarPub(id){
   const prev = document.getElementById('pub-thumb-preview');
   const img  = document.getElementById('pub-thumb-img');
   if(p.thumb_url){ img.src=p.thumb_url; prev.style.display='block'; } else { prev.style.display='none'; }
-  _pubPopularSelectProcs(p.proc_ids||[]);
+  _pubPopularSelectProcs(p.arq_ids||[]);
   _pubCatChange(p.categoria||'Manual');
   document.getElementById('pub-modal').style.display = 'flex';
 }
@@ -14096,7 +14115,7 @@ function salvarPub(){
   const titulo = document.getElementById('pub-titulo').value.trim();
   if(!titulo){ toast('Informe o título da publicação.','var(--amber)'); return; }
   const selProcs = document.getElementById('pub-procs');
-  const procIds = selProcs ? Array.from(selProcs.selectedOptions).map(o=>Number(o.value)) : [];
+  const arqIds = selProcs ? Array.from(selProcs.selectedOptions).map(o=>o.value) : [];
   const obj = {
     id: null,
     titulo,
@@ -14108,7 +14127,7 @@ function salvarPub(){
     responsavel: document.getElementById('pub-resp').value.trim(),
     tags:        document.getElementById('pub-tags').value.trim(),
     thumb_url:   document.getElementById('pub-thumb').value.trim(),
-    proc_ids:    procIds,
+    arq_ids:     arqIds,
   };
   const editId = document.getElementById('pub-edit-id').value;
   if(editId){
