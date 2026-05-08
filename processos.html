@@ -2028,7 +2028,7 @@ let _sessionUnsub = null;
 async function _iniciarSessaoUnica(uid) {
   if (!fbReady()) return;
   const { db, doc, setDoc, onSnapshot } = fb();
-  const sid = Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+  const sid = Date.now() + '_' + crypto.randomUUID();
   lsSet('siga_sid', sid);
   try {
     await setDoc(doc(db, 'sessions', uid), { sid, ts: new Date().toISOString() });
