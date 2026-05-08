@@ -4,7 +4,7 @@ const PERFIL_LABELS = {
   ep: 'EPP',
   dono: 'Executor de Processo',
   gestor: 'Gestor / Adjunto',
-  gerente_projeto: 'Gerente de Projeto'
+  gerente_projeto: 'Projetos'
 };
 
 const lsGet = (k, d = '') => {
@@ -76,7 +76,7 @@ function hasProcessosAccess(u) {
 
 function hasProjetosAccess(u) {
   const perfis = getPerfisUsuario(u || usuarioLogado);
-  return perfis.some(p => ['ep', 'gerente_projeto'].includes(p));
+  return perfis.some(p => ['ep', 'gestor', 'gerente_projeto'].includes(p));
 }
 
 function _sharedToast(msg, color) {

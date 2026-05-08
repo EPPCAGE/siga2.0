@@ -46,13 +46,15 @@ Usuários com perfil `ep` têm acesso total a ambos os módulos. Usuários podem
 
 Um mesmo usuário pode ter múltiplos perfis. O campo `perfis` no Firestore armazena um array; o campo legado `perfil` mantém o primeiro perfil para retrocompatibilidade.
 
-### Primeiro acesso
+### Perfis padrão para novos usuários
 
-Usuários criados pelo EP recebem `trocar_senha: true` no cadastro. Ao fazer login pela primeira vez, um modal bloqueia o acesso aos módulos e exige:
-1. Definição de uma senha definitiva (mín. 6 caracteres)
-2. Seleção do(s) perfil(is) de acesso (para usuários não-EP)
+Usuários que se auto-cadastram pelo "Primeiro acesso" recebem automaticamente os perfis **Dono de Processo + Gerente de Projeto**, dando acesso a ambos os módulos desde o início. O EPP pode ajustar os perfis a qualquer momento pelo painel de administração.
 
-O hub de módulos só é exibido após a conclusão desse fluxo.
+### Primeiro acesso e troca de senha obrigatória
+
+Usuários criados pelo sistema (tanto pelo EPP quanto por auto-cadastro) recebem `trocar_senha: true`. Ao fazer login com a senha temporária, um modal bloqueia o acesso aos módulos e exige apenas a **definição de uma senha definitiva** (mínimo 6 caracteres). Os perfis já estão atribuídos e não precisam ser selecionados pelo usuário.
+
+O hub de módulos só é exibido após essa etapa.
 
 ---
 
@@ -160,10 +162,177 @@ Ao carregar os dados (`fbLoad`), o sistema registra o timestamp local. A cada sa
 
 ---
 
+## Fluxo de Acesso e Gestão de Senhas
+
+Esta seção descreve todos os cenários possíveis em linguagem simples.
+
+---
+
+### Cenário 1 — EPP cadastra um novo usuário pelo painel de administração
+
+O EPP abre "Gerenciamento de usuários", preenche nome, e-mail, cargo e perfil e clica em **Salvar**.
+
+O sistema:
+1. Registra o usuário internamente com o perfil definido pelo EPP e a flag `trocar_senha`.
+2. Cria automaticamente uma conta de autenticação para o usuário (sem intervenção manual).
+3. Envia um e-mail com uma **senha temporária** gerada pelo sistema.
+
+O usuário recebe o e-mail, entra com a senha temporária e é obrigado a definir uma senha definitiva antes de acessar qualquer módulo.
+
+> **Se o e-mail já tiver uma conta ativa** (ex.: usuário foi cadastrado antes por outro caminho), o sistema salva os dados sem sobrescrever a senha existente e informa o EPP via toast.
+
+---
+
+### Cenário 2 — Usuário novo se auto-cadastra pelo "Primeiro acesso"
+
+Usuário vai à tela de login, clica em **"Primeiro acesso / Esqueci minha senha"**, informa nome completo e e-mail institucional e clica em **Continuar**.
+
+**Condição**: e-mail não está cadastrado no sistema.
+
+O sistema:
+1. Verifica se o domínio do e-mail é permitido (`sefaz.rs.gov.br` ou `cage.rs.gov.br`). Se não for, bloqueia com mensagem de erro.
+2. Cria a conta de autenticação para o usuário.
+3. Registra o usuário internamente com os perfis padrão: **Dono de Processo + Gerente de Projeto**.
+4. Envia um e-mail com uma senha temporária.
+5. Notifica os membros do EPP sobre o novo cadastro.
+
+O usuário entra com a senha temporária e define sua senha definitiva na primeira sessão.
+
+---
+
+### Cenário 3 — Usuário está cadastrado, mas nunca entrou no sistema
+
+Pode acontecer quando o usuário foi registrado por um EPP antes da melhoria que automatiza o envio de senha (cadastros antigos/manuais que não geraram e-mail).
+
+O usuário vai à tela de login, clica em **"Primeiro acesso / Esqueci minha senha"**, informa o e-mail e clica em **Continuar**.
+
+**Condição**: e-mail está no cadastro interno, mas nunca teve uma conta de autenticação criada.
+
+O sistema:
+1. Detecta que o e-mail está cadastrado mas não tem conta de autenticação.
+2. Cria a conta de autenticação.
+3. Envia um e-mail com uma **senha temporária** (não um link de redefinição, para evitar o erro de "link expirado").
+4. Marca o usuário para troca de senha no primeiro acesso.
+
+O usuário entra com a senha temporária e define sua senha definitiva.
+
+---
+
+### Cenário 4 — Usuário esqueceu a senha
+
+O usuário vai à tela de login, clica em **"Primeiro acesso / Esqueci minha senha"**, informa o e-mail e clica em **Continuar**.
+
+**Condição**: e-mail está cadastrado e já tem conta de autenticação ativa (usuário já entrou antes).
+
+O sistema envia um **link de redefinição de senha** para o e-mail. O usuário clica no link, define uma nova senha na página do Firebase e volta a fazer login normalmente.
+
+> O botão "Continuar" fica desabilitado durante o envio para evitar múltiplos cliques — cada novo envio invalida o link anterior.
+
+---
+
+### Cenário 5 — Login normal
+
+Usuário informa e-mail e senha na tela de login e clica em **Entrar**.
+
+O sistema verifica as credenciais. Se estiverem corretas:
+
+- **Usuário com `trocar_senha` ativo** → exibe o modal de troca de senha. O usuário define uma senha definitiva e só então acessa os módulos.
+- **Usuário sem `trocar_senha`** → acesso direto ao hub de módulos.
+
+---
+
+### Cenário 6 — Credenciais incorretas
+
+O usuário informa e-mail ou senha errados.
+
+O sistema exibe a mensagem de erro correspondente:
+
+| Situação | Mensagem exibida |
+|----------|-----------------|
+| E-mail não encontrado | "E-mail ou senha incorretos." |
+| Senha errada | "E-mail ou senha incorretos." |
+| Muitas tentativas seguidas | "Acesso temporariamente bloqueado. Tente novamente mais tarde." |
+
+---
+
+### Cenário 7 — Usuário bloqueado pelo EPP
+
+O EPP pode bloquear um usuário pelo painel de administração. Quando um usuário bloqueado tenta fazer login:
+
+1. A autenticação no Firebase é aceita normalmente.
+2. O sistema verifica o campo `bloqueado` no cadastro interno.
+3. A sessão é encerrada imediatamente e exibe a mensagem: **"Seu acesso foi bloqueado. Entre em contato com o EPP."**
+
+O usuário não acessa nenhum módulo. O EPP pode desbloquear a qualquer momento pelo mesmo painel.
+
+---
+
+### Cenário 8 — Conta Firebase existe, mas usuário não está no cadastro interno
+
+Pode ocorrer em situações excepcionais (ex.: conta criada diretamente no console do Firebase sem passar pelo sistema).
+
+O sistema detecta que o usuário autenticado não está na lista interna, encerra a sessão automaticamente e exibe: **"Acesso não autorizado. Solicite cadastro ao EPP."**
+
+---
+
+### Cenário 9 — Domínio de e-mail não permitido
+
+Ao tentar se auto-cadastrar com um e-mail de domínio não institucional, o sistema bloqueia imediatamente com a mensagem de quais domínios são aceitos, sem criar nenhuma conta.
+
+Domínios aceitos: `sefaz.rs.gov.br` e `cage.rs.gov.br`.
+
+---
+
+### Cenário 10 — EPP edita um usuário existente
+
+O EPP abre o painel, clica em **Editar** em um usuário já cadastrado, altera os dados (nome, cargo, perfil, vínculos) e salva.
+
+O sistema atualiza apenas os dados cadastrais internos. **A senha do usuário não é alterada.** Se o usuário estiver logado no momento, o nome e o perfil exibidos na barra lateral são atualizados em tempo real.
+
+---
+
+### Cenário 11 — EPP remove um usuário
+
+O EPP clica em **Editar** e depois em **Remover usuário**.
+
+O sistema remove o usuário do cadastro interno. A conta de autenticação no Firebase **não é excluída automaticamente** — o usuário não conseguirá mais acessar o sistema (será bloqueado pelo Cenário 8), mas a conta de autenticação permanece no Firebase. Para exclusão completa da conta de autenticação, é necessário acessar o console do Firebase.
+
+> O EPP logado não pode remover a própria conta.
+
+---
+
+### Resumo visual
+
+```
+Tela de login
+│
+├── [Entrar com e-mail + senha]
+│   ├── Credenciais corretas
+│   │   ├── Usuário bloqueado          → Acesso negado (Cenário 7)
+│   │   ├── trocar_senha = true        → Modal de troca de senha (Cenário 5)
+│   │   ├── Usuário não no cadastro    → Acesso negado (Cenário 8)
+│   │   └── Login normal               → Hub de módulos (Cenário 5)
+│   └── Credenciais incorretas         → Mensagem de erro (Cenário 6)
+│
+└── [Primeiro acesso / Esqueci minha senha]
+    ├── E-mail não permitido           → Bloqueado (Cenário 9)
+    ├── E-mail não cadastrado          → Auto-cadastro + senha temp (Cenário 2)
+    ├── E-mail cadastrado, sem conta   → Cria conta + senha temp (Cenário 3)
+    └── E-mail cadastrado, com conta   → Link de redefinição (Cenário 4)
+
+Painel de administração (EPP)
+├── Novo usuário                       → Cria conta + senha temp (Cenário 1)
+├── Editar usuário                     → Atualiza dados (Cenário 10)
+├── Remover usuário                    → Remove do cadastro (Cenário 11)
+└── Bloquear/Desbloquear              → Alterna flag bloqueado (Cenário 7)
+```
+
+---
+
 ## Segurança e UX
 
 - **Auto-logout**: sessão encerrada automaticamente após 5 minutos de inatividade. Um aviso aparece 30 segundos antes, com opção de continuar conectado.
-- **Primeiro acesso**: modal obrigatório bloqueia o hub até que o usuário defina senha definitiva e selecione o(s) perfil(is).
+- **Primeiro acesso**: modal obrigatório bloqueia o hub até que o usuário defina senha definitiva.
 - **Controle de acesso por módulo**: o hub exibe apenas os cards dos módulos acessíveis ao perfil do usuário; tentativas de acesso direto via código são bloqueadas.
 
 ---

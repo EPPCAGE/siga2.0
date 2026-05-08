@@ -4,18 +4,37 @@
 // Dependências compartilhadas de autenticação/sessão ficam em projetos.shared.js.
 // ═══════════════════════════════════════════════════════════════════
 
+let _projScheduleWriteContext = false;
 function projCanWriteAll(){ return isEP(); }
-function projCanWriteExec(){ return isEP() || isGerenteProjeto(); }
-function projCanViewOnly(){ return isDono() && !isEP() && !isGerenteProjeto(); }
+function projProjetosVinculadosUsuario(u = usuarioLogado){
+  return Array.isArray(u?.projetos_vinculados) ? u.projetos_vinculados.map(id => String(id)) : [];
+}
+function projIsLinkedManager(projectId = _projCurrentId, u = usuarioLogado){
+  return isGerenteProjeto() && projProjetosVinculadosUsuario(u).includes(String(projectId || ''));
+}
+function projCanWriteExec(){ return isEP(); }
+function projCanWriteSchedule(projectId = _projCurrentId){ return isEP() || projIsLinkedManager(projectId); }
+function projCanViewOnly(){ return !isEP(); }
 function projEnsureWriteAll(msg='Apenas EPP pode editar esta seção do módulo de projetos.'){
   if(projCanWriteAll()) return true;
   projToast(msg, '#d97706');
   return false;
 }
-function projEnsureWriteExec(msg='Apenas EPP e Gerente de Projeto podem executar esta ação.'){
+function projEnsureWriteExec(msg='Apenas EPP pode executar esta ação.'){
   if(projCanWriteExec()) return true;
   projToast(msg, '#d97706');
   return false;
+}
+function projEnsureWriteSchedule(msg='O perfil Projetos só pode editar o cronograma dos projetos vinculados.'){
+  if(projCanWriteSchedule()) return true;
+  projToast(msg, '#d97706');
+  return false;
+}
+function projWithScheduleWrite(fn){
+  if(!projEnsureWriteSchedule()) return;
+  _projScheduleWriteContext = true;
+  try { return fn(); }
+  finally { _projScheduleWriteContext = false; }
 }
 
 function _fsClean(v, insideArray){
@@ -50,6 +69,8 @@ let PROJETOS = [];
 let PROGRAMAS = [];
 let _projCurrentId = null; // ID do projeto em visualização
 let _projCurrentPage = 'inicio';
+let _projCurrentWorkflowTab = null;
+let _projReunioesCalendarMonth = null;
 let _progCurrentId = null; // ID do programa em visualização
 const PROJ_STORAGE_KEY = 'cagePROJETOS_v6';
 const PROG_STORAGE_KEY = 'cagePROGRAMAS_v6';
@@ -127,11 +148,13 @@ function projLoadListas(){
   }catch(e){}
 }
 function projSaveListas(){
+  if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.')) return false;
   if(!fbReady()){
     localStorage.setItem('cagePROJ_MACROS_v6',JSON.stringify(PROJ_MACROS));
     localStorage.setItem('cage_objetivos_v6',JSON.stringify(PROJ_OBJETIVOS));
   }
   projFbAutoSave('listas');
+  return true;
 }
 
 async function projFbSyncCollection(col, items){
@@ -151,6 +174,24 @@ async function projFbSyncCollection(col, items){
     });
     await batch.commit();
   }
+}
+
+async function projFbSaveCurrentScheduleProject(){
+  if(!fbReady()) throw new Error('Firebase indisponível.');
+  const proj = (PROJETOS||[]).find(p => String(p.id) === String(_projCurrentId));
+  if(!proj) throw new Error('Projeto não encontrado.');
+  const {db, doc, setDoc} = fb();
+  const exec = proj.execucao || {};
+  await setDoc(doc(db, PROJ_FB.colProjetos, String(proj.id)), _fsClean({
+    percentual: proj.percentual || 0,
+    execucao: {
+      planner_link: exec.planner_link || '',
+      percentual: exec.percentual || proj.percentual || 0,
+      tarefas: exec.tarefas || [],
+      cron_mode: exec.cron_mode || 'planner',
+      pct_mode: exec.pct_mode || 'manual'
+    }
+  }), { merge: true });
 }
 
 function projIsDataUrl(value){
@@ -255,7 +296,7 @@ function projRenderCurrentPage(){
   const page = _projCurrentPage || (active ? (active.id||'').replace('pnb-','') : 'inicio');
   if(document.getElementById('proj-shell')?.classList.contains('on')){
     if(page === 'detalhe' && _projCurrentId){
-      projAbrirDetalhe(_projCurrentId);
+      projAbrirDetalhe(_projCurrentId, false, true);
       return;
     }
     const btn = document.getElementById('pnb-' + page) || active || document.getElementById('pnb-inicio');
@@ -393,15 +434,37 @@ function projLoad() {
 }
 
 function projSave() {
+  if(usuarioLogado && !isEP() && !_projScheduleWriteContext){
+    projToast('Seu perfil tem acesso somente de visualização no SIGA Projetos.', '#d97706');
+    return false;
+  }
+  if(usuarioLogado && !isEP() && _projScheduleWriteContext){
+    if(fbReady()){
+      projFbSaveCurrentScheduleProject().catch(e => {
+        console.warn('projFbSaveCurrentScheduleProject:', e.message);
+        try { projToast('Erro ao salvar cronograma na nuvem: ' + e.message, '#dc2626'); } catch(_e){}
+      });
+      return true;
+    }
+    try {
+      localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS));
+      return true;
+    } catch(e) {
+      projToast('Erro ao salvar cronograma.', 'var(--red)');
+      return false;
+    }
+  }
   if(fbReady()){
     projFbAutoSave('projetos').catch(()=>{});
-    return;
+    return true;
   }
   try {
     localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS));
     projFbAutoSave('projetos');
+    return true;
   } catch(e) {
     projToast('Erro ao salvar dados.', 'var(--red)');
+    return false;
   }
 }
 
@@ -422,15 +485,21 @@ function progLoad() {
 }
 
 function progSave() {
+  if(usuarioLogado && !isEP()){
+    projToast('Apenas EPP pode editar programas.', '#d97706');
+    return false;
+  }
   if(fbReady()){
     projFbAutoSave('programas').catch(()=>{});
-    return;
+    return true;
   }
   try {
     localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS));
     projFbAutoSave('programas');
+    return true;
   } catch(e) {
     projToast('Erro ao salvar programas.', 'var(--red)');
+    return false;
   }
 }
 
@@ -521,6 +590,7 @@ function projGo(pageId, btnEl) {
   // Render page
   switch(pageId) {
     case 'inicio':    projRenderInicio(); break;
+    case 'painel-geral': projRenderPainelGeral(); break;
     case 'portfolio': projRenderPortfolio(); break;
     case 'concluidos': projRenderConcluidos(); break;
     case 'programas': progRenderPage(); break;
@@ -656,6 +726,31 @@ function _confirmarNao() {
 // ════════════════════════════════════════════════════════════════════
 // PÁGINA: INÍCIO (Dashboard)
 // ════════════════════════════════════════════════════════════════════
+function projRenderPainelGeral() {
+  projLoad();
+  projRenderDashV9();
+}
+
+function projAtrasoStatusProjeto(p) {
+  const atrasadas = projTarefasAtrasadasProjeto(p);
+  if(!atrasadas.length) return { cls:'ok', label:'Em dia' };
+
+  const hoje = new Date();
+  hoje.setHours(0,0,0,0);
+  let maxDias = 0;
+  atrasadas.forEach(t => {
+    const d = projParseIsoDate(t.dt_fim);
+    if(!d) return;
+    const venc = new Date(d.ano, d.mes, d.dia);
+    venc.setHours(0,0,0,0);
+    const dias = Math.max(0, Math.floor((hoje - venc) / 86400000));
+    if(dias > maxDias) maxDias = dias;
+  });
+
+  if(maxDias > 30) return { cls:'danger', label:'Tarefa atrasada ha mais de 30 dias' };
+  return { cls:'warn', label:'Tarefa atrasada ate 30 dias' };
+}
+
 function projRenderInicio() {
   projLoad();
   const now = new Date();
@@ -688,6 +783,7 @@ function projRenderInicio() {
     ordered.forEach((p, idx) => {
       const pct = p.percentual || 0;
       const emoji = p.icone_emoji || '📋';
+      const atrasoStatus = projAtrasoStatusProjeto(p);
       lanesHTML += `
         <div class="proj-launchpad-lane" id="proj-lane-${p.id}" data-id="${p.id}" data-idx="${idx}">
           <div class="proj-launchpad-lane-grid">${gridSegs}</div>
@@ -701,6 +797,7 @@ function projRenderInicio() {
               ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">` : emoji}
             </div>
             <div class="proj-rocket-label">
+              <span class="proj-rocket-status-dot ${atrasoStatus.cls}" title="${projEsc(atrasoStatus.label)}"></span>
               <div class="proj-rocket-name" title="${projEsc(p.nome)}">${projEsc(p.nome)}</div>
               <div class="proj-rocket-mgr">${projEsc(p.gerente||'')}</div>
               <div class="proj-rocket-pct">${pct}%</div>
@@ -920,6 +1017,7 @@ function projRenderReunioesDoMes() {
     return;
   }
 
+  todas.sort((a,b) => (a.data || '9999-12-31').localeCompare(b.data || '9999-12-31') || String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
   reunEl.innerHTML = todas.map(r => `
     <div class="proj-reunion-item ${r.realizada ? 'proj-reunion-done' : ''}" id="reunion-item-${projEsc(r.id)}">
       <div class="proj-reunion-check ${r.realizada ? 'done' : ''}" onclick="projToggleReuniao('${r._projeto_id}','${projEsc(r.id)}')">
@@ -935,6 +1033,7 @@ function projRenderReunioesDoMes() {
 }
 
 function projToggleReuniao(projetoId, reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.')) return;
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === String(projetoId));
   if(!proj) return;
@@ -1127,7 +1226,7 @@ function projRenderStatusReport() {
 }
 
 function projSalvarStatusReportObs(projId, value, silent) {
-  if(!projCanWriteExec()){ if(!silent) projToast('Somente EPP ou Gerente de Projeto pode salvar status report.','#d97706'); return; }
+  if(!projCanWriteExec()){ if(!silent) projToast('Somente EPP pode salvar status report.','#d97706'); return; }
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === String(projId));
   if(!proj) return;
@@ -1151,11 +1250,326 @@ function projSaveStatusReportFromForm() {
 function projExportStatusReportPDF() {
   projLoad();
   projSaveStatusReportFromForm();
-  const w = window.open('', '_blank');
-  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); return; }
-  w.document.open();
-  w.document.write(projBuildStatusReportHTML());
-  w.document.close();
+  const blob = new Blob([projBuildStatusReportHTML()], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); URL.revokeObjectURL(url); return; }
+}
+
+async function projExportStatusReportImagem() {
+  projLoad();
+  projSaveStatusReportFromForm();
+  try {
+    await projDownloadStatusReportPNG();
+    projToast('Imagem do Status Report gerada.', '#00a89a');
+  } catch(err) {
+    console.error(err);
+    projToast('Nao foi possivel gerar a imagem PNG.', '#dc2626');
+  }
+}
+
+function projCanvasRoundRect(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+function projCanvasTextWidth(ctx, text, maxWidth) {
+  let value = String(text || '');
+  while(value.length && ctx.measureText(value).width > maxWidth) value = value.slice(0, -1);
+  return value.length < String(text || '').length ? `${value}...` : value;
+}
+
+function projCanvasWrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  words.forEach(word => {
+    const test = line ? `${line} ${word}` : word;
+    if(ctx.measureText(test).width <= maxWidth) line = test;
+    else {
+      if(line) lines.push(line);
+      line = word;
+    }
+  });
+  if(line) lines.push(line);
+  const limited = maxLines ? lines.slice(0, maxLines) : lines;
+  if(maxLines && lines.length > maxLines && limited.length) {
+    let last = limited[limited.length - 1];
+    while(last.length && ctx.measureText(`${last}...`).width > maxWidth) last = last.slice(0, -1);
+    limited[limited.length - 1] = `${last}...`;
+  }
+  limited.forEach((ln, i) => ctx.fillText(ln, x, y + (i * lineHeight)));
+  return limited.length * lineHeight;
+}
+
+function projLoadCanvasImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function projDownloadStatusReportPNG() {
+  progLoad();
+  const ativos = PROJETOS.filter(p => p.status === 'ativo');
+  const concluidos = PROJETOS.filter(p => p.status === 'concluido');
+  const media = ativos.length ? Math.round(ativos.reduce((a,p)=>a+(Number(p.percentual ?? p.execucao?.percentual ?? 0)),0)/ativos.length) : 0;
+  const totalProjetos = ativos.length + concluidos.length;
+  const concluidoPct = totalProjetos ? (concluidos.length / totalProjetos) * 100 : 0;
+  const projetos = ativos.slice().sort((a,b)=>Number(b.percentual ?? b.execucao?.percentual ?? 0)-Number(a.percentual ?? a.execucao?.percentual ?? 0));
+  const grupos = {};
+  ativos.forEach(p => { const g = projProgramaNome(p); if(!grupos[g]) grupos[g] = []; grupos[g].push(p); });
+  const detailHeight = Object.values(grupos).reduce((sum, items) => {
+    return sum + 56 + items.reduce((projectSum, p) => {
+      const indicatorLines = (p.execucao?.indicadores || []).length;
+      const overdueLines = projTarefasAtrasadasProjeto(p).length;
+      const noteLines = Math.min(5, Math.max(2, Math.ceil(String(p.status_report_obs || '').length / 92)));
+      return projectSum + 154 + (indicatorLines * 18) + (Math.min(4, overdueLines) * 18) + (noteLines * 18);
+    }, 0);
+  }, 0);
+  const w = 1200;
+  const rowH = 48;
+  const doneRows = Math.max(1, concluidos.length);
+  const contentH = 500 + (projetos.length * rowH) + 90 + (doneRows * 30) + detailHeight + 100;
+  const h = Math.min(Math.ceil(contentH * 1.35) + 2400, 30000);
+  const scale = h > 15000 ? 1 : 2;
+  const reportLogo = await projLoadCanvasImage(new URL(PROJ_CAGE_REPORT_LOGO, window.location.href).href).catch(() => null);
+  const canvas = document.createElement('canvas');
+  canvas.width = w * scale;
+  canvas.height = h * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#f6fbff';
+  ctx.fillRect(0, 0, w, 170);
+  ctx.fillStyle = '#005a9c';
+  ctx.fillRect(0, 0, 10, 170);
+  ctx.fillStyle = '#005a9c';
+  ctx.font = '700 13px Arial';
+  ctx.fillText('CAGE-RS \u00b7 ESCRIT\u00d3RIO DE PROJETOS E PROCESSOS', 42, 54);
+  ctx.fillStyle = '#0f2746';
+  ctx.font = '800 34px Arial';
+  ctx.fillText('Status Report Executivo', 42, 96);
+  ctx.fillStyle = '#5f6b80';
+  ctx.font = '16px Arial';
+  ctx.fillText(`Emitido em ${new Date().toLocaleDateString('pt-BR')}`, 42, 124);
+  if(reportLogo) {
+    const maxLogoW = 360;
+    const maxLogoH = 92;
+    const ratio = Math.min(maxLogoW / reportLogo.width, maxLogoH / reportLogo.height);
+    const logoW = reportLogo.width * ratio;
+    const logoH = reportLogo.height * ratio;
+    ctx.drawImage(reportLogo, 1128 - logoW, 44, logoW, logoH);
+  }
+  ctx.fillStyle = '#00a89a';
+  ctx.font = '800 18px Arial';
+  ctx.fillText('Resumo Gr\u00e1fico', 42, 218);
+  ctx.fillStyle = '#0f2746';
+  ctx.font = '800 26px Arial';
+  ctx.fillText('Vis\u00e3o imediata do portf\u00f3lio', 42, 252);
+  const drawRing = (x, y, r, parts, center, labelLines) => {
+    ctx.lineWidth = 18;
+    ctx.strokeStyle = '#e7edf5';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    let start = -Math.PI / 2;
+    parts.forEach(part => {
+      const value = Math.max(0, Math.min(100, Number(part.value) || 0));
+      if(value <= 0) return;
+      const end = start + (Math.PI * 2 * value / 100);
+      ctx.strokeStyle = part.color;
+      ctx.beginPath();
+      ctx.arc(x, y, r, start, end);
+      ctx.stroke();
+      start = end;
+    });
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(x, y, r - 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#005a9c';
+    ctx.font = '800 27px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(center, x, y - 10);
+    ctx.fillStyle = '#5f6b80';
+    ctx.font = '11px Arial';
+    labelLines.forEach((line, idx) => ctx.fillText(line, x, y + 14 + (idx * 13)));
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+  };
+  drawRing(100, 348, 58, [
+    { value: 100 - concluidoPct, color: '#005a9c' },
+    { value: concluidoPct, color: '#00a89a' }
+  ], String(totalProjetos), ['PROJETOS']);
+  drawRing(300, 348, 58, [{ value: media, color: '#00bfb3' }], `${media}%`, ['M\u00c9DIA DE', 'CONCLUS\u00c3O']);
+  ctx.fillStyle = '#005a9c';
+  ctx.beginPath();
+  ctx.arc(62, 440, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#00a89a';
+  ctx.beginPath();
+  ctx.arc(210, 440, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#334155';
+  ctx.font = '13px Arial';
+  ctx.fillText('Em andamento', 76, 444);
+  ctx.fillText('Conclu\u00eddos', 224, 444);
+  let y = 490;
+  projCanvasRoundRect(ctx, 42, y, 1116, projetos.length * rowH + 64, 14);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#d9e5f5';
+  ctx.stroke();
+  ctx.fillStyle = '#0f2746';
+  ctx.font = '800 17px Arial';
+  ctx.fillText('Projetos por conclus\u00e3o', 70, y + 34);
+  projetos.forEach((p, idx) => {
+    const py = y + 66 + (idx * rowH);
+    const pct = Math.max(0, Math.min(100, Number(p.percentual ?? p.execucao?.percentual ?? 0)));
+    ctx.fillStyle = '#172033';
+    ctx.font = '15px Arial';
+    ctx.fillText(projCanvasTextWidth(ctx, p.nome, 420), 70, py);
+    ctx.fillStyle = '#e7edf5';
+    projCanvasRoundRect(ctx, 520, py - 11, 220, 12, 6);
+    ctx.fill();
+    ctx.fillStyle = '#005a9c';
+    projCanvasRoundRect(ctx, 520, py - 11, Math.max(2, pct * 2.2), 12, 6);
+    ctx.fill();
+    ctx.fillStyle = '#005a9c';
+    ctx.font = '800 15px Arial';
+    ctx.fillText(`${pct}%`, 770, py);
+    ctx.fillStyle = '#5f6b80';
+    ctx.font = '12px Arial';
+    ctx.fillText(projCanvasTextWidth(ctx, p.gerente || 'Gerente nao informado', 260), 840, py);
+  });
+  y += projetos.length * rowH + 92;
+  projCanvasRoundRect(ctx, 42, y, 1116, doneRows * 32 + 58, 14);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#d9e5f5';
+  ctx.stroke();
+  ctx.fillStyle = '#0f2746';
+  ctx.font = '800 17px Arial';
+  ctx.fillText('Projetos conclu\u00eddos', 70, y + 34);
+  if(concluidos.length) {
+    concluidos.forEach((p, idx) => {
+      const py = y + 66 + (idx * 32);
+      ctx.fillStyle = '#00a89a';
+      ctx.beginPath();
+      ctx.arc(78, py - 5, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#334155';
+      ctx.font = '14px Arial';
+      ctx.fillText(projCanvasTextWidth(ctx, p.nome, 990), 94, py);
+    });
+  } else {
+    ctx.fillStyle = '#5f6b80';
+    ctx.font = '14px Arial';
+    ctx.fillText('Nenhum projeto concluido registrado.', 70, y + 66);
+  }
+  y += doneRows * 32 + 106;
+  Object.entries(grupos).forEach(([programa, items]) => {
+    ctx.fillStyle = '#005a9c';
+    ctx.font = '800 20px Arial';
+    ctx.fillText(programa, 42, y);
+    ctx.fillStyle = '#00bfb3';
+    ctx.fillRect(42, y + 12, 1116, 3);
+    y += 34;
+    items.forEach(p => {
+      const pct = Math.max(0, Math.min(100, Number(p.percentual ?? p.execucao?.percentual ?? 0)));
+      const indicadores = p.execucao?.indicadores || [];
+      const atrasadas = projTarefasAtrasadasProjeto(p);
+      const noteLines = Math.min(5, Math.max(2, Math.ceil(String(p.status_report_obs || '').length / 92)));
+      const cardH = 154 + (indicadores.length * 18) + (Math.min(4, atrasadas.length) * 18) + (noteLines * 18);
+      projCanvasRoundRect(ctx, 42, y, 1116, cardH, 14);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = '#d9e5f5';
+      ctx.stroke();
+      ctx.fillStyle = '#0f2746';
+      ctx.font = '800 18px Arial';
+      ctx.fillText(projCanvasTextWidth(ctx, p.nome, 520), 70, y + 34);
+      ctx.fillStyle = '#00a89a';
+      ctx.font = '800 28px Arial';
+      ctx.fillText(`${pct}%`, 600, y + 36);
+      ctx.fillStyle = '#e7edf5';
+      projCanvasRoundRect(ctx, 70, y + 54, 560, 9, 5);
+      ctx.fill();
+      ctx.fillStyle = '#005a9c';
+      projCanvasRoundRect(ctx, 70, y + 54, Math.max(2, pct * 5.6), 9, 5);
+      ctx.fill();
+      ctx.fillStyle = '#005a9c';
+      ctx.font = '800 11px Arial';
+      ctx.fillText('PATROCINADOR', 70, y + 88);
+      ctx.fillText('GERENTE', 310, y + 88);
+      ctx.fillText('GERENTE SUBSTITUTO', 550, y + 88);
+      ctx.fillStyle = '#334155';
+      ctx.font = '13px Arial';
+      ctx.fillText(projCanvasTextWidth(ctx, p.patrocinador || 'Nao informado', 200), 70, y + 108);
+      ctx.fillText(projCanvasTextWidth(ctx, p.gerente || 'Nao informado', 200), 310, y + 108);
+      ctx.fillText(projCanvasTextWidth(ctx, p.gerente_substituto || 'Nao informado', 200), 550, y + 108);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(760, y + 24, 4, Math.max(82, noteLines * 18 + 20));
+      ctx.fillStyle = '#005a9c';
+      ctx.font = '800 11px Arial';
+      ctx.fillText('SUMARIO EXECUTIVO', 778, y + 34);
+      ctx.fillStyle = '#334155';
+      ctx.font = '13px Arial';
+      projCanvasWrapText(ctx, p.status_report_obs || 'Sem sumario executivo registrado.', 778, y + 56, 330, 18, noteLines);
+      let infoY = y + 136;
+      if(indicadores.length) {
+        ctx.fillStyle = '#005a9c';
+        ctx.font = '800 11px Arial';
+        ctx.fillText('INDICADORES', 70, infoY);
+        ctx.fillStyle = '#334155';
+        ctx.font = '12px Arial';
+        indicadores.forEach(ind => {
+          infoY += 18;
+          const meta = projIndicadorValor(ind,'meta');
+          const atual = projIndicadorValor(ind,'resultado');
+          const ating = meta ? (atual / meta) * 100 : 0;
+          ctx.fillText(projCanvasTextWidth(ctx, `${ind.nome || 'Indicador'}: ${atual}/${meta} (${projPctFmt(ating)})`, 520), 70, infoY);
+        });
+      }
+      if(atrasadas.length) {
+        infoY += 22;
+        ctx.fillStyle = '#b45309';
+        ctx.font = '800 11px Arial';
+        ctx.fillText('TAREFAS ATRASADAS', 70, infoY);
+        ctx.fillStyle = '#334155';
+        ctx.font = '12px Arial';
+        atrasadas.slice(0,4).forEach(t => {
+          infoY += 18;
+          ctx.fillText(projCanvasTextWidth(ctx, `${t._parentName ? `${t._parentName} / ` : ''}${t.nome} - ${projFormatDate(t.dt_fim)}`, 640), 70, infoY);
+        });
+      }
+      y += cardH + 18;
+    });
+    y += 28;
+  });
+  const finalH = Math.min(h, Math.ceil(y + 100));
+  const out = document.createElement('canvas');
+  out.width = canvas.width;
+  out.height = finalH * scale;
+  const outCtx = out.getContext('2d');
+  outCtx.fillStyle = '#ffffff';
+  outCtx.fillRect(0, 0, out.width, out.height);
+  outCtx.drawImage(canvas, 0, 0);
+  const a = document.createElement('a');
+  a.download = `Status_Report_Executivo_Email_${new Date().toISOString().slice(0,10)}.png`;
+  a.href = out.toDataURL('image/png');
+  a.click();
 }
 
 function projExportReunioesRealizadasPDF() {
@@ -1179,14 +1593,65 @@ function projExportReunioesRealizadasPDF() {
   `).join('');
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Reuniões Realizadas</title>
     <style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540}.head{border-left:8px solid var(--blue);padding:14px 18px;background:#f0f6ff;margin-bottom:16px}.k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#00a89a;font-weight:700}h1{margin:4px 0;color:var(--blue);font-size:24px}.sub{font-size:12px;color:#5f6b80}table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:var(--blue);color:#fff;text-align:left;padding:8px}td{border-bottom:1px solid #d9e2ef;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}.empty{padding:18px;border:1px solid #d9e2ef;border-radius:8px;color:#5f6b80}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
-    </head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Reuniões Realizadas</h1><div class="sub">${label} · ${realizadas.length} reunião(ões)</div></div>
+    </head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Reuniões Realizadas</h1><div class="sub">${projEsc(label)} · ${realizadas.length} reunião(ões)</div></div>
     ${realizadas.length ? `<table><thead><tr><th>Data</th><th>Projeto</th><th>Reunião</th><th>Participantes</th><th>Observações</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">Nenhuma reunião realizada encontrada para o mês/ano selecionado.</div>'}
     <script>setTimeout(function(){window.print();},350);</script></body></html>`;
-  const w = window.open('', '_blank');
-  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); URL.revokeObjectURL(url); return; }
+}
+
+function projQuarterValue(date) {
+  const d = date || new Date();
+  return d.getFullYear() + '-T' + (Math.floor(d.getMonth() / 3) + 1);
+}
+function projQuarterLabel(value) {
+  const m = String(value||'').match(/^(\d{4})-T([1-4])$/);
+  return m ? (m[2] + 'º Trimestre de ' + m[1]) : 'Trimestre';
+}
+function projQuarterRange(value) {
+  const m = String(value||'').match(/^(\d{4})-T([1-4])$/);
+  const ano = m ? Number(m[1]) : new Date().getFullYear();
+  const tri = m ? Number(m[2]) : Math.floor(new Date().getMonth()/3)+1;
+  const startMonth = (tri - 1) * 3;
+  return { start:new Date(ano,startMonth,1), end:new Date(ano,startMonth+3,0), months:[0,1,2].map(i => { const v = new Date(ano,startMonth+i,1).toISOString().slice(0,7); return {value:v,label:projMonthLabel(v)}; }) };
+}
+function projQuarterOptionsHtml() {
+  const selected = projQuarterValue();
+  let html = '';
+  for(let y=2026; y<=new Date().getFullYear()+1; y++) {
+    for(let q=1; q<=4; q++) {
+      if(y===2026 && q<2) continue;
+      const v = y + '-T' + q;
+      html += `<option value="${v}" ${v===selected?'selected':''}>${projQuarterLabel(v)}</option>`;
+    }
+  }
+  return html;
+}
+function projExportReunioesRealizadasPDF() {
+  projLoad();
+  const quarterValue = document.getElementById('greuniao-rel-tri')?.value || projQuarterValue();
+  const label = projQuarterLabel(quarterValue);
+  const range = projQuarterRange(quarterValue);
+  const reunioes = [];
+  PROJETOS.forEach(p => {
+    (p.execucao?.reunioes||[]).forEach(r => {
+      if(!r.data) return;
+      const d = new Date(r.data + 'T00:00:00');
+      if(d >= range.start && d <= range.end) reunioes.push({ ...r, _projeto:p });
+    });
+  });
+  const mesesHtml = range.months.map(month => {
+    const items = reunioes.filter(r => projIsoInMonth(r.data, month.value)).sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+    const rows = items.map(r => `<tr><td>${projFormatDate(r.data)}</td><td>${projEsc(r._projeto.nome)}</td><td>${projEsc(r.nome)}</td><td>${r.realizada?'Concluída':'Planejada'}</td><td>${projEsc(r.participantes||'')}</td><td>${projEsc(r.observacoes||'')}</td></tr>`).join('');
+    return `<section class="month"><h2>${projEsc(month.label)}</h2>${items.length ? `<table><thead><tr><th>Data</th><th>Projeto</th><th>Reunião</th><th>Status</th><th>Participantes</th><th>Observações</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">Nenhuma reunião planejada ou concluída neste mês.</div>'}</section>`;
+  }).join('');
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Trimestral de Reuniões</title><style>:root{--blue:#005a9c;--teal:#00bfb3}@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540}.head{border-left:8px solid var(--blue);padding:14px 18px;background:#f0f6ff;margin-bottom:16px}.k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#00a89a;font-weight:700}h1{margin:4px 0;color:var(--blue);font-size:24px}.sub{font-size:12px;color:#5f6b80}.month{margin-top:18px;break-inside:avoid}.month h2{font-size:15px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px}table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:var(--blue);color:#fff;text-align:left;padding:8px}td{border-bottom:1px solid #d9e2ef;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}.empty{padding:12px;border:1px solid #d9e2ef;border-radius:8px;color:#5f6b80;font-size:12px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Relatório Trimestral de Reuniões</h1><div class="sub">${projEsc(label)} · ${reunioes.length} reunião(ões) planejada(s) ou concluída(s)</div></div>${mesesHtml}<script>setTimeout(function(){window.print();},350);</script></body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); URL.revokeObjectURL(url); return; }
 }
 
 function projAddMonths(date, months) {
@@ -1195,9 +1660,11 @@ function projAddMonths(date, months) {
 }
 
 function projAutoAddReunioesTipo(tipo, monthOffset) {
+  if(!projEnsureWriteAll('Apenas EPP pode criar reuniões automáticas.')) return;
   projLoad();
   const target = projAddMonths(new Date(), monthOffset || 0);
   const mn = projMonthLabel(projMonthValue(target));
+  _projReunioesCalendarMonth = projMonthValue(target);
   const dataStatus = projMonthFirstDay(target);
   const isCronograma = tipo === 'cronograma';
   const baseNome = isCronograma ? 'Acompanhamento de Cronograma' : 'Reuniao de Status Patrocinador';
@@ -1247,7 +1714,7 @@ function projColetarReunioesGlobal() {
 }
 
 function projRenderReunioesCalendar(container) {
-  const monthValue = document.getElementById('proj-cal-reuniao-mes')?.value || projMonthValue();
+  const monthValue = _projReunioesCalendarMonth || document.getElementById('proj-cal-reuniao-mes')?.value || projMonthValue();
   const parts = monthValue.split('-').map(Number);
   const ano = parts[0];
   const mesIndex = (parts[1] || 1) - 1;
@@ -1288,7 +1755,10 @@ function projRenderReunioesCalendar(container) {
   monthInput.type = 'month'; monthInput.className = 'proj-fi';
   monthInput.id = 'proj-cal-reuniao-mes'; monthInput.value = monthValue;
   monthInput.style.maxWidth = '170px';
-  monthInput.addEventListener('change', () => projRenderReunioesPage());
+  monthInput.addEventListener('change', () => {
+    _projReunioesCalendarMonth = monthInput.value || projMonthValue();
+    projRenderReunioesPage();
+  });
   toolbar.append(toolInfo, monthInput);
   section.appendChild(toolbar);
 
@@ -1318,7 +1788,7 @@ function projRenderReunioesCalendar(container) {
     const dayEl = document.createElement('div');
     dayEl.className = 'proj-meeting-cal-day'; dayEl.textContent = day;
     cell.appendChild(dayEl);
-    items.slice(0,3).forEach(r => {
+    items.slice(0,5).forEach(r => {
       const pId = String(r._projeto.id);
       const rId = String(r.id);
       const meetItem = document.createElement('div');
@@ -1340,10 +1810,10 @@ function projRenderReunioesCalendar(container) {
       meetItem.append(iconSpan, nameSpan);
       cell.appendChild(meetItem);
     });
-    if(items.length > 3){
+    if(items.length > 5){
       const more = document.createElement('div');
       more.className = 'proj-meeting-cal-more';
-      more.textContent = '+' + (items.length - 3) + ' reunião(ões)';
+      more.textContent = '+' + (items.length - 5) + ' reunião(ões)';
       cell.appendChild(more);
     }
     grid.appendChild(cell);
@@ -1365,6 +1835,7 @@ function projMeetingCalendarDragOver(ev) {
 
 function projDropReuniaoCalendar(ev, novaData) {
   ev.preventDefault();
+  if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.')) return;
   let payload = null;
   try { payload = JSON.parse(ev.dataTransfer.getData('text/plain') || '{}'); } catch(e) { payload = null; }
   if(!payload?.projetoId || !payload?.reuniaoId || !novaData) return;
@@ -1373,6 +1844,7 @@ function projDropReuniaoCalendar(ev, novaData) {
   const reuniao = proj?.execucao?.reunioes?.find(r => String(r.id) === String(payload.reuniaoId));
   if(!reuniao) return;
   reuniao.data = novaData;
+  _projReunioesCalendarMonth = novaData.slice(0, 7);
   projSave();
   projToast('Data da reunião atualizada.');
   projRenderReunioesPage();
@@ -1389,12 +1861,12 @@ function projRenderReunioesPage() {
     <div class="proj-form-section" style="margin-bottom:1rem">
       <div class="proj-form-section-title">
         <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-        Relatório de Reuniões Realizadas
+        Relatório Trimestral de Reuniões
       </div>
       <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
         <div class="proj-fg" style="margin:0;min-width:180px">
-          <label class="proj-fl" for="greuniao-rel-mes">Mês/Ano</label>
-          <input type="month" class="proj-fi" id="greuniao-rel-mes" value="${projMonthValue()}">
+          <label class="proj-fl" for="greuniao-rel-tri">Trimestre</label>
+          <select class="proj-fi" id="greuniao-rel-tri">${projQuarterOptionsHtml()}</select>
         </div>
         <button type="button" class="proj-btn primary" onclick="projExportReunioesRealizadasPDF()">Gerar relatório PDF</button>
       </div>
@@ -1622,6 +2094,7 @@ function projRenderReuniaoItem(projId, r, isDone) {
 }
 
 function projAdicionarReuniaoGlobal() {
+  if(!projEnsureWriteAll('Apenas EPP pode criar reuniões.')) return;
   const projId = document.getElementById('greuniao-proj')?.value;
   const nome = document.getElementById('greuniao-nome')?.value.trim();
   if(!projId) { projToast('Selecione um projeto.', '#d97706'); return; }
@@ -1646,6 +2119,7 @@ function projAdicionarReuniaoGlobal() {
 }
 
 function projEditarReuniaoModal(projetoId, reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode editar reuniões.')) return;
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === String(projetoId));
   if(!proj) return;
@@ -1677,6 +2151,7 @@ function projEditarReuniaoModal(projetoId, reuniaoId) {
 }
 
 function projSalvarEdicaoReuniao(projetoId, reuniaoId, btn) {
+  if(!projEnsureWriteAll('Apenas EPP pode editar reuniões.')) return;
   const nome = document.getElementById('edit-r-nome')?.value.trim();
   if(!nome) { projToast('Informe o nome.','#d97706'); return; }
   projLoad();
@@ -1702,6 +2177,7 @@ function projToggleReuniaoPage(projetoId, reuniaoId) {
 }
 
 function projExcluirReuniao(projetoId, reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode excluir reuniões.')) return;
   projConfirmar('Tem certeza que deseja excluir esta reunião?\n\nEsta ação não pode ser desfeita.', () => {
     projLoad();
     const proj = PROJETOS.find(p => String(p.id) === String(projetoId));
@@ -1787,12 +2263,16 @@ function projExcluir(id) {
 // ════════════════════════════════════════════════════════════════════
 // DETALHE DO PROJETO
 // ════════════════════════════════════════════════════════════════════
-function projAbrirDetalhe(id, forceWorkflow) {
+function projAbrirDetalhe(id, forceWorkflow, preserveWorkflowTab) {
   projLoad();
+  const sameProject = String(_projCurrentId || '') === String(id);
   _projCurrentId = String(id);
   _projCurrentPage = 'detalhe';
   const proj = PROJETOS.find(p => String(p.id) === String(id));
   if(!proj) { projToast('Projeto não encontrado.', '#b91c1c'); return; }
+  if(!preserveWorkflowTab || !sameProject) {
+    _projCurrentWorkflowTab = proj.fase_atual || 'aprovacao';
+  }
 
   document.querySelectorAll('.proj-page').forEach(p => p.classList.remove('on'));
   document.querySelectorAll('.proj-nav-btn').forEach(b => b.classList.remove('on'));
@@ -1862,7 +2342,7 @@ function projRenderDetalhe(p) {
     if(fIdx < PROJ_FASES.length - 1){ const b=document.createElement('button'); b.type='button'; b.className='proj-btn'; b.style.cssText='font-size:12px;padding:5px 11px'; b.textContent='Avançar Fase →'; b.onclick=()=>projAvancarFase(pid); faseBtn.appendChild(b);}
   }
   // Render first tab
-  var faseToOpen = p.fase_atual || 'aprovacao';
+  var faseToOpen = _projCurrentWorkflowTab || p.fase_atual || 'aprovacao';
   var tabIdx = {aprovacao:0, ideacao:1, planejamento:2, execucao:3, conclusao:4};
   var tIdx = tabIdx[faseToOpen] || 0;
   var tabEls = el.querySelectorAll('#proj-detalhe-tabs .proj-tab');
@@ -1870,6 +2350,7 @@ function projRenderDetalhe(p) {
 }
 
 function projDetalheTab(faseId, tabEl) {
+  _projCurrentWorkflowTab = faseId;
   document.querySelectorAll('#proj-detalhe-tabs .proj-tab').forEach(t => t.classList.remove('on'));
   if(tabEl) tabEl.classList.add('on');
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
@@ -1883,6 +2364,35 @@ function projDetalheTab(faseId, tabEl) {
     case 'planejamento': content.innerHTML = projTabPlanejamento(proj); break;
     case 'execucao':     content.innerHTML = projTabExecucao(proj); break;
     case 'conclusao':    content.innerHTML = projTabConclusao(proj); break;
+  }
+  projApplyProjectReadonly(faseId);
+}
+
+function projApplyProjectReadonly(faseId){
+  if(isEP()) return;
+  const content = document.getElementById('proj-detalhe-tab-content');
+  if(!content) return;
+  const controls = content.querySelectorAll('input, textarea, select, button');
+  controls.forEach(el => {
+    if(el.tagName === 'A') return;
+    el.disabled = true;
+    el.setAttribute('data-proj-readonly', '1');
+  });
+  if(faseId === 'execucao' && projCanWriteSchedule()){
+    const cron = content.querySelector('#exec-cronograma-section');
+    if(cron){
+      cron.querySelectorAll('input, textarea, select, button').forEach(el => {
+        if(el.hasAttribute('data-derived-disabled')) return;
+        el.disabled = false;
+        el.removeAttribute('data-proj-readonly');
+      });
+    }
+  }
+  if(!content.querySelector('.proj-readonly-banner')){
+    const msg = projIsLinkedManager()
+      ? 'Visualização geral. Este projeto está vinculado ao seu perfil Projetos; você pode editar apenas o cronograma.'
+      : 'Seu perfil tem acesso apenas de visualização no SIGA Projetos.';
+    content.insertAdjacentHTML('afterbegin', `<div class="proj-readonly-banner">${projEsc(msg)}</div>`);
   }
 }
 
@@ -2051,10 +2561,10 @@ function projSalvarAprovacao() {
   projToast('Dados salvos!');
 }
 
-function projAddMacro(){var s=document.getElementById('aprov-macro-sel');if(!s||!s.value){projToast('Selecione um macroprocesso.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(p.macroprocessos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.macroprocessos.push(s.value);projSave();projPopulateVinculacoes();}
-function projRemoverMacro(i){projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.macroprocessos)return;p.macroprocessos.splice(i,1);projSave();projPopulateVinculacoes();}
-function projAddObj(){var s=document.getElementById('aprov-obj-sel');if(!s||!s.value){projToast('Selecione um objetivo.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(p.objetivos_estrategicos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.objetivos_estrategicos.push(s.value);projSave();projPopulateVinculacoes();}
-function projRemoverObj(i){projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.objetivos_estrategicos)return;p.objetivos_estrategicos.splice(i,1);projSave();projPopulateVinculacoes();}
+function projAddMacro(){if(!projEnsureWriteAll())return;var s=document.getElementById('aprov-macro-sel');if(!s||!s.value){projToast('Selecione um macroprocesso.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(p.macroprocessos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.macroprocessos.push(s.value);projSave();projPopulateVinculacoes();}
+function projRemoverMacro(i){if(!projEnsureWriteAll())return;projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.macroprocessos)return;p.macroprocessos.splice(i,1);projSave();projPopulateVinculacoes();}
+function projAddObj(){if(!projEnsureWriteAll())return;var s=document.getElementById('aprov-obj-sel');if(!s||!s.value){projToast('Selecione um objetivo.','#d97706');return;}projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(p.objetivos_estrategicos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.objetivos_estrategicos.push(s.value);projSave();projPopulateVinculacoes();}
+function projRemoverObj(i){if(!projEnsureWriteAll())return;projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.objetivos_estrategicos)return;p.objetivos_estrategicos.splice(i,1);projSave();projPopulateVinculacoes();}
 
 // ── ABA: IDEAÇÃO (Canvas) ────────────────────────────────────────
 function projTabIdeacao(p) {
@@ -2474,6 +2984,8 @@ function projTabExecucao(p) {
   const cronMode = exec.cron_mode || 'planner'; // 'planner' or 'siga'
   const pctMode = exec.pct_mode || 'manual'; // 'manual' or 'derivado'
   const tarefas = exec.tarefas || [];
+  const canScheduleIO = projCanWriteSchedule(String(p.id));
+  projSyncDerivedTaskDates(tarefas);
   const derivedPct = projCalcDerivedPct(tarefas);
   const displayPct = pctMode === 'derivado' ? derivedPct : (p.percentual||0);
 
@@ -2523,7 +3035,7 @@ function projTabExecucao(p) {
     </div>
 
     <!-- Cronograma -->
-    <div class="proj-form-section">
+    <div class="proj-form-section" id="exec-cronograma-section">
       <div class="proj-form-section-title">
         <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1" y="3" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
         Cronograma / Planner
@@ -2573,7 +3085,7 @@ function projTabExecucao(p) {
         ${atrasadas.length > 0 ? `
           <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.6rem .8rem;margin-bottom:1rem">
             <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:4px">⚠ Tarefas Atrasadas:</div>
-            ${atrasadas.map(t => `<div style="font-size:11px;color:#991b1b">• ${projEsc(t.nome)} (prev: ${projFormatDate(t.dt_fim)})</div>`).join('')}
+            ${atrasadas.map(t => `<div style="font-size:11px;color:#991b1b">• ${t._parentName ? `<strong>${projEsc(t._parentName)}</strong> / ` : ''}${projEsc(t.nome)} (prev: ${projFormatDate(t.dt_fim)})</div>`).join('')}
           </div>
         ` : ''}
         <!-- Tabela de tarefas -->
@@ -2601,7 +3113,10 @@ function projTabExecucao(p) {
         </div>
         <div style="margin-top:.6rem;display:flex;gap:8px">
           <button type="button" class="proj-btn primary" style="font-size:11px;padding:5px 12px" onclick="projAddTarefa(null)">+ Tarefa</button>
+          ${canScheduleIO ? `
           <button type="button" class="proj-btn" style="font-size:11px;padding:5px 12px" onclick="projExportCronogramaXLSX()">Exportar .xlsx</button>
+          <button type="button" class="proj-btn" style="font-size:11px;padding:5px 12px" onclick="projImportCronogramaXLSX()">Importar .xlsx</button>
+          ` : ''}
         </div>
       </div>
     </div>
@@ -2673,13 +3188,27 @@ function projTabExecucao(p) {
 }
 
 // ── Planner SIGA: helpers ──
-function projFlattenTasks(tarefas, depth) {
+function projSyncDerivedTaskDates(tarefas) {
+  (tarefas||[]).forEach(t => {
+    const subs = t.subtarefas || [];
+    if(subs.length) {
+      projSyncDerivedTaskDates(subs);
+      const starts = subs.map(s => s.dt_inicio).filter(Boolean).sort();
+      const ends = subs.map(s => s.dt_fim).filter(Boolean).sort();
+      t.dt_inicio = starts[0] || '';
+      t.dt_fim = ends.length ? ends[ends.length - 1] : '';
+    }
+  });
+  return tarefas || [];
+}
+
+function projFlattenTasks(tarefas, depth, parentName) {
   let result = [];
   (tarefas||[]).forEach(t => {
-    const copy = Object.assign({}, t, {_depth: depth||0, _children: t.subtarefas||[]});
+    const copy = Object.assign({}, t, {_depth: depth||0, _children: t.subtarefas||[], _parentName: parentName || ''});
     result.push(copy);
     if(t.subtarefas && t.subtarefas.length > 0) {
-      result = result.concat(projFlattenTasks(t.subtarefas, (depth||0)+1));
+      result = result.concat(projFlattenTasks(t.subtarefas, (depth||0)+1, t.nome || 'Tarefa superior'));
     }
   });
   return result;
@@ -2726,8 +3255,8 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3">
         <button type="button" class="proj-task-flag marco ${t.marco?'on':''}" onclick="projToggleTarefaFlag('${path}','marco')">Marco</button>
       </td>
-      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}"><input type="date" value="${t.dt_inicio||''}" onchange="projUpdateTarefa('${path}','dt_inicio',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%"></td>
-      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}${overdue?';color:#dc2626;font-weight:600':''}"><input type="date" value="${t.dt_fim||''}" onchange="projUpdateTarefa('${path}','dt_fim',this.value)" style="font-size:11px;border:1px solid ${overdue?'#fca5a5':'#ddd'};border-radius:4px;padding:2px 4px;width:100%"></td>
+      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}"><input type="date" value="${t.dt_inicio||''}" ${hasSubs?'disabled data-derived-disabled="1" title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_inicio',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
+      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}${overdue?';color:#dc2626;font-weight:600':''}"><input type="date" value="${t.dt_fim||''}" ${hasSubs?'disabled data-derived-disabled="1" title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_fim',this.value)" style="font-size:11px;border:1px solid ${overdue?'#fca5a5':'#ddd'};border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike}"><input type="text" value="${projEsc(t.responsavel||'')}" onchange="projUpdateTarefa('${path}','responsavel',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%" placeholder="—"></td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}">
         ${hasSubs ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${pct}%</span>` :
@@ -2759,6 +3288,7 @@ function projGetTarefaByPath(tarefas, path) {
 }
 
 function projAddTarefa(parentPath) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -2774,21 +3304,27 @@ function projAddTarefa(parentPath) {
       ref.list[ref.index].subtarefas.push(nova);
     }
   }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projRemoveTarefa(path) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
   const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
   if(ref) ref.list.splice(ref.index, 1);
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projUpdateTarefa(path, field, value) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
@@ -2798,6 +3334,7 @@ function projUpdateTarefa(path, field, value) {
     if(field === 'conclusao' && value >= 100) ref.list[ref.index].concluida = true;
     if(field === 'conclusao' && value < 100) ref.list[ref.index].concluida = false;
   }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   // Update derived pct
   if(proj.execucao.pct_mode === 'derivado') {
     proj.percentual = projCalcDerivedPct(proj.execucao.tarefas);
@@ -2805,9 +3342,11 @@ function projUpdateTarefa(path, field, value) {
   }
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projToggleTarefaFlag(path, field) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
@@ -2815,11 +3354,14 @@ function projToggleTarefaFlag(path, field) {
   if(ref && ref.list[ref.index]) {
     ref.list[ref.index][field] = !ref.list[ref.index][field];
   }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projToggleTarefa(path) {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
@@ -2828,16 +3370,19 @@ function projToggleTarefa(path) {
     ref.list[ref.index].concluida = !ref.list[ref.index].concluida;
     ref.list[ref.index].conclusao = ref.list[ref.index].concluida ? 100 : 0;
   }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   if(proj.execucao.pct_mode === 'derivado') {
     proj.percentual = projCalcDerivedPct(proj.execucao.tarefas);
     proj.execucao.percentual = proj.percentual;
   }
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 // ── Toggle cron mode / pct mode ──
 function projToggleCronMode() {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -2846,9 +3391,11 @@ function projToggleCronMode() {
   proj.execucao.cron_mode = toggle && toggle.checked ? 'siga' : 'planner';
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projTogglePctMode() {
+  return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -2861,26 +3408,34 @@ function projTogglePctMode() {
   }
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
 }
 
 function projSalvarExecucao() {
-  if(!projEnsureWriteExec()) return;
+  const canFullExec = projCanWriteExec();
+  const canSchedule = projCanWriteSchedule();
+  if(!canFullExec && !canSchedule){
+    projEnsureWriteSchedule();
+    return;
+  }
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
   if(!proj.execucao) proj.execucao = { planner_link:'', percentual:0, reunioes:[], tarefas:[], cron_mode:'planner', pct_mode:'manual' };
   proj.execucao.planner_link = document.getElementById('exec-planner')?.value || proj.execucao.planner_link || '';
-  if(proj.execucao.pct_mode !== 'derivado') {
+  if(canFullExec && proj.execucao.pct_mode !== 'derivado') {
     proj.percentual = parseInt(document.getElementById('exec-percentual')?.value)||0;
-  } else {
+  } else if(proj.execucao.pct_mode === 'derivado') {
     proj.percentual = projCalcDerivedPct(proj.execucao.tarefas||[]);
   }
   proj.execucao.percentual = proj.percentual;
-  projSave();
+  if(canFullExec) projSave();
+  else projWithScheduleWrite(() => projSave());
   projToast('Execução salva!');
 }
 
 function projAdicionarReuniao() {
+  if(!projEnsureWriteAll('Apenas EPP pode criar reuniões.')) return;
   const nome = document.getElementById('reuniao-nome')?.value.trim();
   if(!nome) { projToast('Informe o nome da reunião.', '#d97706'); return; }
   projLoad();
@@ -2904,6 +3459,7 @@ function projAdicionarReuniao() {
 }
 
 function projToggleReuniaoExec(reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.')) return;
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
@@ -2917,6 +3473,7 @@ function projToggleReuniaoExec(reuniaoId) {
 }
 
 function projExcluirReuniaoExec(reuniaoId) {
+  if(!projEnsureWriteAll('Apenas EPP pode excluir reuniões.')) return;
   projConfirmar('Excluir esta reunião?', () => {
     projLoad();
     const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
@@ -2929,8 +3486,8 @@ function projExcluirReuniaoExec(reuniaoId) {
   });
 }
 
-function projAutoAddReunioesMes(){projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj)return;if(!proj.execucao)proj.execucao={planner_link:'',percentual:0,reunioes:[]};if(!proj.execucao.reunioes)proj.execucao.reunioes=[];var now=new Date();var dataStatus=projMonthFirstDay(now);var mn=projMonthLabel(projMonthValue(now));var nome='Reunião de Status Patrocinador - '+mn;var ja=proj.execucao.reunioes.some(function(r){return r.nome===nome||(r.auto&&r.data===dataStatus);});if(ja){projToast('Reunião deste mês já existe.','#d97706');return;}proj.execucao.reunioes.push({id:'r'+Date.now(),nome:nome,data:dataStatus,participantes:'',observacoes:'Reunião mensal de acompanhamento com o patrocinador',realizada:false,auto:true});projSave();projToast('Reunião de Status adicionada!');projAtualizarBadgeReunioes();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
-function projDeduplicarReunioes(){projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj||!proj.execucao||!proj.execucao.reunioes)return;var seen={};var orig=proj.execucao.reunioes.length;proj.execucao.reunioes=proj.execucao.reunioes.filter(function(r){var k=r.nome+'|'+(r.data||'');if(seen[k])return false;seen[k]=true;return true;});var rem=orig-proj.execucao.reunioes.length;projSave();if(rem>0){projToast(rem+' duplicada(s) removida(s).');projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}else{projToast('Nenhuma duplicata encontrada.');}}
+function projAutoAddReunioesMes(){if(!projEnsureWriteAll('Apenas EPP pode criar reuniões automáticas.'))return;projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj)return;if(!proj.execucao)proj.execucao={planner_link:'',percentual:0,reunioes:[]};if(!proj.execucao.reunioes)proj.execucao.reunioes=[];var now=new Date();var dataStatus=projMonthFirstDay(now);var mn=projMonthLabel(projMonthValue(now));var nome='Reunião de Status Patrocinador - '+mn;var ja=proj.execucao.reunioes.some(function(r){return r.nome===nome||(r.auto&&r.data===dataStatus);});if(ja){projToast('Reunião deste mês já existe.','#d97706');return;}proj.execucao.reunioes.push({id:'r'+Date.now(),nome:nome,data:dataStatus,participantes:'',observacoes:'Reunião mensal de acompanhamento com o patrocinador',realizada:false,auto:true});projSave();projToast('Reunião de Status adicionada!');projAtualizarBadgeReunioes();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
+function projDeduplicarReunioes(){if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.'))return;projLoad();var proj=PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});if(!proj||!proj.execucao||!proj.execucao.reunioes)return;var seen={};var orig=proj.execucao.reunioes.length;proj.execucao.reunioes=proj.execucao.reunioes.filter(function(r){var k=r.nome+'|'+(r.data||'');if(seen[k])return false;seen[k]=true;return true;});var rem=orig-proj.execucao.reunioes.length;projSave();if(rem>0){projToast(rem+' duplicada(s) removida(s).');projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}else{projToast('Nenhuma duplicata encontrada.');}}
 
 // ── ABA: CONCLUSÃO ───────────────────────────────────────────────
 let _tipoConclusaoSelecionado = '';
@@ -3335,6 +3892,7 @@ function projAutoAddReunioesStatusTodos(){
 
 // ── Excluir reuniões duplicadas em TODOS os projetos ──
 function projDeduplicarReunioesGlobal(){
+  if(!projEnsureWriteAll('Apenas EPP pode alterar reuniões.')) return;
   projLoad();
   var totalRem = 0;
   PROJETOS.forEach(function(proj){
@@ -3361,7 +3919,14 @@ function projDeduplicarReunioesGlobal(){
 
 
 // ── Exportar / Importar JSON ──────────────────────────────────
+function projEnsureEPJson(msg='Apenas o perfil EPP pode exportar ou importar o JSON do sistema.'){
+  if(isEP()) return true;
+  projToast(msg, '#d97706');
+  return false;
+}
+
 function projExportJSON(){
+  if(!projEnsureEPJson()) return;
   projLoad();
   var data = {
     projetos: PROJETOS,
@@ -3384,6 +3949,7 @@ function projExportJSON(){
 }
 
 function projImportJSON(){
+  if(!projEnsureEPJson()) return;
   var inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = '.json';
@@ -3448,6 +4014,7 @@ function projImportJSON(){
 }
 
 function projProcessImport(inputEl){
+  if(!projEnsureEPJson()){ if(inputEl) inputEl.value=''; return; }
   if(!inputEl || !inputEl.files || !inputEl.files[0]) return;
   var file = inputEl.files[0];
   var reader = new FileReader();
@@ -3594,11 +4161,68 @@ function projShowEmojiPicker(projId) {
 function projProgramaNome(p) { if(p && p.programa_id){ const pg=(PROGRAMAS||[]).find(x=>String(x.id)===String(p.programa_id)); if(pg)return pg.nome; } return 'Sem programa'; }
 function projGetDashFiltro(){return {patrocinador:document.getElementById('proj-f-patrocinador')?.value||'',objetivo:document.getElementById('proj-f-objetivo')?.value||'',macro:document.getElementById('proj-f-macro')?.value||'',divisao:document.getElementById('proj-f-divisao')?.value||''};}
 function projGroupCount(projects,getter){const map={};projects.forEach(p=>{const k=getter(p)||'Não informado';map[k]=(map[k]||0)+1;});return Object.entries(map).map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count).slice(0,8);}
-function projTarefasAtrasadasProjeto(p){const today=new Date().toISOString().slice(0,10);return projFlattenTasks(p.execucao?.tarefas||[]).filter(t=>!(t._children&&t._children.length)&&!t.concluida&&t.dt_fim&&t.dt_fim<today);}
+function projTarefasAtrasadasProjeto(p){const today=new Date().toISOString().slice(0,10);projSyncDerivedTaskDates(p.execucao?.tarefas||[]);return projFlattenTasks(p.execucao?.tarefas||[]).filter(t=>!(t._children&&t._children.length)&&!t.concluida&&t.dt_fim&&t.dt_fim<today);}
 function projRenderIndicadoresExecucao(p){const inds=p.execucao?.indicadores||[];return `<div style="display:flex;flex-direction:column;gap:8px">${inds.length?inds.map((i,idx)=>`<div class="proj-v9-ind-grid"><input class="proj-fi" value="${projEsc(i.nome||'')}" onchange="projUpdateIndicador(${idx},'nome',this.value)" placeholder="Indicador"><input class="proj-fi" type="number" value="${projEsc(String(i.meta||''))}" onchange="projUpdateIndicador(${idx},'meta',this.value)" placeholder="Meta"><input class="proj-fi" type="number" value="${projEsc(String(i.atual||''))}" onchange="projUpdateIndicador(${idx},'atual',this.value)" placeholder="Atual"><select class="proj-fi" onchange="projUpdateIndicador(${idx},'status',this.value)"><option ${i.status==='Em acompanhamento'?'selected':''}>Em acompanhamento</option><option ${i.status==='Atingido'?'selected':''}>Atingido</option><option ${i.status==='Atenção'?'selected':''}>Atenção</option></select><button type="button" class="proj-btn danger" onclick="projRemoveIndicador(${idx})">×</button></div>`).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhum indicador registrado para este projeto.</div>'}<div><button type="button" class="proj-btn primary" style="font-size:11px;padding:5px 12px" onclick="projAddIndicador()">+ Indicador</button></div></div>`;}
 function projRemoveIndicador(idx){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.execucao?.indicadores)return;proj.execucao.indicadores.splice(idx,1);projSave();projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));}
-function projFlattenTasksForExport(tasks,prefix){let rows=[];(tasks||[]).forEach((t,i)=>{const num=prefix?prefix+'.'+(i+1):String(i+1);rows.push({Numero:num,Nome:t.nome||'',PPE:t.ppe?'Sim':'Não',Marco:t.marco?'Sim':'Não',Inicio:t.dt_inicio||'',Fim:t.dt_fim||'',Responsavel:t.responsavel||'',Conclusao:t.conclusao||0,Concluida:t.concluida?'Sim':'Não'});rows=rows.concat(projFlattenTasksForExport(t.subtarefas||[],num));});return rows;}
-function projExportCronogramaXLSX(){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj)return;const rows=projFlattenTasksForExport(proj.execucao?.tarefas||[]);if(!rows.length){projToast('Não há tarefas para exportar.','#d97706');return;}if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');return;}const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:10},{wch:42},{wch:8},{wch:8},{wch:12},{wch:12},{wch:24},{wch:10},{wch:10}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cronograma SIGA');XLSX.writeFile(wb,'Cronograma_SIGA_'+(proj.nome||'projeto').replace(/[^\w]+/g,'_').slice(0,40)+'.xlsx');}
+const PROJ_CRON_XLSX_HEADERS = ['Numero','Nome','PPE','Marco','Inicio','Fim','Responsavel','Conclusao','Concluida'];
+function projFlattenTasksForExport(tasks,prefix){let rows=[];projSyncDerivedTaskDates(tasks||[]);(tasks||[]).forEach((t,i)=>{const num=prefix?prefix+'.'+(i+1):String(i+1);rows.push({Numero:num,Nome:t.nome||'',PPE:t.ppe?'Sim':'Não',Marco:t.marco?'Sim':'Não',Inicio:t.dt_inicio||'',Fim:t.dt_fim||'',Responsavel:t.responsavel||'',Conclusao:t.conclusao||0,Concluida:t.concluida?'Sim':'Não'});rows=rows.concat(projFlattenTasksForExport(t.subtarefas||[],num));});return rows;}
+function projExportCronogramaXLSX(){if(!projEnsureWriteSchedule('Apenas o perfil EPP ou o gerente vinculado ao projeto pode exportar o cronograma.')) return;projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj)return;projSyncDerivedTaskDates(proj.execucao?.tarefas||[]);const rows=projFlattenTasksForExport(proj.execucao?.tarefas||[]);if(!rows.length){projToast('Não há tarefas para exportar.','#d97706');return;}if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');return;}const ws=XLSX.utils.json_to_sheet(rows,{header:PROJ_CRON_XLSX_HEADERS});ws['!cols']=[{wch:10},{wch:42},{wch:8},{wch:8},{wch:12},{wch:12},{wch:24},{wch:10},{wch:10}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Cronograma SIGA');XLSX.writeFile(wb,'Cronograma_SIGA_'+(proj.nome||'projeto').replace(/[^\w]+/g,'_').slice(0,40)+'.xlsx');}
+function projCronXlsxBool(v){const s=String(v||'').trim().toLowerCase();if(['sim','s','true','1'].includes(s))return true;if(['não','nao','n','false','0',''].includes(s))return false;throw new Error('Campo Sim/Não inválido.');}
+function projCronXlsxDate(v){const s=String(v||'').trim();if(!s)return '';if(!/^\d{4}-\d{2}-\d{2}$/.test(s))throw new Error('Datas devem estar no formato AAAA-MM-DD exportado pelo SIGA.');return s;}
+function projImportCronogramaXLSX(inputEl){
+  if(!projEnsureWriteSchedule('Apenas o perfil EPP ou o gerente vinculado ao projeto pode importar o cronograma.')) return;
+  if(!inputEl){
+    const inp=document.createElement('input');
+    inp.type='file';inp.accept='.xlsx';inp.style.display='none';
+    inp.onchange=function(){projImportCronogramaXLSX(inp);setTimeout(()=>inp.remove(),0);};
+    document.body.appendChild(inp);inp.click();return;
+  }
+  const file=inputEl.files&&inputEl.files[0]; if(!file)return;
+  if(typeof XLSX==='undefined'){projToast('Biblioteca XLSX indisponível.','#d97706');inputEl.value='';return;}
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const matrix=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+      const headers=(matrix[0]||[]).map(h=>String(h).trim());
+      if(headers.length!==PROJ_CRON_XLSX_HEADERS.length || PROJ_CRON_XLSX_HEADERS.some((h,i)=>headers[i]!==h)) throw new Error('Arquivo incompatível. Use o mesmo .xlsx exportado pelo SIGA.');
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false}).filter(r=>String(r.Numero||r.Nome||'').trim());
+      const tarefas=[];
+      rows.forEach((r,idx)=>{
+        const numero=String(r.Numero||'').trim().replace(/\.$/,'');
+        if(!/^(\d+)(\.\d+)*$/.test(numero)) throw new Error('Numeração inválida na linha '+(idx+2)+'.');
+        const parts=numero.split('.').map(n=>Number(n)-1);
+        if(parts.some(n=>!Number.isInteger(n)||n<0)) throw new Error('Numeração inválida na linha '+(idx+2)+'.');
+        let list=tarefas;
+        for(let i=0;i<parts.length-1;i++){
+          const parent=list[parts[i]];
+          if(!parent) throw new Error('Subtarefa sem tarefa superior na linha '+(idx+2)+'.');
+          if(!parent.subtarefas) parent.subtarefas=[];
+          list=parent.subtarefas;
+        }
+        const pos=parts[parts.length-1];
+        if(pos!==list.length) throw new Error('Numeração fora de ordem na linha '+(idx+2)+'.');
+        const conclusao=Math.max(0,Math.min(100,Number(String(r.Conclusao||'0').replace(',','.'))||0));
+        list.push({id:'t'+Date.now()+'_'+idx,nome:String(r.Nome||'Nova tarefa').trim()||'Nova tarefa',ppe:projCronXlsxBool(r.PPE),marco:projCronXlsxBool(r.Marco),dt_inicio:projCronXlsxDate(r.Inicio),dt_fim:projCronXlsxDate(r.Fim),responsavel:String(r.Responsavel||'').trim(),conclusao,concluida:projCronXlsxBool(r.Concluida),subtarefas:[]});
+      });
+      projConfirmar('Importar cronograma? Isso substituirá as tarefas atuais deste projeto.', function(){
+        projWithScheduleWrite(() => {
+        projLoad();
+        const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId); if(!proj)return;
+        if(!proj.execucao)proj.execucao={planner_link:'',percentual:0,reunioes:[],tarefas:[]};
+        proj.execucao.tarefas=projSyncDerivedTaskDates(tarefas);
+        if(proj.execucao.pct_mode==='derivado'){proj.percentual=projCalcDerivedPct(proj.execucao.tarefas);proj.execucao.percentual=proj.percentual;}
+        projSave();
+        projToast('Cronograma importado com sucesso!');
+        projDetalheTab('execucao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+        });
+      });
+    }catch(e){projToast('Erro ao importar .xlsx: '+e.message,'#dc2626');}
+    finally{inputEl.value='';}
+  };
+  reader.readAsArrayBuffer(file);
+}
 async function projUploadConclusaoImagens(inputEl){
   const files=Array.from(inputEl.files||[]);
   if(!files.length)return;
@@ -3639,7 +4263,7 @@ async function projUploadConclusaoImagens(inputEl){
 function projRemoveConclusaoImagem(idx){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.conclusao?.imagens)return;proj.conclusao.imagens.splice(idx,1);projSave();projDetalheTab('conclusao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(5)'));}
 // ── Init ao carregar ──────────────────────────────────────────────
 // ── Ajustes v9.1: indicadores, memorial e report executivo ───────
-const PROJ_CAGE_REPORT_LOGO = 'file:///C:/Users/ewwoy/OneDrive/Imagens/04091256_2280_GD.png';
+const PROJ_CAGE_REPORT_LOGO = 'cage-logo-report.png';
 
 function projGroupCountWithProjects(list, fn) {
   const map = {};
@@ -3831,7 +4455,7 @@ function projRenderDashV9() {
   const alertasEl = document.getElementById('proj-dash-alertas');
   if(alertasEl) {
     const comAtraso = filtrados.map(p => ({ p, tarefas:projTarefasAtrasadasProjeto(p) })).filter(x => x.tarefas.length);
-    alertasEl.innerHTML = `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><strong>${projIconHtml(p)} ${projEsc(p.nome)}</strong><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`;
+    alertasEl.innerHTML = `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><a href="#" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)" style="font-weight:800;color:var(--blue);text-decoration:none">${projIconHtml(p)} ${projEsc(p.nome)}</a><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`;
   }
 
   const graficosEl = document.getElementById('proj-dash-graficos');
@@ -3925,7 +4549,7 @@ function projTabConclusao(p) {
   return `<div class="proj-form-section"><div class="proj-form-section-title">Fase 5: Conclusão</div><div class="proj-ib proj-ib-blue">Registre o encerramento oficial, o Memorial do Projeto, as notícias e os aprendizados.</div><div class="proj-fg"><label class="proj-fl">Tipo de Conclusão<span>*</span></label><div class="proj-conclusao-tipo"><div class="proj-conclusao-card ${selectedSuccess?'selected-success':''}" onclick="projSelecionarTipoConclusao('sucesso')"><div class="proj-conclusao-icon">OK</div><div class="proj-conclusao-label">Conclusão com Sucesso</div><div class="proj-conclusao-desc">Projeto entregue conforme planejado</div></div><div class="proj-conclusao-card ${selectedCancel?'selected-cancel':''}" onclick="projSelecionarTipoConclusao('cancelamento')"><div class="proj-conclusao-icon">X</div><div class="proj-conclusao-label">Cancelamento</div><div class="proj-conclusao-desc">Projeto encerrado sem conclusão das entregas</div></div></div></div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data de Conclusão/Cancelamento</label><input type="date" class="proj-fi" id="conc-data" value="${projEsc(conc.dt_conclusao||'')}"></div><div class="proj-fg"><label class="proj-fl">Link para o Termo de Aceite</label><input type="url" class="proj-fi" id="conc-termo" value="${projEsc(conc.link_termo_aceite||'')}" placeholder="https://..."></div></div><div class="proj-fg"><label class="proj-fl">História do Projeto</label><textarea class="proj-fi" id="conc-historia" rows="5" placeholder="Conte a história e trajetória do projeto, principais marcos, aprendizados...">${projEsc(conc.historia||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Links de Notícias / Resultados <span style="font-size:10px;color:var(--ink3)">(um por linha)</span></label><textarea class="proj-fi" id="conc-links" rows="3" placeholder="https://noticia1.gov.br&#10;https://noticia2.gov.br">${projEsc(conc.links_noticias||'')}</textarea></div><div class="proj-form-section" style="background:#fff;margin-top:1rem"><div class="proj-form-section-title">Anexos de Imagens do Memorial</div><div class="proj-fg"><input type="file" class="proj-fi" accept="image/*" multiple onchange="projUploadConclusaoImagens(this)">${(conc.imagens||[]).length ? `<div class="proj-v9-attach-grid">${(conc.imagens||[]).map((img,i)=>`<div><img src="${projEsc(img.data)}" alt="${projEsc(img.nome||'Imagem')}"><button type="button" class="proj-btn danger" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%" onclick="projRemoveConclusaoImagem(${i})">Remover</button></div>`).join('')}</div>` : '<div style="font-size:11px;color:var(--ink3);margin-top:4px">Nenhuma imagem anexada.</div>'}</div></div><div class="proj-form-section" style="background:#f8fbff;margin-top:1rem"><div class="proj-form-section-title">Reunião de Lições Aprendidas</div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data da reunião</label><input type="date" class="proj-fi" id="conc-lic-data" value="${projEsc(conc.licoes_data||'')}"></div><div class="proj-fg"><label class="proj-fl">Participantes</label><input type="text" class="proj-fi" id="conc-lic-part" value="${projEsc(conc.licoes_participantes||'')}" placeholder="Nomes dos participantes"></div></div><div class="proj-g3"><div class="proj-fg"><label class="proj-fl">O que deu certo?</label><textarea class="proj-fi" id="conc-lic-certo" rows="4">${projEsc(conc.licoes_certo||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">O que pode melhorar?</label><textarea class="proj-fi" id="conc-lic-melhorar" rows="4">${projEsc(conc.licoes_melhorar||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Sugestões / ideias</label><textarea class="proj-fi" id="conc-lic-ideias" rows="4">${projEsc(conc.licoes_ideias||'')}</textarea></div></div></div><div class="proj-btn-row"><button type="button" class="proj-btn teal" onclick="projSalvarConclusao()">Salvar</button>${p.status !== 'concluido' && p.status !== 'cancelado' ? `<button type="button" class="proj-btn primary" onclick="projFinalizarProjeto()">Encerrar Projeto</button>` : `<div style="font-size:12.5px;color:var(--teal);font-weight:600;align-self:center">Projeto encerrado</div>`}</div></div>`;
 }
 
-function projBuildStatusReportHTML() {
+function projBuildStatusReportHTMLLegacy() {
   progLoad();
   const ativos = PROJETOS.filter(p => p.status === 'ativo');
   const data = new Date().toLocaleDateString('pt-BR');
@@ -3937,6 +4561,54 @@ function projBuildStatusReportHTML() {
 }
 
 // ── V10: Estratégia como fonte oficial ───────────────────────────
+function projBuildStatusReportHTMLV10(){
+  progLoad();
+  const ativos = PROJETOS.filter(p => p.status === 'ativo');
+  const data = new Date().toLocaleDateString('pt-BR');
+  const grupos = {};
+  ativos.forEach(p => { const g = projProgramaNome(p); if(!grupos[g]) grupos[g] = []; grupos[g].push(p); });
+  const media = ativos.length ? Math.round(ativos.reduce((a,p)=>a+(Number(p.percentual ?? p.execucao?.percentual ?? 0)),0)/ativos.length) : 0;
+  const reportLogo = new URL(PROJ_CAGE_REPORT_LOGO, window.location.href).href;
+  const indicadorRows = projIndicadoresLista(ativos);
+  const indicadoresHtml = indicadorRows.length ? `<section class="sr-indicators"><h2>Indicadores cadastrados</h2><table><thead><tr><th>Projeto</th><th>Indicador</th><th>Resultado / Meta</th><th>Atingimento</th></tr></thead><tbody>${indicadorRows.map(({p, ind}) => { const meta = projIndicadorValor(ind,'meta'); const atual = projIndicadorValor(ind,'resultado'); const pct = meta ? (atual / meta) * 100 : 0; return `<tr><td>${projEsc(p.nome||'')}</td><td>${projEsc(ind.nome||'Indicador')}</td><td>${projEsc(atual)} / ${projEsc(meta)}</td><td>${projPctFmt(pct)}</td></tr>`; }).join('')}</tbody></table></section>` : '<section class="sr-indicators"><h2>Indicadores cadastrados</h2><p>Nenhum indicador cadastrado nos projetos em andamento.</p></section>';
+  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div></div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}`).join('');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:var(--muted)}.sr-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-intro a{color:var(--blue);font-weight:700;text-decoration:none}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:18px 0 10px}.sr-card{display:grid;grid-template-columns:1.45fr .9fr;gap:14px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}.sr-indicators{margin-top:20px;break-inside:avoid}.sr-indicators h2{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px}.sr-indicators table{width:100%;border-collapse:collapse;font-size:11px}.sr-indicators th{background:#0f2746;color:#fff;text-align:left;padding:7px}.sr-indicators td{border-bottom:1px solid #d9e2ef;padding:7px}.sr-indicators tr:nth-child(even) td{background:#f8fbff}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="sr-cover"><div><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do Sistema Integrado de Gestão Estratégica (SIGA), módulo de Projetos. Acesse o SIGA em <a href="https://sigaepp.web.app/">https://sigaepp.web.app/</a>.</section><div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${media}%</strong>Média de conclusão</div></div>${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}${indicadoresHtml}<script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
+}
+
+function projBuildStatusReportHTML(){
+  progLoad();
+  const ativos = PROJETOS.filter(p => p.status === 'ativo');
+  const concluidos = PROJETOS.filter(p => p.status === 'concluido');
+  const data = new Date().toLocaleDateString('pt-BR');
+  const media = ativos.length ? Math.round(ativos.reduce((a,p)=>a+(Number(p.percentual ?? p.execucao?.percentual ?? 0)),0)/ativos.length) : 0;
+  const reportLogo = new URL(PROJ_CAGE_REPORT_LOGO, window.location.href).href;
+  const eppLogo = new URL('epp-logo.png', window.location.href).href;
+  const grupos = {};
+  ativos.forEach(p => { const g = projProgramaNome(p); if(!grupos[g]) grupos[g] = []; grupos[g].push(p); });
+  const projectBars = ativos.slice().sort((a,b)=>Number(b.percentual ?? b.execucao?.percentual ?? 0)-Number(a.percentual ?? a.execucao?.percentual ?? 0)).map(p => { const pct=Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); return `<div class="sr-mini-row"><span>${projEsc(p.nome)}</span><div><i style="width:${pct}%"></i></div><strong>${pct}%</strong><em>${projEsc(p.gerente||'Gerente n\u00e3o informado')}</em></div>`; }).join('');
+  const completedList = concluidos.length ? `<ul class="sr-completed-list">${concluidos.map(p => `<li><strong>${projEsc(p.nome)}</strong></li>`).join('')}</ul>` : '<p>Nenhum projeto conclu\u00eddo registrado.</p>';
+  const totalProjetos = ativos.length + concluidos.length;
+  const concluidoPct = totalProjetos ? Math.round((concluidos.length / totalProjetos) * 100) : 0;
+  const execHtml = `<section class="sr-exec"><div class="sr-exec-head"><div><span>Resumo Gr\u00e1fico</span><h2>Vis\u00e3o imediata do portf\u00f3lio</h2></div></div><div class="sr-ring-row"><div class="sr-ring-card"><div class="sr-ring sr-ring-projects" style="--done:${concluidoPct};--active:${100-concluidoPct}"><strong>${totalProjetos}</strong><small>Projetos</small></div><div class="sr-ring-legend"><span><i class="blue"></i>${ativos.length} em andamento</span><span><i class="green"></i>${concluidos.length} conclu\u00eddos</span></div></div><div class="sr-ring-card"><div class="sr-ring sr-ring-average" style="--pct:${media}"><strong>${media}%</strong><small>M\u00e9dia de<br>conclus\u00e3o</small></div></div><div class="sr-ring-logo"><img src="${eppLogo}" alt="Escrit\u00f3rio de Projetos e Processos"></div></div><div class="sr-exec-grid"><div class="sr-exec-panel sr-exec-panel-wide"><h3>Projetos por conclus\u00e3o</h3>${projectBars || '<p>Nenhum projeto em andamento.</p>'}</div><div class="sr-exec-panel"><h3>Projetos conclu\u00eddos</h3>${completedList}</div></div></section>`;
+  const projectIndicators = p => {
+    const inds = p.execucao?.indicadores || [];
+    if(!inds.length) return '';
+    return `<div class="sr-project-indicators"><span>Indicadores</span>${inds.map(ind => {
+      const meta = projIndicadorValor(ind,'meta');
+      const atual = projIndicadorValor(ind,'resultado');
+      const pct = meta ? (atual / meta) * 100 : 0;
+      return `<div><strong>${projEsc(ind.nome||'Indicador')}</strong><em>${projEsc(atual)} / ${projEsc(meta)} · ${projPctFmt(pct)}</em></div>`;
+    }).join('')}</div>`;
+  };
+  const projectOverdue = p => {
+    const tarefas = projTarefasAtrasadasProjeto(p);
+    if(!tarefas.length) return '';
+    return `<div class="sr-project-overdue"><span>Tarefas atrasadas</span>${tarefas.slice(0,6).map(t => `<div><strong>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</strong><em>${projFormatDate(t.dt_fim)}</em></div>`).join('')}${tarefas.length>6?`<small>+${tarefas.length-6} tarefa(s) atrasada(s)</small>`:''}</div>`;
+  };
+  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<section class="sr-program-block"><h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div>${projectIndicators(p)}${projectOverdue(p)}</div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}</section>`).join('');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-page{background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:var(--muted)}.sr-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:20px;color:var(--blue);display:block}.sr-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-intro a{color:var(--blue);font-weight:700;text-decoration:none}.sr-exec{border:1px solid #d9e5f5;border-radius:14px;padding:16px;margin:0 0 18px;background:linear-gradient(135deg,#f8fbff,#fff)}.sr-exec-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:12px}.sr-exec-head span{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);font-weight:800}.sr-exec-head h2{font-size:18px;margin:3px 0 0;color:#0f2746}.sr-ring-row{display:flex;align-items:center;gap:18px;margin:0 0 14px}.sr-ring-card{display:flex;align-items:center;gap:10px}.sr-ring{width:112px;height:112px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative;flex:none}.sr-ring-average{background:conic-gradient(var(--teal) calc(var(--pct)*1%),#e7edf5 0)}.sr-ring-projects{background:conic-gradient(#00a89a calc(var(--done)*1%),#005a9c 0)}.sr-ring:before{content:'';position:absolute;inset:12px;border-radius:50%;background:#fff}.sr-ring strong,.sr-ring small{position:relative;z-index:1;line-height:1;text-align:center}.sr-ring strong{font-size:24px;color:var(--blue)}.sr-ring small{display:block;font-size:8.5px;color:var(--muted);text-transform:uppercase}.sr-ring-legend{font-size:10px;color:#334155;display:grid;gap:4px}.sr-ring-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.sr-ring-legend .blue{background:#005a9c}.sr-ring-legend .green{background:#00a89a}.sr-ring-logo{margin-left:auto;min-width:180px;display:flex;align-items:center;justify-content:flex-end}.sr-ring-logo img{max-width:220px;max-height:86px;object-fit:contain}.sr-exec-grid{display:grid;grid-template-columns:1fr;gap:14px}.sr-exec-panel{border:1px solid #edf2f7;border-radius:10px;background:#fff;padding:12px}.sr-exec-panel h3{font-size:12px;margin:0 0 10px;color:#0f2746;text-transform:uppercase;letter-spacing:.06em}.sr-mini-row{display:grid;grid-template-columns:minmax(240px,1.25fr) 1.1fr 42px minmax(120px,.75fr);gap:8px;align-items:center;font-size:10.5px;margin:7px 0}.sr-completed-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px}.sr-completed-list li{border-bottom:1px solid #edf2f7;padding:6px 0;font-size:10.5px}.sr-completed-list strong{display:block;color:#0f2746}.sr-mini-row span{color:#334155;white-space:normal;overflow:visible;text-overflow:clip}.sr-mini-row div{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden}.sr-mini-row i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-mini-row strong{font-size:10.5px;color:var(--blue);text-align:right}.sr-mini-row em{font-style:normal;color:#5f6b80;font-size:9.8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sr-top-list{margin:12px 0 0;padding:0;list-style:none;border-top:1px solid #edf2f7}.sr-top-list li{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;padding:6px 0;border-bottom:1px solid #edf2f7}.sr-top-list span{color:#0b8f84;font-weight:800}.sr-program-block{margin-top:34px}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:0 0 12px}.sr-card{display:grid;grid-template-columns:.95fr 1.25fr;gap:16px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span,.sr-project-indicators>span,.sr-project-overdue>span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-project-indicators,.sr-project-overdue{margin-top:10px;border-top:1px solid #edf2f7;padding-top:7px}.sr-project-indicators div,.sr-project-overdue div{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:3px 0}.sr-project-indicators em{font-style:normal;color:#0b8f84;font-weight:700}.sr-project-overdue{background:#fffaf2;border:1px solid #fde2b5;border-radius:8px;padding:7px 8px}.sr-project-overdue em{font-style:normal;color:#b45309;font-weight:700;white-space:nowrap}.sr-project-overdue small{display:block;color:#b45309;font-size:10px;margin-top:3px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="sr-page"><header class="sr-cover"><div><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do Sistema Integrado de Gestão Estratégica (SIGA), módulo de Projetos. Acesse o SIGA em <a href="https://sigaepp.web.app/">https://sigaepp.web.app/</a>.</section>${execHtml}${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}</div><script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
+}
+
 function projStrategyBaseName(v) {
   return String(v||'').replace(/^\s*\[[^\]]+\]\s*/,'').trim();
 }
@@ -3967,7 +4639,7 @@ function projNormalizeStrategyLists() {
   }
   PROJ_MACROS = projNormalizeStrategyList(PROJ_MACROS);
   PROJ_OBJETIVOS = projNormalizeStrategyList(PROJ_OBJETIVOS);
-  if(oldM !== JSON.stringify(PROJ_MACROS) || oldO !== JSON.stringify(PROJ_OBJETIVOS)) projSaveListas();
+  if(isEP() && (oldM !== JSON.stringify(PROJ_MACROS) || oldO !== JSON.stringify(PROJ_OBJETIVOS))) projSaveListas();
 }
 
 function projCanonicalStrategyValue(v, list) {
@@ -4011,7 +4683,78 @@ function projStrategyRelatedHtml(kind, values) {
   }</div>`;
 }
 
-function projRenderEstrategiaPage() {
+function projStrategyParts(value) {
+  const raw = String(value||'').trim();
+  const m = raw.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+  let group = m ? m[1] : 'Outros';
+  let name = (m ? m[2] : raw) || raw;
+  if(group.toLowerCase() === 'finalístico') group = 'Finalísticos';
+  return { group, name };
+}
+
+function projStrategyGroupMeta(kind, group) {
+  const key = String(group||'Outros').toLowerCase();
+  const objetivo = {
+    resultados: {label:'Resultados para a Sociedade', order:1},
+    'articulação': {label:'Articulação e Relacionamento', order:2},
+    articulacao: {label:'Articulação e Relacionamento', order:2},
+    processos: {label:'Processos Internos', order:3},
+    aprendizado: {label:'Aprendizado e Crescimento', order:4}
+  };
+  const macro = {
+    'gestão': {label:'Gestão', order:1},
+    gestao: {label:'Gestão', order:1},
+    'finalístico': {label:'Finalísticos', order:2},
+    'finalísticos': {label:'Finalísticos', order:2},
+    finalistico: {label:'Finalísticos', order:2},
+    finalisticos: {label:'Finalísticos', order:2},
+    apoio: {label:'Apoio', order:3}
+  };
+  const meta = (kind === 'macro' ? macro : objetivo)[key];
+  return meta || {label:group || 'Outros', order:99};
+}
+
+function projStrategyProjectLinks(kind, value) {
+  const ps = projProjetosRelacionados(kind, value);
+  return ps.length ? ps.map(p => `<a href="#" class="proj-strategy-project" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)">${projIconHtml(p)}<span>${projEsc(p.nome||'Projeto sem nome')}</span></a>`).join('') : '<div class="proj-strategy-empty">Nenhum projeto vinculado</div>';
+}
+
+function projStrategyGroupIcon(kind, group) {
+  const key = String(group||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const icons = {
+    resultados:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="14" r="5"/><path d="M14 34c1.7-6 5.1-9 10-9s8.3 3 10 9"/><path d="M11 22c-3.2 1.8-5.2 5-6 9M37 22c3.2 1.8 5.2 5 6 9"/><circle cx="10" cy="18" r="3.8"/><circle cx="38" cy="18" r="3.8"/></svg>',
+    articulacao:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="13" cy="24" r="6"/><circle cx="35" cy="14" r="6"/><circle cx="35" cy="34" r="6"/><path d="M18.4 21.6l11.2-5.1M18.4 26.4l11.2 5.1"/></svg>',
+    processos:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="18" cy="19" r="6"/><circle cx="31" cy="31" r="6"/><path d="M18 9v4M18 25v4M8 19h4M24 19h4M27 24l-3-3M31 21v4M31 37v4M21 31h4M37 31h4"/></svg>',
+    aprendizado:'<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 32c8-1 14-5.5 18-16"/><path d="M27 16h9v9"/><path d="M13 36h22"/><path d="M13 36V24M24 36V18M35 36V12"/></svg>',
+    gestao:'<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="10" y="14" width="28" height="22" rx="4"/><path d="M18 14v-4h12v4M17 24h14M17 30h8"/></svg>',
+    finalistico:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="15"/><circle cx="24" cy="24" r="8"/><circle cx="24" cy="24" r="2"/><path d="M35 13l4-4M39 9v8M39 9h-8"/></svg>',
+    finalisticos:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="15"/><circle cx="24" cy="24" r="8"/><circle cx="24" cy="24" r="2"/><path d="M35 13l4-4M39 9v8M39 9h-8"/></svg>',
+    apoio:'<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 28v-9a10 10 0 0120 0v9"/><path d="M11 28h8v8h-8zM29 28h8v8h-8z"/><path d="M19 36h10"/></svg>'
+  };
+  return icons[key] || '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 8l14 8v16l-14 8-14-8V16z"/><path d="M24 8v16l14 8M24 24L10 16"/></svg>';
+}
+
+function projStrategyVisual(kind, values, title, subtitle, className) {
+  const groups = {};
+  (values||[]).forEach(v => {
+    const parts = projStrategyParts(v);
+    if(!groups[parts.group]) groups[parts.group] = [];
+    groups[parts.group].push({ value:v, name:parts.name });
+  });
+  const groupsHtml = Object.entries(groups).sort(([a],[b]) => projStrategyGroupMeta(kind,a).order - projStrategyGroupMeta(kind,b).order).map(([group,items]) => {
+    const meta = projStrategyGroupMeta(kind, group);
+    return `<section class="proj-strategy-band"><div class="proj-strategy-side"><div class="proj-strategy-side-icon">${projStrategyGroupIcon(kind, group)}</div><div class="proj-strategy-band-title">${projEsc(meta.label)}</div></div><div class="proj-strategy-band-main"><div class="proj-strategy-band-head">${projEsc(meta.label)}</div><div class="proj-strategy-items">${items.map(item => `<article class="proj-strategy-node"><h4>${projEsc(item.name)}</h4><div class="proj-strategy-projects">${projStrategyProjectLinks(kind,item.value)}</div></article>`).join('')}</div></div></section>`;
+  }).join('');
+  return `<div class="proj-strategy-visual ${className||''}"><div class="proj-card-t">${projEsc(title)}</div><div class="proj-ib proj-ib-blue" style="font-size:12px">${projEsc(subtitle)}</div>${groupsHtml || '<div style="font-size:12px;color:var(--ink3)">Nenhum item cadastrado.</div>'}</div>`;
+}
+
+function projToggleStrategyEditor(kind) {
+  const panel = document.getElementById(`proj-strategy-editor-${kind}`);
+  if(!panel) return;
+  panel.classList.toggle('open');
+}
+
+function projRenderEstrategiaPageLegacy() {
   projLoad();
   projNormalizeStrategyLists();
   const el = document.getElementById('proj-estrategia-content');
@@ -4019,7 +4762,17 @@ function projRenderEstrategiaPage() {
   el.innerHTML = `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-card-t">Macroprocessos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Se existir uma versão com prefixo entre colchetes e outra sem, a versão com colchetes é mantida.</div><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div>${projStrategyRelatedHtml('macro', PROJ_MACROS||[])}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Objetivos Estratégicos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Estes dados alimentam o workflow e os gráficos do dashboard.</div><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div>${projStrategyRelatedHtml('objetivo', PROJ_OBJETIVOS||[])}</div></div>`;
 }
 
+function projRenderEstrategiaPage() {
+  projLoad();
+  projNormalizeStrategyLists();
+  const el = document.getElementById('proj-estrategia-content');
+  if(!el) return;
+  const editors = isEP() ? `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Macroprocessos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('macro')">Abrir edição</button></div><div id="proj-strategy-editor-macro" class="proj-strategy-editor-body"><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div></div></div><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Objetivos Estratégicos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('objetivo')">Abrir edição</button></div><div id="proj-strategy-editor-objetivo" class="proj-strategy-editor-body"><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div></div></div></div>` : '';
+  el.innerHTML = `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'Objetivos estratégicos agrupados por perspectiva, com os projetos vinculados em cada área.', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'Macroprocessos organizados por tipo, com acesso direto aos projetos relacionados.', 'macros')}${editors}`;
+}
+
 function projSalvarEstrategia(kind) {
+  if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.')) return;
   const id = kind === 'macro' ? 'estrat-macros' : 'estrat-objetivos';
   const lines = (document.getElementById(id)?.value||'').split(/\n+/).map(s => s.trim()).filter(Boolean);
   if(kind === 'macro') PROJ_MACROS = projNormalizeStrategyList(lines);
@@ -4044,8 +4797,8 @@ function projPopulateVinculacoes() {
   if(os) os.innerHTML = '<option value="">Selecione...</option>' + PROJ_OBJETIVOS.map(function(o){return '<option value="'+projEsc(o)+'">'+projEsc(o)+'</option>';}).join('');
 }
 
-function projAddMacroNovo(){var inp=document.getElementById('aprov-macro-novo');if(!inp||!inp.value.trim()){projToast('Digite o macroprocesso.','#d97706');return;}var v=inp.value.trim();PROJ_MACROS=projNormalizeStrategyList([].concat(PROJ_MACROS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_MACROS);projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(!p.macroprocessos.includes(v))p.macroprocessos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
-function projAddObjNovo(){var inp=document.getElementById('aprov-obj-novo');if(!inp||!inp.value.trim()){projToast('Digite o objetivo.','#d97706');return;}var v=inp.value.trim();PROJ_OBJETIVOS=projNormalizeStrategyList([].concat(PROJ_OBJETIVOS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_OBJETIVOS);projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(!p.objetivos_estrategicos.includes(v))p.objetivos_estrategicos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
+function projAddMacroNovo(){if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.'))return;var inp=document.getElementById('aprov-macro-novo');if(!inp||!inp.value.trim()){projToast('Digite o macroprocesso.','#d97706');return;}var v=inp.value.trim();PROJ_MACROS=projNormalizeStrategyList([].concat(PROJ_MACROS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_MACROS);projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(!p.macroprocessos.includes(v))p.macroprocessos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
+function projAddObjNovo(){if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.'))return;var inp=document.getElementById('aprov-obj-novo');if(!inp||!inp.value.trim()){projToast('Digite o objetivo.','#d97706');return;}var v=inp.value.trim();PROJ_OBJETIVOS=projNormalizeStrategyList([].concat(PROJ_OBJETIVOS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_OBJETIVOS);projLoad();var p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(!p.objetivos_estrategicos.includes(v))p.objetivos_estrategicos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
 
 function projNewsTitleFromUrl(url, i) {
   try {
