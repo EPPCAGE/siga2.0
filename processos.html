@@ -8536,23 +8536,23 @@ function extrairBpmn(){
 // ABAS SECUNDÁRIAS DO DETALHE
 // ═══════════════════════════════════════════
 // ── Índice Lean Processual ─────────────────
-// ILP = (E + P + 0.5*(C+D)) / (Total + α*GxorDiv + β*(Atores-1)) * 100
+// ILP = (E + P + .5*(C+D)) / (Total + α*GxorDiv + β*(Atores-1)) * 100
 // α=1: cada exclusive gateway divergente equivale a 1 atividade improdutiva
-// β=0.5: cada ator extra além do primeiro equivale a 0.5
+// β=.5: cada ator extra além do primeiro equivale a .5
+function flatAcoesEtapas(nodes){
+  const out=[];
+  for(const n of nodes){
+    out.push(n);
+    for(const cam of (n.caminhos||[])){
+      out.push(...flatAcoesEtapas(cam.acoes||[]));
+    }
+  }
+  return out;
+}
+
 function calcILP(etapas){
   if(!etapas||!etapas.length)return null;
-  // Flatten: conta atividades em todos os níveis (etapas raiz + acoes em gateways)
-  function flatAcoes(nodes){
-    const out=[];
-    for(const n of nodes){
-      out.push(n);
-      for(const cam of (n.caminhos||[])){
-        for(const a of flatAcoes(cam.acoes||[])) out.push(a);
-      }
-    }
-    return out;
-  }
-  const all=flatAcoes(etapas);
+  const all=flatAcoesEtapas(etapas);
   const atividades=all.filter(n=>n.tipo==='Atividade');
   const total=atividades.length;
   if(!total)return null;
@@ -8597,10 +8597,10 @@ function calcILP(etapas){
   const nAuto=atividades.filter(n=>n.modo==='Automatica').length;
   const nSemi=atividades.filter(n=>n.modo==='Semi-automatica').length;
   const nManual=total-nAuto-nSemi;
-  const numerador=E + P + 0.5*(C+D);
+  const numerador=E + P + .5*(C+D);
   // Denominador base: Σ peso_modo(i) — atividades automatizadas pesam menos
   const denominadorBase=atividades.reduce((s,n)=>s+_pesoModo(n),0);
-  const denominador=denominadorBase + 0.5*gxorDiv + 0.5*Math.max(0,nAtores-1);
+  const denominador=denominadorBase + .5*gxorDiv + .5*Math.max(0,nAtores-1);
   // Cap em 100: processos altamente automatizados podem ter numerador > denominador
   const ilp=Math.min(Math.round((numerador/denominador)*100),100);
   return {
@@ -10759,15 +10759,17 @@ function procArqHTML(mid,p){
 
 function _metaFieldsProgBar(proc){
   const etIdx_ = etIdx(proc.etapa);
-  return ETAPAS.slice(0,etIdx_+1).map((e,i)=>{
+  const doneAndCurrent = ETAPAS.slice(0,etIdx_+1).map((e,i)=>{
     let barBg;
     if(i<etIdx_) barBg='var(--teal)';
     else if(i===etIdx_) barBg='var(--blue)';
     else barBg='var(--bg3)';
     return `<span title="${e.lb}" style="flex:1;height:4px;border-radius:2px;background:${barBg}"></span>`;
-  }).join('') + ETAPAS.slice(etIdx_+1).map(()=>
-    `<span style="flex:1;height:4px;border-radius:2px;background:var(--bg3)"></span>`
-  ).join('');
+  }).join('');
+  const pending = ETAPAS.slice(etIdx_+1)
+    .map(() => '<span style="flex:1;height:4px;border-radius:2px;background:var(--bg3)"></span>')
+    .join('');
+  return doneAndCurrent + pending;
 }
 
 function syncArquiteturaProcessos(){
@@ -13239,7 +13241,10 @@ function planoPopulateAnoSel(){
   const curY = new Date().getFullYear();
   const anos = [...new Set([curY, curY-1, curY+1, ...plano.map(a=>a.ano)])].sort((a,b)=>b-a);
   const cur  = Number.parseInt(sel.value)||curY;
-  sel.innerHTML = anos.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
+  sel.innerHTML = anos.map(String).map(y=>{
+    const isSelected = Number.parseInt(y)===cur ? ' selected' : '';
+    return `<option value="${y}"${isSelected}>${y}</option>`;
+  }).join('');
 }
 
 function rPlano(){
@@ -13333,6 +13338,42 @@ function _metaFonteBadge(m){
   return '';
 }
 
+function _metaCorByPct(pct){
+  if(pct>=100) return '#14b8a6';
+  if(pct>=60) return '#f59e0b';
+  return '#ef4444';
+}
+
+function _metaEditBtns(metaId){
+  if(!isEP()) return '';
+  return `<div style="display:flex;gap:4px;margin-top:6px">
+    <button type="button" class="btn" style="font-size:10px;padding:1px 7px" onclick="abrirMetaModal(${metaId})">✎</button>
+    <button type="button" class="btn" style="font-size:10px;padding:1px 7px;color:var(--red)" onclick="deletarMeta(${metaId})">🗑</button>
+  </div>`;
+}
+
+function _renderPlanoMetaCard(m){
+  const real=_metaRealizado(m);
+  const mt=m.meta||1;
+  const pct=Math.min(100,Math.round(real/mt*100));
+  const cor=_metaCorByPct(pct);
+  const un=m.unidade||'';
+  const unidadeSuffix=un ? ` ${un}` : '';
+  const obsHtml=m.obs
+    ? `<div style="font-size:10px;color:var(--ink3);margin-top:5px;font-style:italic">${esc(m.obs)}</div>`
+    : '';
+  return `<div style="flex:1;min-width:180px;max-width:280px;background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${cor};border-radius:var(--r);padding:.7rem 1rem">
+    <div style="font-size:11px;font-weight:700;color:var(--ink);margin-bottom:4px">${esc(m.titulo)}${_metaFonteBadge(m)}</div>
+    <div style="font-size:22px;font-weight:700;color:${cor};line-height:1">${pct}%</div>
+    <div style="font-size:10px;color:var(--ink3);margin-top:2px">${real}${unidadeSuffix} / meta ${mt}${unidadeSuffix}</div>
+    <div style="margin-top:6px;height:5px;background:var(--bdr2);border-radius:3px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:${cor};border-radius:3px;transition:width .4s"></div>
+    </div>
+    ${obsHtml}
+    ${_metaEditBtns(m.id)}
+  </div>`;
+}
+
 function renderPlanoMetas(){
   const el=document.getElementById('plano-metas');
   if(!el) return;
@@ -13349,31 +13390,7 @@ function renderPlanoMetas(){
   </div>
   ${metas.length===0?`<div style="font-size:12px;color:var(--ink3);padding:.5rem 0">Nenhuma meta cadastrada.${addMetaHint}</div>`:''}
   <div style="display:flex;gap:10px;flex-wrap:wrap">
-    ${metas.map(m=>{
-      const real=_metaRealizado(m);
-      const mt=m.meta||1;
-      const pct=Math.min(100,Math.round(real/mt*100));
-      let cor; if(pct>=100) cor='#14b8a6'; else if(pct>=60) cor='#f59e0b'; else cor='#ef4444';
-      const un=m.unidade||'';
-      const unidadeSuffix=un ? ' '+un : '';
-      const valRealTxt=`${real}${unidadeSuffix}`;
-      const valMetaTxt=`${mt}${unidadeSuffix}`;
-      const valTxt=`${valRealTxt} / meta ${valMetaTxt}`;
-      const editBtns=podeEditar?`<div style="display:flex;gap:4px;margin-top:6px">
-        <button type="button" class="btn" style="font-size:10px;padding:1px 7px" onclick="abrirMetaModal(${m.id})">✎</button>
-        <button type="button" class="btn" style="font-size:10px;padding:1px 7px;color:var(--red)" onclick="deletarMeta(${m.id})">🗑</button>
-      </div>`:'';
-      return `<div style="flex:1;min-width:180px;max-width:280px;background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${cor};border-radius:var(--r);padding:.7rem 1rem">
-        <div style="font-size:11px;font-weight:700;color:var(--ink);margin-bottom:4px">${esc(m.titulo)}${_metaFonteBadge(m)}</div>
-        <div style="font-size:22px;font-weight:700;color:${cor};line-height:1">${pct}%</div>
-        <div style="font-size:10px;color:var(--ink3);margin-top:2px">${valTxt}</div>
-        <div style="margin-top:6px;height:5px;background:var(--bdr2);border-radius:3px;overflow:hidden">
-          <div style="width:${pct}%;height:100%;background:${cor};border-radius:3px;transition:width .4s"></div>
-        </div>
-        ${m.obs?`<div style="font-size:10px;color:var(--ink3);margin-top:5px;font-style:italic">${esc(m.obs)}</div>`:''}
-        ${editBtns}
-      </div>`;
-    }).join('')}
+    ${metas.map(_renderPlanoMetaCard).join('')}
     ${podeEditar&&metas.length?`<div style="flex:0 0 auto;display:flex;align-items:center;padding:.5rem">
       <button type="button" class="btn" onclick="abrirMetaModal(null)" style="font-size:20px;padding:4px 12px;opacity:.5" title="Nova meta">＋</button>
     </div>`:''}
@@ -13698,6 +13715,29 @@ function _planoTriCard(tri, items, isCur, isFilt){
     </div>
   </div>`;
 }
+
+function _planoEntregaInfo(at){
+  if(at.entrega_status==='em_dia'){
+    return {
+      bg:'rgba(20,184,166,.12)',
+      color:'#0f766e',
+      label:'✅ Entregue em dia',
+    };
+  }
+  if(at.entrega_status==='com_atraso'){
+    return {
+      bg:'rgba(239,68,68,.1)',
+      color:'#dc2626',
+      label:`⚠ Entregue com ${at.dias_atraso}d de atraso`,
+    };
+  }
+  return {
+    bg:'var(--bg2)',
+    color:'var(--ink3)',
+    label:'📅 Entregue sem prazo',
+  };
+}
+
 function planoStatsTrimestrais(lista){
   const el = document.getElementById('plano-stats');
   if(!el) return;
@@ -13726,14 +13766,7 @@ function planoCardHTML(at){
   const prazoText  = diasRest===0 ? 'Vence hoje' : diasRest+'d restantes';
   const prazoColor = st==='em_atraso' ? '#ef4444' : 'var(--ink3)';
   const prazoWarn  = st==='em_atraso' ? ' ⚠' : '';
-  let entregaBg, entregaColor, entregaLabel;
-  if(at.entrega_status==='em_dia'){
-    entregaBg='rgba(20,184,166,.12)'; entregaColor='#0f766e'; entregaLabel='✅ Entregue em dia';
-  } else if(at.entrega_status==='com_atraso'){
-    entregaBg='rgba(239,68,68,.1)'; entregaColor='#dc2626'; entregaLabel=`⚠ Entregue com ${at.dias_atraso}d de atraso`;
-  } else {
-    entregaBg='var(--bg2)'; entregaColor='var(--ink3)'; entregaLabel='📅 Entregue sem prazo';
-  }
+  const entregaInfo = _planoEntregaInfo(at);
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${cfg.cor};border-radius:var(--r);padding:.9rem 1rem;box-shadow:var(--sh)">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
@@ -13770,15 +13803,39 @@ function planoCardHTML(at){
     ${at.obs?`<div style="margin-top:6px;font-size:11px;color:var(--ink2);background:var(--bg2);border-radius:4px;padding:4px 8px;border-left:2px solid var(--bdr2)">📝 ${esc(at.obs)}</div>`:''}
     ${at.evidencia&&st==='concluida'?`<div style="margin-top:5px;font-size:11px;color:#14b8a6;background:rgba(20,184,166,.07);border-radius:4px;padding:4px 8px">✅ ${esc(at.evidencia)}</div>`:''}
     ${st==='concluida'&&at.entrega_status?`<div style="margin-top:5px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;
-      background:${entregaBg};
-      color:${entregaColor}">
-      ${entregaLabel}
+      background:${entregaInfo.bg};
+      color:${entregaInfo.color}">
+      ${entregaInfo.label}
     </div>`:''}
   </div>`;
 }
 
 function fecharPlanoModal(){
   document.getElementById('plano-modal').style.display='none';
+}
+
+const STATUS_REPORT_ETAPA_LABELS = {
+  abertura:'Abertura',
+  reuniao:'Reunião',
+  questionario:'Questionário',
+  esboco_asis:'Esboço AS IS',
+  det_valid_asis:'Det. AS IS',
+  riscos:'Riscos',
+  analise:'Análise',
+  melhorias:'Melhorias',
+  esboco_tobe:'Esboço TO BE',
+  det_valid_tobe:'Det. TO BE',
+  desenho_final:'Desenho Final',
+  indicadores_proc:'Indicadores',
+  pop:'POP',
+  apresentacao:'Apresentação',
+  publicacao:'Publicação',
+  acompanha:'Acompanhamento',
+  auditoria:'Auditoria',
+};
+
+function statusReportEtapaBadge(et){
+  return STATUS_REPORT_ETAPA_LABELS[et]||et||'—';
 }
 
 // ── STATUS REPORT MENSAL — geração automática de .pptx ───────────────────────
@@ -13889,7 +13946,6 @@ function gerarStatusReportPDF(){
   const badge=(v,cor)=>`<span style="color:${cor};font-weight:700">${_e(v)}</span>`;
   const pbar=(pct,cor)=>`<div style="background:#e5e7eb;border-radius:99px;height:7px;margin-top:3px"><div style="background:${cor};height:7px;border-radius:99px;width:${pct||0}%"></div></div>`;
   const kpi=(label,val,sub,cor)=>{const _sub=sub?'<div class="kpi-sub">'+sub+'</div>':'';return `<div class="kpi"><div class="kpi-val" style="color:${cor||'#2B485F'}">${val}</div><div class="kpi-lbl">${label}</div>${_sub}</div>`;};
-  const etBadge=et=>{const m={abertura:'Abertura',reuniao:'Reunião',questionario:'Questionário',esboco_asis:'Esboço AS IS',det_valid_asis:'Det. AS IS',riscos:'Riscos',analise:'Análise',melhorias:'Melhorias',esboco_tobe:'Esboço TO BE',det_valid_tobe:'Det. TO BE',desenho_final:'Desenho Final',indicadores_proc:'Indicadores',pop:'POP',apresentacao:'Apresentação',publicacao:'Publicação',acompanha:'Acompanhamento',auditoria:'Auditoria'};return m[et]||et||'—';};
 
   // ── HTML ────────────────────────────────────────────────────────────────────
   const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
@@ -13952,7 +14008,7 @@ function gerarStatusReportPDF(){
   ${SEC(1,'Mapeamentos e Auditorias em Andamento')}
   ${SUB('Mapeamentos em andamento ('+mapAndamento.length+')')}
   ${tbl(['Processo','Macroprocesso','Dono','EP Responsável','Etapa atual','Prazo global'],
-    mapAndamento.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),etBadge(p.etapa),_d(p.ent?.dt_prev)])
+    mapAndamento.map(p=>[_e(p.nome),_e(p.macro),_e(p.dono),_e(p.resp_ep),statusReportEtapaBadge(p.etapa),_d(p.ent?.dt_prev)])
   )}
   ${SUB('Auditorias em andamento ('+audAndamento.length+')')}
   ${tbl(['Processo','Macroprocesso','Dono','Equipe','Início auditoria','Objetivo'],
@@ -14271,7 +14327,10 @@ async function deletarAtividade(id){
       try {
         const {db, doc, deleteDoc} = fb();
         await deleteDoc(doc(db,'plano',String(id)));
-      } catch(e){ console.warn('deletarAtividade error:', e.message); }
+      } catch(error_){
+        console.warn('deletarAtividade error:', error_.message);
+        toast('⚠ Não foi possível remover a atividade na nuvem.','var(--amber)');
+      }
     }
     rPlano();
     toast('Atividade excluída','var(--amber)');
