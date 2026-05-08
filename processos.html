@@ -8661,13 +8661,23 @@ function calcILPFromBpmn(bpmnXml, etapas){
   };
 }
 
-// ILP = (E + P + 0.5*(C+D)) / (Total + α*GxorDiv + β*(Atores-1)) * 100
+// ILP = (E + P + .5*(C+D)) / (Total + α*GxorDiv + β*(Atores-1)) * 100
 // α=1: cada exclusive gateway divergente equivale a 1 atividade improdutiva
-// β=0.5: cada ator extra além do primeiro equivale a 0.5
+// β=.5: cada ator extra além do primeiro equivale a .5
 function calcILP(etapas, bpmnXml){
   if(!bpmnXml) return calcILPFromEtapas(etapas);
   try{const r=calcILPFromBpmn(bpmnXml,etapas);if(r)return r;}catch(e){console.warn('calcILPFromBpmn falhou:',e.message);}
   return calcILPFromEtapas(etapas);
+}
+
+function _testCalcIlpBpmnXml(els,flows){
+  const elemXml=els.map(e=>`<${e.t} id="${e.id}" name="${e.n||''}"/>`).join('');
+  const flowXml=flows.map((f,i)=>`<sequenceFlow id="sf${i}" sourceRef="${f.f}" targetRef="${f.t}" name="${f.n||''}"/>`).join('');
+  return `<?xml version="1.0"?><definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"><process id="p">${elemXml}${flowXml}</process></definitions>`;
+}
+
+function _testCalcIlpEtapa(id,exe='A1'){
+  return {bpmn_id:id,nome:id,executor:exe,modo:'Manual'};
 }
 
 // ─── TEST SUITE — chame _testCalcILP() no console do browser ───────────────
@@ -8678,46 +8688,39 @@ function _testCalcILP(){
     ok?pass++:fail++;
     log.push((ok?'✅':'❌')+' '+label+(ok?'':` → got ${got}, expected ${exp}`));
   }
-  // Monta BPMN XML mínimo
-  function bpmn(els,flows){
-    const e=els.map(e=>`<${e.t} id="${e.id}" name="${e.n||''}"/>`).join('');
-    const f=flows.map((f,i)=>`<sequenceFlow id="sf${i}" sourceRef="${f.f}" targetRef="${f.t}" name="${f.n||''}"/>`).join('');
-    return `<?xml version="1.0"?><definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"><process id="p">${e}${f}</process></definitions>`;
-  }
-  function et(id,exe='A1'){return{bpmn_id:id,nome:id,executor:exe,modo:'Manual'};}
 
   // T1 — Fluxo linear sem gateway
-  {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'t2',t:'task',n:'B'},{id:'e',t:'endEvent'}],
+  {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'t2',t:'task',n:'B'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1'),et('t2')]);
+  const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('t1'),_testCalcIlpEtapa('t2')]);
   eq('T1 linear total',r?.total,2);eq('T1 linear gxorDiv',r?.gxorDiv,0);eq('T1 linear nManual',r?.nManual,2);}
 
   // T2 — XOR simples: toma ramo mais longo (Sim: B→C, Não: D)
-  {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'gw',t:'exclusiveGateway'},
+  {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'gw',t:'exclusiveGateway'},
     {id:'t2',t:'task',n:'B'},{id:'t3',t:'task',n:'C'},{id:'t4',t:'task',n:'D'},{id:'e1',t:'endEvent'},{id:'e2',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'gw'},{f:'gw',t:'t2',n:'Sim'},{f:'t2',t:'t3'},{f:'t3',t:'e1'},{f:'gw',t:'t4',n:'Não'},{f:'t4',t:'e2'}]);
-  const r=calcILPFromBpmn(xml,[et('t1'),et('t2'),et('t3'),et('t4')]);
+  const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('t1'),_testCalcIlpEtapa('t2'),_testCalcIlpEtapa('t3'),_testCalcIlpEtapa('t4')]);
   eq('T2 XOR total (ramo longo=3)',r?.total,3);eq('T2 XOR gxorDiv',r?.gxorDiv,1);}
 
   // T3 — AND simples: todos os ramos contam, dedup após join
-  {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'sp',t:'parallelGateway',n:'Em paralelo'},
+  {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'A'},{id:'sp',t:'parallelGateway',n:'Em paralelo'},
     {id:'t2',t:'task',n:'B'},{id:'t3',t:'task',n:'C'},{id:'jn',t:'parallelGateway',n:'Join'},
     {id:'t4',t:'task',n:'D'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'sp'},{f:'sp',t:'t2'},{f:'sp',t:'t3'},{f:'t2',t:'jn'},{f:'t3',t:'jn'},{f:'jn',t:'t4'},{f:'t4',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1'),et('t2'),et('t3'),et('t4')]);
+  const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('t1'),_testCalcIlpEtapa('t2'),_testCalcIlpEtapa('t3'),_testCalcIlpEtapa('t4')]);
   eq('T3 AND total (4 ativ)',r?.total,4);eq('T3 AND gxorDiv',r?.gxorDiv,0);}
 
   // T4 — AND seguido de XOR: XOR não contado 2x (bug dedup)
-  {const xml=bpmn([{id:'s',t:'startEvent'},{id:'sp',t:'parallelGateway',n:'Em paralelo'},
+  {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'sp',t:'parallelGateway',n:'Em paralelo'},
     {id:'ta',t:'task',n:'A'},{id:'tb',t:'task',n:'B'},{id:'jn',t:'parallelGateway',n:'Join'},
     {id:'gx',t:'exclusiveGateway',n:'Decisão'},{id:'tc',t:'task',n:'C'},{id:'td',t:'task',n:'D'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'sp'},{f:'sp',t:'ta'},{f:'sp',t:'tb'},{f:'ta',t:'jn'},{f:'tb',t:'jn'},
      {f:'jn',t:'gx'},{f:'gx',t:'tc'},{f:'gx',t:'td'},{f:'tc',t:'e'},{f:'td',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),et('td')]);
+  const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('ta'),_testCalcIlpEtapa('tb'),_testCalcIlpEtapa('tc'),_testCalcIlpEtapa('td')]);
   eq('T4 AND+XOR dedup total',r?.total,3);eq('T4 AND+XOR dedup gxorDiv (deve ser 1, não 2)',r?.gxorDiv,1);}
 
   // T5 — XOR dentro de XOR: gateways em ramos exclusivos — conta só 2 (outer+1 inner)
-  {const xml=bpmn([{id:'s',t:'startEvent'},{id:'ta',t:'task',n:'A'},{id:'gw1',t:'exclusiveGateway',n:'Outer'},
+  {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'ta',t:'task',n:'A'},{id:'gw1',t:'exclusiveGateway',n:'Outer'},
     {id:'tb',t:'task',n:'B'},{id:'gw2',t:'exclusiveGateway',n:'Inner1'},
     {id:'tc',t:'task',n:'C'},{id:'td',t:'task',n:'D'},
     {id:'te',t:'task',n:'E'},{id:'gw3',t:'exclusiveGateway',n:'Inner2'},
@@ -8725,39 +8728,39 @@ function _testCalcILP(){
     [{f:'s',t:'ta'},{f:'ta',t:'gw1'},
      {f:'gw1',t:'tb'},{f:'tb',t:'gw2'},{f:'gw2',t:'tc'},{f:'gw2',t:'td'},{f:'tc',t:'e'},{f:'td',t:'e'},
      {f:'gw1',t:'te'},{f:'te',t:'gw3'},{f:'gw3',t:'tf'},{f:'gw3',t:'tg'},{f:'tf',t:'e'},{f:'tg',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),
-    et('td'),et('te'),et('tf'),et('tg')]);
+  const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('ta'),_testCalcIlpEtapa('tb'),_testCalcIlpEtapa('tc'),
+    _testCalcIlpEtapa('td'),_testCalcIlpEtapa('te'),_testCalcIlpEtapa('tf'),_testCalcIlpEtapa('tg')]);
   eq('T5 XOR-em-XOR total (A+B+C=3)',r?.total,3);
   eq('T5 XOR-em-XOR gxorDiv (outer+1inner=2, não 3)',r?.gxorDiv,2);}
 
   // T6 — XOR em cada ramo AND: ambos contam
-  {const xml=bpmn([{id:'s',t:'startEvent'},{id:'sp',t:'parallelGateway',n:'Em paralelo'},
+  {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'sp',t:'parallelGateway',n:'Em paralelo'},
     {id:'gx1',t:'exclusiveGateway',n:'Dec1'},{id:'ta',t:'task',n:'A1'},{id:'tb',t:'task',n:'A2'},{id:'tc',t:'task',n:'A3'},
     {id:'gx2',t:'exclusiveGateway',n:'Dec2'},{id:'td',t:'task',n:'B1'},{id:'te',t:'task',n:'B2'},{id:'tf',t:'task',n:'B3'},
     {id:'e',t:'endEvent'}],
     [{f:'s',t:'sp'},{f:'sp',t:'gx1'},{f:'sp',t:'gx2'},
      {f:'gx1',t:'ta'},{f:'gx1',t:'tc'},{f:'ta',t:'tb'},{f:'tb',t:'e'},{f:'tc',t:'e'},
      {f:'gx2',t:'td'},{f:'gx2',t:'tf'},{f:'td',t:'te'},{f:'te',t:'e'},{f:'tf',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc'),
-    et('td'),et('te'),et('tf')]);
+  const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('ta'),_testCalcIlpEtapa('tb'),_testCalcIlpEtapa('tc'),
+    _testCalcIlpEtapa('td'),_testCalcIlpEtapa('te'),_testCalcIlpEtapa('tf')]);
   eq('T6 XOR-em-AND total (A1+A2+B1+B2=4)',r?.total,4);
   eq('T6 XOR-em-AND gxorDiv (2)',r?.gxorDiv,2);}
 
   // T7 — Loop: não entra em loop infinito, toma ramo de saída
-  {const xml=bpmn([{id:'s',t:'startEvent'},{id:'ta',t:'task',n:'A'},{id:'gw',t:'exclusiveGateway',n:'OK?'},
+  {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'ta',t:'task',n:'A'},{id:'gw',t:'exclusiveGateway',n:'OK?'},
     {id:'tb',t:'task',n:'B'},{id:'tc',t:'task',n:'C'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'ta'},{f:'ta',t:'gw'},{f:'gw',t:'tb',n:'Não'},{f:'tb',t:'ta'},{f:'gw',t:'tc',n:'Sim'},{f:'tc',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('ta'),et('tb'),et('tc')]);
+  const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('ta'),_testCalcIlpEtapa('tb'),_testCalcIlpEtapa('tc')]);
   eq('T7 loop total (A+C=2)',r?.total,2);eq('T7 loop gxorDiv',r?.gxorDiv,1);}
 
-  // T8 — Formula: Σeficiência / (Σeficiência + 0.5*gxor + 0.5*(atores-1)) * 100
-  {const xml=bpmn([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'Exec'},{id:'t2',t:'task',n:'Revis'},
+  // T8 — Formula: Σeficiência / (Σeficiência + .5*gxor + .5*(atores-1)) * 100
+  {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'Exec'},{id:'t2',t:'task',n:'Revis'},
     {id:'t3',t:'task',n:'Comu'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'t3'},{f:'t3',t:'e'}]);
-  const r=calcILPFromBpmn(xml,[et('t1','Ator1'),et('t2','Ator2'),et('t3','Ator1')]);
+  const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('t1','Ator1'),_testCalcIlpEtapa('t2','Ator2'),_testCalcIlpEtapa('t3','Ator1')]);
   // 3 Manual tasks, 0 gxor, 2 atores
-  // num = 3×1.0 = 3.0 | overhead = 1.0×0 + 0.5×(2-1) = 0.5 | den = 3.5 | ilp = round(3/3.5*100)=86
-  eq('T8 formula ilp',r?.ilp,86);eq('T8 formula numerador',r?.numerador,3);eq('T8 formula overhead',r?.overhead,0.5);}
+  // num = 3×1 = 3 | overhead = 1.5×0 + 1×(2-1) = 1 | den = 4 | ilp = round(3/4*100)=75
+  eq('T8 formula ilp',r?.ilp,75);eq('T8 formula numerador',r?.numerador,3);eq('T8 formula overhead',r?.overhead,1);}
 
   // Resultado final
   console.log(`\n════ calcILP TEST SUITE: ${pass} ✅  ${fail} ❌ ════`);
@@ -11828,7 +11831,10 @@ async function importarIndicadores(input){
         const meta    = parseNumBR(cMeta    ? row[cMeta]    : 0);
         const real    = parseNumBR(cReal    ? row[cReal]    : 0);
         const analise = (cAnalise  ? row[cAnalise]  : '').toString().trim();
-        const pctReal = parseNumBR(cPctReal ? row[cPctReal] : 0) || (meta > 0 ? Math.round((real/meta)*100) : 0);
+        let pctReal = parseNumBR(cPctReal ? row[cPctReal] : 0);
+        if(!pctReal && meta > 0){
+          pctReal = Math.round((real/meta)*100);
+        }
         const polSheet = cPol ? (row[cPol]||'').toString().trim() : '';
         const groupKey = (nome||enunc||'').trim();
         const chaveImp = groupKey + '|' + periodo.trim();
@@ -13618,7 +13624,7 @@ function planoPopulateAnoSel(){
   const curY = new Date().getFullYear();
   const anos = [...new Set([curY, curY-1, curY+1, ...plano.map(a=>a.ano)])].sort((a,b)=>b-a);
   const cur  = Number.parseInt(sel.value)||curY;
-  sel.innerHTML = anos.map(String).map(y=>{
+  sel.innerHTML = anos.map(y=>String(y)).map(y=>{
     const isSelected = Number.parseInt(y)===cur ? ' selected' : '';
     return `<option value="${y}"${isSelected}>${y}</option>`;
   }).join('');
@@ -13946,7 +13952,8 @@ async function salvarMeta(){
   fecharMetaModal();
   await fbSaveAll();
   renderPlanoMetas();
-  toast(id?'Meta atualizada':'Meta criada');
+  const metaToastMsg=id ? 'Meta atualizada' : 'Meta criada';
+  toast(metaToastMsg);
 }
 
 async function deletarMeta(id){
@@ -14650,7 +14657,10 @@ async function salvarAtividade(){
   const ano   = Number.parseInt(document.getElementById('pm-ano')?.value)||planoAno();
   const vTipo = document.getElementById('pm-vint')?.value||'';
   const vSel  = document.getElementById('pm-vinid');
-  const vId   = vTipo&&vSel?.value ? Number.parseInt(vSel.value)||null : null;
+  let vId = null;
+  if(vTipo && vSel?.value){
+    vId = Number.parseInt(vSel.value)||null;
+  }
   const vItem = vId ? planoVinculoItems(vTipo).find(item=>String(item.id)===String(vId)) : null;
   const vNome = vItem?.nome||'';
   const qtPrev= Number.parseFloat(document.getElementById('pm-qtprev')?.value)||0;
@@ -14702,12 +14712,18 @@ async function salvarAtividade(){
     at.entrega_status = '';
     at.dias_atraso    = null;
   }
-  if(id){ const i=plano.findIndex(a=>a.id===id); if(i>=0) plano[i]=at; else plano.push(at); }
-  else plano.push(at);
+  if(id){
+    const i=plano.findIndex(a=>a.id===id);
+    if(i>=0) plano[i]=at;
+    else plano.push(at);
+  } else {
+    plano.push(at);
+  }
   fecharPlanoModal();
   await fbSaveAll();
   rPlano();
-  toast(id?'Atividade atualizada':'Atividade criada');
+  const atvToastMsg=id ? 'Atividade atualizada' : 'Atividade criada';
+  toast(atvToastMsg);
 }
 
 async function deletarAtividade(id){
@@ -14801,14 +14817,15 @@ async function fbLoad(){
       if(usrDocFirst.exists() && usrDocFirst.data().data){
         USUARIOS = JSON.parse(usrDocFirst.data().data);
       }
-    } catch(e){
+    } catch(error_){
+      console.warn('fbLoad: fallback para cache local de usuarios:', error_.message);
       // Fallback para cache local se o servidor não responder
       try {
         const usrDocCache = await getDoc(doc(db,'config','usuarios'));
         if(usrDocCache.exists() && usrDocCache.data().data){
           USUARIOS = JSON.parse(usrDocCache.data().data);
         }
-      } catch(e2){ console.warn('fbLoad: erro ao carregar usuarios:', e2.message); }
+      } catch(error_){ console.warn('fbLoad: erro ao carregar usuarios:', error_.message); }
     }
 
     // processos
