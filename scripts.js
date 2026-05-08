@@ -3218,8 +3218,8 @@ function projSyncDerivedTaskDates(tarefas) {
     const subs = t.subtarefas || [];
     if(subs.length) {
       projSyncDerivedTaskDates(subs);
-      const starts = subs.map(s => s.dt_inicio).filter(Boolean).sort();
-      const ends = subs.map(s => s.dt_fim).filter(Boolean).sort();
+      const starts = subs.map(s => s.dt_inicio).filter(Boolean).sort(projTextCompare);
+      const ends = subs.map(s => s.dt_fim).filter(Boolean).sort(projTextCompare);
       t.dt_inicio = starts[0] || '';
       t.dt_fim = ends.length ? ends[ends.length - 1] : '';
     }
@@ -4319,6 +4319,10 @@ function projMultiValues(...sources) {
   return out;
 }
 
+function projTextCompare(a, b) {
+  return String(a || '').localeCompare(String(b || ''));
+}
+
 function projOptionsFromProjetos(projects, getter) {
   const vals = [];
   (projects||[]).forEach(p => {
@@ -4328,7 +4332,7 @@ function projOptionsFromProjetos(projects, getter) {
       if(clean && !vals.includes(clean)) vals.push(clean);
     });
   });
-  return vals.sort();
+  return vals.sort(projTextCompare);
 }
 
 function projFiltrarProjetosV9(projects) {
@@ -4351,7 +4355,7 @@ function projUnlinkedValues(allValues, projects, getter) {
       if(clean) linked.add(clean);
     });
   });
-  return (allValues||[]).map(v => String(v||'').trim()).filter(v => v && !linked.has(v)).sort();
+  return (allValues||[]).map(v => String(v||'').trim()).filter(v => v && !linked.has(v)).sort(projTextCompare);
 }
 
 function projToggleDashUnlinked(key) {
@@ -4646,7 +4650,7 @@ function projNormalizeStrategyList(list) {
     if(!byBase[base]) byBase[base] = v;
     else if(/^\s*\[[^\]]+\]/.test(v) && !/^\s*\[[^\]]+\]/.test(byBase[base])) byBase[base] = v;
   });
-  return Object.values(byBase).sort();
+  return Object.values(byBase).sort(projTextCompare);
 }
 
 function projNormalizeStrategyLists() {
