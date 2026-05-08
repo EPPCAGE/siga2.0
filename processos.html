@@ -3636,8 +3636,7 @@ function rMeusProc(){
     const proc = u.proc;
     const mapeado = !!proc;
     const mat = proc?.ent?.mat||0;
-    const cardClick = mapeado ? 'abrirProc('+proc.id+')' : "go('arq',document.getElementById('nb-arq'))";
-    const cardTitle = mapeado ? 'Abrir mapeamento' : 'Ver na arquitetura';
+    const cardClick = `abrirInfoMeusProc('${u.arq_id}')`;
     const borderColor = mapeado ? 'var(--teal-b)' : 'var(--bdr)';
     const borderL = mapeado ? 'var(--teal)' : 'var(--bdr2)';
     const matText = mat ? 'Maturidade '+mat+'/5 — '+MATURIDADE_LABELS[mat] : 'Maturidade não avaliada';
@@ -3650,7 +3649,7 @@ function rMeusProc(){
       return `<span style="flex:1;height:3px;border-radius:2px;background:${bg}"></span>`;
     }).join('') : '';
     const tipo = u.isSub ? 'Subprocesso' : 'Processo';
-    return `<div class="card" style="border:1px solid ${borderColor};border-left:4px solid ${borderL};cursor:pointer;transition:all .13s" onclick="${cardClick}" title="${cardTitle}">
+    return `<div class="card" style="border:1px solid ${borderColor};border-left:4px solid ${borderL};cursor:pointer;transition:all .13s" onclick="${cardClick}" title="Ver informações do processo">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
         <div style="font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3">${esc(u.nome)}</div>
         <span class="badge ${mapeado?'bg':'bgr'}" style="font-size:10px;flex-shrink:0">${mapeado?'Mapeado':'Não mapeado'}</span>
@@ -3659,10 +3658,56 @@ function rMeusProc(){
       ${mapeado ? `
         <div style="display:flex;gap:2px;margin-bottom:4px">${progressBar}</div>
         <div style="font-size:11px;color:var(--ink3)">${matText}</div>
-      ` : `<div style="font-size:11px;color:var(--ink4)">Clique para ver na arquitetura</div>`}
+      ` : `<div style="font-size:11px;color:var(--ink4)">Clique para ver informações</div>`}
     </div>`;
   }).join('');
   updCounts();
+}
+function abrirInfoMeusProc(arqId){
+  const item = findArqItemById(arqId);
+  if(!item) return;
+  const u = getMinhasUnidades().find(x=>x.arq_id===arqId);
+  const proc = u?.proc || null;
+  const tipo = u?.isSub ? 'Subprocesso' : 'Processo';
+  const breadcrumb = u ? esc(u.macro)+(u.parentNome?' › '+esc(u.parentNome):'') : '';
+  document.getElementById('info-proc-modal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'info-proc-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem';
+  const row = (label,val)=>val
+    ? `<div class="fg" style="margin-bottom:.75rem"><div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${label}</div><div style="font-size:13px;color:var(--ink);white-space:pre-wrap">${esc(val)}</div></div>`
+    : '';
+  const g2row = (l1,v1,l2,v2)=>(v1||v2)
+    ? `<div class="g2" style="margin-bottom:.75rem">${row(l1,v1)}${row(l2,v2)}</div>`
+    : '';
+  const mapeadoBadge = proc
+    ? `<span class="badge bg" style="font-size:10px">${ETAPAS[etIdx(proc.etapa)]||proc.etapa}</span>`
+    : `<span class="badge bgr" style="font-size:10px">Não mapeado</span>`;
+  modal.innerHTML = `<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:1rem">
+      <div>
+        <div style="font-family:var(--fh);font-size:16px;font-weight:600;color:var(--ink);margin-bottom:4px">${esc(item.nome)}</div>
+        <div style="font-size:11px;color:var(--ink3)">${tipo} · ${breadcrumb}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">${mapeadoBadge}</div>
+    </div>
+    <div style="border-top:1px solid var(--bdr);padding-top:.75rem">
+      ${row('Natureza',item.natureza)}
+      ${row('Área',item.area)}
+      ${row('Dono do processo',item.gerente)}
+      ${row('Objetivo do processo',item.objetivo)}
+      ${row('Objetivo estratégico',item.objetivo_estrategico)}
+      ${g2row('Entradas do processo',item.entradas,'Entregas do processo',item.entregas)}
+      ${row('Clientes do processo',item.clientes)}
+      ${row('Documentações e regulamentações',item.docs)}
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button type="button" class="btn" onclick="document.getElementById('info-proc-modal').remove()">Fechar</button>
+      ${proc ? `<button type="button" class="btn btn-p" onclick="document.getElementById('info-proc-modal').remove();abrirProc(${proc.id})">Abrir mapeamento</button>` : ''}
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
 }
 function taskCard(p,ACT){
   const prazo=(p.prazos_dono||{})[p.etapa]||p.prazo_dono||'';
