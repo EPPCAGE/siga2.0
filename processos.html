@@ -1218,13 +1218,13 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <button type="button" onclick="mobToggleDrawer()" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:20px;cursor:pointer;padding:0;line-height:1;display:none" id="mob-aside-close" aria-label="Fechar menu">×</button>
   </div>
   <div class="nav-sec">Principal</div>
-  <button type="button" class="nav-btn on" onclick="go('fila',this)" id="nb-fila">
-    <svg viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 7h8M2 11h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="11" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M13 10v1.5l1 1" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
-    Minhas tarefas <span class="nav-cnt hot" id="nb-fila-cnt">0</span>
-  </button>
-  <button type="button" class="nav-btn" onclick="go('meusprocessos',this)" id="nb-meusproc">
+  <button type="button" class="nav-btn on" onclick="go('meusprocessos',this)" id="nb-meusproc">
     <svg viewBox="0 0 16 16" fill="none"><path d="M2 3.5h5l1 1.5h6v7.5A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5v-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
     Meus Processos <span class="nav-cnt" id="nb-meusproc-cnt">0</span>
+  </button>
+  <button type="button" class="nav-btn" onclick="go('fila',this)" id="nb-fila">
+    <svg viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 7h8M2 11h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="11" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M13 10v1.5l1 1" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+    Minhas tarefas <span class="nav-cnt hot" id="nb-fila-cnt">0</span>
   </button>
   <button type="button" class="nav-btn" onclick="go('dashboard',this)" id="nb-dash">
     <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".5"/></svg>
@@ -2374,7 +2374,11 @@ function enterProcessModule(){
   const shell=document.getElementById('proc-shell');
   if(hub) hub.classList.remove('on');
   if(shell) shell.style.display='grid';
-  go('fila',document.getElementById('nb-fila'));
+  if(usuarioLogado?.perfil==='dono'){
+    go('meusprocessos',document.getElementById('nb-meusproc'));
+  } else {
+    go('fila',document.getElementById('nb-fila'));
+  }
 }
 function openProjectsModule(){
   if(!hasProjetosAccess()){ toast('Seu perfil não tem acesso ao SIGA Projetos.','var(--red)'); return; }
