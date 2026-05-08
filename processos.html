@@ -3782,6 +3782,8 @@ function aplicarPermissoes(){
   if(nbDash) nbDash.style.display = usuarioLogado?.perfil === 'dono' ? 'none' : '';
   const nbMeusProc = document.getElementById('nb-meusproc');
   if(nbMeusProc) nbMeusProc.style.display = usuarioLogado?.perfil === 'dono' ? '' : 'none';
+  const nbProc = document.getElementById('nb-proc');
+  if(nbProc) nbProc.style.display = usuarioLogado?.perfil === 'dono' ? 'none' : '';
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
 }
 
