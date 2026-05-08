@@ -2047,7 +2047,7 @@ const APONTAMENTOS_PADRAO = [
 ];
 
 let ARQUITETURA = [
-  {id:'m1',nome:'Comunicação institucional',categoria:'Gestão',processos:[
+  {id:'m1',nome:'Comunicação institucional',processos:[
     {id:'ap1',nome:'Comunicação externa',natureza:'Suporte',gerente:'Amilcar da Rosa',area:'Assessoria de Comunicação',objetivo:'',objetivo_estrategico:'Fortalecimento da imagem institucional',entradas:'',entregas:'',clientes:'',docs:'',
       subprocessos:[
         {id:'s1',nome:'Produzir informativos textuais (Fala CAGE)',natureza:'Suporte',gerente:'Amilcar da Rosa',area:'Assessoria de Comunicação',objetivo:'Redigir notas, releases e drops institucionais',objetivo_estrategico:'Fortalecimento da imagem institucional',entradas:'Pauta e informações da área',entregas:'Texto publicado',clientes:'Servidores e sociedade',docs:'Manual de Redação Secom',proc_id:null},
@@ -2055,7 +2055,7 @@ let ARQUITETURA = [
         {id:'s3',nome:'Publicar e distribuir conteúdo',natureza:'Suporte',gerente:'Amilcar da Rosa',area:'Assessoria de Comunicação',objetivo:'Distribuir conteúdo pelos canais da CAGE',objetivo_estrategico:'Fortalecimento da imagem institucional',entradas:'Material aprovado',entregas:'Conteúdo publicado nos canais',clientes:'Servidores e sociedade',docs:'',proc_id:null},
       ]},
   ]},
-  {id:'m2',nome:'Gestão de TIC',categoria:'Apoio',processos:[
+  {id:'m2',nome:'Gestão de TI',processos:[
     {id:'ap2',nome:'Gestão contratual de TI',natureza:'Gestão',gerente:'Carlos Mendes',area:'DTIC',objetivo:'',objetivo_estrategico:'Eficiência administrativa',entradas:'',entregas:'',clientes:'',docs:'',
       subprocessos:[
         {id:'s4',nome:'Abertura e instrução de contratos de TI',natureza:'Gestão',gerente:'Carlos Mendes',area:'DTIC',objetivo:'Formalizar contratos de TI desde a abertura',objetivo_estrategico:'Eficiência administrativa',entradas:'Necessidade de contratação',entregas:'Contrato firmado',clientes:'CAGE',docs:'Lei 14.133/2021',proc_id:null},
@@ -2063,7 +2063,7 @@ let ARQUITETURA = [
         {id:'s6',nome:'Renovação e encerramento de contratos',natureza:'Gestão',gerente:'Carlos Mendes',area:'DTIC',objetivo:'Processar renovações e encerramentos',objetivo_estrategico:'Eficiência administrativa',entradas:'Contrato próximo ao vencimento',entregas:'Contrato renovado ou encerrado',clientes:'CAGE',docs:'',proc_id:null},
       ]},
   ]},
-  {id:'m3',nome:'Controle interno',categoria:'Finalístico',processos:[
+  {id:'m3',nome:'Controle interno',processos:[
     {id:'ap3',nome:'Auditoria interna',natureza:'Controle',gerente:'Fernanda Lima',area:'Auditoria Interna',objetivo:'',objetivo_estrategico:'Integridade e conformidade',entradas:'',entregas:'',clientes:'',docs:'',
       subprocessos:[
         {id:'s7',nome:'Seleção de entidades a auditar',natureza:'Controle',gerente:'Fernanda Lima',area:'Auditoria Interna',objetivo:'Definir escopo e entidades do ciclo de auditoria',objetivo_estrategico:'Integridade e conformidade',entradas:'Plano de auditoria anual',entregas:'Lista de entidades selecionadas',clientes:'Contadora Geral',docs:'NBC TA 315',proc_id:null},
@@ -11421,19 +11421,15 @@ function macroArqHTML(m){
   const tenhoAqui = usuarioLogado && usuarioLogado.perfil!=='ep' && getMinhasUnidades().some(u=>
     m.processos.some(p=>p.id===u.arq_id || (p.subprocessos||[]).some(s=>s.id===u.arq_id))
   );
-  const catColors={'Gestão':'#6366f1','Finalístico':'#0891b2','Apoio':'#16a34a','Suporte':'#d97706'};
-  const catBadge=m.categoria?`<span style="font-size:9px;font-weight:700;background:${catColors[m.categoria]||'rgba(255,255,255,.15)'};color:#fff;border-radius:4px;padding:1px 7px;letter-spacing:.4px;flex-shrink:0">${esc(m.categoria)}</span>`:'';
   return `<div class="arq-macro" style="${tenhoAqui?'border:1px solid var(--teal-b)':''}">
     <div class="arq-macro-hd" onclick="toggleEl('arq-body-${m.id}','chv-${m.id}')" style="${tenhoAqui?'background:var(--teal)':''}">
       <span class="arq-chevron" id="chv-${m.id}">▶</span>
-      ${catBadge}
       <span class="arq-macro-nome">${m.nome}</span>
       ${tenhoAqui?'<span style="font-size:10px;background:rgba(255,255,255,.2);border-radius:4px;padding:1px 7px;font-weight:700">Meus processos</span>':''}
       <span style="font-size:11px;color:rgba(255,255,255,.4)">${tc} processo${tc===1?'':'s'} · ${ts} subprocesso${ts===1?'':'s'}</span>
       ${isEP()?`<span class="arq-macro-actions">
         <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff" onclick="event.stopPropagation();novoProcArq('${m.id}')">+ Processo</button>
         <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5)" onclick="event.stopPropagation();editMacro('${m.id}')">✎ Renomear</button>
-        <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5)" onclick="event.stopPropagation();editMacroCategoria('${m.id}')">⊞ Categoria</button>
         <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(176,28,28,.3);border-color:rgba(242,160,160,.3);color:#F2A0A0" onclick="event.stopPropagation();removerMacro('${m.id}')">× Apagar</button>
       </span>`:''}
     </div>
@@ -11912,29 +11908,9 @@ function toggleEl(id,chvId){
 function novoMacro(){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
   _pedirNome('Novo macroprocesso','',nome=>{
-    const cats = ['Gestão','Finalístico','Apoio','Suporte'];
-    const modal = document.createElement('div');
-    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
-    modal.innerHTML=`<div style="background:#fff;border-radius:12px;padding:28px 24px;min-width:300px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
-      <div style="font-weight:700;font-size:15px;margin-bottom:14px">Categoria do macroprocesso</div>
-      <select id="_mc-cat" class="fi" style="width:100%;margin-bottom:16px">
-        <option value="">Sem categoria</option>
-        ${cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}
-      </select>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button type="button" class="btn" id="_mc-cancel">Cancelar</button>
-        <button type="button" class="btn btn-p" id="_mc-ok">Criar</button>
-      </div>
-    </div>`;
-    document.body.appendChild(modal);
-    document.getElementById('_mc-cancel').onclick=()=>modal.remove();
-    document.getElementById('_mc-ok').onclick=()=>{
-      const cat=(document.getElementById('_mc-cat')?.value||'').trim();
-      modal.remove();
-      ARQUITETURA.push({id:'m'+arqIdC++,nome,categoria:cat,processos:[]});
-      rArq();
-      fbAutoSave('novoMacro');
-    };
+    ARQUITETURA.push({id:'m'+arqIdC++,nome,processos:[]});
+    rArq();
+    fbAutoSave('novoMacro');
   });
 }
 
@@ -11984,34 +11960,6 @@ function editMacro(mid){
     rArq();
     fbAutoSave('editMacro');
   });
-}
-function editMacroCategoria(mid){
-  if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
-  const m=ARQUITETURA.find(x=>x.id===mid);
-  if(!m) return;
-  const cats=['Gestão','Finalístico','Apoio','Suporte'];
-  const modal=document.createElement('div');
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
-  modal.innerHTML=`<div style="background:#fff;border-radius:12px;padding:28px 24px;min-width:300px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
-    <div style="font-weight:700;font-size:15px;margin-bottom:6px">Categoria: <em>${esc(m.nome)}</em></div>
-    <div style="font-size:12px;color:var(--ink3);margin-bottom:14px">Define o agrupamento estratégico deste macroprocesso. Usado no módulo de Projetos para alinhar projetos à cadeia de valor.</div>
-    <select id="_mcc-cat" class="fi" style="width:100%;margin-bottom:16px">
-      <option value="">Sem categoria</option>
-      ${cats.map(c=>`<option value="${esc(c)}"${m.categoria===c?' selected':''}>${esc(c)}</option>`).join('')}
-    </select>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button type="button" class="btn" id="_mcc-cancel">Cancelar</button>
-      <button type="button" class="btn btn-p" id="_mcc-ok">Salvar</button>
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-  document.getElementById('_mcc-cancel').onclick=()=>modal.remove();
-  document.getElementById('_mcc-ok').onclick=()=>{
-    m.categoria=(document.getElementById('_mcc-cat')?.value||'').trim();
-    modal.remove();
-    rArq();
-    fbAutoSave('editMacroCategoria');
-  };
 }
 function novoProcArq(mid){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
