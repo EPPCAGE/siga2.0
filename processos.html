@@ -2768,6 +2768,7 @@ async function doLogout(){
   lsRemove('siga_sid');
   if(globalThis._fbExternalWatcher){ globalThis._fbExternalWatcher(); globalThis._fbExternalWatcher=null; }
   globalThis._fbLoadedAt = 0;
+  globalThis._fbDataReady = false;
   if(fbReady()){
     const {auth, signOut} = fb();
     await signOut(auth).catch(()=>{});
@@ -15430,6 +15431,7 @@ async function fbLoad(){
     console.info('Firebase não configurado — usando dados locais.');
     return false;
   }
+  globalThis._fbDataReady = false;
   try {
     const {db, collection, getDocs, doc, getDoc, getDocFromServer} = fb();
 
@@ -15488,11 +15490,13 @@ async function fbLoad(){
     }
 
     console.info('Firebase: dados carregados');
+    globalThis._fbDataReady = true;
     globalThis._fbLoadedAt = Date.now();
     _fbWatchExternalChanges();
     return true;
   } catch(e){
     console.warn('fbLoad error:', e.message);
+    globalThis._fbDataReady = false;
     return false;
   }
 }
@@ -16147,6 +16151,7 @@ function _keepSessionAlive(){
 
 // ── CONCURRENT EDIT DETECTION ────────────────────────────────
 globalThis._fbLoadedAt = 0;
+globalThis._fbDataReady = false;
 globalThis._fbExternalWatcher = null;
 
 function _fbShowConcurrentBanner(byEmail){
@@ -16405,6 +16410,16 @@ async function _bootRestoreSession(){
   _bootRestoreLocalSession();
 }
 async function _bootRestoreFirebaseUser(auth, firebaseUser){
+  const btn = document.querySelector('.login-btn');
+  if(btn){ btn.textContent='Carregando dados…'; btn.disabled=true; }
+  if(!globalThis._fbDataReady){
+    const loaded = await fbLoad();
+    if(!loaded){
+      if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
+      mostrarErrLogin('Não foi possível carregar os dados da nuvem. Verifique a conexão e tente novamente.');
+      return;
+    }
+  }
   let user = _findUsuarioByEmail(firebaseUser.email);
   if(!user){
     await fbLoad();
@@ -16413,6 +16428,7 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
   if(user){
     _iniciarSessaoUnica(firebaseUser.uid);
     _aplicarUsuario(user);
+    if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
     return;
   }
   const {signOut} = fb();
