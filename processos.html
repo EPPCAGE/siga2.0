@@ -3146,10 +3146,11 @@ function renderProcs(){
       const _acompVenc=_dtProx&&_dtProx<new Date().toISOString().slice(0,10);
       const _concCor=_acompVenc?'var(--red)':'var(--ink3)';
       const _concWarn=_acompVenc?' ⚠':'';
+      const _entregaPrefix=p.ent&&p.ent.dt_efetiva?'Entrega efetiva em '+_fmtD(p.ent.dt_efetiva)+' · ':'';
       return `<div class="prc" onclick="abrirProc(${p.id})" style="border-left:3px solid var(--green,#16a34a)">
         <div><div class="prc-t">${esc(p.nome)}</div>
         <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div>
-        ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_concCor}">${p.ent&&p.ent.dt_efetiva?'Entrega efetiva em '+_fmtD(p.ent.dt_efetiva)+' · ':''}Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_concWarn}</div>`:''}
+        ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_concCor}">${_entregaPrefix}Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_concWarn}</div>`:''}
         </div>
         <div class="prc-r"><span class="badge bg" style="font-size:10px">✓ Mapeado</span>${_eBadgeAcomp(p)}</div>
       </div>`;
