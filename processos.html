@@ -58,6 +58,7 @@
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 :root{
   --ink:#1C1C2E;--ink2:#3A3A52;--ink3:#70709A;--ink4:#A0A0BC;
   --bg:#F3F2EE;--bg2:#ECEAE2;--bg3:#E4E2D8;--surf:#FFF;--surf2:#F8F7F3;
@@ -77,9 +78,10 @@
   --fm:'DM Mono',monospace;
 }
 body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;min-height:100vh}
+body.drawer-open{overflow:hidden;touch-action:none}
 .shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
 .aside{background:var(--ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:10}
-.main-area{overflow-y:auto;max-height:100vh}
+.main-area{overflow-y:auto;max-height:100vh;min-width:0}
 /* sidebar */
 .aside-top{padding:1.4rem 1.2rem 1rem;border-bottom:1px solid rgba(255,255,255,.07)}
 .brand{font-family:var(--fh);font-size:18px;font-weight:700;color:#fff;letter-spacing:-.4px}
@@ -205,6 +207,33 @@ select.fi{cursor:pointer}
 .prog-d.sk{background:var(--amber-l);border-color:var(--amber);color:var(--amber)}
 .prog-s.sk:not(:last-child)::after{background:var(--amber)}
 .prog-l{font-size:8px;color:var(--ink3);margin-top:4px;text-align:center;max-width:46px;line-height:1.3}.prog-l.da{color:var(--blue);font-weight:600}.prog-l.sk{color:var(--amber);font-weight:600}
+.prog-mobile{display:flex;flex-direction:column;gap:12px;margin-bottom:1.2rem}
+.prog-mobile-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.prog-mobile-card{background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:.9rem 1rem;box-shadow:var(--sh)}
+.prog-mobile-card.current{border-color:var(--blue-b);background:linear-gradient(180deg,var(--blue-l),#fff)}
+.prog-mobile-card.next{border-style:dashed}
+.prog-mobile-kicker{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:.35rem}
+.prog-mobile-title{font-size:14px;font-weight:700;line-height:1.35;color:var(--ink)}
+.prog-mobile-meta{font-size:11px;color:var(--ink3);margin-top:.35rem;line-height:1.5}
+.prog-mobile-list{display:flex;flex-direction:column;gap:10px}
+.prog-mobile-item{position:relative;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:flex-start;padding:.9rem 1rem;border-radius:14px;border:1px solid var(--bdr);background:var(--surf);box-shadow:var(--sh)}
+.prog-mobile-item::before{content:'';position:absolute;left:18px;top:100%;width:2px;height:10px;background:var(--bdr)}
+.prog-mobile-item:last-child::before{display:none}
+.prog-mobile-item.is-done::before{background:var(--teal-b)}
+.prog-mobile-item.is-current{border-color:var(--blue);background:linear-gradient(180deg,var(--blue-l),#fff);box-shadow:0 12px 24px rgba(26,93,200,.12)}
+.prog-mobile-item.is-skipped{border-color:var(--amber-b);background:linear-gradient(180deg,var(--amber-l),#fff)}
+.prog-mobile-step{width:34px;height:34px;border-radius:999px;border:2px solid var(--bdr2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--ink3);background:var(--surf);flex-shrink:0}
+.prog-mobile-item.is-done .prog-mobile-step{background:var(--teal);border-color:var(--teal);color:#fff}
+.prog-mobile-item.is-current .prog-mobile-step{background:var(--blue);border-color:var(--blue);color:#fff}
+.prog-mobile-item.is-skipped .prog-mobile-step{background:var(--amber-l);border-color:var(--amber);color:var(--amber)}
+.prog-mobile-body{min-width:0}
+.prog-mobile-name{font-size:14px;font-weight:700;color:var(--ink);line-height:1.35}
+.prog-mobile-desc{font-size:11px;color:var(--ink3);margin-top:.28rem;line-height:1.5}
+.prog-mobile-chip{display:inline-flex;align-items:center;justify-content:center;padding:4px 9px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
+.prog-mobile-chip.done{background:var(--green-l);color:var(--green)}
+.prog-mobile-chip.current{background:var(--blue-l);color:var(--blue)}
+.prog-mobile-chip.skipped{background:var(--amber-l);color:var(--amber)}
+.prog-mobile-chip.pending{background:var(--bg2);color:var(--ink3)}
 /* timeline */
 .tl{display:flex;flex-direction:column;gap:0}
 .tl-i{display:flex;gap:10px;padding-bottom:12px;position:relative}
@@ -218,6 +247,10 @@ select.fi{cursor:pointer}
 .chips{display:flex;gap:5px;flex-wrap:wrap;flex:1}
 .chip{padding:3px 9px;border-radius:99px;border:1px solid var(--bdr2);font-size:11px;font-weight:500;color:var(--ink3);cursor:pointer;background:var(--surf);transition:all .11s;white-space:nowrap;font-family:inherit;display:inline-flex;align-items:center}
 .chip:hover{border-color:var(--blue-b);color:var(--blue)}.chip.on{background:var(--blue-l);border-color:var(--blue-b);color:var(--blue)}
+.pub-card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--bdr);gap:8px}
+.pub-card-meta{font-size:10.5px;color:var(--ink3);min-width:0;overflow-wrap:anywhere}
+.pub-card-actions{display:flex;gap:5px;flex-shrink:0}
+.pub-action-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
 .srch{padding:5px 9px;border-radius:6px;border:1px solid var(--bdr2);font-size:12px;color:var(--ink);background:var(--surf);font-family:var(--f);min-width:150px}
 .srch:focus{outline:none;border-color:var(--blue)}
 /* proc cards */
@@ -313,9 +346,17 @@ select.fi{cursor:pointer}
 /* arq */
 .arq-macro{border:1px solid var(--bdr);border-radius:var(--rl);margin-bottom:.8rem;overflow:hidden;box-shadow:var(--sh)}
 .arq-macro-hd{display:flex;align-items:center;gap:10px;padding:.8rem 1rem;background:var(--ink);color:#fff;cursor:pointer;user-select:none}
-.arq-macro-nome{font-family:var(--fh);font-size:14px;font-weight:600;flex:1}
+.arq-macro-nome{font-family:var(--fh);font-size:14px;font-weight:600;flex:1;min-width:0}
+.arq-macro-actions{display:flex;gap:6px;flex-shrink:0}
 .arq-macro-body{padding:.6rem .8rem;background:var(--surf)}
 .arq-proc-hd{display:flex;align-items:center;gap:8px;padding:.6rem .8rem;background:var(--surf2);cursor:pointer;border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:.4rem}
+.arq-proc-name,.arq-subitem-name{font-weight:600;color:var(--ink);flex:1;min-width:0}
+.arq-proc-name{font-size:13px}
+.arq-subitem-name{font-size:12.5px}
+.arq-proc-meta,.arq-subitem-meta{font-size:11px;color:var(--ink3);min-width:0}
+.arq-proc-badges,.arq-proc-actions,.arq-subitem-badges,.arq-subitem-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.arq-proc-actions,.arq-subitem-actions{flex-shrink:0}
+.arq-subitem-row{display:flex;align-items:center;gap:8px;padding:.5rem .9rem;cursor:pointer}
 .arq-chevron{transition:transform .2s;color:rgba(255,255,255,.4);font-size:10px}
 .arq-chevron.open{transform:rotate(90deg)}
 .arq-add-btn{font-size:11px;padding:3px 9px;border-radius:5px;border:1px dashed var(--bdr2);background:none;color:var(--ink3);cursor:pointer;font-family:var(--f);margin-top:4px}
@@ -346,59 +387,452 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 .mob-top-bar{display:none}
 .mob-drawer-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;padding:0;border:none;cursor:pointer;width:100%}
 .mob-drawer-backdrop.on{display:block}
+@media(max-width:980px){
+  .shell{grid-template-columns:208px 1fr}
+  .aside-top{padding:1.2rem 1rem .95rem}
+  .brand{font-size:16px}
+  .brand-sub{font-size:9px}
+  .nav-btn{padding:.68rem .95rem;font-size:12.75px}
+  .nav-btn svg{width:17px;height:17px}
+  .aside-foot{padding:.9rem 1rem}
+  .user-av{width:32px;height:32px;font-size:12px}
+  .user-name{font-size:11.5px}
+}
 @media(max-width:720px){
+  html,body{max-width:100%;overflow-x:hidden}
+  body{background:var(--surf2)}
   .module-grid{grid-template-columns:1fr}
   .shell{grid-template-columns:1fr}
-  .main-area{max-height:calc(100vh - 48px);overflow-y:auto}
-  .aside{position:fixed;top:0;left:0;height:100vh;width:272px;z-index:200;transform:translateX(-100%);transition:transform .24s cubic-bezier(.4,0,.2,1)}
+  .main-area{max-height:none;min-height:calc(100dvh - 72px);overflow-y:auto;overflow-x:hidden;padding-bottom:max(1rem,env(safe-area-inset-bottom))}
+  .aside{position:fixed;top:0;left:0;height:100dvh;width:min(86vw,320px);z-index:200;transform:translateX(-100%);transition:transform .24s cubic-bezier(.4,0,.2,1);box-shadow:0 18px 40px rgba(0,0,0,.28)}
   .aside.mob-open{transform:translateX(0)}
-  .mob-top-bar{display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem;background:var(--ink);position:sticky;top:0;z-index:50;gap:8px;min-height:48px}
-  .mob-ham{background:none;border:none;color:#fff;cursor:pointer;padding:6px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;-webkit-tap-highlight-color:transparent}
-  .mob-ham span{display:block;width:22px;height:2px;background:rgba(255,255,255,.85);border-radius:2px;transition:all .2s}
-  .mob-page-title{font-size:13px;font-weight:600;color:rgba(255,255,255,.75);flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .aside-top{padding:1.25rem 1rem 1rem}
+  .brand{font-size:20px}
+  .brand-sub,.nav-sec,.user-role,.logout-btn,.user-name{display:block}
+  .nav-btn{justify-content:flex-start;padding:.85rem 1rem;border-radius:12px;margin:0 .65rem .2rem;position:relative;font-size:14px}
+  .nav-btn span:not(.nav-cnt){display:inline}
+  .nav-btn svg{width:18px;height:18px}
+  .nav-cnt{position:static;margin-left:auto;min-width:22px}
+  .aside-foot{padding:1rem}
+  .user-chip{justify-content:flex-start;padding:.4rem}
+  .user-av{width:40px;height:40px;font-size:13px}
+  .user-name{font-size:13px}
+  .user-role{font-size:11px}
+  .logout-btn{font-size:11px;margin-top:8px}
+  .mob-top-bar{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1rem;background:linear-gradient(135deg,#1c1c2e,#2a2a41);position:sticky;top:0;z-index:50;gap:10px;min-height:64px;box-shadow:0 8px 24px rgba(28,28,46,.18)}
+  .mob-ham{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:14px;color:#fff;cursor:pointer;padding:12px 11px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;-webkit-tap-highlight-color:transparent;min-width:48px;min-height:48px;justify-content:center;align-items:center}
+  .mob-ham span{display:block;width:22px;height:2px;background:rgba(255,255,255,.92);border-radius:2px;transition:all .2s}
+  .mob-page-title{font-size:14px;font-weight:700;color:#fff;flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em}
+  .mob-top-bar .user-av{width:42px;height:42px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1)}
   .page{padding:0!important}
-  .page>div{padding:.85rem!important}
+  .page>div{padding:1rem!important}
   .stats{grid-template-columns:1fr 1fr}
   .g2,.g3,.g4{grid-template-columns:1fr}
-  .ph{flex-direction:column;align-items:flex-start;gap:.5rem}
-  .card{padding:.85rem .9rem}
-  .fi,select.fi{font-size:16px!important;min-height:44px}
-  textarea.fi{font-size:16px!important;min-height:80px}
-  .btn{min-height:38px;-webkit-tap-highlight-color:transparent}
-  .btn-row{justify-content:stretch;gap:6px}
-  .btn-row>.btn{flex:1;text-align:center;justify-content:center}
-  #det-tabs{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:2px}
-  #det-tabs .tab{white-space:nowrap;flex-shrink:0}
-  .det-hdr{flex-wrap:wrap;gap:6px;margin-bottom:.7rem}
+  .page .tab-p [style*="grid-template-columns"],
+  .page .card [style*="grid-template-columns"],
+  #dash-analytics [style*="grid-template-columns"],
+  #ind-c [style*="grid-template-columns"],
+  #plano-dash [style*="grid-template-columns"],
+  #plano-stats [style*="grid-template-columns"],
+  #aud-list [style*="grid-template-columns"],
+  #pub-list [style*="grid-template-columns"],
+  #trilhas-lista [style*="grid-template-columns"]{
+    grid-template-columns:1fr!important
+  }
+  .ph{flex-direction:column;align-items:flex-start;gap:.7rem}
+  .ph>div,.det-hdr,.fbar,.card,.prc,.faq-proc-btn,.arq-proc-hd,.etapa-proc-hd,.bpmn-bar,.module-card,.aud-rep-header,.ri-item{min-width:0}
+  .ph>button,.ph>.btn,.ph>div[style*="display:flex"]{width:100%;max-width:none!important}
+  .ph>div[style*="display:flex"]{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:8px!important}
+  .ph>div[style*="display:flex"] .btn,.ph>div[style*="display:flex"] label.btn,.ph>div[style*="display:flex"] .fi{width:100%;max-width:none!important;justify-content:center}
+  #btn-arq-actions{width:100%;max-width:100%;overflow:hidden}
+  #btn-arq-actions>div{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:10px!important;
+    width:100%!important;
+    max-width:100%!important
+  }
+  #btn-arq-actions .btn{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    min-height:64px;
+    white-space:normal;
+    line-height:1.25;
+    text-align:center;
+    justify-content:center;
+    padding:10px 8px
+  }
+  .ph-t{font-size:23px;line-height:1.15}
+  .ph-s{font-size:13px;line-height:1.55}
+  .card{padding:1rem;border-radius:16px;box-shadow:0 10px 24px rgba(28,28,46,.08)}
+  .card-t{font-size:15px;margin-bottom:1rem}
+  .stat{padding:1rem;border-radius:16px}
+  .stat-n{font-size:30px}
+  .stat-l{font-size:12px}
+  .fg{margin-bottom:1rem}
+  .fl{font-size:11px;margin-bottom:6px}
+  .fi,.srch,.hub-srch,select.fi{font-size:16px!important;min-height:48px;padding:12px 14px;border-radius:12px}
+  textarea.fi{font-size:16px!important;min-height:120px;padding:12px 14px}
+  .btn,.ai-btn,.chip,.hub-chip,.lk-btn,.faq-proc-btn,.arq-add-btn,.tab{min-height:46px;-webkit-tap-highlight-color:transparent}
+  .btn,.ai-btn{padding:11px 16px;border-radius:12px;font-size:14px;font-weight:600}
+  .chip,.hub-chip,.lk-btn{padding:10px 14px;font-size:12px;border-radius:999px}
+  .btn-row{justify-content:stretch;gap:8px;border-top:none;padding-top:.2rem}
+  .btn-row>.btn,.btn-row>.ai-btn{flex:1 1 100%;text-align:center;justify-content:center}
+  .tabs,#det-tabs{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;gap:8px;padding:4px 0 10px;border-bottom:none;margin-bottom:1rem;scrollbar-width:none}
+  .tabs::-webkit-scrollbar,#det-tabs::-webkit-scrollbar,.chips::-webkit-scrollbar,.pop-tbl-wrap::-webkit-scrollbar{display:none}
+  .tab{white-space:nowrap;flex-shrink:0;margin-bottom:0;border:1px solid var(--bdr);background:var(--surf);color:var(--ink2);padding:.7rem 1rem;border-radius:999px}
+  .tab.on{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
+  .det-hdr{flex-wrap:wrap;gap:10px;margin-bottom:1rem}
   .det-title{font-size:15px;min-width:0}
-  .prog-s{min-width:34px}
-  .prog-l{font-size:8.5px;text-align:center}
-  .bpmn-canvas{height:280px}
+  .fbar{padding:1rem;border-radius:16px;gap:12px;align-items:stretch}
+  .fbar-l{font-size:11px;width:100%}
+  .fbar>.fi,.fbar>.srch,.fbar>select,.fbar>button,.fbar>.btn,.fbar>label.btn{width:100%;max-width:none!important}
+  .fbar>div:not(.chips){width:100%!important;max-width:none!important}
+  .chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+  .proc-list{gap:12px}
+  .prog-tr{display:block;margin-bottom:1rem;overflow:visible;padding-bottom:0}
+  .prog-mobile{display:flex}
+  .prog-mobile-summary{grid-template-columns:1fr}
+  .prc{grid-template-columns:1fr;gap:12px;padding:1rem}
+  .prc-t{font-size:14px;line-height:1.4}
+  .prc-m{font-size:12px;gap:6px}
+  .prc-r{flex-direction:row;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:8px}
+  .badge{font-size:11px;padding:5px 10px;border-radius:999px}
+  .bpmn-wrap,.arq-macro,.pip-phase,.aud-report,.faq-proc-body{border-radius:16px}
+  .bpmn-canvas{height:320px}
   .det-valid-layout{flex-direction:column}
   .det-valid-bpmn{width:100%;position:static}
-  .bpmn-bar{gap:3px;padding:.4rem .6rem}
-  .bpmn-bar .btn{font-size:10px;padding:3px 7px;min-height:28px}
-  .prc{grid-template-columns:1fr}
-  .prc-r{flex-direction:row;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:5px}
-  .ri-item{grid-template-columns:1fr auto auto auto;font-size:11px}
+  .bpmn-bar{gap:8px;padding:.7rem .8rem}
+  .bpmn-bar .btn{font-size:12px;padding:9px 12px;min-height:42px}
+  .ri-item{grid-template-columns:1fr auto auto auto;font-size:12px;padding:.8rem .85rem;gap:10px}
   .arq-filtros-avancados{display:none!important}
   .ind-filtros-avancados{display:none!important}
   .plano-filtros-avancados{display:none!important}
-  /* maturidade 5 colunas → 2 colunas */
   .mat-wrap{grid-template-columns:1fr 1fr}
-  /* audit report stats 4 cols → 2x2 */
+  .mat-item{padding:1rem .7rem;border-radius:14px}
+  .mat-num{font-size:22px}
+  .mat-lbl{font-size:11px}
   .aud-rep-stats{grid-template-columns:1fr 1fr}
-  /* audit report header: badge não fica espremido */
   .aud-rep-header{flex-direction:column;gap:.7rem}
-  .aud-rep-section{padding:.7rem .9rem}
-  /* tabelas com scroll horizontal */
-  .pop-tbl{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
-  /* stats span-2 card em 2 colunas ocupa a linha toda */
+  .aud-rep-section{padding:1rem}
+  .aud-stat{padding:1rem .75rem}
+  .aud-stat-n{font-size:24px}
+  .faq-proc-btn{padding:1rem 1rem;border-radius:14px;align-items:flex-start}
+  .faq-proc-title{font-size:13px;line-height:1.4}
+  .faq-proc-body{padding:.6rem 1rem 1rem}
+  .arq-macro-hd,.arq-proc-hd{padding:1rem}
+  .arq-macro-hd{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr);
+    align-items:center;
+    gap:8px 10px
+  }
+  .arq-macro-nome{overflow-wrap:anywhere;line-height:1.35}
+  .arq-macro-hd>span:not(.arq-chevron):not(.arq-macro-nome):not(.badge):not(.arq-macro-actions){grid-column:2;min-width:0;white-space:normal}
+  .arq-macro-actions{
+    grid-column:1/-1;
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:8px;
+    width:100%;
+    min-width:0
+  }
+  .arq-macro-actions .btn{
+    width:100%!important;
+    min-width:0!important;
+    min-height:44px;
+    white-space:normal;
+    overflow-wrap:anywhere;
+    line-height:1.2;
+    text-align:center;
+    justify-content:center;
+    padding:8px 6px!important
+  }
+  .arq-proc-hd,.arq-subitem-row{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr);
+    align-items:start;
+    gap:8px 10px
+  }
+  .arq-proc-name,.arq-subitem-name{overflow-wrap:anywhere;line-height:1.35}
+  .arq-proc-meta,.arq-subitem-meta{
+    grid-column:2;
+    white-space:normal;
+    overflow-wrap:anywhere;
+    line-height:1.45
+  }
+  .arq-proc-badges,.arq-subitem-badges{
+    grid-column:1/-1;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    width:100%
+  }
+  .arq-proc-actions,.arq-subitem-actions{
+    grid-column:1/-1;
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:8px;
+    width:100%
+  }
+  .arq-proc-badges .badge,
+  .arq-proc-badges .btn,
+  .arq-proc-actions .btn,
+  .arq-subitem-badges .badge,
+  .arq-subitem-badges .btn,
+  .arq-subitem-actions .btn{
+    width:100%!important;
+    min-width:0!important;
+    min-height:40px;
+    white-space:normal;
+    overflow-wrap:anywhere;
+    line-height:1.2;
+    text-align:center;
+    justify-content:center;
+    padding:7px 6px!important
+  }
+  .arq-subitem-row + div[id^="arq-ssub-"]{
+    padding:.85rem!important
+  }
+  .arq-macro-body{padding:.85rem}
+  .etapa-proc{padding:1rem}
+  .etapa-proc-hd{align-items:flex-start}
+  .etapa-nome{font-size:14px;line-height:1.4}
+  .likert{gap:8px}
+  .pipeline-phases{grid-template-columns:1fr;gap:12px}
+  .pip-phase-hd{padding:.8rem 1rem;font-size:10px}
+  .pip-steps{padding:.7rem .8rem}
+  .pip-step{padding:9px 10px;font-size:12px;border-radius:8px}
+  .pop-tbl{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;font-size:13px;min-width:0}
+  .pop-tbl thead,.pop-tbl tbody{display:table;min-width:720px;width:100%}
+  .pop-tbl th,.pop-tbl td{padding:10px 12px;white-space:nowrap}
+  .hub-tbl{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;font-size:13px;min-width:0}
+  .hub-tbl thead,.hub-tbl tbody{display:table;min-width:640px;width:100%}
+  .hub-tbl th,.hub-tbl td{padding:10px 12px;white-space:nowrap}
+  #fale-conosco-panel{max-width:none!important;margin-top:1rem!important}
+  #fale-conosco-panel [style*="grid-template-columns"]{display:grid!important;grid-template-columns:1fr!important}
+  #fale-conosco-panel [style*="justify-content:flex-end"]{justify-content:stretch!important;flex-direction:column!important}
+  #fale-conosco-panel .btn{width:100%;min-height:44px}
+  #ind-actions-ep,#ind-gsheets-sec{flex-direction:column!important;align-items:stretch!important;width:100%!important;max-width:none!important}
+  #ind-actions-ep .btn,#ind-actions-ep label.btn,#ind-gsheets-sec .btn,#ind-gsheets-sec .fi{width:100%;max-width:none!important;justify-content:center}
+  #kpi-nav-periodos{flex-wrap:wrap!important}
+  #kpi-nav-periodos .fi{flex:1 1 100%!important;order:3}
+  #kpi-nav-periodos .btn{flex:1}
+  #kpi-nav-info{width:100%;text-align:center;white-space:normal!important}
+  #page-plano .ph>div:last-child,#page-plano>div>div[style*="flex-wrap:wrap"]{display:flex!important;flex-direction:column!important;align-items:stretch!important;width:100%!important;gap:8px!important}
+  #page-plano .fi,#page-plano .btn{width:100%!important;max-width:none!important}
+  #page-auditoria>div>div[style*="display:flex;gap:8px;margin-bottom:1rem"]{
+    display:flex!important;
+    overflow-x:auto;
+    flex-wrap:nowrap!important;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:3px
+  }
+  #page-publicacoes .fbar{overflow:hidden}
+  #pub-chips{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    overflow:visible;
+    padding-bottom:0
+  }
+  #pub-chips .chip{
+    width:100%;
+    min-width:0;
+    justify-content:center;
+    text-align:center;
+    white-space:normal;
+    line-height:1.25
+  }
+  .pub-card-footer{
+    flex-direction:column;
+    align-items:stretch;
+    gap:10px
+  }
+  .pub-card-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+    gap:8px
+  }
+  .pub-card-actions .btn,.pub-action-btn{
+    width:100%;
+    min-width:0;
+    min-height:50px;
+    justify-content:center;
+    text-align:center;
+    white-space:normal;
+    border-radius:14px;
+    font-size:13px!important;
+    font-weight:700;
+    padding:12px 10px!important
+  }
+  .pub-action-open{grid-column:1/-1;background:var(--blue-l)!important;border-color:var(--blue-b)!important;color:var(--blue)!important}
+  .pub-action-edit{background:var(--bg2)!important;border-color:var(--bdr2)!important;color:var(--ink2)!important}
+  .pub-action-delete{background:var(--red-l,#fee2e2)!important;border-color:var(--red-b,#fca5a5)!important;color:var(--red,#dc2626)!important}
+  #modal-nova-auditoria .btn{width:100%;justify-content:center}
+  #pub-modal [style*="display:flex;gap:8px;align-items:center"],
+  #trilha-modal [style*="justify-content:space-between"],
+  #ejs-config [style*="display:flex;gap:8px"]{
+    flex-direction:column!important;
+    align-items:stretch!important
+  }
+  #pub-modal [style*="display:flex;gap:8px;align-items:center"] .fi,
+  #pub-modal [style*="display:flex;gap:8px;align-items:center"] .btn,
+  #trilha-modal [style*="justify-content:space-between"] .btn,
+  #ejs-config [style*="display:flex;gap:8px"] .btn{
+    width:100%!important;
+    max-width:none!important;
+    justify-content:center
+  }
+  #pub-thumb-preview img{width:100%;height:auto!important;max-height:160px}
+  #trilha-procs-chk{max-height:220px!important;padding:12px!important}
+  #trilha-procs-chk label{min-height:40px;align-items:center}
+  #trilhas-lista .card>div[style*="justify-content:space-between"],
+  #trilha-niveis-editor div[style*="display:flex;align-items:center"],
+  #trilha-niveis-editor div[style*="display:flex;align-items:center;gap:4px"],
+  #trilha-niveis-editor div[style*="display:flex;align-items:center;gap:6px"]{
+    flex-direction:column!important;
+    align-items:stretch!important
+  }
+  #trilhas-lista .card>div[style*="justify-content:space-between"]>div:last-child{
+    width:100%;
+    display:flex!important;
+    gap:8px!important
+  }
+  #trilhas-lista .card .btn,
+  #trilha-niveis-editor .btn,
+  #trilha-niveis-editor .fi{
+    width:100%!important;
+    max-width:none!important;
+    min-height:42px;
+    justify-content:center
+  }
+  #trilha-niveis-editor div[style*="margin-left:26px"]{margin-left:0!important}
+  #trilha-niveis-editor details summary{min-height:46px;align-items:center}
+  #plano-metas>div[style*="display:flex"],
+  #plano-c div[style*="justify-content:space-between"],
+  #plano-c div[style*="align-items:center;gap:12px"],
+  #plano-c div[style*="align-items:center;gap:6px"]{
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:8px!important
+  }
+  #plano-metas div[style*="flex:1;min-width:180px"]{
+    width:100%!important;
+    max-width:none!important;
+    flex-basis:auto!important
+  }
+  #plano-metas div[style*="flex:0 0 auto"]{width:100%;padding:.2rem 0!important}
+  #plano-metas div[style*="flex:0 0 auto"] .btn{width:100%;min-height:44px}
+  #plano-c div[style*="width:80px"]{width:100%!important}
+  #usr-list-modal .hub-fbar{flex-direction:column;align-items:stretch}
+  #hub-usr-chips{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  #usr-list-modal .hub-srch{width:100%;max-width:none!important}
+  #usr-list-modal>div>div:first-child{flex-direction:column!important;align-items:stretch!important}
+  #usr-list-modal>div>div:first-child>div:last-child{display:flex!important;flex-direction:column!important;align-items:stretch!important}
+  #usr-list-modal>div>div:first-child .btn{width:100%;justify-content:center}
+  #usr-proc-section div[style*="display:flex;gap:8px"],
+  #usr-proj-section div[style*="display:flex;gap:8px"]{
+    flex-direction:column!important;
+    align-items:stretch!important
+  }
+  #usr-proc-section .fi,#usr-proj-section .fi,#usr-proc-section .btn,#usr-proj-section .btn{
+    width:100%!important;
+    max-width:none!important
+  }
+  #aviso-modal label[style*="display:flex"],
+  #usr-modal label[style*="display:flex"]{
+    align-items:flex-start!important;
+    line-height:1.45
+  }
+  #page-admin>div,#page-avisos>div{padding:1rem!important}
+  .upl{padding:1.25rem 1rem;border-radius:16px}
+  .toast{left:12px;right:12px;bottom:12px;font-size:14px;padding:12px 14px;border-radius:14px}
+  #inactivity-warning{left:12px;right:12px;bottom:12px;max-width:none}
+  #concurrent-banner{padding:12px 1rem;font-size:13px}
+  #modal-confirm,
+  #trocar-senha-modal,
+  #alterar-senha-modal,
+  #usr-modal,
+  #aviso-modal,
+  #usr-list-modal,
+  #novo-kpi-modal,
+  #plano-modal,
+  #modal-nova-auditoria,
+  #pub-modal,
+  #trilha-modal,
+  #modal-metadados,
+  #modal-reatribuir,
+  #modal-prio,
+  #modal-suspender,
+  #modal-cancelar,
+  #modal-reabrir,
+  #modal-notif-info,
+  #modal-atribuir-etapa,
+  #ilp-audit-modal,
+  #bpmn-etapa-modal-ov,
+  #meta-modal{
+    align-items:flex-end!important;
+    justify-content:stretch!important;
+    padding:0!important;
+    overflow-y:auto!important
+  }
+  #modal-confirm>div,
+  #trocar-senha-modal>div,
+  #alterar-senha-modal>div,
+  #usr-modal>div,
+  #aviso-modal>div,
+  #usr-list-modal>div,
+  #novo-kpi-modal>div,
+  #plano-modal>div,
+  #modal-nova-auditoria>div,
+  #pub-modal>div,
+  #trilha-modal>div,
+  #modal-metadados>div,
+  #modal-reatribuir>div,
+  #modal-prio>div,
+  #modal-suspender>div,
+  #modal-cancelar>div,
+  #modal-reabrir>div,
+  #modal-notif-info>div,
+  #modal-atribuir-etapa>div,
+  #ilp-audit-modal>div,
+  #bpmn-etapa-modal-ov>div,
+  #meta-modal>div{
+    width:100%!important;
+    max-width:none!important;
+    max-height:min(92dvh,92vh)!important;
+    margin-top:auto!important;
+    border-radius:18px 18px 0 0!important;
+    padding:1rem!important
+  }
   .stats [style*="grid-column:span 2"]{grid-column:span 2}
-  /* arq-stats: não colapsar em 1 coluna — manter 2 */
   #arq-stats{grid-template-columns:1fr 1fr}
-  /* pipeline: mais legível em 1 coluna */
-  .pipeline-phases{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .mob-top-bar{padding:.8rem .85rem;min-height:60px}
+  .mob-page-title{font-size:13px}
+  .page>div{padding:.85rem!important}
+  .stats{grid-template-columns:1fr}
+  .stats [style*="grid-column:span 2"]{grid-column:auto}
+  #arq-stats,.mat-wrap,.aud-rep-stats{grid-template-columns:1fr}
+  .g2 .btn,.g3 .btn,.g4 .btn,.btn-row>.btn,.btn-row>.ai-btn{flex-basis:100%}
+  .ri-item{grid-template-columns:1fr auto;align-items:start}
+  .ri-item>*:nth-child(n+3){justify-self:end}
+  .det-hdr .btn,.det-hdr .ai-btn{width:100%}
+  #btn-arq-actions>div{grid-template-columns:1fr!important}
+  #btn-arq-actions .btn{min-height:54px}
+  #pub-chips{grid-template-columns:1fr!important}
+  .pub-card-actions{grid-template-columns:1fr!important}
+  .arq-macro-actions{grid-template-columns:1fr!important}
+  .arq-proc-badges,.arq-proc-actions,.arq-subitem-badges,.arq-subitem-actions{grid-template-columns:1fr!important}
+  .prog-mobile-item{grid-template-columns:auto 1fr;gap:12px}
+  .prog-mobile-chip{grid-column:2;justify-self:start}
 }
 @keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .page.on .prc{animation:fu .16s ease both}
@@ -2334,23 +2768,29 @@ function go(page,btn){
   const ttl={fila:'Minhas tarefas',dashboard:'Painel geral',processos:'Processos',arq:'Arquitetura',faq:'Base de FAQs',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',avisos:'Avisos',detalhe:'Processo',trilhas:'Trilhas de capacitação'};
   const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||'SIGA 2.0';
 }
+function setMobileDrawerState(isOpen){
+  const aside=document.querySelector('.aside');
+  const backdrop=document.getElementById('mob-backdrop');
+  const closeBtn=document.getElementById('mob-aside-close');
+  if(!aside)return;
+  aside.classList.toggle('mob-open',isOpen);
+  if(backdrop)backdrop.classList.toggle('on',isOpen);
+  if(closeBtn)closeBtn.style.display=isOpen?'block':'none';
+  document.body.classList.toggle('drawer-open',!!isOpen && globalThis.innerWidth<=720);
+}
 function mobToggleDrawer(){
   const aside=document.querySelector('.aside');
-  const backdrop=document.getElementById('mob-backdrop');
-  const closeBtn=document.getElementById('mob-aside-close');
+  if(!aside)return;
   const isOpen=aside.classList.contains('mob-open');
-  aside.classList.toggle('mob-open',!isOpen);
-  if(backdrop)backdrop.classList.toggle('on',!isOpen);
-  if(closeBtn)closeBtn.style.display=isOpen?'none':'block';
+  setMobileDrawerState(!isOpen);
 }
 function mobClose(){
-  const aside=document.querySelector('.aside');
-  const backdrop=document.getElementById('mob-backdrop');
-  const closeBtn=document.getElementById('mob-aside-close');
-  aside.classList.remove('mob-open');
-  if(backdrop)backdrop.classList.remove('on');
-  if(closeBtn)closeBtn.style.display='none';
+  setMobileDrawerState(false);
 }
+globalThis.addEventListener('resize',()=>{
+  if(globalThis.innerWidth>720)mobClose();
+  if(curProc && document.getElementById('page-detalhe')?.classList.contains('on'))rDetalhe();
+});
 function stab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.tab-p').forEach(p=>p.classList.remove('on'));
@@ -2803,7 +3243,7 @@ function getPerfisUsuario(u){
 function hasPerfil(p, u){ return getPerfisUsuario(u || usuarioLogado).includes(p); }
 function hasProcessosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('dono')||ps.includes('gestor'); }
 function hasProjetosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('gestor')||ps.includes('gerente_projeto'); }
-function isEP(){ return hasPerfil('ep'); }
+function isEP(u){ return (u || usuarioLogado)?.perfil === 'ep'; }
 function isDono(){ return hasPerfil('dono'); }
 
 
@@ -3090,6 +3530,70 @@ async function removerEvidencia(etapa, idx){
 function isProcessoEmAndamento(p){
   return ['Entendimento','Modelagem','Formalizacao'].includes(etFase(p.etapa));
 }
+function _workflowRoleLabel(resp){
+  if(resp==='ep')return 'Responsável: Escritório de Processos';
+  if(resp==='dono')return 'Responsável: Dono do processo';
+  if(resp==='gestor')return 'Responsável: Gestor / Adjunto';
+  return 'Responsável definido no fluxo';
+}
+function _workflowStatusMeta(e, i, idx, puladas){
+  const skipped=puladas.includes(e.id);
+  const past=i<idx;
+  const current=i===idx;
+  const statusKey=skipped?'skipped':past?'done':current?'current':'pending';
+  const statusLabel=skipped?'Pendente pulada':past?'Concluída':current?'Etapa atual':'Pendente';
+  const statusChipClass=skipped?'skipped':past?'done':current?'current':'pending';
+  const stageCls=skipped?'sk':past?'dn':current?'da':'';
+  const icon=skipped?'!':past?'✓':i+1;
+  return { skipped, past, current, statusKey, statusLabel, statusChipClass, stageCls, icon };
+}
+function renderDetalheWorkflow(p, etapas, idx, epUser){
+  const puladas=p.etapas_puladas||[];
+  const actualIdx=Math.max(idx,0);
+  const atual=etapas[actualIdx];
+  const proxima=etapas[actualIdx+1];
+  const isMobile=globalThis.innerWidth<=720;
+  const itemsHtml=etapas.map((e,i)=>{
+    const meta=_workflowStatusMeta(e,i,actualIdx,puladas);
+    const clickable=epUser;
+    const tip=meta.skipped?`Etapa pendente (pulada): ${e.lb}`:meta.current?`Editar etapa atual: ${e.lb}`:`Editar: ${e.lb}`;
+    const clickAttrs=clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="${tip}"`:'';
+    if(!isMobile){
+      const labelCls=meta.stageCls==='da'?'da':meta.stageCls==='sk'?'sk':'';
+      return `<div class="prog-s ${meta.stageCls}" ${clickAttrs}>
+        <div class="prog-d ${meta.stageCls}">${meta.icon}</div>
+        <div class="prog-l ${labelCls}">${e.lb}</div>
+      </div>`;
+    }
+    return `<div class="prog-mobile-item is-${meta.statusKey}" ${clickAttrs}>
+      <div class="prog-mobile-step">${meta.icon}</div>
+      <div class="prog-mobile-body">
+        <div class="prog-mobile-name">${e.lb}</div>
+        <div class="prog-mobile-desc">${_workflowRoleLabel(e.resp)}</div>
+      </div>
+      <span class="prog-mobile-chip ${meta.statusChipClass}">${meta.statusLabel}</span>
+    </div>`;
+  }).join('');
+  if(!isMobile){
+    const nextLabel=proxima?`→ Próxima etapa esperada: ${proxima.lb}`:'✓ Última etapa do pipeline';
+    return itemsHtml+`<div style="font-size:11px;color:var(--ink3);text-align:right;margin-top:3px;padding-right:4px">${nextLabel}</div>`;
+  }
+  return `<div class="prog-mobile">
+    <div class="prog-mobile-summary">
+      <div class="prog-mobile-card current">
+        <div class="prog-mobile-kicker">Agora</div>
+        <div class="prog-mobile-title">${esc(atual?.lb||'Fluxo não definido')}</div>
+        <div class="prog-mobile-meta">${_workflowRoleLabel(atual?.resp)}${epUser?' · toque nas etapas para navegar':''}</div>
+      </div>
+      <div class="prog-mobile-card next">
+        <div class="prog-mobile-kicker">Próxima etapa</div>
+        <div class="prog-mobile-title">${esc(proxima?.lb||'Última etapa do pipeline')}</div>
+        <div class="prog-mobile-meta">${proxima?_workflowRoleLabel(proxima.resp):'Depois desta etapa, o fluxo é encerrado.'}</div>
+      </div>
+    </div>
+    <div class="prog-mobile-list">${itemsHtml}</div>
+  </div>`;
+}
 function filtFase(fase,el){filtFaseAtual=fase;document.querySelectorAll('#fase-chips .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');renderProcs();}
 function _procVisivelAoUsuario(p, isDono){
   if(!isDono) return true;
@@ -3212,39 +3716,7 @@ function rDetalhe(){
   const _etapasEfetivas=getEtapas(p);
   const idx=_etapasEfetivas.findIndex(e=>e.id===p.etapa);
   const epUser=isEP();
-  const _puladas=curProc.etapas_puladas||[];
-  document.getElementById('det-prog').innerHTML=_etapasEfetivas.map((e,i)=>{
-    const past=i<idx,cur=i===idx,skipped=_puladas.includes(e.id);
-    let stageCls;
-    if(skipped) stageCls='sk';
-    else if(past) stageCls='dn';
-    else if(cur) stageCls='da';
-    else stageCls='';
-    const clickable=epUser;
-    let tip;
-    if(skipped) tip=`Etapa pendente (pulada): ${e.lb}`;
-    else if(cur) tip=`Editar etapa atual: ${e.lb}`;
-    else tip=`Editar: ${e.lb}`;
-    const clickAttrs=clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="${tip}"`:'';
-    let progIcon;
-    if(skipped) progIcon='!';
-    else if(past) progIcon='✓';
-    else progIcon=i+1;
-    let labelCls;
-    if(skipped) labelCls='sk';
-    else if(cur) labelCls='da';
-    else labelCls='';
-    return `<div class="prog-s ${stageCls}" ${clickAttrs}>
-      <div class="prog-d ${stageCls}">${progIcon}</div>
-      <div class="prog-l ${labelCls}">${e.lb}</div>
-    </div>`;
-  }).join('');
-  // Q003: linha de próxima etapa esperada
-  const nxObj=_etapasEfetivas[idx+1];
-  const nxEl=document.createElement('div');
-  nxEl.style.cssText='font-size:11px;color:var(--ink3);text-align:right;margin-top:3px;padding-right:4px';
-  nxEl.textContent=nxObj?'→ Próxima etapa esperada: '+nxObj.lb:'✓ Última etapa do pipeline';
-  document.getElementById('det-prog').appendChild(nxEl);
+  document.getElementById('det-prog').innerHTML=renderDetalheWorkflow(p,_etapasEfetivas,idx,epUser);
   if(usuarioLogado?.perfil==='dono'){
     const etObj=_etapasEfetivas.find(e=>e.id===p.etapa);
     const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
@@ -10895,9 +11367,11 @@ function macroArqHTML(m){
       <span class="arq-macro-nome">${m.nome}</span>
       ${tenhoAqui?'<span style="font-size:10px;background:rgba(255,255,255,.2);border-radius:4px;padding:1px 7px;font-weight:700">Meus processos</span>':''}
       <span style="font-size:11px;color:rgba(255,255,255,.4)">${tc} processo${tc===1?'':'s'} · ${ts} subprocesso${ts===1?'':'s'}</span>
-      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff" onclick="event.stopPropagation();novoProcArq('${m.id}')">+ Processo</button>
-      <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5)" onclick="event.stopPropagation();editMacro('${m.id}')">✎ Renomear</button>
-      <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(176,28,28,.3);border-color:rgba(242,160,160,.3);color:#F2A0A0" onclick="event.stopPropagation();removerMacro('${m.id}')">× Apagar</button>`:''}
+      ${isEP()?`<span class="arq-macro-actions">
+        <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff" onclick="event.stopPropagation();novoProcArq('${m.id}')">+ Processo</button>
+        <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5)" onclick="event.stopPropagation();editMacro('${m.id}')">✎ Renomear</button>
+        <button type="button" class="btn" style="font-size:10px;padding:2px 8px;background:rgba(176,28,28,.3);border-color:rgba(242,160,160,.3);color:#F2A0A0" onclick="event.stopPropagation();removerMacro('${m.id}')">× Apagar</button>
+      </span>`:''}
     </div>
     <div class="arq-macro-body" id="arq-body-${m.id}" style="display:none">
       ${m.processos.map(p=>procArqHTML(m.id,p)).join('')}
@@ -10946,15 +11420,19 @@ function _subArqItemHTML(mid, pid, s){
   const slBadge = _subArqMapeadoBadge(sl, sMapeado, s.id);
   const sCriticoBadge = _subArqCriticoBadge(sCritico, s.id);
   return `<div style="border-top:1px solid var(--bdr)">
-    <div style="display:flex;align-items:center;gap:8px;padding:.5rem .9rem;cursor:pointer" onclick="toggleEl('arq-ssub-${s.id}','chvss-${s.id}')">
+    <div class="arq-subitem-row" onclick="toggleEl('arq-ssub-${s.id}','chvss-${s.id}')">
       <span class="arq-chevron" id="chvss-${s.id}" style="color:var(--ink3);font-size:10px">▶</span>
-      <span style="font-size:12.5px;font-weight:600;color:var(--ink);flex:1">${s.nome}</span>
-      <span style="font-size:11px;color:var(--ink3)">${s.gerente||s.area||''}</span>
-      ${isMeuProcesso(s.id)?'<span class="badge bb" style="font-size:9px">Meu processo</span>':''}
-      ${slBadge}
-      ${sCriticoBadge}
-      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
-      <button type="button" class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')" aria-label="Remover subprocesso">×</button>`:''}
+      <span class="arq-subitem-name">${s.nome}</span>
+      <span class="arq-subitem-meta">${s.gerente||s.area||''}</span>
+      <span class="arq-subitem-badges">
+        ${isMeuProcesso(s.id)?'<span class="badge bb" style="font-size:9px">Meu processo</span>':''}
+        ${slBadge}
+        ${sCriticoBadge}
+      </span>
+      ${isEP()?`<span class="arq-subitem-actions">
+        <button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editSubArqFull('${mid}','${pid}','${s.id}')">✎ Editar</button>
+        <button type="button" class="btn" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="event.stopPropagation();remSubArq('${mid}','${pid}','${s.id}')" aria-label="Remover subprocesso">×</button>
+      </span>`:''}
     </div>
     <div id="arq-ssub-${s.id}" style="display:none;padding:.6rem 1.2rem .8rem 2.2rem;background:var(--surf);border-top:1px dashed var(--bdr)">
       ${metaFieldsReadonly(s)}
@@ -10990,13 +11468,17 @@ function procArqHTML(mid,p){
   return `<div style="margin-bottom:.5rem">
     <div class="arq-proc-hd" onclick="toggleEl('arq-sub-${p.id}','chvp-${p.id}')">
       <span class="arq-chevron" id="chvp-${p.id}" style="color:var(--ink3)">▶</span>
-      <span style="font-size:13px;font-weight:600;color:var(--ink);flex:1">${p.nome}</span>
-      <span style="font-size:11px;color:var(--ink3)">${p.area||''} · ${p.gerente||''}</span>
-      ${_procArqStatusBadge(p, hasSubs, linked, pMapeadoBg, pMapeadoTxt, pMapeadoBorderColor, pMapeadoLabel)}
-      ${pCriticoBadge}
-      ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();novoSubArq('${mid}','${p.id}')">+ Sub</button>
-      <button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editProcArq('${mid}','${p.id}')">✎ Editar</button>
-      <button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="event.stopPropagation();removerProcArq('${mid}','${p.id}')">× Apagar</button>`:''}
+      <span class="arq-proc-name">${p.nome}</span>
+      <span class="arq-proc-meta">${p.area||''} · ${p.gerente||''}</span>
+      <span class="arq-proc-badges">
+        ${_procArqStatusBadge(p, hasSubs, linked, pMapeadoBg, pMapeadoTxt, pMapeadoBorderColor, pMapeadoLabel)}
+        ${pCriticoBadge}
+      </span>
+      ${isEP()?`<span class="arq-proc-actions">
+        <button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();novoSubArq('${mid}','${p.id}')">+ Sub</button>
+        <button type="button" class="btn" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();editProcArq('${mid}','${p.id}')">✎ Editar</button>
+        <button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="event.stopPropagation();removerProcArq('${mid}','${p.id}')">× Apagar</button>
+      </span>`:''}
     </div>
     <div id="arq-sub-${p.id}" style="display:none;background:var(--surf2);border:1px solid var(--bdr);border-top:none;border-radius:0 0 var(--r) var(--r)">
       ${bodyHTML}
@@ -12951,12 +13433,12 @@ function rPub(){
           ${tags.map(t=>`<span style="font-size:10px;background:var(--bg3);color:var(--ink3);padding:1px 6px;border-radius:99px">${esc(t)}</span>`).join('')}
         </div>
         ${_pubProcsHtml(p)}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--bdr)">
-          <div style="font-size:10.5px;color:var(--ink3)">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
-          <div style="display:flex;gap:5px">
-            ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px;text-decoration:none">↗ Abrir</a>`:''}
-            ${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})" aria-label="Editar publicação">✎</button>
-            <button type="button" class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarPub(${p.id})" aria-label="Excluir publicação">×</button>`:''}
+        <div class="pub-card-footer">
+          <div class="pub-card-meta">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
+          <div class="pub-card-actions">
+            ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
+            ${isEP()?`<button type="button" class="btn pub-action-edit" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">Editar</button>
+            <button type="button" class="btn pub-action-delete" style="font-size:10px;padding:2px 8px" onclick="deletarPub(${p.id})">Excluir</button>`:''}
           </div>
         </div>
         </div>
