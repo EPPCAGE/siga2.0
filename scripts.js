@@ -37,32 +37,47 @@ function projWithScheduleWrite(fn){
   finally { _projScheduleWriteContext = false; }
 }
 
-function _fsClean(v, insideArray){
-  if(v===null||v===undefined) return null;
-  if(v instanceof Date) return v;
-  if(Array.isArray(v)){
-    const arr = v.map(item => _fsClean(item, true));
-    return insideArray ? { items: arr } : arr;
+function _fsCleanArray(v, insideArray){
+  const arr = v.map(item => _fsClean(item, true));
+  return insideArray ? { items: arr } : arr;
+}
+
+function _fsCanCleanObject(v){
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+
+function _fsCleanKeyAllowed(k, value){
+  return !['__proto__', 'constructor', 'prototype'].includes(k) && value !== undefined;
+}
+
+function _fsCleanObject(v){
+  if(!_fsCanCleanObject(v)) return null;
+  const r = {};
+  for(const k of Object.keys(v)){
+    if(!_fsCleanKeyAllowed(k, v[k])) continue;
+    Object.defineProperty(r, k, {
+      value: _fsClean(v[k], false),
+      enumerable: true,
+      writable: true,
+      configurable: true
+    });
   }
-  if(typeof v==='object'){
-    const proto = Object.getPrototypeOf(v);
-    if(proto !== Object.prototype && proto !== null) return null;
-    const r = {};
-    for(const k of Object.keys(v)){
-      if(k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-      if(v[k] === undefined) continue;
-      Object.defineProperty(r, k, {
-        value: _fsClean(v[k], false),
-        enumerable: true,
-        writable: true,
-        configurable: true
-      });
-    }
-    return r;
-  }
+  return r;
+}
+
+function _fsCleanScalar(v){
   if(typeof v === 'number') return Number.isFinite(v) ? v : null;
   if(typeof v === 'function' || typeof v === 'symbol') return null;
   return v;
+}
+
+function _fsClean(v, insideArray){
+  if(v===null||v===undefined) return null;
+  if(v instanceof Date) return v;
+  if(Array.isArray(v)) return _fsCleanArray(v, insideArray);
+  if(typeof v==='object') return _fsCleanObject(v);
+  return _fsCleanScalar(v);
 }
 
 let PROJETOS = [];
@@ -85,7 +100,7 @@ const PROJ_FASES = [
 ];
 const FASE_IDX = Object.fromEntries(PROJ_FASES.map((f,i)=>[f.id,i]));
 
-var PROJ_MACROS = [
+let PROJ_MACROS = [
   '[Gestão] Gestão estratégica','[Gestão] Comunicação e relacionamento institucional',
   '[Finalístico] Orientação e suporte à tomada de decisão','[Finalístico] Contabilidade',
   '[Finalístico] Transparência e estímulo ao controle social','[Finalístico] Controle',
@@ -93,7 +108,7 @@ var PROJ_MACROS = [
   '[Apoio] Gestão de dados e informações','[Apoio] Gestão administrativa',
   '[Apoio] Gestão de TIC','[Apoio] Gestão de pessoas'
 ];
-var PROJ_OBJETIVOS = [
+let PROJ_OBJETIVOS = [
   '[Resultados] Colaborar para a implementação de políticas públicas efetivas',
   '[Resultados] Aperfeiçoar a transparência pública e fomentar o controle social',
   '[Resultados] Promover a integridade pública e privada e fortalecer a prevenção à corrupção',
@@ -143,8 +158,8 @@ async function projFetchDefaultData(){
 function projLoadListas(){
   if(fbReady()) return;
   try{
-    var m=localStorage.getItem('cagePROJ_MACROS_v6');if(m)PROJ_MACROS=JSON.parse(m);
-    var o=localStorage.getItem('cage_objetivos_v6');if(o)PROJ_OBJETIVOS=JSON.parse(o);
+    const m=localStorage.getItem('cagePROJ_MACROS_v6');if(m)PROJ_MACROS=JSON.parse(m);
+    const o=localStorage.getItem('cage_objetivos_v6');if(o)PROJ_OBJETIVOS=JSON.parse(o);
   }catch(e){}
 }
 function projSaveListas(){
