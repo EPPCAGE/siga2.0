@@ -1,0 +1,6 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "eppcage",
+        "projectKey": "EPPCAGE_siga2.0"
+    }
+}
