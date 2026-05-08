@@ -420,7 +420,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   .user-role{font-size:11px}
   .logout-btn{font-size:11px;margin-top:8px}
   .mob-top-bar{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1rem;background:linear-gradient(135deg,#1c1c2e,#2a2a41);position:sticky;top:0;z-index:50;gap:10px;min-height:64px;box-shadow:0 8px 24px rgba(28,28,46,.18)}
-  .mob-ham{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:14px;color:#fff;cursor:pointer;padding:12px 11px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;-webkit-tap-highlight-color:transparent;min-width:48px;min-height:48px;justify-content:center;align-items:center}
+  .mob-ham{background:#343449;border:1px solid #6f7085;border-radius:14px;color:#fff;cursor:pointer;padding:12px 11px;display:flex;flex-direction:column;gap:5px;flex-shrink:0;-webkit-tap-highlight-color:transparent;min-width:48px;min-height:48px;justify-content:center;align-items:center}
   .mob-ham span{display:block;width:22px;height:2px;background:rgba(255,255,255,.92);border-radius:2px;transition:all .2s}
   .mob-page-title{font-size:14px;font-weight:700;color:#fff;flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em}
   .mob-top-bar .user-av{width:42px;height:42px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1)}
@@ -2262,7 +2262,13 @@ function _normalizarUsuarioPerfil(user){
   if(user.perfil && !perfis.includes(user.perfil)) perfis.unshift(user.perfil);
   if(perfis.includes('ep')) user.perfil = 'ep';
   else if(!user.perfil && perfis.length) user.perfil = perfis[0];
-  user.perfis = perfis.length ? perfis : (user.perfil ? [user.perfil] : []);
+  if(perfis.length){
+    user.perfis = perfis;
+  } else if(user.perfil){
+    user.perfis = [user.perfil];
+  } else {
+    user.perfis = [];
+  }
   return user;
 }
 function _setDisplay(el, visible, shown=''){
@@ -3556,15 +3562,48 @@ function _workflowRoleLabel(resp){
   if(resp==='gestor')return 'Responsável: Gestor / Adjunto';
   return 'Responsável definido no fluxo';
 }
+function _workflowStatusKey(skipped, past, current){
+  if(skipped) return 'skipped';
+  if(past) return 'done';
+  if(current) return 'current';
+  return 'pending';
+}
+function _workflowStatusLabel(statusKey){
+  if(statusKey==='skipped') return 'Pendente pulada';
+  if(statusKey==='done') return 'Concluída';
+  if(statusKey==='current') return 'Etapa atual';
+  return 'Pendente';
+}
+function _workflowStageClass(statusKey){
+  if(statusKey==='skipped') return 'sk';
+  if(statusKey==='done') return 'dn';
+  if(statusKey==='current') return 'da';
+  return '';
+}
+function _workflowStepIcon(statusKey, index){
+  if(statusKey==='skipped') return '!';
+  if(statusKey==='done') return '✓';
+  return index+1;
+}
+function _workflowStepTip(meta, label){
+  if(meta.skipped) return `Etapa pendente (pulada): ${label}`;
+  if(meta.current) return `Editar etapa atual: ${label}`;
+  return `Editar: ${label}`;
+}
+function _workflowLabelClass(stageCls){
+  if(stageCls==='da') return 'da';
+  if(stageCls==='sk') return 'sk';
+  return '';
+}
 function _workflowStatusMeta(e, i, idx, puladas){
   const skipped=puladas.includes(e.id);
   const past=i<idx;
   const current=i===idx;
-  const statusKey=skipped?'skipped':past?'done':current?'current':'pending';
-  const statusLabel=skipped?'Pendente pulada':past?'Concluída':current?'Etapa atual':'Pendente';
-  const statusChipClass=skipped?'skipped':past?'done':current?'current':'pending';
-  const stageCls=skipped?'sk':past?'dn':current?'da':'';
-  const icon=skipped?'!':past?'✓':i+1;
+  const statusKey=_workflowStatusKey(skipped,past,current);
+  const statusLabel=_workflowStatusLabel(statusKey);
+  const statusChipClass=statusKey;
+  const stageCls=_workflowStageClass(statusKey);
+  const icon=_workflowStepIcon(statusKey,i);
   return { skipped, past, current, statusKey, statusLabel, statusChipClass, stageCls, icon };
 }
 function renderDetalheWorkflow(p, etapas, idx, epUser){
@@ -3576,10 +3615,10 @@ function renderDetalheWorkflow(p, etapas, idx, epUser){
   const itemsHtml=etapas.map((e,i)=>{
     const meta=_workflowStatusMeta(e,i,actualIdx,puladas);
     const clickable=epUser;
-    const tip=meta.skipped?`Etapa pendente (pulada): ${e.lb}`:meta.current?`Editar etapa atual: ${e.lb}`:`Editar: ${e.lb}`;
+    const tip=_workflowStepTip(meta,e.lb);
     const clickAttrs=clickable?`onclick="navegarRetro('${e.id}')" style="cursor:pointer" title="${tip}"`:'';
     if(!isMobile){
-      const labelCls=meta.stageCls==='da'?'da':meta.stageCls==='sk'?'sk':'';
+      const labelCls=_workflowLabelClass(meta.stageCls);
       return `<div class="prog-s ${meta.stageCls}" ${clickAttrs}>
         <div class="prog-d ${meta.stageCls}">${meta.icon}</div>
         <div class="prog-l ${labelCls}">${e.lb}</div>
