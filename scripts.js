@@ -957,7 +957,7 @@ function projRocketUnifiedDrag(e, projId) {
 
     if(mode === 'h') {
       rocket.classList.remove('dragging');
-      const newPct = parseInt(rocket.getAttribute('data-pct')) || 0;
+      const newPct = Number.parseInt(rocket.getAttribute('data-pct'), 10) || 0;
       projLoad();
       const proj = PROJETOS.find(p => String(p.id) === String(projId));
       if(proj) {
@@ -1749,7 +1749,7 @@ function projRenderReunioesCalendar(container) {
   const reunioes = projColetarReunioesGlobal().filter(r => r.data && projIsoInMonth(r.data, monthValue));
   const byDay = {};
   reunioes.forEach(r => {
-    const day = parseInt(String(r.data).slice(8,10), 10);
+    const day = Number.parseInt(String(r.data).slice(8,10), 10);
     if(!byDay[day]) byDay[day] = [];
     byDay[day].push(r);
   });
@@ -2927,8 +2927,8 @@ function projAdicionarRisco() {
   proj.planejamento.riscos.push({
     id: Date.now(),
     descricao: desc,
-    probabilidade: parseInt(document.getElementById('risco-prob')?.value)||3,
-    impacto: parseInt(document.getElementById('risco-impacto')?.value)||3,
+    probabilidade: Number.parseInt(document.getElementById('risco-prob')?.value, 10)||3,
+    impacto: Number.parseInt(document.getElementById('risco-impacto')?.value, 10)||3,
     urgencia: document.getElementById('risco-urgencia')?.value||'media'
   });
   projSave();
@@ -3267,7 +3267,7 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
     const overdue = !t.concluida && t.dt_fim && t.dt_fim < today;
     const rowBg = overdue ? 'background:#fef2f2' : (t.concluida ? 'background:#f0fdf4' : '');
     html += `<tr style="${rowBg}">
-      <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike};font-family:'DM Mono',monospace;font-size:11px;white-space:nowrap">${path.split('.').map(n=>parseInt(n,10)+1).join('.')}.</td>
+      <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike};font-family:'DM Mono',monospace;font-size:11px;white-space:nowrap">${path.split('.').map(n=>Number.parseInt(n,10)+1).join('.')}.</td>
       <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
         ${!hasSubs ? `<input type="checkbox" ${t.concluida?'checked':''} onchange="projToggleTarefa('${path}')">` : ''}
       </td>
@@ -3285,7 +3285,7 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike}"><input type="text" value="${projEsc(t.responsavel||'')}" onchange="projUpdateTarefa('${path}','responsavel',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%" placeholder="—"></td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}">
         ${hasSubs ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${pct}%</span>` :
-          `<input type="number" min="0" max="100" value="${pct}" onchange="projUpdateTarefa('${path}','conclusao',parseInt(this.value)||0)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:50px;text-align:center">`}
+          `<input type="number" min="0" max="100" value="${pct}" onchange="projUpdateTarefa('${path}','conclusao',Number.parseInt(this.value,10)||0)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:50px;text-align:center">`}
       </td>
       <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
         <button type="button" title="Adicionar subtarefa" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0" onclick="projAddTarefa('${path}')">＋</button>
@@ -3449,7 +3449,7 @@ function projSalvarExecucao() {
   if(!proj.execucao) proj.execucao = { planner_link:'', percentual:0, reunioes:[], tarefas:[], cron_mode:'planner', pct_mode:'manual' };
   proj.execucao.planner_link = document.getElementById('exec-planner')?.value || proj.execucao.planner_link || '';
   if(canFullExec && proj.execucao.pct_mode !== 'derivado') {
-    proj.percentual = parseInt(document.getElementById('exec-percentual')?.value)||0;
+    proj.percentual = Number.parseInt(document.getElementById('exec-percentual')?.value, 10)||0;
   } else if(proj.execucao.pct_mode === 'derivado') {
     proj.percentual = projCalcDerivedPct(proj.execucao.tarefas||[]);
   }
