@@ -3784,6 +3784,8 @@ function aplicarPermissoes(){
   if(nbMeusProc) nbMeusProc.style.display = usuarioLogado?.perfil === 'dono' ? '' : 'none';
   const nbProc = document.getElementById('nb-proc');
   if(nbProc) nbProc.style.display = usuarioLogado?.perfil === 'dono' ? 'none' : '';
+  const nbTrilhas = document.getElementById('nb-trilhas');
+  if(nbTrilhas) nbTrilhas.style.display = usuarioLogado?.perfil === 'dono' ? 'none' : '';
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
 }
 
