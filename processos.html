@@ -1812,29 +1812,33 @@ function getDonoEmail(proc){
   const u=USUARIOS.find(u=>u.nome===proc.dono||u.email===proc.dono);
   return u?.email||proc.dono_email||'';
 }
-function openModuleHub(){
-  const hub=document.getElementById('module-hub');
-  const shell=document.getElementById('proc-shell');
-  if(hub) hub.classList.add('on');
-  if(shell) shell.style.display='none';
-  // Show/hide module cards based on user's profiles
+function _setDisplay(el, visible, shown=''){
+  if(el) el.style.display = visible ? shown : 'none';
+}
+function _openModuleHubSetupCards(){
   const cProc=document.getElementById('hub-card-processos');
   const cProj=document.getElementById('hub-card-projetos');
   const grid=document.getElementById('module-grid');
   const temProc=hasProcessosAccess();
   const temProj=hasProjetosAccess();
-  if(cProc) cProc.style.display=temProc?'':'none';
-  if(cProj) cProj.style.display=temProj?'':'none';
+  _setDisplay(cProc, temProc);
+  _setDisplay(cProj, temProj);
   if(grid) grid.style.gridTemplateColumns=(temProc&&temProj)?'':'minmax(0,1fr)';
-  // Avisos cards — all users
-  renderHubAvisosCards();
-  // Admin sections — EPP only
+}
+function _openModuleHubSetupAdmin(){
   const ep=isEP();
-  const adminSec=document.getElementById('hub-admin-section');
-  const avisosManage=document.getElementById('hub-avisos-manage');
-  if(adminSec) adminSec.style.display=ep?'':'none';
-  if(avisosManage) avisosManage.style.display=ep?'':'none';
+  _setDisplay(document.getElementById('hub-admin-section'), ep);
+  _setDisplay(document.getElementById('hub-avisos-manage'), ep);
   if(ep) rAvisos();
+}
+function openModuleHub(){
+  const hub=document.getElementById('module-hub');
+  const shell=document.getElementById('proc-shell');
+  if(hub) hub.classList.add('on');
+  if(shell) shell.style.display='none';
+  _openModuleHubSetupCards();
+  renderHubAvisosCards();
+  _openModuleHubSetupAdmin();
 }
 
 function renderHubAvisosCards(){
@@ -3139,28 +3143,33 @@ function renderProcs(){
   const el=document.getElementById('proc-list'),em=document.getElementById('proc-empty');
   if(!lista.length){el.innerHTML='';em.style.display='block';return;}
   em.style.display='none';
-  el.innerHTML=lista.map(p=>{
-    if(isConcluidos){
-      const _fmtD=d=>d?d.split('-').reverse().join('/'):'—';
-      const _dtProx=p.dt_proximo_acompanhamento;
-      const _acompVenc=_dtProx&&_dtProx<new Date().toISOString().slice(0,10);
-      const _concCor=_acompVenc?'var(--red)':'var(--ink3)';
-      const _concWarn=_acompVenc?' ⚠':'';
-      const _entregaPrefix=p.ent&&p.ent.dt_efetiva?'Entrega efetiva em '+_fmtD(p.ent.dt_efetiva)+' · ':'';
-      return `<div class="prc" onclick="abrirProc(${p.id})" style="border-left:3px solid var(--green,#16a34a)">
-        <div><div class="prc-t">${esc(p.nome)}</div>
-        <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div>
-        ${_dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${_concCor}">${_entregaPrefix}Próx. acompanhamento: <strong>${_fmtD(_dtProx)}</strong>${_concWarn}</div>`:''}
-        </div>
-        <div class="prc-r"><span class="badge bg" style="font-size:10px">✓ Mapeado</span>${_eBadgeAcomp(p)}</div>
-      </div>`;
-    }
-    return `<div class="prc ${p.prio==='Critica'?'urg':''} ${isVencido(p)?'venc':''}" onclick="abrirProc(${p.id})" style="${isVencido(p)?'border-left:3px solid var(--red);':''}">
-      <div><div class="prc-t">${esc(p.nome)}</div>
-      <div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${p.pat?` · Gestor: <strong>${esc(p.pat)}</strong>`:''}</div></div>
-      <div class="prc-r">${fBadge(p.etapa)}${_eBadgeAcomp(p)}${_statusBadge(p)}${isVencido(p)?'<span class="badge" style="background:var(--red-l);color:var(--red);margin-left:3px">⚠ Vencido</span>':''}${pBadge(p.prio)}${isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:''}</div>
-    </div>`;
-  }).join('');
+  el.innerHTML=lista.map(p=>isConcluidos?_procCardConcluidoHTML(p):_procCardAtivoHTML(p)).join('');
+}
+function _procMetaLinhaHTML(p){
+  const gestorHtml = p.pat ? ' · Gestor: <strong>'+esc(p.pat)+'</strong>' : '';
+  return `<div class="prc-m"><strong>${esc(p.macro)}</strong> · ${esc(p.area)} · Dono: <strong>${esc(p.dono)}</strong> · EP: <strong>${esc(p.resp_ep)}</strong>${gestorHtml}</div>`;
+}
+function _procCardConcluidoHTML(p){
+  const fmtD=d=>d?d.split('-').reverse().join('/'):'—';
+  const dtProx=p.dt_proximo_acompanhamento;
+  const acompVenc=dtProx&&dtProx<new Date().toISOString().slice(0,10);
+  const concCor=acompVenc?'var(--red)':'var(--ink3)';
+  const concWarn=acompVenc?' ⚠':'';
+  const entregaPrefix=p.ent&&p.ent.dt_efetiva?'Entrega efetiva em '+fmtD(p.ent.dt_efetiva)+' · ':'';
+  const proxHtml=dtProx?`<div style="font-size:10.5px;margin-top:2px;color:${concCor}">${entregaPrefix}Próx. acompanhamento: <strong>${fmtD(dtProx)}</strong>${concWarn}</div>`:'';
+  return `<div class="prc" onclick="abrirProc(${p.id})" style="border-left:3px solid var(--green,#16a34a)">
+    <div><div class="prc-t">${esc(p.nome)}</div>${_procMetaLinhaHTML(p)}${proxHtml}</div>
+    <div class="prc-r"><span class="badge bg" style="font-size:10px">✓ Mapeado</span>${_eBadgeAcomp(p)}</div>
+  </div>`;
+}
+function _procCardAtivoHTML(p){
+  const vencido=isVencido(p);
+  const vencidoHtml=vencido?'<span class="badge" style="background:var(--red-l);color:var(--red);margin-left:3px">⚠ Vencido</span>':'';
+  const excluirHtml=isEP()?`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red);border-color:var(--red-b);margin-left:4px" onclick="event.stopPropagation();excluirMapeamento(${p.id})">× Excluir</button>`:'';
+  return `<div class="prc ${p.prio==='Critica'?'urg':''} ${vencido?'venc':''}" onclick="abrirProc(${p.id})" style="${vencido?'border-left:3px solid var(--red);':''}">
+    <div><div class="prc-t">${esc(p.nome)}</div>${_procMetaLinhaHTML(p)}</div>
+    <div class="prc-r">${fBadge(p.etapa)}${_eBadgeAcomp(p)}${_statusBadge(p)}${vencidoHtml}${pBadge(p.prio)}${excluirHtml}</div>
+  </div>`;
 }
 function excluirMapeamento(id){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
@@ -4614,59 +4623,8 @@ const ACOES = {
   acompanha:{titulo:'Acompanhamento da implementação',sub:'Registre todas as reuniões de acompanhamento da implementação.',role:'EP',rk:'ep',
     form:p=>{
       const reunioes=p.reunioes_acomp||[];
-      const listaHtml=reunioes.length?reunioes.map((r,i)=>{
-        let confBadge;
-        if(r.conformidade==='Conforme'){confBadge='bg';}
-        else if(r.conformidade==='Parcialmente conforme'){confBadge='ba';}
-        else{confBadge='br';}
-        return `
-        <div class="card" style="margin-bottom:.5rem;padding:.8rem">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-            <div>
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:.3rem">
-                <strong>${r.data}</strong>
-                <span class="badge ${confBadge}">${r.conformidade}</span>
-              </div>
-              <div style="font-size:12px;color:var(--ink3)">${esc(r.pauta||'—')}</div>
-              ${r.participantes?`<div style="font-size:12px;color:var(--ink3);margin-top:.2rem">👥 ${esc(r.participantes)}</div>`:''}
-              ${r.desvios?`<div style="font-size:12px;color:var(--red);margin-top:.2rem">⚠ Desvios: ${esc(r.desvios)}</div>`:''}
-              ${r.acoes?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem">→ Ações: ${esc(r.acoes)}</div>`:''}
-              ${r.proxima?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Próxima: ${r.proxima}</div>`:''}
-              ${(()=>{if(r.economia_h===null){return '';}const s=r.economia_h>=0?'+':'';return `<div style="font-size:12px;color:var(--teal);margin-top:.2rem;font-weight:600">📊 Economia estimada: ${s}${r.economia_h} h/mês (vol: ${r.vol_exec_novo}/mês × ${r.t_real_novo}h)</div>`;})()}            </div>
-            <div style="display:flex;gap:4px;flex-shrink:0">
-              <button type="button" class="btn" style="font-size:11px;padding:2px 7px" onclick="editarReuniaoAcomp(${i})">✎ Editar</button>
-              <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirReuniaoAcomp(${i})" aria-label="Remover reunião">✕</button>
-            </div>
-          </div>
-        </div>`;
-      }).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma reunião registrada ainda.</div>';
-      const _fmtDtAcomp = d => d ? d.split('-').reverse().join('/') : '—';
-      const _dtProx = p.dt_proximo_acompanhamento;
-      const _dtEfetiva = p.ent && p.ent.dt_efetiva;
-      const _diasAteAcomp = _dtProx ? Math.round((new Date(_dtProx) - Date.now()) / (1000*60*60*24)) : null;
-      const _acompVencido = _diasAteAcomp !== null && _diasAteAcomp < 0;
-      const _bgCor   = _acompVencido ? 'var(--red-l,#fef2f2)'  : 'var(--green-l,#f0fdf4)';
-      const _bdrCor  = _acompVencido ? 'var(--red-b,#fecaca)'  : 'var(--green-b,#bbf7d0)';
-      const _icon    = _acompVencido ? '⚠'                    : '📅';
-      const _txtCor  = _acompVencido ? 'var(--red)'            : 'var(--green,#16a34a)';
-      const _titulo  = _acompVencido ? 'Acompanhamento em atraso' : 'Próximo acompanhamento agendado';
-      const _cicloTx = _dtEfetiva ? 'Entrega efetiva em <strong>' + _fmtDtAcomp(_dtEfetiva) + '</strong> · ' : '';
-      let _diasLabel = '';
-      if (_diasAteAcomp !== null) {
-        if (_acompVencido) _diasLabel = ' (' + Math.abs(_diasAteAcomp) + ' dias em atraso)';
-        else if (_diasAteAcomp === 0) _diasLabel = ' (hoje)';
-        else _diasLabel = ' (' + _diasAteAcomp + ' dias)';
-      }
-      const _acompBanner = _dtProx ? `
-        <div style="margin-bottom:1rem;padding:.8rem 1rem;border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:${_bgCor};border:1px solid ${_bdrCor}">
-          <div style="font-size:1.4rem">${_icon}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:12px;font-weight:700;color:${_txtCor}">${_titulo}</div>
-            <div style="font-size:12px;color:var(--ink2);margin-top:2px">
-              ${_cicloTx}Acompanhamento previsto em <strong>${_fmtDtAcomp(_dtProx)}</strong>${_diasLabel}
-            </div>
-          </div>
-        </div>` : '';
+      const listaHtml=reunioes.length?reunioes.map((r,i)=>_acompReuniaoCardHtml(r, i)).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhuma reunião registrada ainda.</div>';
+      const _acompBanner = _acompAgendamentoBannerHtml(p);
       return `${_acompBanner}<div class="ib ibb">Registre todas as reuniões de acompanhamento da implementação.</div>
         <div style="margin-bottom:1rem">${listaHtml}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Nova reunião de acompanhamento</div>
@@ -5035,6 +4993,66 @@ function _publicacaoCard(titulo, descricao, botaoHtml){
       <div style="font-size:11px;color:var(--ink3);margin-top:2px">${descricao}</div>
     </div>
     ${botaoHtml}
+  </div>`;
+}
+function _acompConformidadeBadge(conformidade){
+  if(conformidade==='Conforme') return 'bg';
+  if(conformidade==='Parcialmente conforme') return 'ba';
+  return 'br';
+}
+function _acompEconomiaHtml(r){
+  if(r.economia_h===null) return '';
+  const s=r.economia_h>=0?'+':'';
+  return `<div style="font-size:12px;color:var(--teal);margin-top:.2rem;font-weight:600">📊 Economia estimada: ${s}${r.economia_h} h/mês (vol: ${r.vol_exec_novo}/mês × ${r.t_real_novo}h)</div>`;
+}
+function _acompReuniaoCardHtml(r, i){
+  const confBadge=_acompConformidadeBadge(r.conformidade);
+  const participantesHtml=r.participantes?`<div style="font-size:12px;color:var(--ink3);margin-top:.2rem">👥 ${esc(r.participantes)}</div>`:'';
+  const desviosHtml=r.desvios?`<div style="font-size:12px;color:var(--red);margin-top:.2rem">⚠ Desvios: ${esc(r.desvios)}</div>`:'';
+  const acoesHtml=r.acoes?`<div style="font-size:12px;color:var(--teal);margin-top:.2rem">→ Ações: ${esc(r.acoes)}</div>`:'';
+  const proximaHtml=r.proxima?`<div style="font-size:11px;color:var(--ink4);margin-top:.2rem">Próxima: ${r.proxima}</div>`:'';
+  return `
+    <div class="card" style="margin-bottom:.5rem;padding:.8rem">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:.3rem">
+            <strong>${r.data}</strong>
+            <span class="badge ${confBadge}">${r.conformidade}</span>
+          </div>
+          <div style="font-size:12px;color:var(--ink3)">${esc(r.pauta||'—')}</div>
+          ${participantesHtml}
+          ${desviosHtml}
+          ${acoesHtml}
+          ${proximaHtml}
+          ${_acompEconomiaHtml(r)}
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button type="button" class="btn" style="font-size:11px;padding:2px 7px" onclick="editarReuniaoAcomp(${i})">✎ Editar</button>
+          <button type="button" class="btn" style="font-size:11px;padding:2px 7px;color:var(--red);border-color:var(--red)" onclick="excluirReuniaoAcomp(${i})" aria-label="Remover reunião">✕</button>
+        </div>
+      </div>
+    </div>`;
+}
+function _acompAgendamentoBannerHtml(p){
+  const fmtDtAcomp = d => d ? d.split('-').reverse().join('/') : '—';
+  const dtProx = p.dt_proximo_acompanhamento;
+  if(!dtProx) return '';
+  const dtEfetiva = p.ent && p.ent.dt_efetiva;
+  const diasAteAcomp = Math.round((new Date(dtProx) - Date.now()) / (1000*60*60*24));
+  const acompVencido = diasAteAcomp < 0;
+  const bgCor = acompVencido ? 'var(--red-l,#fef2f2)' : 'var(--green-l,#f0fdf4)';
+  const bdrCor = acompVencido ? 'var(--red-b,#fecaca)' : 'var(--green-b,#bbf7d0)';
+  const icon = acompVencido ? '⚠' : '📅';
+  const txtCor = acompVencido ? 'var(--red)' : 'var(--green,#16a34a)';
+  const titulo = acompVencido ? 'Acompanhamento em atraso' : 'Próximo acompanhamento agendado';
+  const cicloTx = dtEfetiva ? 'Entrega efetiva em <strong>' + fmtDtAcomp(dtEfetiva) + '</strong> · ' : '';
+  let diasLabel = '';
+  if(acompVencido) diasLabel = ' (' + Math.abs(diasAteAcomp) + ' dias em atraso)';
+  else if(diasAteAcomp === 0) diasLabel = ' (hoje)';
+  else diasLabel = ' (em ' + diasAteAcomp + ' dias)';
+  return `<div style="margin-top:1rem;padding:.8rem 1rem;border:1px solid ${bdrCor};background:${bgCor};border-radius:8px">
+    <div style="font-size:12px;font-weight:700;color:${txtCor};margin-bottom:.25rem">${icon} ${titulo}</div>
+    <div style="font-size:12px;color:var(--ink2)">${cicloTx}Próxima reunião em <strong>${fmtDtAcomp(dtProx)}</strong>${diasLabel}</div>
   </div>`;
 }
 function _renderFormPublicacao(p){
@@ -6681,50 +6699,67 @@ async function gerarPOPPPT() {
   if (!p) { toast('Nenhum processo selecionado.','var(--amber)'); return; }
   const btn = document.getElementById('btn-gerar-pop-ppt');
   const st = document.getElementById('pop-ppt-status');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
-  if (st) st.innerHTML = '<div class="ai-loading"><div class="spin"></div>Carregando logo e diagramas...</div>';
+  _popPptSetBtnState(btn, true);
+  _popPptSetStatus(st, '<div class="ai-loading"><div class="spin"></div>Carregando logo e diagramas...</div>', true);
   try {
-    // Carrega logo e renderiza BPMNs em paralelo
-    const [logoB64, bpmnAsisPng, bpmnTobePng] = await Promise.all([
-      fetchLogoBase64(),
-      p.mod?.bpmnAsIs ? renderBpmnToPng(p.mod.bpmnAsIs) : Promise.resolve(null),
-      p.mod?.bpmnToBe ? renderBpmnToPng(p.mod.bpmnToBe) : Promise.resolve(null)
-    ]);
-
-    const indsProc = kpis.filter(k => k.pid === p.id);
-    const dimText  = _pptCalcDimText(p.ent?.quest_resp || {});
-    const a = p.ent?.analise || {};
-    const { gargalosFinal, oportunidadesFinal, gapsFinal, solucoesFinal } = _pptFinalLists(a);
-    const riscosText = _pptRiscosText(p.ent?.riscos);
-    const probsText  = (p.ent?.prob || []).map((x,i)=>{const d=typeof x==='string'?x:x.desc||'';const s=typeof x==='string'?'':x.solucao||'';return `${i+1}. ${d}`+(s?` (Proposta: ${s})`:'');}).join('\n');
-    const indsText   = _pptIndsText(indsProc);
-    const faqText    = p.form?.faq || '';
-
-    const ctx = _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, {gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText});
-    const prompt = _pptPromptStr(ctx);
+    const [logoB64, bpmnAsisPng, bpmnTobePng] = await _popPptLoadAssets(p);
+    const ctxData = _popPptBuildContextData(p);
+    const prompt = _pptPromptStr(ctxData.ctx);
 
     let pptData = null;
-    if (st) st.innerHTML = '<div class="ai-loading"><div class="spin"></div>IA elaborando conteúdo do POP...</div>';
+    _popPptSetStatus(st, '<div class="ai-loading"><div class="spin"></div>IA elaborando conteúdo do POP...</div>', true);
     const raw = await chamarIA('gerar_ppt', prompt, st);
     const iaContent = _pptTryParseIA(raw);
-    if (iaContent?.slides?.length) {
-      pptData = iaContent;
-    } else {
-      if (st) st.textContent = 'IA indisponível ou resposta inválida. Gerando PPT com os dados do processo...';
-      pptData = _pptBuildFallbackSlides(p, indsProc, dimText, gargalosFinal, gapsFinal, oportunidadesFinal, solucoesFinal);
-    }
+    pptData = _popPptResolveSlides(p, ctxData, iaContent, st);
 
-    if (st) st.textContent = 'Montando arquivo PowerPoint...';
-    await montarPOPPPT(p, pptData, logoB64, bpmnAsisPng, bpmnTobePng, indsProc);
-    if (st) st.textContent = iaContent?.slides?.length
+    _popPptSetStatus(st, 'Montando arquivo PowerPoint...');
+    await montarPOPPPT(p, pptData, logoB64, bpmnAsisPng, bpmnTobePng, ctxData.indsProc);
+    _popPptSetStatus(st, iaContent?.slides?.length
       ? '✓ POP gerado e baixado com sucesso!'
-      : '✓ POP gerado com fallback local e baixado com sucesso!';
+      : '✓ POP gerado com fallback local e baixado com sucesso!');
   } catch(e) {
     console.error('gerarPOPPPT:', e);
-    if (st) st.textContent = '⚠ Erro: ' + e.message;
+    _popPptSetStatus(st, '⚠ Erro: ' + e.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '✨ Gerar POP em PPT com IA'; }
+    _popPptSetBtnState(btn, false);
   }
+}
+function _popPptSetBtnState(btn, loading){
+  if(!btn) return;
+  btn.disabled = loading;
+  btn.textContent = loading ? '⏳ Gerando...' : '✨ Gerar POP em PPT com IA';
+}
+function _popPptSetStatus(st, content, asHtml=false){
+  if(!st) return;
+  if(asHtml) st.innerHTML = content;
+  else st.textContent = content;
+}
+function _popPptLoadAssets(p){
+  return Promise.all([
+    fetchLogoBase64(),
+    p.mod?.bpmnAsIs ? renderBpmnToPng(p.mod.bpmnAsIs) : Promise.resolve(null),
+    p.mod?.bpmnToBe ? renderBpmnToPng(p.mod.bpmnToBe) : Promise.resolve(null)
+  ]);
+}
+function _popPptBuildContextData(p){
+  const indsProc = kpis.filter(k => k.pid === p.id);
+  const dimText  = _pptCalcDimText(p.ent?.quest_resp || {});
+  const a = p.ent?.analise || {};
+  const { gargalosFinal, oportunidadesFinal, gapsFinal, solucoesFinal } = _pptFinalLists(a);
+  const riscosText = _pptRiscosText(p.ent?.riscos);
+  const probsText  = (p.ent?.prob || []).map((x,i)=>{const d=typeof x==='string'?x:x.desc||'';const s=typeof x==='string'?'':x.solucao||'';return `${i+1}. ${d}`+(s?` (Proposta: ${s})`:'');}).join('\n');
+  const indsText   = _pptIndsText(indsProc);
+  const faqText    = p.form?.faq || '';
+  const extras = {gargalosFinal, gapsFinal, oportunidadesFinal, faqText, indsText};
+  return {
+    indsProc, dimText, gargalosFinal, oportunidadesFinal, gapsFinal, solucoesFinal,
+    ctx: _pptCtxStr(p, dimText, probsText, riscosText, solucoesFinal, extras)
+  };
+}
+function _popPptResolveSlides(p, ctxData, iaContent, st){
+  if (iaContent?.slides?.length) return iaContent;
+  _popPptSetStatus(st, 'IA indisponível ou resposta inválida. Gerando PPT com os dados do processo...');
+  return _pptBuildFallbackSlides(p, ctxData.indsProc, ctxData.dimText, ctxData.gargalosFinal, ctxData.gapsFinal, ctxData.oportunidadesFinal, ctxData.solucoesFinal);
 }
 
 async function montarPOPPPT(p, dados, logoB64, bpmnAsisPng, bpmnTobePng, indsProc) {
@@ -8390,8 +8425,43 @@ function _bpmnBuildFlowLabels(xml){
   });
   return labels;
 }
+function _bpmnNodeToEtapa(node, id, gwCtx){
+  let nomeFallback;
+  if(node.tipo==='Evento') nomeFallback=node.subtipo||'Evento';
+  else if(node.tipo==='Decisao') nomeFallback='Decisão';
+  else nomeFallback='Atividade';
+  const naturezaFallback=node.tipo==='Atividade'?inferNatureza(node.nome||''):'';
+  return {
+    id:'ep'+etapasIdC++, seq:0, bpmn_id:id,
+    nome:node.nome||nomeFallback,
+    tipo:node.tipo, subtipo_evento:node.subtipo||null,
+    natureza:node.natureza||naturezaFallback, modo:node.modo||null,
+    executor:node.executor||'', desc:node.desc||'', caminhos:[],
+    vinculo_gw: gwCtx ? {gw_ep_id:gwCtx.epId,label:gwCtx.label} : null
+  };
+}
+function _bpmnPopulateGatewayPaths(elem, id, outgoing, flowLabels){
+  const nextsGw=outgoing[id]||[];
+  if(elem.tipo==='Decisao'&&nextsGw.length>1){
+    elem.caminhos=nextsGw.map((tgt,i)=>({label:flowLabels[id+'→'+tgt]||'Caminho '+(i+1),acoes:[]}));
+  }
+}
+function _bpmnQueueNext({queue, nexts, visited, isGw, id, myCtx, xmlToEpId, flowLabels}){
+  nexts.forEach((tgt, idx)=>{
+    if(visited.has(tgt)) return;
+    const nextCtx=isGw
+      ? {gw_id:id, epId:xmlToEpId[id]||null, label:flowLabels[id+'→'+tgt]||('Caminho '+(idx+1))}
+      : myCtx;
+    queue.push({id:tgt,gwCtx:nextCtx});
+  });
+}
+function _bpmnAddDisconnectedNodes(ordered, visited, nodeInfo){
+  Object.keys(nodeInfo).forEach(id=>{
+    if(visited.has(id)) return;
+    ordered.push(_bpmnNodeToEtapa(nodeInfo[id], id, null));
+  });
+}
 function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
-  // Build incoming-edge count to detect merge points
   const incoming={};
   Object.entries(outgoing).forEach(([src,tgts])=>{
     tgts.forEach(tgt=>{ incoming[tgt]=(incoming[tgt]||0)+1; });
@@ -8399,74 +8469,27 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
   const startIds=_bpmnFindAll(xml,['startEvent']).map(e=>e.id);
   const visited=new Set();
   const ordered=[];
-  // Each queue entry: {id, gwCtx: null | {gw_id, epId, label}}
   const queue=startIds.map(id=>({id,gwCtx:null}));
-  // Track epId assigned per xmlId for gateway linking
   const xmlToEpId={};
 
   while(queue.length){
     const {id,gwCtx}=queue.shift();
     if(visited.has(id)) continue;
     visited.add(id);
-    // Merge point (multiple predecessors) → clear gateway context
     const myCtx=(incoming[id]||0)>1?null:gwCtx;
     const n=nodeInfo[id];
-    // Skip pure merge gateways (multiple incoming, ≤1 outgoing) — organisational only
     const isMergeGw=n?.tipo==='Decisao'&&(incoming[id]||0)>1&&(outgoing[id]||[]).length<=1;
     if(n&&!isMergeGw){
-      let nomeFallback;
-      if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
-      else if(n.tipo==='Decisao') nomeFallback='Decisão';
-      else nomeFallback='Atividade';
-      const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
-      const epId='ep'+etapasIdC++;
-      xmlToEpId[id]=epId;
-      const elem={
-        id:epId, seq:0, bpmn_id:id,
-        nome:n.nome||nomeFallback,
-        tipo:n.tipo, subtipo_evento:n.subtipo||null,
-        natureza:n.natureza||naturezaFallback, modo:n.modo||null,
-        executor:n.executor||'', desc:n.desc||'', caminhos:[],
-        vinculo_gw: myCtx ? {gw_ep_id:myCtx.epId,label:myCtx.label} : null
-      };
-      // For split gateways: pre-populate caminhos labels from flow labels
-      if(n.tipo==='Decisao'){
-        const nextsGw=outgoing[id]||[];
-        if(nextsGw.length>1){
-          elem.caminhos=nextsGw.map((tgt,i)=>({label:flowLabels[id+'→'+tgt]||'Caminho '+(i+1),acoes:[]}));
-        }
-      }
+      const elem=_bpmnNodeToEtapa(n, id, myCtx);
+      xmlToEpId[id]=elem.id;
+      _bpmnPopulateGatewayPaths(elem, id, outgoing, flowLabels);
       ordered.push(elem);
     }
     const nexts=outgoing[id]||[];
     const isGw=!isMergeGw&&nodeInfo[id]?.tipo==='Decisao';
-    nexts.forEach(tgt=>{
-      if(!visited.has(tgt)){
-        let nextCtx;
-        if(isGw){
-          nextCtx={gw_id:id, epId:xmlToEpId[id]||null, label:flowLabels[id+'→'+tgt]||('Caminho '+(nexts.indexOf(tgt)+1))};
-        } else {
-          nextCtx=myCtx;
-        }
-        queue.push({id:tgt,gwCtx:nextCtx});
-      }
-    });
+    _bpmnQueueNext({queue, nexts, visited, isGw, id, myCtx, xmlToEpId, flowLabels});
   }
-  // Disconnected nodes
-  Object.keys(nodeInfo).forEach(id=>{
-    if(!visited.has(id)){
-      const n=nodeInfo[id];
-      let nomeFallback;
-      if(n.tipo==='Evento') nomeFallback=n.subtipo||'Evento';
-      else if(n.tipo==='Decisao') nomeFallback='Decisão';
-      else nomeFallback='Atividade';
-      const naturezaFallback=n.tipo==='Atividade'?inferNatureza(n.nome||''):'';
-      ordered.push({id:'ep'+etapasIdC++,seq:0,bpmn_id:id,
-        nome:n.nome||nomeFallback, tipo:n.tipo, subtipo_evento:n.subtipo||null,
-        natureza:n.natureza||naturezaFallback, modo:n.modo, executor:n.executor||'',
-        desc:n.desc||'', caminhos:[], vinculo_gw:null});
-    }
-  });
+  _bpmnAddDisconnectedNodes(ordered, visited, nodeInfo);
   return ordered;
 }
 function extrairBpmn(){
@@ -8788,40 +8811,33 @@ function _rEntMatBadges(e){
     return `<span class="badge" style="margin-right:4px;background:${matBg};color:${matColor}">${n} ${MATURIDADE_LABELS[n]}</span>`;
   }).join('');
 }
-function _rEntIlpCard(ilpData){
-  if(!ilpData) return '';
-  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
-  let ilpBg,ilpColor,ilpLabel;
-  if(ilp>=65){ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';}
-  else if(ilp>=40){ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';}
-  else{ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';}
-  const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
-  const modeRow=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
-  // ── Interpretação contextual ──
+function _rEntIlpPalette(ilp){
+  if(ilp>=65) return {bg:'#d1fae5',color:'#065f46',label:'Processo enxuto'};
+  if(ilp>=40) return {bg:'#fef3c7',color:'#92400e',label:'Melhorias possíveis'};
+  return {bg:'#fee2e2',color:'#991b1b',label:'Alto nível de controle'};
+}
+function _rEntIlpIssues(total, gxorDiv, nAtores, nAuto, nSemi){
   const issues=[];
   if(gxorDiv>=3) issues.push(`${gxorDiv} pontos de decisão exclusivos — consolide critérios para reduzir variabilidade`);
   if(nAtores>=4) issues.push(`${nAtores} atores distintos — avalie concentrar responsabilidades`);
   if(nAuto+nSemi===0&&total>=5) issues.push('nenhuma atividade automatizada — identifique etapas repetitivas para automação');
-  let interpretacao;
-  if(ilp>=80){
-    interpretacao='✅ Processo altamente enxuto. Fluxo direto com poucos pontos de decisão e baixo número de atores. Mantenha o perfil e monitore futuras inclusões de etapas.';
-  } else if(ilp>=65){
-    interpretacao=issues.length
-      ? '👍 Processo bem estruturado. Para elevar ainda mais a nota: '+issues.slice(0,2).join('; ')+'.'
-      : '👍 Processo bem estruturado. Nenhuma ação urgente identificada.';
-  } else if(ilp>=50){
-    interpretacao=issues.length
-      ? '⚠️ Há oportunidade de melhoria. Foque em: '+issues.slice(0,2).join('; ')+'.'
-      : '⚠️ O processo pode ser simplificado reduzindo pontos de decisão ou o número de atores envolvidos.';
-  } else if(ilp>=40){
-    interpretacao=issues.length
-      ? '⚠️ Nível de overhead elevado. Priorize: '+issues.slice(0,3).join('; ')+'.'
-      : '⚠️ O processo possui muitos pontos de decisão e/ou atores distintos em relação ao total de atividades.';
-  } else {
-    interpretacao=issues.length
-      ? '🔴 Processo com alto overhead. Ações recomendadas: '+issues.slice(0,3).join('; ')+'.'
-      : '🔴 O processo possui muitos pontos de decisão e/ou atores. Revise o fluxo para simplificar.';
-  }
+  return issues;
+}
+function _rEntIlpInterpretacao(ilp, issues){
+  if(ilp>=80) return '✅ Processo altamente enxuto. Fluxo direto com poucos pontos de decisão e baixo número de atores. Mantenha o perfil e monitore futuras inclusões de etapas.';
+  if(ilp>=65) return issues.length ? '👍 Processo bem estruturado. Para elevar ainda mais a nota: '+issues.slice(0,2).join('; ')+'.' : '👍 Processo bem estruturado. Nenhuma ação urgente identificada.';
+  if(ilp>=50) return issues.length ? '⚠️ Há oportunidade de melhoria. Foque em: '+issues.slice(0,2).join('; ')+'.' : '⚠️ O processo pode ser simplificado reduzindo pontos de decisão ou o número de atores envolvidos.';
+  if(ilp>=40) return issues.length ? '⚠️ Nível de overhead elevado. Priorize: '+issues.slice(0,3).join('; ')+'.' : '⚠️ O processo possui muitos pontos de decisão e/ou atores distintos em relação ao total de atividades.';
+  return issues.length ? '🔴 Processo com alto overhead. Ações recomendadas: '+issues.slice(0,3).join('; ')+'.' : '🔴 O processo possui muitos pontos de decisão e/ou atores. Revise o fluxo para simplificar.';
+}
+function _rEntIlpCard(ilpData){
+  if(!ilpData) return '';
+  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
+  const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
+  const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
+  const modeRow=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
+  const issues=_rEntIlpIssues(total, gxorDiv, nAtores, nAuto, nSemi);
+  const interpretacao=_rEntIlpInterpretacao(ilp, issues);
   return `<div class="card" style="margin-bottom:1rem;border-left:4px solid ${ilpColor}">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:.6rem">
       <div>
@@ -9237,44 +9253,34 @@ async function _getFluxogramaToBePng(p){
   if(!p?.mod?.bpmnToBe) return null;
   return renderBpmnToPng(p.mod.bpmnToBe);
 }
-
-// ─── Gera HTML do apêndice de caracterização do processo para o PDF ──────────
-async function _popPdfAnexo(p){
-  const e=p.ent||{};
-  const sections=[];
-  const _esc=v=>esc(String(v||''));
-  const secH=(n,t)=>`<div style="font-size:13px;font-weight:700;color:#1a1a2e;border-bottom:2px solid #1e6bfa;padding-bottom:5px;margin:1.5rem 0 .8rem">${n} ${t}</div>`;
-  const fld=(l,v)=>v?`<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8888aa;margin-bottom:2px">${l}</div><div style="font-size:12px;font-weight:500;color:#1a1a2e">${_esc(v)}</div></div>`:'';
-
-  // ── 6.0 Volumetria ────────────────────────────────────────────────────────
-  if(e.vol?.exec||e.t_ciclo!=null||e.t_real!=null){
-    sections.push(`${secH('6.0','Volumetria')}
+function _popPdfVolumetriaSection(e, secH, fld){
+  if(!(e.vol?.exec||e.t_ciclo!=null||e.t_real!=null)) return '';
+  return `${secH('6.0','Volumetria')}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:.5rem">
       ${fld('Execuções/período',e.vol?.exec||'')}
       ${fld('Tempo médio de ciclo',e.t_ciclo==null?'':e.t_ciclo+' h')}
       ${fld('Tempo real (lead time)',e.t_real==null?'':e.t_real+' h')}
       ${fld('Tempo de gaveta',e.t_gaveta==null?'':e.t_gaveta+' h')}
-    </div>`);
-  }
-
-  // ── 7.0 Índice Lean Processual ────────────────────────────────────────────
+    </div>`;
+}
+function _popPdfIlpSection(p, secH){
   const ilpData=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null);
-  if(ilpData){
-    const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
-    let ilpBg,ilpColor,ilpLabel,ilpDesc;
-    if(ilp>=65){
-      ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';
-      ilpDesc='Fluxo direto com poucos pontos de decisão e baixo número de atores. O processo está bem estruturado e com boa eficiência operacional.';
-    }else if(ilp>=40){
-      ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';
-      ilpDesc='Há oportunidades de simplificação: reduza pontos de decisão desnecessários, consolide responsabilidades entre atores ou automatize etapas repetitivas.';
-    }else{
-      ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';
-      ilpDesc='O processo possui muitos pontos de decisão e/ou atores em relação ao total de atividades, indicando possível fragmentação ou excesso de handoffs. Priorize simplificação do fluxo.';
-    }
-    const modoRow=[['Manual',nManual,'#6b7280'],['Semi-automática',nSemi,'#6366f1'],['Automática',nAuto,'#10b981']]
-      .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
-    sections.push(`${secH('7.0','Índice Lean Processual')}
+  if(!ilpData) return '';
+  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
+  let ilpBg,ilpColor,ilpLabel,ilpDesc;
+  if(ilp>=65){
+    ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';
+    ilpDesc='Fluxo direto com poucos pontos de decisão e baixo número de atores. O processo está bem estruturado e com boa eficiência operacional.';
+  }else if(ilp>=40){
+    ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';
+    ilpDesc='Há oportunidades de simplificação: reduza pontos de decisão desnecessários, consolide responsabilidades entre atores ou automatize etapas repetitivas.';
+  }else{
+    ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';
+    ilpDesc='O processo possui muitos pontos de decisão e/ou atores em relação ao total de atividades, indicando possível fragmentação ou excesso de handoffs. Priorize simplificação do fluxo.';
+  }
+  const modoRow=[['Manual',nManual,'#6b7280'],['Semi-automática',nSemi,'#6366f1'],['Automática',nAuto,'#10b981']]
+    .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
+  return `${secH('7.0','Índice Lean Processual')}
     <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:.8rem">
       <div style="background:${ilpBg};border-left:4px solid ${ilpColor};border-radius:6px;padding:12px 18px;text-align:center;min-width:130px;flex-shrink:0">
         <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:${ilpColor};margin-bottom:4px">Índice Lean</div>
@@ -9286,8 +9292,21 @@ async function _popPdfAnexo(p){
         <div style="flex-wrap:wrap">${modoRow}</div>
         <div style="font-size:10px;color:#8888aa;margin-top:.4rem">Total atividades: <strong>${total}</strong> · Gateways divergentes: <strong>${gxorDiv}</strong> · Atores distintos: <strong>${nAtores}</strong></div>
       </div>
-    </div>`);
-  }
+    </div>`;
+}
+
+// ─── Gera HTML do apêndice de caracterização do processo para o PDF ──────────
+async function _popPdfAnexo(p){
+  const e=p.ent||{};
+  const sections=[];
+  const _esc=v=>esc(String(v||''));
+  const secH=(n,t)=>`<div style="font-size:13px;font-weight:700;color:#1a1a2e;border-bottom:2px solid #1e6bfa;padding-bottom:5px;margin:1.5rem 0 .8rem">${n} ${t}</div>`;
+  const fld=(l,v)=>v?`<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8888aa;margin-bottom:2px">${l}</div><div style="font-size:12px;font-weight:500;color:#1a1a2e">${_esc(v)}</div></div>`:'';
+
+  const volumetriaHtml = _popPdfVolumetriaSection(e, secH, fld);
+  if(volumetriaHtml) sections.push(volumetriaHtml);
+  const ilpHtml = _popPdfIlpSection(p, secH);
+  if(ilpHtml) sections.push(ilpHtml);
 
   // ── 8.0 Maturidade ────────────────────────────────────────────────────────
   const matNivel=e.mat||0;
@@ -9735,32 +9754,32 @@ async function salvarReuniaoAvulsa(){
   if(!data){toast('Informe a data da reunião','var(--red)');return;}
   if(!p.reunioes) p.reunioes=[];
   const vinculouEtapa=_vincularReuniaoEtapaFluxo(p,tipo,dadosReuniao);
-  if(editId){
-    const idx=p.reunioes.findIndex(x=>x.id===editId);
-    if(idx>=0){
-      if(vinculouEtapa){
-        p.reunioes.splice(idx,1);
-      } else {
-        const r=p.reunioes[idx];
-        r.tipo=tipo;r.data=data;r.participantes=part;r.ata=ata;
-      }
-    }
-  } else {
-    if(!vinculouEtapa){
-      p.reunioes.push({id:'rn_'+Date.now(),tipo,data,participantes:part,ata,registrada_em:now()});
-    }
-    push(p,vinculouEtapa?'apresentacao':'','EP','Reunião registrada: '+(REUNIAO_TIPOS[tipo]||tipo)+' — '+data);
-  }
+  _salvarReuniaoAvulsaAplicar(p, {editId,tipo,data,part,ata,vinculouEtapa});
   await fbSaveAll();
-  let reuniaoMsg='Reunião registrada!';
-  if(vinculouEtapa){
-    reuniaoMsg='Reunião registrada e vinculada à etapa Aprovação pelo Gestor!';
-  } else if(editId){
-    reuniaoMsg='Reunião atualizada!';
-  }
-  toast(reuniaoMsg,'var(--teal)');
+  toast(_salvarReuniaoAvulsaMensagem(editId, vinculouEtapa),'var(--teal)');
   cancelarEditReuniao();
   rReun(p);
+}
+function _salvarReuniaoAvulsaAplicar(p, {editId,tipo,data,part,ata,vinculouEtapa}){
+  if(editId){
+    const idx=p.reunioes.findIndex(x=>x.id===editId);
+    if(idx<0) return;
+    if(vinculouEtapa){
+      p.reunioes.splice(idx,1);
+      return;
+    }
+    const r=p.reunioes[idx];
+    r.tipo=tipo;r.data=data;r.participantes=part;r.ata=ata;
+    return;
+  }
+  if(!vinculouEtapa){
+    p.reunioes.push({id:'rn_'+Date.now(),tipo,data,participantes:part,ata,registrada_em:now()});
+  }
+  push(p,vinculouEtapa?'apresentacao':'','EP','Reunião registrada: '+(REUNIAO_TIPOS[tipo]||tipo)+' — '+data);
+}
+function _salvarReuniaoAvulsaMensagem(editId, vinculouEtapa){
+  if(vinculouEtapa) return 'Reunião registrada e vinculada à etapa Aprovação pelo Gestor!';
+  return editId ? 'Reunião atualizada!' : 'Reunião registrada!';
 }
 
 // ═══════════════════════════════════════════
@@ -9914,6 +9933,84 @@ function _bpmnActivateKeyboard(which){
     }catch{}
   });
 }
+function _bpmnFocusCanvas(mod, p){
+  const canvas=mod.get('canvas');
+  const isDet=['det_valid_asis','det_valid_tobe'].includes(p?.etapa);
+  if(!isDet){
+    canvas.zoom('fit-viewport');
+    return;
+  }
+  const reg=mod.get('elementRegistry');
+  const startEl=reg.getAll().find(el=>el.type&&el.type.toLowerCase().includes('startevent'));
+  let focusEl=startEl;
+  if(startEl){
+    const conn=reg.getAll().find(el=>el.waypoints&&el.source?.id===startEl.id);
+    if(conn?.target) focusEl=conn.target;
+  }
+  if(!focusEl){
+    canvas.zoom('fit-viewport');
+    return;
+  }
+  const fw=Math.max(focusEl.width*5,480);
+  const fh=Math.max(focusEl.height*5,360);
+  canvas.viewbox({x:focusEl.x-(fw-focusEl.width)/2,y:focusEl.y-(fh-focusEl.height)/2,width:fw,height:fh});
+}
+function _bpmnSyncIdsByName(mod){
+  const etapasArr=curProc?.mod?.[_ekey()]||[];
+  if(!etapasArr.some(x=>!x.bpmn_id)) return;
+  const regAll=mod.get('elementRegistry').getAll();
+  let changed=false;
+  etapasArr.forEach(et=>{
+    if(et.bpmn_id||!et.nome) return;
+    const match=regAll.find(x=>x.type!=='label'&&x.businessObject?.name===et.nome);
+    if(match){
+      et.bpmn_id=match.id;
+      changed=true;
+    }
+  });
+  if(changed) fbAutoSave('syncBpmnIds');
+}
+function _bpmnBindEtapaDblClick(mod){
+  mod.on('element.dblclick',1500,(event)=>{
+    const shape=event.element.type==='label'?event.element.labelTarget:event.element;
+    if(!shape) return;
+    const etapas=curProc?.mod?.[_ekey()]||[];
+    let et=etapas.find(x=>x.bpmn_id===shape.id);
+    if(!et){
+      const elName=shape.businessObject?.name;
+      if(elName){
+        et=etapas.find(x=>x.nome===elName);
+        if(et) et.bpmn_id=shape.id;
+      }
+    }
+    if(et){
+      event.stopPropagation();
+      abrirBpmnEtapaModal(et.id);
+    }
+  });
+}
+function _bpmnAttachExisting(which, p, canvasEl){
+  if(bpmnProcIds[which]!==p?.id) return false;
+  try{
+    bpmnModelers[which].attachTo(canvasEl);
+    _bpmnActivateKeyboard(which);
+    _setDisplay(document.getElementById('bpmn-'+which+'-loading'), false);
+    if(bpmnDirty[which]) _setDisplay(document.getElementById('bpmn-'+which+'-dirty'), true, 'inline');
+    _bpmnFocusCanvas(bpmnModelers[which], p);
+    globalThis._bpmnLastHL=null;
+    return true;
+  }catch{
+    return false;
+  }
+}
+function _bpmnInitModelerEvents(mod, which){
+  const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
+  if(canvasEl) canvasEl.addEventListener('mousedown',()=>_bpmnActivateKeyboard(which),true);
+  mod.on('commandStack.changed',()=>{
+    bpmnDirty[which]=true;
+    _setDisplay(document.getElementById('bpmn-'+which+'-dirty'), true, 'inline');
+  });
+}
 function initBpmnMod(which, p){
   if(typeof BpmnJS==='undefined'){
     const l=document.getElementById('bpmn-'+which+'-loading');
@@ -9926,37 +10023,7 @@ function initBpmnMod(which, p){
   // This preserves the live diagram state (including unsaved edits) across
   // navigations between esboco and det_valid (they share bpmnModelers['asis'/'tobe']).
   if(bpmnModelers[which]){
-    // Re-attach only when it's the same process — preserves unsaved edits across
-    // esboco ↔ det_valid navigation. Different process: destroy and reimport.
-    if(bpmnProcIds[which]===p?.id){
-      try{
-        bpmnModelers[which].attachTo(canvasEl);
-        _bpmnActivateKeyboard(which);
-        const l=document.getElementById('bpmn-'+which+'-loading');
-        if(l)l.style.display='none';
-        if(bpmnDirty[which]){
-          const lbl=document.getElementById('bpmn-'+which+'-dirty');
-          if(lbl)lbl.style.display='inline';
-        }
-        const canvas=bpmnModelers[which].get('canvas');
-        const isDet=['det_valid_asis','det_valid_tobe'].includes(p?.etapa);
-        if(isDet){
-          const reg=bpmnModelers[which].get('elementRegistry');
-          const startEl=reg.getAll().find(el=>el.type&&el.type.toLowerCase().includes('startevent'));
-          let focusEl=startEl;
-          if(startEl){
-            const conn=reg.getAll().find(el=>el.waypoints&&el.source?.id===startEl.id);
-            if(conn?.target) focusEl=conn.target;
-          }
-          if(focusEl){
-            const fw=Math.max(focusEl.width*5,480),fh=Math.max(focusEl.height*5,360);
-            canvas.viewbox({x:focusEl.x-(fw-focusEl.width)/2,y:focusEl.y-(fh-focusEl.height)/2,width:fw,height:fh});
-          }else{canvas.zoom('fit-viewport');}
-        }else{canvas.zoom('fit-viewport');}
-        globalThis._bpmnLastHL=null;
-        return;
-      }catch{}
-    }
+    if(_bpmnAttachExisting(which, p, canvasEl)) return;
     try{bpmnModelers[which].destroy();}catch{}
     bpmnModelers[which]=null;
   }
@@ -9965,63 +10032,14 @@ function initBpmnMod(which, p){
   bpmnDirty[which]=false;
   bpmnProcIds[which]=p?.id;
   _bpmnActivateKeyboard(which);
-  const _canvasEl2=document.getElementById('bpmn-'+which+'-canvas');
-  if(_canvasEl2) _canvasEl2.addEventListener('mousedown',()=>_bpmnActivateKeyboard(which),true);
-  mod.on('commandStack.changed',()=>{
-    bpmnDirty[which]=true;
-    const lbl=document.getElementById('bpmn-'+which+'-dirty');
-    if(lbl)lbl.style.display='inline';
-  });
+  _bpmnInitModelerEvents(mod, which);
   const xmlKey=which==='asis'?'bpmnAsIs':'bpmnToBe';
   const xml=(p?.mod&&p.mod[xmlKey])?p.mod[xmlKey]:BPMN_DEFAULT;
   mod.importXML(xml).then(()=>{
-    const l=document.getElementById('bpmn-'+which+'-loading');
-    if(l)l.style.display='none';
-    const canvas=mod.get('canvas');
-    const isDet=['det_valid_asis','det_valid_tobe'].includes(p?.etapa);
-    if(isDet){
-      // Zoom in on the first task instead of fit-viewport (diagram is only 50% width)
-      const reg=mod.get('elementRegistry');
-      const startEl=reg.getAll().find(el=>el.type&&el.type.toLowerCase().includes('startevent'));
-      let focusEl=startEl;
-      if(startEl){
-        const conn=reg.getAll().find(el=>el.waypoints&&el.source?.id===startEl.id);
-        if(conn?.target) focusEl=conn.target;
-      }
-      if(focusEl){
-        const fw=Math.max(focusEl.width*5,480), fh=Math.max(focusEl.height*5,360);
-        canvas.viewbox({x:focusEl.x-(fw-focusEl.width)/2, y:focusEl.y-(fh-focusEl.height)/2, width:fw, height:fh});
-      } else {
-        canvas.zoom('fit-viewport');
-      }
-    } else {
-      canvas.zoom('fit-viewport');
-    }
-    // Back-fill missing bpmn_id by element name (covers etapas extracted before this field existed)
-    const etapasArr=curProc?.mod?.[_ekey()]||[];
-    if(etapasArr.some(x=>!x.bpmn_id)){
-      const regAll=mod.get('elementRegistry').getAll();
-      let changed=false;
-      etapasArr.forEach(et=>{
-        if(!et.bpmn_id&&et.nome){
-          const m=regAll.find(x=>x.type!=='label'&&x.businessObject?.name===et.nome);
-          if(m){et.bpmn_id=m.id;changed=true;}
-        }
-      });
-      if(changed)fbAutoSave('syncBpmnIds');
-    }
-    mod.on('element.dblclick',1500,(event)=>{
-      // Resolve label elements to their parent shape
-      const shape=event.element.type==='label'?event.element.labelTarget:event.element;
-      if(!shape) return;
-      const etapas=curProc?.mod?.[_ekey()]||[];
-      let et=etapas.find(x=>x.bpmn_id===shape.id);
-      if(!et){
-        const elName=shape.businessObject?.name;
-        if(elName){et=etapas.find(x=>x.nome===elName);if(et)et.bpmn_id=shape.id;}
-      }
-      if(et){event.stopPropagation();abrirBpmnEtapaModal(et.id);}
-    });
+    _setDisplay(document.getElementById('bpmn-'+which+'-loading'), false);
+    _bpmnFocusCanvas(mod, p);
+    _bpmnSyncIdsByName(mod);
+    _bpmnBindEtapaDblClick(mod);
   }).catch(err=>{
     const l=document.getElementById('bpmn-'+which+'-loading');
     if(l)l.innerHTML='<div style="color:var(--red);padding:1rem;font-size:13px">Erro: '+(err.message||err)+'</div>';
@@ -10587,24 +10605,31 @@ function getArqFilters(){
 
 // Returns true if a process/subprocesso matches current filters
 function itemMatchesFilters(item, macroNome, f){
+  return _itemMatchesBaseFilters(item, f)
+    && _itemMatchesMatFilter(item, f.mat)
+    && _itemMatchesSearch(item, macroNome, f.srch);
+}
+function _itemMatchesBaseFilters(item, f){
   if(f.area && item.area !== f.area) return false;
   if(f.nat  && (item.natureza||'').toLowerCase() !== f.nat.toLowerCase()) return false;
   if(f.obje && !(item.objetivo_estrategico||'').includes(f.obje)) return false;
   if(f.mapeado && (f.mapeado==='sim') !== isMapeado(item.id)) return false;
   if(f.critico && (f.critico==='sim') !== isCritico(item.id)) return false;
   if(f.dono && item.gerente !== f.dono) return false;
-  if(f.mat !== ''){
-    const _lp = processos.find(p=>p.arq_id===item.id);
-    const _mat = _lp ? (_lp.ent?.mat||0) : -1;
-    if(Number(f.mat) !== _mat) return false;
-  }
-  if(f.srch){
-    const hay = [item.nome, item.area, item.gerente, item.objetivo,
-                 item.objetivo_estrategico, item.clientes, macroNome]
-                 .join(' ').toLowerCase();
-    if(!hay.includes(f.srch)) return false;
-  }
   return true;
+}
+function _itemMatchesMatFilter(item, mat){
+  if(mat === '') return true;
+  const lp = processos.find(p=>p.arq_id===item.id);
+  const itemMat = lp ? (lp.ent?.mat||0) : -1;
+  return Number(mat) === itemMat;
+}
+function _itemMatchesSearch(item, macroNome, srch){
+  if(!srch) return true;
+  const hay = [item.nome, item.area, item.gerente, item.objetivo, item.objetivo_estrategico, item.clientes, macroNome]
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(srch);
 }
 
 function limparFiltrosArq(){
@@ -10684,56 +10709,53 @@ function rFaq(){
   const macroSel  = document.getElementById('faq-f-macro');
   if(!container) return;
 
-  const srch      = (document.getElementById('faq-srch')?.value||'').toLowerCase().trim();
-  const filtMacro = macroSel?.value || '';
-
-  // Coleta todos os processos que têm FAQ preenchida
-  const todos = processos.filter(p => p.form?.faq && p.form.faq.trim());
-
-  // Preenche select de macroprocessos na primeira execução
-  if(macroSel && macroSel.options.length <= 1){
-    const macros = [...new Set(todos.map(p=>p.macro||'').filter(Boolean))].sort();
-    const macroAtual = macroSel.value;
-    macros.forEach(m=>{
-      const opt = document.createElement('option');
-      opt.value = m; opt.textContent = m;
-      macroSel.appendChild(opt);
-    });
-    if(macroAtual) macroSel.value = macroAtual;
-  }
-
-  // Agrupa por macro > processo, aplica filtros
-  const grupos = {};
-  let totalPerguntas = 0;
-
-  for(const proc of todos){
-    const macro = proc.macro || '(Sem macroprocesso)';
-    if(filtMacro && macro !== filtMacro) continue;
-
-    const pares = _parseFaq(proc.form.faq);
-    const paresFiltrados = srch
-      ? pares.filter(({p,r})=>(p+' '+r).toLowerCase().includes(srch))
-      : pares;
-
-    if(!paresFiltrados.length) continue;
-
-    if(!grupos[macro]) grupos[macro] = {};
-    if(!grupos[macro][proc.nome]) grupos[macro][proc.nome] = [];
-    grupos[macro][proc.nome].push(...paresFiltrados);
-    totalPerguntas += paresFiltrados.length;
-  }
-
-  const pergPlural = totalPerguntas===1 ? '' : 's';
-  if(cntEl) cntEl.textContent = totalPerguntas
-    ? `${totalPerguntas} pergunta${pergPlural} encontrada${pergPlural}`
-    : '';
-
+  const srch=(document.getElementById('faq-srch')?.value||'').toLowerCase().trim();
+  const filtMacro=macroSel?.value || '';
+  const todos=processos.filter(p => p.form?.faq && p.form.faq.trim());
+  _faqPopulateMacroSelect(macroSel, todos);
+  const {grupos,totalPerguntas}=_faqBuildGroups(todos, filtMacro, srch);
+  if(cntEl) cntEl.textContent=_faqCountLabel(totalPerguntas);
   if(!Object.keys(grupos).length){
     container.innerHTML = `<div class="ib ibb">${srch||filtMacro ? 'Nenhuma FAQ encontrada para os filtros aplicados.' : 'Nenhum processo possui FAQ cadastrada ainda.'}</div>`;
     return;
   }
 
   container.innerHTML = Object.keys(grupos).sort().map(macro => _rFaqMacroHTML(macro, grupos[macro], srch)).join('');
+}
+function _faqPopulateMacroSelect(macroSel, todos){
+  if(!macroSel || macroSel.options.length > 1) return;
+  const macroAtual = macroSel.value;
+  [...new Set(todos.map(p=>p.macro||'').filter(Boolean))].sort().forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    macroSel.appendChild(opt);
+  });
+  if(macroAtual) macroSel.value = macroAtual;
+}
+function _faqBuildGroups(todos, filtMacro, srch){
+  const grupos={};
+  let totalPerguntas=0;
+  for(const proc of todos){
+    const macro = proc.macro || '(Sem macroprocesso)';
+    if(filtMacro && macro !== filtMacro) continue;
+    const pares = _faqFilterPairs(_parseFaq(proc.form.faq), srch);
+    if(!pares.length) continue;
+    if(!grupos[macro]) grupos[macro] = {};
+    if(!grupos[macro][proc.nome]) grupos[macro][proc.nome] = [];
+    grupos[macro][proc.nome].push(...pares);
+    totalPerguntas += pares.length;
+  }
+  return {grupos,totalPerguntas};
+}
+function _faqFilterPairs(pares, srch){
+  if(!srch) return pares;
+  return pares.filter(({p,r})=>(p+' '+r).toLowerCase().includes(srch));
+}
+function _faqCountLabel(totalPerguntas){
+  if(!totalPerguntas) return '';
+  const pergPlural = totalPerguntas===1 ? '' : 's';
+  return `${totalPerguntas} pergunta${pergPlural} encontrada${pergPlural}`;
 }
 
 function rArq(){
@@ -13185,22 +13207,20 @@ function onUsrPerfilChg(){
   const isDono   = perfil==='dono';
   const isGestor = perfil==='gestor';
   const isGerproj= perfil==='gerente_projeto';
-
-  // Process vinculos section: visible for dono (or gerproj-primary + dono secondary)
-  if(sec) sec.style.display = isDono ? 'block' : 'none';
-
-  // "Also gerente_projeto" checkbox: visible when primary is dono or gestor
-  if(extra){ extra.style.display = (isDono||isGestor) ? 'block' : 'none'; if(!(isDono||isGestor)&&chk) chk.checked=false; }
-
-  // "Also SIGA Processos" section: visible only when primary is gerente_projeto
-  if (extraProc) {
-    extraProc.style.display = isGerproj ? 'block' : 'none';
-    if (!isGerproj) {
-      if (chkProc) { chkProc.checked = false; }
-      if (selProc) { selProc.style.display = 'none'; }
-    }
-  }
-  if(projSec) projSec.style.display = (isGerproj || chk?.checked) ? 'block' : 'none';
+  _setDisplay(sec, isDono, 'block');
+  _usrToggleGerProjExtra(extra, chk, isDono || isGestor);
+  _usrToggleProcAlsoExtra(extraProc, chkProc, selProc, isGerproj);
+  _setDisplay(projSec, isGerproj || chk?.checked, 'block');
+}
+function _usrToggleGerProjExtra(extra, chk, visible){
+  _setDisplay(extra, visible, 'block');
+  if(!visible && chk) chk.checked=false;
+}
+function _usrToggleProcAlsoExtra(extraProc, chkProc, selProc, isGerproj){
+  _setDisplay(extraProc, isGerproj, 'block');
+  if(isGerproj) return;
+  if(chkProc) chkProc.checked=false;
+  _setDisplay(selProc, false, 'block');
 }
 
 function _onUsrGerProjChg(){
@@ -13229,81 +13249,92 @@ function abrirModalUsr(idx){
   const modal = document.getElementById('usr-modal');
   modal.style.display = 'flex';
   const delBtn = document.getElementById('usr-del-btn');
-
-  // Populate process selector
+  _usrPopulateSelectors();
+  _usrResetSecondaryFields();
+  if(idx===null){
+    _abrirModalUsrNovo(delBtn);
+    return;
+  }
+  _abrirModalUsrEdicao(idx, delBtn);
+}
+function _usrPopulateSelectors(){
   const sel = document.getElementById('usr-proc-add-sel');
-  const units = getUnidadesMapeaveis();
-  sel.innerHTML = '<option value="">Selecione um processo para vincular...</option>' +
-    units.map(u=>`<option value="${u.arq_id}">${u.label}</option>`).join('');
+  if(sel){
+    const units = getUnidadesMapeaveis();
+    sel.innerHTML = '<option value="">Selecione um processo para vincular...</option>' +
+      units.map(u=>`<option value="${u.arq_id}">${u.label}</option>`).join('');
+  }
   const projSel = document.getElementById('usr-proj-add-sel');
-  if(projSel) {
+  if(projSel){
     const projetos = getProjetosVinculaveis();
     projSel.innerHTML = '<option value="">Selecione um projeto para vincular...</option>' +
       projetos.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('');
   }
-
-  // Reset secondary-module fields
-  const _resetSecondary = () => {
-    const extraPr=document.getElementById('usr-proc-also-extra');
-    const chkPr=document.getElementById('usr-proc-also-chk');
-    const selPr=document.getElementById('usr-proc-also-sel');
-    if(extraPr) extraPr.style.display='none';
-    if(chkPr)   chkPr.checked=false;
-    if(selPr)   selPr.style.display='none';
-  };
-
-  if(idx===null){
-    document.getElementById('usr-modal-t').textContent = 'Novo usuário';
-    document.getElementById('usr-idx').value = '';
-    ['usr-nome','usr-ini','usr-cargo','usr-email'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('usr-perfil').value = 'dono';
-    document.getElementById('usr-vinculos-list').innerHTML = '';
-    document.getElementById('usr-proc-section').style.display = 'block';
-    const extra=document.getElementById('usr-gerproj-extra');if(extra)extra.style.display='block';
-    const chk=document.getElementById('usr-gerproj-chk');if(chk)chk.checked=false;
-    const projSec=document.getElementById('usr-proj-section');if(projSec)projSec.style.display='none';
-    renderVinculosProj([]);
-    _resetSecondary();
-    delBtn.style.display = 'none';
-  } else {
-    const u = USUARIOS[idx];
-    const perfis = getPerfisUsuario(u);
-    const primaryPerfil = u.perfil || perfis[0] || 'dono';
-    document.getElementById('usr-modal-t').textContent = 'Editar usuário';
-    document.getElementById('usr-idx').value = idx;
-    document.getElementById('usr-nome').value = u.nome;
-    document.getElementById('usr-ini').value = u.iniciais;
-    document.getElementById('usr-cargo').value = u.cargo||'';
-    document.getElementById('usr-email').value = u.email;
-    document.getElementById('usr-perfil').value = primaryPerfil;
-
-    const extra=document.getElementById('usr-gerproj-extra');
-    const chk=document.getElementById('usr-gerproj-chk');
-    const showExtra = primaryPerfil==='dono'||primaryPerfil==='gestor';
-    if(extra) extra.style.display=showExtra?'block':'none';
-    if(chk) chk.checked=perfis.includes('gerente_projeto')&&primaryPerfil!=='gerente_projeto';
-    const projSec=document.getElementById('usr-proj-section');
-    if(projSec) projSec.style.display=(primaryPerfil==='gerente_projeto'||perfis.includes('gerente_projeto'))?'block':'none';
-
-    // Reverse: gerente_projeto primary with dono/gestor secondary
-    const extraProc=document.getElementById('usr-proc-also-extra');
-    const chkProc=document.getElementById('usr-proc-also-chk');
-    const selProc=document.getElementById('usr-proc-also-sel');
-    if(primaryPerfil==='gerente_projeto'){
-      const secProc = perfis.find(p=>p==='dono'||p==='gestor');
-      if(extraProc) extraProc.style.display='block';
-      if(chkProc)   chkProc.checked=!!secProc;
-      if(selProc){  selProc.value=secProc||'dono'; selProc.style.display=secProc?'block':'none'; }
-      document.getElementById('usr-proc-section').style.display = (secProc==='dono') ? 'block' : 'none';
-    } else {
-      _resetSecondary();
-      document.getElementById('usr-proc-section').style.display = primaryPerfil==='dono' ? 'block' : 'none';
-    }
-
-    renderVinculos(u.processos_vinculados||[]);
-    renderVinculosProj(u.projetos_vinculados||[]);
-    delBtn.style.display = 'inline-flex';
+}
+function _usrResetSecondaryFields(){
+  const extraPr=document.getElementById('usr-proc-also-extra');
+  const chkPr=document.getElementById('usr-proc-also-chk');
+  const selPr=document.getElementById('usr-proc-also-sel');
+  _setDisplay(extraPr, false, 'block');
+  if(chkPr) chkPr.checked=false;
+  _setDisplay(selPr, false, 'block');
+}
+function _abrirModalUsrNovo(delBtn){
+  document.getElementById('usr-modal-t').textContent = 'Novo usuário';
+  document.getElementById('usr-idx').value = '';
+  ['usr-nome','usr-ini','usr-cargo','usr-email'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('usr-perfil').value = 'dono';
+  document.getElementById('usr-vinculos-list').innerHTML = '';
+  _setDisplay(document.getElementById('usr-proc-section'), true, 'block');
+  _setDisplay(document.getElementById('usr-gerproj-extra'), true, 'block');
+  const chk=document.getElementById('usr-gerproj-chk');
+  if(chk) chk.checked=false;
+  _setDisplay(document.getElementById('usr-proj-section'), false, 'block');
+  renderVinculosProj([]);
+  _setDisplay(delBtn, false, 'inline-flex');
+}
+function _abrirModalUsrEdicao(idx, delBtn){
+  const u = USUARIOS[idx];
+  const perfis = getPerfisUsuario(u);
+  const primaryPerfil = u.perfil || perfis[0] || 'dono';
+  document.getElementById('usr-modal-t').textContent = 'Editar usuário';
+  document.getElementById('usr-idx').value = idx;
+  document.getElementById('usr-nome').value = u.nome;
+  document.getElementById('usr-ini').value = u.iniciais;
+  document.getElementById('usr-cargo').value = u.cargo||'';
+  document.getElementById('usr-email').value = u.email;
+  document.getElementById('usr-perfil').value = primaryPerfil;
+  _abrirModalUsrPerfis(primaryPerfil, perfis);
+  renderVinculos(u.processos_vinculados||[]);
+  renderVinculosProj(u.projetos_vinculados||[]);
+  _setDisplay(delBtn, true, 'inline-flex');
+}
+function _abrirModalUsrPerfis(primaryPerfil, perfis){
+  const extra=document.getElementById('usr-gerproj-extra');
+  const chk=document.getElementById('usr-gerproj-chk');
+  const showExtra = primaryPerfil==='dono'||primaryPerfil==='gestor';
+  _setDisplay(extra, showExtra, 'block');
+  if(chk) chk.checked=perfis.includes('gerente_projeto')&&primaryPerfil!=='gerente_projeto';
+  _setDisplay(document.getElementById('usr-proj-section'), primaryPerfil==='gerente_projeto'||perfis.includes('gerente_projeto'), 'block');
+  if(primaryPerfil==='gerente_projeto'){
+    _abrirModalUsrPerfisProjetos(perfis);
+    return;
   }
+  _usrResetSecondaryFields();
+  _setDisplay(document.getElementById('usr-proc-section'), primaryPerfil==='dono', 'block');
+}
+function _abrirModalUsrPerfisProjetos(perfis){
+  const secProc = perfis.find(p=>p==='dono'||p==='gestor');
+  const extraProc=document.getElementById('usr-proc-also-extra');
+  const chkProc=document.getElementById('usr-proc-also-chk');
+  const selProc=document.getElementById('usr-proc-also-sel');
+  _setDisplay(extraProc, true, 'block');
+  if(chkProc) chkProc.checked=!!secProc;
+  if(selProc){
+    selProc.value=secProc||'dono';
+    _setDisplay(selProc, !!secProc, 'block');
+  }
+  _setDisplay(document.getElementById('usr-proc-section'), secProc==='dono', 'block');
 }
 
 // Render vinculo list inside modal (temp, not saved yet)
@@ -13348,10 +13379,12 @@ function renderVinculosProj(vinculos){
   }
   el.innerHTML = _tempProjetoVinculos.map((pid,i)=>{
     const p = projetos.find(x => x.id === String(pid));
+    const faseHtml = p?.fase ? ' · '+p.fase : '';
+    const statusHtml = p ? `<div style="font-size:11px;color:var(--ink3)">${p.status}${faseHtml}</div>` : '';
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:4px;font-size:12px">
       <div style="flex:1">
         <div style="font-weight:500">${p?p.nome:pid}</div>
-        ${p?`<div style="font-size:11px;color:var(--ink3)">${p.status}${p.fase ? ` · ${p.fase}` : ''}</div>`:''}
+        ${statusHtml}
       </div>
       <button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="remVinculoProj(${i})">× Remover</button>
     </div>`;
@@ -13473,14 +13506,7 @@ async function salvarUsr(){
   const perfil = document.getElementById('usr-perfil').value;
   if(!nome||!email){ toast('Preencha nome e e-mail.','var(--amber)'); return; }
   const ini = document.getElementById('usr-ini').value.trim() || nome.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2);
-  // Build perfis array considering bidirectional dual-profile
-  const tambemGerProj  = document.getElementById('usr-gerproj-chk')?.checked  && perfil!=='gerente_projeto';
-  const tambemProcAlso = document.getElementById('usr-proc-also-chk')?.checked && perfil==='gerente_projeto';
-  const procAlsoPerfil = tambemProcAlso ? (document.getElementById('usr-proc-also-sel')?.value||'dono') : null;
-  let perfisArr;
-  if(tambemGerProj)         perfisArr = [perfil,'gerente_projeto'];
-  else if(tambemProcAlso)   perfisArr = [procAlsoPerfil,'gerente_projeto'];
-  else                      perfisArr = [perfil];
+  const perfisArr = _salvarUsrPerfis(perfil);
   const effectiveDono = perfisArr.includes('dono');
   const vinculos = effectiveDono ? [..._tempVinculos] : [];
   const projetosVinculados = perfisArr.includes('gerente_projeto') ? [..._tempProjetoVinculos.map(String)] : [];
@@ -13488,50 +13514,70 @@ async function salvarUsr(){
 
   if(idxStr===''){
     if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
-    USUARIOS.push({email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos, projetos_vinculados:projetosVinculados, trocar_senha:true});
+    USUARIOS.push(_salvarUsrBuildPayload({email, nome, cargo, perfil, perfisArr, ini, vinculos, projetosVinculados, trocarSenha:true}));
     document.getElementById('usr-modal').style.display = 'none';
     renderAdmin();
     await fbSaveAll();
-    // Cria conta Firebase Auth e envia senha temporária
-    if(fbReady()){
-      const {initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
-      const senhaTemp = gerarSenhaTemp();
-      let contaCriada = false;
-      try {
-        const secApp = initializeApp(FIREBASE_CONFIG, 'sec_usr_'+Date.now());
-        const secAuth = getAuth(secApp);
-        try {
-          await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
-          contaCriada = true;
-        } catch(e){
-          if(e.code !== 'auth/email-already-in-use') console.warn('Firebase Auth create err:', e);
-        } finally {
-          await deleteApp(secApp).catch(()=>{});
-        }
-      } catch(e){ console.warn('Erro ao inicializar app secundária:', e); }
-      if(contaCriada){
-        _enviarSenhaAcesso(email, nome, senhaTemp);
-        toast('Usuário criado! Senha temporária enviada para '+email+'.', 'var(--teal)');
-      } else {
-        toast('Usuário salvo. Este e-mail já possui conta — o acesso está mantido.', 'var(--amber)');
-      }
-    } else {
-      toast('Usuário salvo (Firebase indisponível — ative o acesso pelo "Primeiro acesso").', 'var(--amber)');
-    }
-  } else {
-    const idx = Number.parseInt(idxStr);
-    if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
-    USUARIOS[idx] = {...USUARIOS[idx], email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini, processos_vinculados:vinculos, projetos_vinculados:projetosVinculados};
-    if(usuarioLogado?.email===email){
-      usuarioLogado = USUARIOS[idx];
-      document.getElementById('aside-name').textContent = nome;
-      document.getElementById('aside-role').textContent = PERFIL_LABELS[perfil]||perfil;
-    }
-    document.getElementById('usr-modal').style.display = 'none';
-    renderAdmin();
-    await fbSaveAll();
-    toast('Usuário atualizado.', 'var(--teal)');
+    await _salvarUsrCriarConta(email, nome);
+    return;
   }
+  const idx = Number.parseInt(idxStr);
+  if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
+  USUARIOS[idx] = {...USUARIOS[idx], ..._salvarUsrBuildPayload({email, nome, cargo, perfil, perfisArr, ini, vinculos, projetosVinculados})};
+  _salvarUsrAtualizarSessao(idx, email, nome, perfil);
+  document.getElementById('usr-modal').style.display = 'none';
+  renderAdmin();
+  await fbSaveAll();
+  toast('Usuário atualizado.', 'var(--teal)');
+}
+function _salvarUsrPerfis(perfil){
+  const tambemGerProj  = document.getElementById('usr-gerproj-chk')?.checked  && perfil!=='gerente_projeto';
+  const tambemProcAlso = document.getElementById('usr-proc-also-chk')?.checked && perfil==='gerente_projeto';
+  const procAlsoPerfil = tambemProcAlso ? (document.getElementById('usr-proc-also-sel')?.value||'dono') : null;
+  if(tambemGerProj) return [perfil,'gerente_projeto'];
+  if(tambemProcAlso) return [procAlsoPerfil,'gerente_projeto'];
+  return [perfil];
+}
+function _salvarUsrBuildPayload({email, nome, cargo, perfil, perfisArr, ini, vinculos, projetosVinculados, trocarSenha=false}){
+  return {
+    email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini,
+    processos_vinculados:vinculos,
+    projetos_vinculados:projetosVinculados,
+    ...(trocarSenha ? {trocar_senha:true} : {})
+  };
+}
+async function _salvarUsrCriarConta(email, nome){
+  if(!fbReady()){
+    toast('Usuário salvo (Firebase indisponível — ative o acesso pelo "Primeiro acesso").', 'var(--amber)');
+    return;
+  }
+  const {initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
+  const senhaTemp = gerarSenhaTemp();
+  let contaCriada = false;
+  try {
+    const secApp = initializeApp(FIREBASE_CONFIG, 'sec_usr_'+Date.now());
+    const secAuth = getAuth(secApp);
+    try {
+      await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
+      contaCriada = true;
+    } catch(e){
+      if(e.code !== 'auth/email-already-in-use') console.warn('Firebase Auth create err:', e);
+    } finally {
+      await deleteApp(secApp).catch(()=>{});
+    }
+  } catch(e){ console.warn('Erro ao inicializar app secundária:', e); }
+  if(contaCriada){
+    _enviarSenhaAcesso(email, nome, senhaTemp);
+    toast('Usuário criado! Senha temporária enviada para '+email+'.', 'var(--teal)');
+    return;
+  }
+  toast('Usuário salvo. Este e-mail já possui conta — o acesso está mantido.', 'var(--amber)');
+}
+function _salvarUsrAtualizarSessao(idx, email, nome, perfil){
+  if(usuarioLogado?.email!==email) return;
+  usuarioLogado = USUARIOS[idx];
+  document.getElementById('aside-name').textContent = nome;
+  document.getElementById('aside-role').textContent = PERFIL_LABELS[perfil]||perfil;
 }
 
 async function deletarUsr(){
@@ -14691,7 +14737,18 @@ async function salvarAtividade(){
   const qtPrev= Number.parseFloat(document.getElementById('pm-qtprev')?.value)||0;
   const qtReal= Number.parseFloat(document.getElementById('pm-qtreal')?.value)||0;
   const antigo= plano.find(a=>a.id===id);
-  const at = {
+  const at = _planoBuildAtividade({id,ano,nome,vTipo,vId,vNome,qtPrev,qtReal,antigo});
+  _planoAplicarConclusao(at, antigo);
+  _planoSalvarItem(id, at);
+  fecharPlanoModal();
+  await fbSaveAll();
+  rPlano();
+  const atvToastMsg=id ? 'Atividade atualizada' : 'Atividade criada';
+  toast(atvToastMsg);
+}
+function _planoBuildAtividade({id,ano,nome,vTipo,vId,vNome,qtPrev,qtReal,antigo}){
+  const hoje = new Date().toISOString().split('T')[0];
+  return {
     id: id||_planoIdC++,
     ano,
     nome,
@@ -14709,46 +14766,47 @@ async function salvarAtividade(){
     qt_realizada: qtReal,
     obs:          document.getElementById('pm-obs')?.value.trim()||'',
     evidencia:    document.getElementById('pm-evid')?.value.trim()||'',
-    dt_criacao:   antigo?.dt_criacao||new Date().toISOString().split('T')[0],
-    dt_atualizacao: new Date().toISOString().split('T')[0],
-    // Preserva histórico de entrega (calculado abaixo se estiver concluindo agora)
+    dt_criacao:   antigo?.dt_criacao||hoje,
+    dt_atualizacao: hoje,
     dt_conclusao:   antigo?.dt_conclusao||'',
     entrega_status: antigo?.entrega_status||'',
     dias_atraso:    antigo?.dias_atraso??null,
   };
-  // Detectar conclusão: status mudou para concluida agora
+}
+function _planoAplicarConclusao(at, antigo){
   const eraConcluidaAntes = antigo?.status==='concluida' || (antigo?.qt_prevista>0 && (antigo?.qt_realizada||0)>=antigo?.qt_prevista);
   const ficouConcluida = at.status==='concluida' || (at.qt_prevista>0 && at.qt_realizada>=at.qt_prevista);
   if(ficouConcluida && !eraConcluidaAntes){
-    const hoje = new Date().toISOString().split('T')[0];
-    at.dt_conclusao = hoje;
-    if(at.prazo){
-      const diffMs = new Date(hoje) - new Date(at.prazo);
-      const dias   = Math.ceil(diffMs / 86400000); // positivo = atraso, negativo = adiantado
-      at.dias_atraso    = Math.max(0, dias);
-      at.entrega_status = dias <= 0 ? 'em_dia' : 'com_atraso';
-    } else {
-      at.entrega_status = 'sem_prazo';
-      at.dias_atraso    = 0;
-    }
-  } else if(!ficouConcluida){
-    // Reaberta: limpa os selos
+    _planoMarcarConclusao(at);
+    return;
+  }
+  if(!ficouConcluida){
     at.dt_conclusao   = '';
     at.entrega_status = '';
     at.dias_atraso    = null;
   }
+}
+function _planoMarcarConclusao(at){
+  const hoje = new Date().toISOString().split('T')[0];
+  at.dt_conclusao = hoje;
+  if(!at.prazo){
+    at.entrega_status = 'sem_prazo';
+    at.dias_atraso = 0;
+    return;
+  }
+  const diffMs = new Date(hoje) - new Date(at.prazo);
+  const dias = Math.ceil(diffMs / 86400000);
+  at.dias_atraso = Math.max(0, dias);
+  at.entrega_status = dias <= 0 ? 'em_dia' : 'com_atraso';
+}
+function _planoSalvarItem(id, at){
   if(id){
     const i=plano.findIndex(a=>a.id===id);
     if(i>=0) plano[i]=at;
     else plano.push(at);
-  } else {
-    plano.push(at);
+    return;
   }
-  fecharPlanoModal();
-  await fbSaveAll();
-  rPlano();
-  const atvToastMsg=id ? 'Atividade atualizada' : 'Atividade criada';
-  toast(atvToastMsg);
+  plano.push(at);
 }
 
 async function deletarAtividade(id){
@@ -14834,107 +14892,16 @@ async function fbLoad(){
   try {
     const {db, collection, getDocs, doc, getDoc, getDocFromServer} = fb();
 
-    // usuarios — lido PRIMEIRO, forçando busca no servidor (getDocFromServer)
-    // para evitar que o cache local do Firestore retorne dados desatualizados
-    // e aplique perfil errado ao usuário no primeiro login após criação/edição.
-    try {
-      const usrDocFirst = await getDocFromServer(doc(db,'config','usuarios'));
-      if(usrDocFirst.exists() && usrDocFirst.data().data){
-        USUARIOS = JSON.parse(usrDocFirst.data().data);
-      }
-    } catch(error_){
-      console.warn('fbLoad: fallback para cache local de usuarios:', error_.message);
-      // Fallback para cache local se o servidor não responder
-      try {
-        const usrDocCache = await getDoc(doc(db,'config','usuarios'));
-        if(usrDocCache.exists() && usrDocCache.data().data){
-          USUARIOS = JSON.parse(usrDocCache.data().data);
-        }
-      } catch(error_){ console.warn('fbLoad: erro ao carregar usuarios:', error_.message); }
-    }
-
-    // processos
-    const pSnap = await getDocs(collection(db,'processos'));
-    if(!pSnap.empty){
-      processos = [];
-      pSnap.forEach(d => processos.push(d.data()));
-      // Migração: complement foi removido, mover para apresentacao
-      processos.forEach(p=>{ if(p.etapa==='complement') p.etapa='apresentacao'; });
-      processos.sort((a,b) => a.id - b.id);
-      nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
-      // Sync etapasIdC so new etapa IDs never collide with existing ones
-      const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replaceAll('ep',''))||0));
-      if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
-    }
-
-    // kpis
-    const kSnap = await getDocs(collection(db,'kpis'));
-    if(!kSnap.empty){
-      kpis = [];
-      kSnap.forEach(d => kpis.push(d.data()));
-      _kpiIdC = Math.max(...kpis.map(k=>k.id), 0) + 1;
-    }
-
-    // plano de trabalho
-    const planoSnap = await getDocs(collection(db,'plano'));
-    if(!planoSnap.empty){
-      plano = [];
-      planoSnap.forEach(d => plano.push(d.data()));
-      _planoIdC = Math.max(...plano.map(a=>a.id), 0) + 1;
-    }
-
-    // solicitacoes de acesso
-    const solSnap = await getDocs(collection(db,'solicitacoes'));
-    if(!solSnap.empty){
-      solicitacoes = [];
-      solSnap.forEach(d => solicitacoes.push(d.data()));
-    }
-
-    // publicacoes
-    const pubSnap = await getDocs(collection(db,'publicacoes'));
-    if(!pubSnap.empty){
-      publicacoes = [];
-      pubSnap.forEach(d => publicacoes.push(d.data()));
-      _pubIdC = Math.max(...publicacoes.map(p=>p.id), 0) + 1;
-    }
-
-    // arquitetura
-    const arqDoc = await getDoc(doc(db,'config','arquitetura'));
-    if(arqDoc.exists() && arqDoc.data().data){
-      try { ARQUITETURA = JSON.parse(arqDoc.data().data); } catch(e){ console.error('Erro ao parsear arquitetura:', e); }
-    }
+    await _fbLoadUsuarios(db, doc, getDoc, getDocFromServer);
+    await _fbLoadProcessos(db, collection, getDocs);
+    await _fbLoadKpis(db, collection, getDocs);
+    await _fbLoadPlano(db, collection, getDocs);
+    await _fbLoadSolicitacoes(db, collection, getDocs);
+    await _fbLoadPublicacoes(db, collection, getDocs);
+    await _fbLoadArquitetura(db, doc, getDoc);
     _arqSaveEnabled = true; // Firestore confirmed: either loaded real data or genuinely absent (new install)
-
-
-
-    const projSnap = await getDocs(collection(db,'projPROJETOS'));
-    if(!projSnap.empty){
-      PROJETOS_USUARIOS = [];
-      projSnap.forEach(d => PROJETOS_USUARIOS.push(d.data()));
-      PROJETOS_USUARIOS.sort((a,b) => String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
-    }
-
-    // mapeados manualmente
-    const mapDoc = await getDoc(doc(db,'config','mapeados'));
-	    if(mapDoc.exists() && mapDoc.data().data){
-	      try {
-	        mapeadosManual = new Set(JSON.parse(mapDoc.data().data));
-	        lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
-	      } catch(e){ console.error('Erro ao parsear mapeados:', e); }
-	    } else {
-	      mapeadosManual = new Set(jsonArrayFromStorage('mapeadosManual'));
-	    }
-
-    // críticos manualmente
-    const critDoc = await getDoc(doc(db,'config','criticos'));
-	    if(critDoc.exists() && critDoc.data().data){
-	      try {
-	        criticosManual = new Set(JSON.parse(critDoc.data().data));
-	        lsSet('criticosManual', JSON.stringify([...criticosManual]));
-	      } catch(e){ console.error('Erro ao parsear criticos:', e); }
-	    } else {
-	      criticosManual = new Set(jsonArrayFromStorage('criticosManual'));
-	    }
+    await _fbLoadProjetosUsuarios(db, collection, getDocs);
+    await _fbLoadFlagsManuais(db, doc, getDoc);
 
     // emailjs config
     const ejsDoc = await getDoc(doc(db,'config','ejs'));
@@ -14987,6 +14954,92 @@ async function fbLoad(){
     console.warn('fbLoad error:', e.message);
     return false;
   }
+}
+async function _fbLoadUsuarios(db, doc, getDoc, getDocFromServer){
+  try {
+    const usrDocFirst = await getDocFromServer(doc(db,'config','usuarios'));
+    if(usrDocFirst.exists() && usrDocFirst.data().data) USUARIOS = JSON.parse(usrDocFirst.data().data);
+  } catch(error_){
+    console.warn('fbLoad: fallback para cache local de usuarios:', error_.message);
+    try {
+      const usrDocCache = await getDoc(doc(db,'config','usuarios'));
+      if(usrDocCache.exists() && usrDocCache.data().data) USUARIOS = JSON.parse(usrDocCache.data().data);
+    } catch(cacheError){
+      console.warn('fbLoad: erro ao carregar usuarios:', cacheError.message);
+    }
+  }
+}
+async function _fbLoadProcessos(db, collection, getDocs){
+  const pSnap = await getDocs(collection(db,'processos'));
+  if(pSnap.empty) return;
+  processos = [];
+  pSnap.forEach(d => processos.push(d.data()));
+  processos.forEach(p=>{ if(p.etapa==='complement') p.etapa='apresentacao'; });
+  processos.sort((a,b) => a.id - b.id);
+  nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
+  const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replaceAll('ep',''))||0));
+  if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
+}
+async function _fbLoadKpis(db, collection, getDocs){
+  const kSnap = await getDocs(collection(db,'kpis'));
+  if(kSnap.empty) return;
+  kpis = [];
+  kSnap.forEach(d => kpis.push(d.data()));
+  _kpiIdC = Math.max(...kpis.map(k=>k.id), 0) + 1;
+}
+async function _fbLoadPlano(db, collection, getDocs){
+  const planoSnap = await getDocs(collection(db,'plano'));
+  if(planoSnap.empty) return;
+  plano = [];
+  planoSnap.forEach(d => plano.push(d.data()));
+  _planoIdC = Math.max(...plano.map(a=>a.id), 0) + 1;
+}
+async function _fbLoadSolicitacoes(db, collection, getDocs){
+  const solSnap = await getDocs(collection(db,'solicitacoes'));
+  if(solSnap.empty) return;
+  solicitacoes = [];
+  solSnap.forEach(d => solicitacoes.push(d.data()));
+}
+async function _fbLoadPublicacoes(db, collection, getDocs){
+  const pubSnap = await getDocs(collection(db,'publicacoes'));
+  if(pubSnap.empty) return;
+  publicacoes = [];
+  pubSnap.forEach(d => publicacoes.push(d.data()));
+  _pubIdC = Math.max(...publicacoes.map(p=>p.id), 0) + 1;
+}
+async function _fbLoadArquitetura(db, doc, getDoc){
+  const arqDoc = await getDoc(doc(db,'config','arquitetura'));
+  if(!(arqDoc.exists() && arqDoc.data().data)) return;
+  try { ARQUITETURA = JSON.parse(arqDoc.data().data); } catch(e){ console.error('Erro ao parsear arquitetura:', e); }
+}
+async function _fbLoadProjetosUsuarios(db, collection, getDocs){
+  const projSnap = await getDocs(collection(db,'projPROJETOS'));
+  if(projSnap.empty) return;
+  PROJETOS_USUARIOS = [];
+  projSnap.forEach(d => PROJETOS_USUARIOS.push(d.data()));
+  PROJETOS_USUARIOS.sort((a,b) => String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
+}
+async function _fbLoadFlagsManuais(db, doc, getDoc){
+  await _fbLoadManualSet(db, doc, getDoc, 'mapeados', setVal=>{
+    mapeadosManual = setVal;
+    lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
+  }, ()=>{ mapeadosManual = new Set(jsonArrayFromStorage('mapeadosManual')); });
+  await _fbLoadManualSet(db, doc, getDoc, 'criticos', setVal=>{
+    criticosManual = setVal;
+    lsSet('criticosManual', JSON.stringify([...criticosManual]));
+  }, ()=>{ criticosManual = new Set(jsonArrayFromStorage('criticosManual')); });
+}
+async function _fbLoadManualSet(db, doc, getDoc, key, applyLoaded, applyFallback){
+  const cfgDoc = await getDoc(doc(db,'config',key));
+  if(cfgDoc.exists() && cfgDoc.data().data){
+    try {
+      applyLoaded(new Set(JSON.parse(cfgDoc.data().data)));
+    } catch(e){
+      console.error(`Erro ao parsear ${key}:`, e);
+    }
+    return;
+  }
+  applyFallback();
 }
 
 // ─── QUADRO DE AVISOS ────────────────────────────────────────
@@ -15754,79 +15807,85 @@ document.getElementById('login-screen').style.display='flex';
 
 // Boot sequence: load from Firebase (if configured), else fall back to localStorage
 async function bootApp() {
-  // Show loading indicator
+  const loadMsg = _bootCreateLoadMsg();
+  await _bootWaitFirebase();
+  await fbLoad();
+  _bootLoadEmailJsLocalFallback();
+  if(loadMsg) loadMsg.remove();
+  await _bootRestoreSession();
+  updCounts();
+  fbStatusBadge();
+  syncLoginModeUI();
+  injectSaveBtn();
+}
+function _bootCreateLoadMsg(){
   const loginBox = document.querySelector('.login-box');
   const loadMsg = document.createElement('div');
   loadMsg.id = 'boot-msg';
   loadMsg.style.cssText = 'font-size:11px;color:rgba(255,255,255,.35);text-align:center;margin-top:.8rem';
   loadMsg.textContent = 'Conectando à nuvem…';
   if(loginBox) loginBox.appendChild(loadMsg);
-
-  // Wait up to 3s for Firebase module to init (it's loaded async as ES module)
+  return loadMsg;
+}
+async function _bootWaitFirebase(){
   let waited = 0;
   while(!globalThis._fbReady && globalThis._fbReady !== false && waited < 30){
     await new Promise(r=>setTimeout(r,100));
     waited++;
   }
-
-  // Load from Firebase
-  await fbLoad();
-
-  // Fall back to localStorage for EmailJS if Firebase didn't have it
-  if(!ejsConfig.pubkey){
-    try {
-      const saved = lsGet('epcage_ejs');
-      if(saved){
-        const cfg = JSON.parse(saved);
-        ejsConfig.service  = cfg.service  || '';
-        ejsConfig.template = cfg.template || '';
-        ejsConfig.pubkey   = cfg.pubkey   || '';
-        if(ejsConfig.pubkey && typeof emailjs !== 'undefined') emailjs.init({publicKey: ejsConfig.pubkey});
-      }
-    } catch(e){ console.warn('ejsConfig localStorage parse error:', e.message); }
-  }
-
-  if(loadMsg) loadMsg.remove();
-
-  // Restaurar sessão após reload
+}
+function _bootLoadEmailJsLocalFallback(){
+  if(ejsConfig.pubkey) return;
+  try {
+    const saved = lsGet('epcage_ejs');
+    if(!saved) return;
+    const cfg = JSON.parse(saved);
+    ejsConfig.service  = cfg.service  || '';
+    ejsConfig.template = cfg.template || '';
+    ejsConfig.pubkey   = cfg.pubkey   || '';
+    if(ejsConfig.pubkey && typeof emailjs !== 'undefined') emailjs.init({publicKey: ejsConfig.pubkey});
+  } catch(e){ console.warn('ejsConfig localStorage parse error:', e.message); }
+}
+async function _bootRestoreSession(){
   if(fbReady()){
     const {auth, onAuthStateChanged} = fb();
     onAuthStateChanged(auth, async firebaseUser => {
       const btn = document.querySelector('.login-btn');
       if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
       if(firebaseUser){
-        let user = USUARIOS.find(u=>u.email===firebaseUser.email);
-        // USUARIOS pode estar vazio se fbLoad() rodou antes da auth estar pronta.
-        // Com auth válida agora, tenta recarregar para buscar o usuário.
-        if(!user){ await fbLoad(); user = USUARIOS.find(u=>u.email===firebaseUser.email); }
-        if(user){ _iniciarSessaoUnica(firebaseUser.uid); _aplicarUsuario(user); }
-        else {
-          const {signOut} = fb();
-          signOut(auth).catch(()=>{});
-          mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');
-        }
+        await _bootRestoreFirebaseUser(auth, firebaseUser);
       } else if(usuarioLogado){
-        // Sem sessão ativa — garante tela de login
         doLogout();
       }
     });
-  } else {
-    // Fallback modo local — Firebase indisponível, restaurar cache
-    mapeadosManual = new Set(jsonArrayFromStorage('mapeadosManual'));
-    criticosManual = new Set(jsonArrayFromStorage('criticosManual'));
-    try {
-      const savedEmail = lsGet('siga_user');
-      if(savedEmail){
-        const user = USUARIOS.find(u=>u.email===savedEmail);
-        if(user) _aplicarUsuario(user);
-      }
-    } catch(_e){ console.warn('localStorage unavailable', _e); }
+    return;
   }
-
-  updCounts();
-  fbStatusBadge();
-  syncLoginModeUI();
-  injectSaveBtn();
+  _bootRestoreLocalSession();
+}
+async function _bootRestoreFirebaseUser(auth, firebaseUser){
+  let user = USUARIOS.find(u=>u.email===firebaseUser.email);
+  if(!user){
+    await fbLoad();
+    user = USUARIOS.find(u=>u.email===firebaseUser.email);
+  }
+  if(user){
+    _iniciarSessaoUnica(firebaseUser.uid);
+    _aplicarUsuario(user);
+    return;
+  }
+  const {signOut} = fb();
+  signOut(auth).catch(()=>{});
+  mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');
+}
+function _bootRestoreLocalSession(){
+  mapeadosManual = new Set(jsonArrayFromStorage('mapeadosManual'));
+  criticosManual = new Set(jsonArrayFromStorage('criticosManual'));
+  try {
+    const savedEmail = lsGet('siga_user');
+    if(!savedEmail) return;
+    const user = USUARIOS.find(u=>u.email===savedEmail);
+    if(user) _aplicarUsuario(user);
+  } catch(error_){ console.warn('localStorage unavailable', error_); }
 }
 window.addEventListener('load', bootApp, {once: true});
 
@@ -15930,25 +15989,14 @@ async function iaAnalisarBpmn(which){
 
 // ── 2. GERAR POP ─────────────────────────
 function _confirmadosDeFeedback(fb, tipo){ return Object.entries(fb[tipo]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k); }
-async function iaGerarPop(){
-  const p = curProc;
-  if(!p) return;
-  const etapas = p.mod?.etapas_proc || [];
-  if(!etapas.length){ toast('Detalhe as etapas do processo antes de gerar o POP.','var(--amber)'); return; }
-
-  const btn = document.getElementById('ia-pop-btn');
-  const el  = document.getElementById('ia-pop-result');
-  if(btn) btn.disabled = true;
-
-  // Itens confirmados na etapa Melhorias (excluindo descartados)
+function _iaGerarPopPayload(p, etapas){
   const a = p.ent?.analise || {};
   const fb = a.feedback_dono || {};
   const hasFeedback = Object.keys(fb).length > 0;
-  const gargalosConf      = hasFeedback ? _confirmadosDeFeedback(fb,'gargalos')           : (a.gargalos||[]);
-  const oportunidadesConf = hasFeedback ? _confirmadosDeFeedback(fb,'oportunidades')      : (a.oportunidades||[]);
-  const solucoesConf      = hasFeedback ? _confirmadosDeFeedback(fb,'solucoes_problemas') : (a.solucoes_problemas||[]);
-
-  const payload = {
+  const gargalosConf = hasFeedback ? _confirmadosDeFeedback(fb,'gargalos') : (a.gargalos||[]);
+  const oportunidadesConf = hasFeedback ? _confirmadosDeFeedback(fb,'oportunidades') : (a.oportunidades||[]);
+  const solucoesConf = hasFeedback ? _confirmadosDeFeedback(fb,'solucoes_problemas') : (a.solucoes_problemas||[]);
+  return {
     nome: p.nome,
     area: p.area,
     objetivo: p.objetivo,
@@ -15960,15 +16008,24 @@ async function iaGerarPop(){
     })),
     entradas: p.form?.pop?.ent || '',
     saidas: p.form?.pop?.sai || '',
-    ...(gargalosConf.length     ? {gargalos_confirmados: gargalosConf}         : {}),
+    ...(gargalosConf.length ? {gargalos_confirmados: gargalosConf} : {}),
     ...(oportunidadesConf.length ? {oportunidades_confirmadas: oportunidadesConf} : {}),
-    ...(solucoesConf.length     ? {solucoes_confirmadas: solucoesConf}          : {}),
+    ...(solucoesConf.length ? {solucoes_confirmadas: solucoesConf} : {}),
   };
+}
+async function iaGerarPop(){
+  const p = curProc;
+  if(!p) return;
+  const etapas = p.mod?.etapas_proc || [];
+  if(!etapas.length){ toast('Detalhe as etapas do processo antes de gerar o POP.','var(--amber)'); return; }
 
+  const btn = document.getElementById('ia-pop-btn');
+  const el  = document.getElementById('ia-pop-result');
+  if(btn) btn.disabled = true;
+  const payload = _iaGerarPopPayload(p, etapas);
   const result = await chamarIA('gerar_pop', JSON.stringify(payload), el);
 
   if(result){
-    // Auto-fill POP fields
     const ppAtiv = document.getElementById('pp-ativ');
     const ppObj  = document.getElementById('pp-obj');
     if(ppAtiv) ppAtiv.value = result;
@@ -16159,6 +16216,70 @@ function _buildKpiAreaCards(lista){
     </div>`;
   }).join('');
 }
+function _filtrarIndicadoresRelatorioPdf(lista){
+  return lista.filter(k => {
+    if(k.sem_dado) return false;
+    const r = Number(k.realizado);
+    const isMetaZero = r === 0 && k.meta !== null && k.meta !== undefined && k.meta !== '' && Number(k.meta) === 0;
+    const aguardando = !isMetaZero && (!k.realizado || r === 0) && _ehMesNaoFechamento(k.periodo);
+    return !aguardando && k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && (r !== 0 || isMetaZero);
+  });
+}
+function _ordenarIndicadoresRelatorioPdf(lista){
+  lista.sort((a,b)=>{
+    const ac = (a.area||'').localeCompare(b.area||'','pt-BR',{sensitivity:'base'});
+    if(ac!==0) return ac;
+    const nc = (a.nome||'').localeCompare(b.nome||'','pt-BR',{sensitivity:'base'});
+    if(nc!==0) return nc;
+    return parsePeriodSort(a.periodo) - parsePeriodSort(b.periodo);
+  });
+}
+function _rowIndicadorRelatorioPdf(k){
+  const und = k.unidade ? ' '+k.unidade : '';
+  const hasMeta = k.meta !== null && k.meta !== undefined && k.meta !== '';
+  const pct = _calcKpiPct(k);
+  const st = statusInfo(pct, hasMeta);
+  let pctStyle;
+  if(st.tier===4) pctStyle=`font-size:14px;font-weight:800;color:${st.color}`;
+  else if(st.tier===0 && pct!==null) pctStyle=`font-size:13px;font-weight:800;color:${st.color}`;
+  else pctStyle=`font-weight:700;color:${st.color}`;
+  const badgeStyle = `display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:${st.bg};color:${st.color}`;
+  const ppeBadge = (k.ppe==='Sim'||k.ppe===true)
+    ? '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#dbeafe;color:#1e40af;margin-left:5px;vertical-align:middle">PPE</span>'
+    : '';
+  return `<tr style="background:${st.rowBg}">
+    <td>${k.codigo?'<strong>'+esc(k.codigo)+'</strong> — ':''}${esc(k.nome)}${ppeBadge}</td>
+    <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
+    <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
+    <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
+    <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
+    <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
+    <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
+  </tr>`;
+}
+function _rowsIndicadoresRelatorioPdf(lista){
+  return lista.map(_rowIndicadorRelatorioPdf).join('');
+}
+function _resumoIndicadoresRelatorioPdf(lista){
+  const comMeta = lista.filter(k=>_calcKpiPct(k)!==null);
+  const atingiramG = comMeta.filter(k=>_calcKpiPct(k)>=100).length;
+  const taxaGeral = comMeta.length ? Math.round((atingiramG/comMeta.length)*100) : null;
+  const destTotal = lista.filter(k=>{ const p=_calcKpiPct(k); return p!==null&&p>=130; }).length;
+  const critTotal = lista.filter(k=>{ const p=_calcKpiPct(k); return p!==null&&p<50; }).length;
+  let taxaCl;
+  if(taxaGeral===null) taxaCl='#6b7280';
+  else if(taxaGeral>=80) taxaCl='#16a34a';
+  else if(taxaGeral>=60) taxaCl='#d97706';
+  else taxaCl='#dc2626';
+  const destS = destTotal > 1 ? 's' : '';
+  const critS = critTotal > 1 ? 's' : '';
+  return {
+    comMeta, atingiramG, taxaGeral, taxaCl,
+    taxaHtml: taxaGeral===null?'':`<div><strong>Taxa de atingimento geral:</strong> <strong style="color:${taxaCl}">${atingiramG}/${comMeta.length} (${taxaGeral}%)</strong></div>`,
+    destaqueHtml: destTotal?`<div style="color:#065f46">⭐ ${destTotal} destaque${destS}</div>`:'',
+    criticoHtml: critTotal?`<div style="color:#7f1d1d">⚠ ${critTotal} crítico${critS}</div>`:''
+  };
+}
 
 function gerarRelatorioIndPdf(){
   if(!_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
@@ -16169,71 +16290,15 @@ function gerarRelatorioIndPdf(){
   const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const dtHoje = new Date().toLocaleDateString('pt-BR');
 
-  // Apenas indicadores com dados válidos (mesma lógica do prompt)
-  // Exceção: meta=0 e realizado=0 é resultado válido (ex: zero ocorrências de incidentes)
-  const lista = _lastIndLista.filter(k => {
-    if(k.sem_dado) return false;
-    const r = Number(k.realizado);
-    const isMetaZero = r === 0 && k.meta !== null && k.meta !== undefined && k.meta !== '' && Number(k.meta) === 0;
-    const aguardando = !isMetaZero && (!k.realizado || r === 0) && _ehMesNaoFechamento(k.periodo);
-    return !aguardando && k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && (r !== 0 || isMetaZero);
-  });
+  const lista = _filtrarIndicadoresRelatorioPdf(_lastIndLista);
 
   if(!lista.length){ toast('Nenhum indicador com dados para o relatório.','var(--amber)'); return; }
 
   const areaCards = _buildKpiAreaCards(lista);
 
-  // ── Ordena por área → nome → período cronológico ─────────────────
-  lista.sort((a,b)=>{
-    const ac = (a.area||'').localeCompare(b.area||'','pt-BR',{sensitivity:'base'});
-    if(ac!==0) return ac;
-    const nc = (a.nome||'').localeCompare(b.nome||'','pt-BR',{sensitivity:'base'});
-    if(nc!==0) return nc;
-    return parsePeriodSort(a.periodo) - parsePeriodSort(b.periodo);
-  });
-
-  // ── Linhas da tabela ────────────────────────────────────────────────
-  const rows = lista.map(k => {
-    const und     = k.unidade ? ' '+k.unidade : '';
-    const hasMeta = k.meta !== null && k.meta !== undefined && k.meta !== '';
-    const pct     = _calcKpiPct(k);
-    const st      = statusInfo(pct, hasMeta);
-    // Fonte maior para extremos
-    let pctStyle;
-    if(st.tier===4) pctStyle=`font-size:14px;font-weight:800;color:${st.color}`;
-    else if(st.tier===0 && pct!==null) pctStyle=`font-size:13px;font-weight:800;color:${st.color}`;
-    else pctStyle=`font-weight:700;color:${st.color}`;
-    const badgeStyle = `display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:${st.bg};color:${st.color}`;
-    const ppeBadge = (k.ppe==='Sim'||k.ppe===true)
-      ? '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#dbeafe;color:#1e40af;margin-left:5px;vertical-align:middle">PPE</span>'
-      : '';
-    return `<tr style="background:${st.rowBg}">
-      <td>${k.codigo?'<strong>'+esc(k.codigo)+'</strong> — ':''}${esc(k.nome)}${ppeBadge}</td>
-      <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
-      <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
-      <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
-      <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
-      <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
-      <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
-    </tr>`;
-  }).join('');
-
-  // ── Totalizador rodapé ───────────────────────────────────────────────
-  // Taxa de atingimento geral (sempre 0-100%, não distorcida por outliers)
-  // Denominador = apenas indicadores com meta E cálculo de % possível (calcPct != null)
-  const comMeta    = lista.filter(k=>_calcKpiPct(k)!==null);
-  const atingiramG = comMeta.filter(k=>_calcKpiPct(k)>=100).length;
-  const taxaGeral  = comMeta.length ? Math.round((atingiramG/comMeta.length)*100) : null;
-  const destTotal  = lista.filter(k=>{ const p=_calcKpiPct(k); return p!==null&&p>=130; }).length;
-  const critTotal  = lista.filter(k=>{ const p=_calcKpiPct(k); return p!==null&&p<50; }).length;
-  let taxaCl;
-  if(taxaGeral===null) taxaCl='#6b7280';
-  else if(taxaGeral>=80) taxaCl='#16a34a';
-  else if(taxaGeral>=60) taxaCl='#d97706';
-  else taxaCl='#dc2626';
-
-  const destS = destTotal > 1 ? 's' : '';
-  const critS = critTotal > 1 ? 's' : '';
+  _ordenarIndicadoresRelatorioPdf(lista);
+  const rows = _rowsIndicadoresRelatorioPdf(lista);
+  const resumo = _resumoIndicadoresRelatorioPdf(lista);
   const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:'', period?'Período: '+period:'', intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
   const _kpiHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
 <style>
@@ -16266,9 +16331,9 @@ function gerarRelatorioIndPdf(){
   <div class="hdr-r">
     <div><strong>Data:</strong> ${dtHoje}</div>
     <div><strong>Total analisados:</strong> ${lista.length}</div>
-    ${taxaGeral===null?'':`<div><strong>Taxa de atingimento geral:</strong> <strong style="color:${taxaCl}">${atingiramG}/${comMeta.length} (${taxaGeral}%)</strong></div>`}
-    ${destTotal?`<div style="color:#065f46">⭐ ${destTotal} destaque${destS}</div>`:''}
-    ${critTotal?`<div style="color:#7f1d1d">⚠ ${critTotal} crítico${critS}</div>`:''}
+    ${resumo.taxaHtml}
+    ${resumo.destaqueHtml}
+    ${resumo.criticoHtml}
   </div>
 </div>
 <div class="sec">Taxa de atingimento por área</div>
@@ -16285,9 +16350,9 @@ function gerarRelatorioIndPdf(){
     <th style="text-align:center">Status</th>
   </tr></thead>
   <tbody>${rows}</tbody>
-  ${taxaGeral===null?'':`<tfoot><tr class="tfoot-row">
+  ${resumo.taxaGeral===null?'':`<tfoot><tr class="tfoot-row">
     <td colspan="5">Taxa de atingimento geral (indicadores com meta)</td>
-    <td style="text-align:center;font-size:14px;color:${taxaCl}">${atingiramG}/${comMeta.length} — ${taxaGeral}%</td>
+    <td style="text-align:center;font-size:14px;color:${resumo.taxaCl}">${resumo.atingiramG}/${resumo.comMeta.length} — ${resumo.taxaGeral}%</td>
     <td></td>
   </tr></tfoot>`}
 </table>
