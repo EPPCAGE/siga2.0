@@ -3641,7 +3641,7 @@ function rMeusProc(){
     const bgCard  = 'var(--surf)';
     const badgeStyle = mapeado
       ? 'background:#0d9488;color:#fff;font-size:10px;flex-shrink:0;border-radius:4px;padding:2px 7px'
-      : 'background:#0d9488;color:#fff;font-size:10px;flex-shrink:0;border-radius:4px;padding:2px 7px';
+      : 'background:var(--bg3);color:var(--ink3);font-size:10px;flex-shrink:0;border-radius:4px;padding:2px 7px';
     const matText = mat ? 'Maturidade '+mat+'/5 — '+MATURIDADE_LABELS[mat] : 'Maturidade não avaliada';
     const ei = (mapeado && proc) ? etIdx(proc.etapa) : -1;
     const progressBar = (mapeado && proc) ? ETAPAS.map((_,i)=>{
