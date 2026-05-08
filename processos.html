@@ -8611,7 +8611,7 @@ function calcILPFromBpmn(bpmnXml, etapas){
   let pathIds=[];
   roots.forEach(rid=>{const p=traverse(rid,new Set());if(p.length>pathIds.length)pathIds=p;});
   if(!pathIds.length)return null;
-  {const _seen=new Set(); pathIds=pathIds.filter(id=>{if(_seen.has(id))return false;_seen.add(id);return true;});}
+  pathIds=_dedupeIds(pathIds);
   // Modo de execução: lê do etapas_proc (override manual) ou do tipo BPMN
   const bpmnIdToModo={};
   (etapas||[]).forEach(e=>{if(e.bpmn_id&&e.modo)bpmnIdToModo[e.bpmn_id]=e.modo;});
@@ -8644,7 +8644,7 @@ function calcILPFromBpmn(bpmnXml, etapas){
   const nAtores=Math.max(atoresMap.size,1);
   // Fórmula: numerador=Σeficiência | denominador=numerador+penalidades
   const numerador=actIds.reduce((s,id)=>s+_ef(id),0);
-  const overhead=1.0*gxorDiv+0.5*Math.max(0,nAtores-1);
+  const overhead=1*gxorDiv+.5*Math.max(0,nAtores-1);
   const denominador=numerador+overhead;
   const ilp=Math.min(Math.round((numerador/denominador)*100),100);
   const autoNames=id=>nodeInfo[id]?.nome||id;
@@ -8678,6 +8678,15 @@ function _testCalcIlpBpmnXml(els,flows){
 
 function _testCalcIlpEtapa(id,exe='A1'){
   return {bpmn_id:id,nome:id,executor:exe,modo:'Manual'};
+}
+
+function _dedupeIds(ids){
+  const seen=new Set();
+  return ids.filter(id=>{
+    if(seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }
 
 // ─── TEST SUITE — chame _testCalcILP() no console do browser ───────────────
@@ -9743,7 +9752,13 @@ async function salvarReuniaoAvulsa(){
     push(p,vinculouEtapa?'apresentacao':'','EP','Reunião registrada: '+(REUNIAO_TIPOS[tipo]||tipo)+' — '+data);
   }
   await fbSaveAll();
-  toast(vinculouEtapa?'Reunião registrada e vinculada à etapa Aprovação pelo Gestor!':(editId?'Reunião atualizada!':'Reunião registrada!'),'var(--teal)');
+  let reuniaoMsg='Reunião registrada!';
+  if(vinculouEtapa){
+    reuniaoMsg='Reunião registrada e vinculada à etapa Aprovação pelo Gestor!';
+  } else if(editId){
+    reuniaoMsg='Reunião atualizada!';
+  }
+  toast(reuniaoMsg,'var(--teal)');
   cancelarEditReuniao();
   rReun(p);
 }
@@ -10826,6 +10841,9 @@ function resultCardHTML(r, srch){
   const proc = processos.find(pr=>pr.arq_id===item.id)||null;
   const mapeado = isMapeado(item.id);
   const path = r.isSub ? `${r.macroNome} › ${r.procNome} › ${item.nome}` : `${r.macroNome} › ${item.nome}`;
+  const editOnclick = r.isSub
+    ? `editSubArqFull('${r.macroId}','${r.procId}','${item.id}')`
+    : `editProcArq('${r.macroId}','${item.id}')`;
 
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem 1rem;margin-bottom:.5rem">
     <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:.5rem;flex-wrap:wrap">
@@ -10837,7 +10855,7 @@ function resultCardHTML(r, srch){
         ${item.natureza ? `<span class="badge bgr" style="font-size:10px">${highlight(item.natureza, srch)}</span>` : ''}
         <span class="badge ${mapeado?'bg':'bgr'}" style="font-size:10px">${mapeado?'Mapeado':'Não mapeado'}</span>
         ${proc ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px" onclick="abrirProc(${proc.id})">Abrir →</button>` : ''}
-        ${isEP() ? `<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="${r.isSub ? `editSubArqFull('${r.macroId}','${r.procId}','${item.id}')` : `editProcArq('${r.macroId}','${item.id}')`}" aria-label="Editar item">✎</button>` : ''}
+        ${isEP() ? `<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="${editOnclick}" aria-label="Editar item">✎</button>` : ''}
       </div>
     </div>
     ${metaFieldsReadonly(item)}
@@ -11605,11 +11623,9 @@ function getMetricasArq(f){
             matchedIds.add(s.id);macroMatch=true;
           }
         });
-      } else {
-        if(!f||itemMatchesFilters(p,m.nome,f)){
-          nProc++;nUnid++;if(isMapeado(p.id))nMap++;
-          matchedIds.add(p.id);macroMatch=true;
-        }
+      } else if(!f||itemMatchesFilters(p,m.nome,f)){
+        nProc++;nUnid++;if(isMapeado(p.id))nMap++;
+        matchedIds.add(p.id);macroMatch=true;
       }
     });
     if(macroMatch) nMacros++;
@@ -13110,7 +13126,7 @@ function renderAdmin(){
     const idx = USUARIOS.indexOf(u);
     const isMe = usuarioLogado?.email===u.email;
     const vinculos = (u.processos_vinculados||[]);
-    const projetosVinc = (u.projetos_vinculados||[]).map(id => String(id));
+    const projetosVinc = (u.projetos_vinculados||[]).map(String);
     const noVinculoHtml = u.perfil==='ep'?'<span style="color:rgba(255,255,255,.35)">Todos (EP)</span>':'<span style="color:#f87171">Nenhum vínculo</span>';
     const projetosHtml = projetosVinc.length
       ? projetosVinc.map(pid => {
@@ -13322,7 +13338,7 @@ function getProjetosVinculaveis(){
 }
 
 function renderVinculosProj(vinculos){
-  _tempProjetoVinculos = [...(vinculos||[]).map(id => String(id))];
+  _tempProjetoVinculos = [...(vinculos||[]).map(String)];
   const el = document.getElementById('usr-proj-vinculos-list');
   if(!el) return;
   const projetos = getProjetosVinculaveis();
@@ -13335,7 +13351,7 @@ function renderVinculosProj(vinculos){
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:4px;font-size:12px">
       <div style="flex:1">
         <div style="font-weight:500">${p?p.nome:pid}</div>
-        ${p?`<div style="font-size:11px;color:var(--ink3)">${p.status}${p.fase?' · '+p.fase:''}</div>`:''}
+        ${p?`<div style="font-size:11px;color:var(--ink3)">${p.status}${p.fase ? ` · ${p.fase}` : ''}</div>`:''}
       </div>
       <button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="remVinculoProj(${i})">× Remover</button>
     </div>`;
@@ -13467,7 +13483,7 @@ async function salvarUsr(){
   else                      perfisArr = [perfil];
   const effectiveDono = perfisArr.includes('dono');
   const vinculos = effectiveDono ? [..._tempVinculos] : [];
-  const projetosVinculados = perfisArr.includes('gerente_projeto') ? [..._tempProjetoVinculos.map(id => String(id))] : [];
+  const projetosVinculados = perfisArr.includes('gerente_projeto') ? [..._tempProjetoVinculos.map(String)] : [];
   const idxStr = document.getElementById('usr-idx').value;
 
   if(idxStr===''){
@@ -13624,7 +13640,7 @@ function planoPopulateAnoSel(){
   const curY = new Date().getFullYear();
   const anos = [...new Set([curY, curY-1, curY+1, ...plano.map(a=>a.ano)])].sort((a,b)=>b-a);
   const cur  = Number.parseInt(sel.value)||curY;
-  sel.innerHTML = anos.map(y=>String(y)).map(y=>{
+  sel.innerHTML = anos.map(String).map(y=>{
     const isSelected = Number.parseInt(y)===cur ? ' selected' : '';
     return `<option value="${y}"${isSelected}>${y}</option>`;
   }).join('');
@@ -14254,7 +14270,11 @@ function gerarStatusReportPDF(){
     }
     return d.includes('-') ? d.split('-').reverse().join('/') : d;
   };
-  const _recente=d=>{if(!d)return false;const s=d.includes('/')?d.split('/').reverse().join('-'):d;return s>=_umMesAtrasStr;};
+  const _recente=d=>{
+    if(!d) return false;
+    const normalizedDate=d.includes('/') ? d.split('/').reverse().join('-') : d;
+    return normalizedDate>=_umMesAtrasStr;
+  };
 
   // ── PAT métricas ──────────────────────────────────────────────────────────────
   const doAno=plano.filter(a=>a.ano===ano);
@@ -14400,7 +14420,12 @@ function gerarStatusReportPDF(){
     mapAndamento.map(p=>{
       const dtPrev=p.ent?.dt_prev;
       const vencido=dtPrev&&new Date(dtPrev+'T00:00:00')<hoje;
-      const prazoCell=dtPrev?(vencido?`<span style="color:#dc2626;font-weight:700">${_d(dtPrev)}</span>`:_d(dtPrev)):'—';
+      let prazoCell='—';
+      if(dtPrev){
+        prazoCell=vencido
+          ? `<span style="color:#dc2626;font-weight:700">${_d(dtPrev)}</span>`
+          : _d(dtPrev);
+      }
       return[_e(p.nome),_e(p.objetivo||'—'),_e(p.macro),_e(p.dono),_e(p.resp_ep),statusReportEtapaBadge(p.etapa),prazoCell];
     })
   )}
