@@ -10461,7 +10461,7 @@ function rArqPopulateFilters(){
   if(oSel){
     const cur = oSel.value;
     oSel.innerHTML = '<option value="">Todos</option>' +
-      [...objEs].sort().map(o=>`<option ${cur===o?'selected':''} title="${o}">${o.length>40?o.slice(0,40)+'…':o}</option>`).join('');
+      [...objEs].sort().map(o=>`<option value="${o.replaceAll('"','&quot;')}" ${cur===o?'selected':''} title="${o}">${o.length>40?o.slice(0,40)+'…':o}</option>`).join('');
   }
   const dSel = document.getElementById('arq-f-dono');
   if(dSel){
