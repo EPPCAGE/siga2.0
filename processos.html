@@ -2870,7 +2870,7 @@ function stab(id,el){
   document.querySelectorAll('.tab-p').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
   document.getElementById('tab-'+id).classList.add('on');
-  ({acao:()=>rAcao(curProc),ent:()=>rEnt(curProc),mod:()=>rMod(curProc),form:()=>rForm(curProc),mon:()=>rMon(curProc),anex:()=>rAnexos(curProc),reun:()=>rReun(curProc),hist:()=>rHist(curProc)}[id]||function(){})();
+  ({acao:()=>rAcao(curProc),ent:()=>rEnt(curProc),form:()=>rForm(curProc),mon:()=>rMon(curProc),anex:()=>rAnexos(curProc),reun:()=>rReun(curProc),hist:()=>rHist(curProc)}[id]||function(){})();
 }
 
 // ═══════════════════════════════════════════
@@ -4283,7 +4283,7 @@ function rDetalhe(){
     document.getElementById('det-tabs').innerHTML=
       `<div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('acao',this)">${minhaTarefa?'Minha tarefa':'Sobre o processo'}</div>`+
       `<div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('hist',this)">Histórico</div>`;
-    ['ent','mod','form','mon'].forEach(id=>{
+    ['ent','form','mon'].forEach(id=>{
       const el=document.getElementById('tab-'+id);
       if(el){el.innerHTML='';el.classList.remove('on');}
     });
@@ -5463,8 +5463,6 @@ const ACOES = {
 
   esboco_tobe:{titulo:'Esboço TO BE',sub:'Descrever e desenhar o fluxo futuro proposto.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibp">Descreva o processo futuro e desenhe o fluxo TO BE no editor BPMN.</div>
-    <div class="fg"><label class="fl">Descrição TO BE</label>
-      <textarea class="fi" id="e-tobe" style="min-height:120px" placeholder="Como o processo deve funcionar após as melhorias...">${p.mod.toBe||''}</textarea></div>
     ${bpmnEditorHTML('tobe', p.mod.bpmnToBe)}
     <div style="margin:.8rem 0 .4rem;font-weight:600;font-size:13px">Etapas extraídas do BPMN TO BE</div>
     <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Extraia as etapas para que o dono possa detalhá-las na próxima etapa.</div>
@@ -6467,7 +6465,6 @@ const _CHECKLIST_DEFS={
     {lb:'Melhorias e mitigações revisadas',done:!!(p.mod&&(p.mod.melhorias||[]).length)},
   ],
   esboco_tobe:(p)=>[
-    {lb:'Descrição TO BE elaborada',done:!!(p.mod&&p.mod.toBe&&p.mod.toBe.trim())},
   ],
   det_valid_tobe:(p)=>[
     {lb:'Processo TO BE detalhado',done:!!(p.mod&&((p.mod.etapas_proc_tobe||[]).length||p.mod.toBe))},
@@ -7334,9 +7331,8 @@ async function salvarEsboco(avancar=true){
   else{fbAutoSave('salvarEsboco');toast('Dados salvos!','var(--teal)');}
 }
 async function salvarEsbocaTobe(avancar=true){
-  if(!_validarCampos([{id:'e-tobe',label:'Descrição do TO BE'}])) return;
   const p=curProc;
-  p.mod.toBe=document.getElementById('e-tobe')?.value||p.mod.toBe||'';
+  p.mod.toBe=p.mod.toBe||'';
   const hasModeler=!!bpmnModelers['tobe'];
   if(hasModeler){
     const xml=await _persistirBpmnXml('tobe', p);
@@ -10088,63 +10084,6 @@ function _renderRiscosCard(riscos){
     <table class="pop-tbl"><thead><tr><th>Risco</th><th>Prob.</th><th>Impacto</th></tr></thead>
     <tbody>${rows}</tbody></table>
   </div>`;
-}
-function _rModBizagiHTML(arqId, base64){
-  return `<div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:.8rem">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
-      <span style="font-size:12px;font-weight:600;color:var(--ink2)">🗺 Fluxo Bizagi</span>
-      <button type="button" class="btn" onclick="verFluxoBizagi('${arqId}',event)">⤢ Tela cheia</button>
-    </div>
-    <img src="${base64}" alt="Fluxo do processo" style="max-width:100%;border-radius:6px;border:1px solid var(--bdr);cursor:zoom-in" onclick="verFluxoBizagi('${arqId}',event)">
-  </div>`;
-}
-async function rMod(p){
-  document.getElementById('tab-mod').innerHTML=`
-  <div class="tabs" style="margin-bottom:1rem">
-    <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sModTab('vm-asis',this)">AS IS</div>
-    <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sModTab('vm-tobe',this)">TO BE</div>
-    <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sModTab('vm-etapas',this)">Etapas detalhadas</div>
-  </div>
-  <div id="vm-asis" class="tab-p on">
-    <div class="card" style="margin-bottom:.8rem">
-      <div class="card-t">Descrição AS IS</div>
-      ${p.mod.asIs?`<div style="font-size:13px;color:var(--ink2);white-space:pre-wrap">${p.mod.asIs}</div>`:'<div class="ib iba">Não preenchido.</div>'}
-    </div>
-    <div id="vm-asis-fluxo">${p.arq_id?'<div style="text-align:center;padding:1.5rem;color:var(--ink3)"><div class="spin" style="margin:0 auto .5rem"></div>Carregando fluxo Bizagi...</div>':bpmnEditorHTML('asis',p.mod.bpmnAsIs)}</div>
-  </div>
-  <div id="vm-tobe" class="tab-p" style="display:none">
-    <div class="card" style="margin-bottom:.8rem">
-      <div class="card-t">Descrição TO BE</div>
-      ${p.mod.toBe?`<div style="font-size:13px;color:var(--ink2);white-space:pre-wrap">${p.mod.toBe}</div>`:'<div class="ib iba">Não preenchido.</div>'}
-    </div>
-    ${bpmnEditorHTML('tobe',p.mod.bpmnToBe)}
-  </div>
-  <div id="vm-etapas" class="tab-p" style="display:none">
-    <div class="card"><div class="card-t">Etapas do processo (${(p.mod.etapas_proc||[]).length})</div>
-      ${(p.mod.etapas_proc||[]).length?renderEtapasProc(p.mod.etapas_proc):'<div class="ib iba">Nenhuma etapa detalhada ainda.</div>'}
-    </div>
-  </div>`;
-  if(p.arq_id){
-    const base64=await loadFluxoImg(p.arq_id);
-    const el=document.getElementById('vm-asis-fluxo');
-    if(!el) return;
-    if(base64){
-      el.innerHTML=_rModBizagiHTML(p.arq_id, base64);
-      p._hasBizagi=true;
-    } else {
-      el.innerHTML=bpmnEditorHTML('asis',p.mod.bpmnAsIs);
-      p._hasBizagi=false;
-      setTimeout(()=>initBpmnMod('asis',p),80);
-    }
-  } else { setTimeout(()=>initBpmnMod('asis',p),80); }
-  setTimeout(()=>{ injectIaBpmn('asis'); injectIaBpmn('tobe'); }, 200);
-}
-function sModTab(id,el){
-  el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  el.classList.add('on');
-  ['vm-asis','vm-tobe','vm-etapas','sm-asis','sm-tobe'].forEach(s=>{const e=document.getElementById(s);if(e)e.style.display=s===id?'block':'none';});
-  if(id==='vm-tobe'||id==='sm-tobe'){setTimeout(()=>initBpmnMod('tobe',curProc),80);}
-  if(id==='vm-asis'||id==='sm-asis'){if(!curProc?._hasBizagi)setTimeout(()=>initBpmnMod('asis',curProc),80);}
 }
 function _rFormHtml(p){
   const pd=p.form?.pop;
@@ -17750,25 +17689,6 @@ async function publicarRelatorioOficial(){
 
 // ── INJECT IA BUTTONS INTO PAGES ─────────
 
-// Called after rMod renders — adds IA button to BPMN bars
-function injectIaBpmn(which){
-  const bar = document.getElementById('bpmn-'+which+'-canvas')?.closest('.bpmn-wrap')?.querySelector('.bpmn-bar');
-  if(!bar || document.getElementById('ia-bpmn-btn-'+which)) return;
-  const btn = document.createElement('button');
-  btn.id = 'ia-bpmn-btn-'+which;
-  btn.className = 'ai-btn';
-  btn.innerHTML = '✦ Analisar com IA';
-  btn.onclick = ()=>iaAnalisarBpmn(which);
-  bar.appendChild(btn);
-
-  // Add result container after bpmn-wrap
-  const wrap = bar.closest('.bpmn-wrap');
-  if(wrap && !document.getElementById('ia-bpmn-result-'+which)){
-    const div = document.createElement('div');
-    div.id = 'ia-bpmn-result-'+which;
-    wrap.after(div);
-  }
-}
 
 // Called after rAcao renders pop step
 function injectIaPop(){
