@@ -12021,7 +12021,9 @@ function _normIntel(v=''){
 
 function _procPublicacoesVinculadas(proc){
   return publicacoes.filter(pub=>{
-    if((pub.proc_ids||[]).length) return pub.proc_ids.includes(proc.id);
+    if((pub.proc_ids||[]).includes(proc.id)) return true;
+    if(proc.arq_id && (pub.arq_ids||[]).includes(proc.arq_id)) return true;
+    if((pub.proc_ids||[]).length || (pub.arq_ids||[]).length) return false;
     const nome = _normIntel(proc.nome);
     const arqId = _normIntel(proc.arq_id);
     if(!nome && !arqId) return false;
