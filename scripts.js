@@ -163,19 +163,10 @@ const PROJ_FB = Object.freeze({
 });
 const _projFbState = {loaded:false, loading:false, saveTimer:null, listenersStarted:false, unsubscribers:[], saving:false, pendingRender:false};
 
-function projFbColRef(db, collectionName){
-  const {collection} = fb();
-  return collection(db, tenantCollectionPath(collectionName));
-}
-
-function projFbDocRef(db, collectionName, id){
-  const {doc} = fb();
-  return doc(db, tenantCollectionPath(collectionName), String(id));
-}
-
-function projFbConfigDocRef(db, key){
-  const {doc} = fb();
-  return doc(db, tenantDocPath(PROJ_FB.cfgCol, key));
+function projRepositoryFor(col){
+  if(col === PROJ_FB.colProjetos) return projetosRepository;
+  if(col === PROJ_FB.colProgramas) return programasRepository;
+  return FirestoreRepositories.collection(col);
 }
 
 function projApplyDataSet(data){
@@ -215,31 +206,15 @@ function projSaveListas(){
 }
 
 async function projFbSyncCollection(col, items){
-  const {db, writeBatch, getDocs} = fb();
-  const ids = new Set((items||[]).map(i=>String(i.id)));
-  const ops = [];
-  (items||[]).forEach(item=>{
-    ops.push({type:'set', ref:projFbDocRef(db,col,item.id), data:_fsClean(item)});
-  });
-  const snap = await getDocs(projFbColRef(db,col));
-  snap.forEach(d=>{ if(!ids.has(String(d.id))) ops.push({type:'del', ref:d.ref}); });
-  for(let i=0;i<ops.length;i+=400){
-    const batch = writeBatch(db);
-    ops.slice(i,i+400).forEach(op=>{
-      if(op.type==='set') batch.set(op.ref, op.data);
-      else batch.delete(op.ref);
-    });
-    await batch.commit();
-  }
+  await FirestoreRepositories.syncCollection(projRepositoryFor(col), items, _fsClean, 400);
 }
 
 async function projFbSaveCurrentScheduleProject(){
   if(!fbReady()) throw new Error('Firebase indisponível.');
   const proj = (PROJETOS||[]).find(p => String(p.id) === String(_projCurrentId));
   if(!proj) throw new Error('Projeto não encontrado.');
-  const {db, setDoc} = fb();
   const exec = proj.execucao || {};
-  await setDoc(projFbDocRef(db, PROJ_FB.colProjetos, proj.id), _fsClean({
+  await projetosRepository.set(proj.id, _fsClean({
     percentual: proj.percentual || 0,
     execucao: {
       planner_link: exec.planner_link || '',
@@ -312,15 +287,14 @@ async function projFbUploadConclusaoImages(){
 async function projFbSaveAll(options){
   const includeConfig = !options || options.includeConfig !== false;
   if(!fbReady()) throw new Error('Firebase indisponível.');
-  const {db, setDoc} = fb();
   _projFbState.saving = true;
   try{
     await projFbUploadConclusaoImages();
     await projFbSyncCollection(PROJ_FB.colProjetos, PROJETOS||[]);
     await projFbSyncCollection(PROJ_FB.colProgramas, PROGRAMAS||[]);
     if(includeConfig){
-      await setDoc(projFbConfigDocRef(db,PROJ_FB.cfgMacrosId), {data: JSON.stringify(PROJ_MACROS||[])});
-      await setDoc(projFbConfigDocRef(db,PROJ_FB.cfgObjetivosId), {data: JSON.stringify(PROJ_OBJETIVOS||[])});
+      await configRepository.set(PROJ_FB.cfgMacrosId, {data: JSON.stringify(PROJ_MACROS||[])});
+      await configRepository.set(PROJ_FB.cfgObjetivosId, {data: JSON.stringify(PROJ_OBJETIVOS||[])});
     }
     try{
       localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS||[]));
@@ -385,30 +359,30 @@ function projCloudRender(){
 
 function projFbStartRealtime(){
   if(!fbReady() || _projFbState.listenersStarted) return;
-  const {db, onSnapshot} = fb();
+  const {onSnapshot} = fb();
   if(!onSnapshot) return;
   _projFbState.listenersStarted = true;
   _projFbState.unsubscribers = [
-    onSnapshot(projFbColRef(db, PROJ_FB.colProjetos), snap => {
+    onSnapshot(projetosRepository.colRef(), snap => {
       if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
       PROJETOS = [];
       snap.forEach(d => PROJETOS.push(projFixDefaults(d.data())));
       projCloudRender();
     }, e => console.warn('proj projetos snapshot:', e.message)),
-    onSnapshot(projFbColRef(db, PROJ_FB.colProgramas), snap => {
+    onSnapshot(programasRepository.colRef(), snap => {
       if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
       PROGRAMAS = [];
       snap.forEach(d => PROGRAMAS.push(progFixDefaults(d.data())));
       projCloudRender();
     }, e => console.warn('proj programas snapshot:', e.message)),
-    onSnapshot(projFbConfigDocRef(db, PROJ_FB.cfgMacrosId), snap => {
+    onSnapshot(configRepository.ref(PROJ_FB.cfgMacrosId), snap => {
       if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
       if(snap.exists() && typeof snap.data()?.data === 'string'){
         try{ PROJ_MACROS = JSON.parse(snap.data().data); }catch(_e){}
         projCloudRender();
       }
     }, e => console.warn('proj macros snapshot:', e.message)),
-    onSnapshot(projFbConfigDocRef(db, PROJ_FB.cfgObjetivosId), snap => {
+    onSnapshot(configRepository.ref(PROJ_FB.cfgObjetivosId), snap => {
       if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
       if(snap.exists() && typeof snap.data()?.data === 'string'){
         try{ PROJ_OBJETIVOS = JSON.parse(snap.data().data); }catch(_e){}
@@ -436,33 +410,30 @@ async function projFbSeedIfEmpty(pSnap, gSnap){
 function projFbApplyCollectionSnaps(pSnap, gSnap){
   if(!pSnap.empty){
     PROJETOS = [];
-    pSnap.forEach(d=>PROJETOS.push(projFixDefaults(d.data())));
+    pSnap.docs.forEach(d=>PROJETOS.push(projFixDefaults(d.data)));
   }
   if(!gSnap.empty){
     PROGRAMAS = [];
-    gSnap.forEach(d=>PROGRAMAS.push(progFixDefaults(d.data())));
+    gSnap.docs.forEach(d=>PROGRAMAS.push(progFixDefaults(d.data)));
   }
 }
 
 async function projFbLoadConfigDoc(cfgId, currentData, applyData){
-  const {db, getDoc, setDoc} = fb();
-  const ref = projFbConfigDocRef(db, cfgId);
-  const snap = await getDoc(ref);
+  const snap = await configRepository.get(cfgId);
   if(snap.exists() && typeof snap.data()?.data === 'string'){
     try{ applyData(JSON.parse(snap.data().data)); }catch(_e){}
     return;
   }
-  await setDoc(ref, {data: JSON.stringify(currentData||[])});
+  await configRepository.set(cfgId, {data: JSON.stringify(currentData||[])});
 }
 
 async function projFbLoadOnce(){
   if(!fbReady() || _projFbState.loaded || _projFbState.loading) return;
   _projFbState.loading = true;
   try{
-    const {db, getDocs} = fb();
     const [pSnap, gSnap] = await Promise.all([
-      getDocs(projFbColRef(db,PROJ_FB.colProjetos)),
-      getDocs(projFbColRef(db,PROJ_FB.colProgramas))
+      projetosRepository.list(),
+      programasRepository.list()
     ]);
 
     // Fallback/migração: se a nuvem estiver vazia, semeia pela base padrão versionada.

@@ -25,6 +25,7 @@ O arquivo `processos.html` ainda concentra HTML, CSS e JavaScript do modulo de p
 - `src/shared/tenant-config.js`: configuracao compartilhada de ambiente/tenant, ainda desligada por padrao para preservar a base legada.
 - `src/shared/org-config.js`: configuracao institucional compartilhada entre Processos e Projetos e exposta globalmente como `ORG_CONFIG`.
 - `src/shared/firebase-helpers.js`: helpers compartilhados para Firebase/Firestore com caminhos tenant-aware.
+- `src/shared/firestore-repositories.js`: camada unica de repositórios Firestore usada pelos modulos.
 - `src/processos/app-constants.js`: labels, cores e enums centrais compartilhados pelo modulo Processos.
 - `src/processos/module-hub-controller.js`: controller do hub de modulos, mantendo funcoes globais por compatibilidade com HTML inline.
 - `src/processos/org-branding.js`: aplicacao da identidade institucional no login, hub e exemplos de e-mail do modulo Processos.

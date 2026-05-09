@@ -24,6 +24,7 @@
 <script src="src/shared/tenant-config.js"></script>
 <script src="src/shared/org-config.js"></script>
 <script src="src/shared/firebase-helpers.js"></script>
+<script src="src/shared/firestore-repositories.js"></script>
 <script src="src/processos/app-constants.js"></script>
 <script src="src/processos/security-utils.js"></script>
 <script src="src/processos/storage-utils.js"></script>
@@ -2016,13 +2017,13 @@ let _sessionUnsub = null;
 
 async function _iniciarSessaoUnica(uid) {
   if (!fbReady()) return;
-  const { db, doc, setDoc, onSnapshot } = fb();
+  const { onSnapshot } = fb();
   const sid = crypto.randomUUID();
   lsSet('siga_sid', sid);
   try {
-    await setDoc(doc(db, 'sessions', uid), { sid, ts: new Date().toISOString() });
+    await sessoesRepository.set(uid, { sid, ts: new Date().toISOString() });
     if (_sessionUnsub) _sessionUnsub();
-    _sessionUnsub = onSnapshot(doc(db, 'sessions', uid), snap => {
+    _sessionUnsub = onSnapshot(sessoesRepository.ref(uid), snap => {
       if (!snap.exists()) return;
       if (snap.data().sid !== lsGet('siga_sid')) {
         if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
@@ -3406,8 +3407,7 @@ function excluirSolicitacao(id){
   confirmar('Excluir esta solicitação?\n\nEsta ação removerá o pedido da lista de solicitações.',()=>{
     solicitacoes = solicitacoes.filter(s=>s.id!==id);
     if(fbReady()){
-      const {db,doc,deleteDoc}=fb();
-      deleteDoc(fbDocRef(db,'solicitacoes',id)).catch(e=>console.warn('deleteSolicitacao error:',e.message));
+      solicitacoesRepository.remove(id).catch(e=>console.warn('deleteSolicitacao error:',e.message));
     }
     fbAutoSave('solicitacaoExcluida');
     rSolicitacoes();
@@ -4140,8 +4140,7 @@ function excluirMapeamento(id){
     updCounts();
     // Apaga o documento do Firestore imediatamente (não basta só salvar os restantes)
     if(fbReady()){
-      const {db,doc,deleteDoc}=fb();
-      deleteDoc(fbDocRef(db,'processos',id)).catch(e=>console.warn('deleteDoc error:',e.message));
+      processosRepository.remove(id).catch(e=>console.warn('deleteDoc error:',e.message));
     }
     fbAutoSave('excluirMapeamento');
     toast('Mapeamento "'+p.nome+'" excluído.','var(--red)');
@@ -13678,8 +13677,7 @@ function deletarKpi(id){
   confirmar('Remover este indicador?', () => {
     kpis = kpis.filter(k=>k.id !== delId);
     if(fbReady()){
-      const {db,doc,deleteDoc}=fb();
-      deleteDoc(fbDocRef(db,'kpis',delId)).catch(e=>console.warn('deleteKpi error:',e.message));
+      kpisRepository.remove(delId).catch(e=>console.warn('deleteKpi error:',e.message));
     }
     document.getElementById('novo-kpi-modal').style.display = 'none';
     rInd(); toast('Indicador removido', 'var(--amber)');
@@ -13692,8 +13690,7 @@ async function limparKpisImportados(){
   // importado_editado (manually edited) is intentionally excluded from `importados` and kept
   confirmar(`Remover ${importados.length} indicador(es) importado(s)/sincronizado(s)? Indicadores manuais e os que foram editados manualmente serão mantidos.`, async () => {
     if(fbReady()){
-      const {db,doc,deleteDoc}=fb();
-      await Promise.all(importados.map(k => deleteDoc(fbDocRef(db,'kpis',k.id)).catch(e=>console.warn(e.message))));
+      await Promise.all(importados.map(k => kpisRepository.remove(k.id).catch(e=>console.warn(e.message))));
     }
     kpis = kpis.filter(k => k.origem !== 'importado' && k.origem !== 'gsheets' && k.origem !== 'gsheets_editado');
     // importado_editado rows are kept because they have user edits
@@ -13857,8 +13854,7 @@ async function sincronizarGSheets(){
 
     // Delete old GSheets indicators from Firestore
     if(fbReady() && oldGSheets.length){
-      const {db,doc,deleteDoc}=fb();
-      await Promise.all(oldGSheets.map(k => deleteDoc(fbDocRef(db,'kpis',k.id)).catch(e=>console.warn(e.message))));
+      await Promise.all(oldGSheets.map(k => kpisRepository.remove(k.id).catch(e=>console.warn(e.message))));
     }
 
     // Save all changes
@@ -14046,8 +14042,7 @@ function deletarPub(id){
     publicacoes = publicacoes.filter(p=>p.id!==delId);
     document.getElementById('pub-modal').style.display = 'none';
     if(fbReady()){
-      const {db,doc,deleteDoc}=fb();
-      deleteDoc(fbDocRef(db,'publicacoes',delId)).catch(e=>console.warn('deletarPub error:',e.message));
+      publicacoesRepository.remove(delId).catch(e=>console.warn('deletarPub error:',e.message));
     }
     fbAutoSave('deletarPub');
     rPub();
@@ -14589,8 +14584,7 @@ async function deletarUsr(){
 async function fbSave(col, id, data){
   if(!fbReady()) return;
   try {
-    const {db, setDoc} = fb();
-    await setDoc(fbDocRef(db, col, id), data);
+    await FirestoreRepositories.collection(col).set(id, data);
   } catch(e){ console.warn('fbSave error:', e.message); }
 }
 
@@ -15897,8 +15891,7 @@ async function deletarAtividade(id){
     plano = plano.filter(a=>a.id!==id);
     if(fbReady()){
       try {
-        const {db, doc, deleteDoc} = fb();
-        await deleteDoc(fbDocRef(db,'plano',id));
+        await planoRepository.remove(id);
       } catch(error_){
         console.warn('deletarAtividade error:', error_.message);
         toast('⚠ Não foi possível remover a atividade na nuvem.','var(--amber)');
@@ -15928,37 +15921,31 @@ function _fsClean(v){
 async function fbSaveAll(){
   if(!fbReady() || !globalThis._fbLoadedAt) return;
   try {
-    const {db, writeBatch, setDoc} = fb();
-
     // Collect all set operations (strip undefined — Firestore rejects it)
     const ops = [];
-    processos.forEach(p => ops.push({ref: fbDocRef(db,'processos',p.id), data: _fsClean(p)}));
-    kpis.forEach(k => ops.push({ref: fbDocRef(db,'kpis',k.id), data: _fsClean(k)}));
-    publicacoes.forEach(p => ops.push({ref: fbDocRef(db,'publicacoes',p.id), data: _fsClean(p)}));
-    plano.forEach(a => ops.push({ref: fbDocRef(db,'plano',a.id), data: _fsClean(a)}));
-    TRILHAS.forEach(t => ops.push({ref: fbDocRef(db,'trilhas',t.id), data: _fsClean(t)}));
-    PAT_METAS.forEach(m => ops.push({ref: fbDocRef(db,'plano_metas',m.id), data: _fsClean(m)}));
-    solicitacoes.filter(_solIsValida).forEach(s => ops.push({ref: fbDocRef(db,'solicitacoes',s.id), data: _fsClean(s)}));
+    processos.forEach(p => ops.push({ref: processosRepository.ref(p.id), data: _fsClean(p)}));
+    kpis.forEach(k => ops.push({ref: kpisRepository.ref(k.id), data: _fsClean(k)}));
+    publicacoes.forEach(p => ops.push({ref: publicacoesRepository.ref(p.id), data: _fsClean(p)}));
+    plano.forEach(a => ops.push({ref: planoRepository.ref(a.id), data: _fsClean(a)}));
+    TRILHAS.forEach(t => ops.push({ref: trilhasRepository.ref(t.id), data: _fsClean(t)}));
+    PAT_METAS.forEach(m => ops.push({ref: planoMetasRepository.ref(m.id), data: _fsClean(m)}));
+    solicitacoes.filter(_solIsValida).forEach(s => ops.push({ref: solicitacoesRepository.ref(s.id), data: _fsClean(s)}));
     ops.push(
-      ...(_arqSaveEnabled ? [{ref: fbConfigDocRef(db,'arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}}] : []),
-      {ref: fbConfigDocRef(db,'usuarios'),    data: {data: JSON.stringify(USUARIOS.map(u=>{
+      ...(_arqSaveEnabled ? [{ref: configRepository.ref('arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}}] : []),
+      {ref: configRepository.ref('usuarios'),    data: {data: JSON.stringify(USUARIOS.map(u=>{
         if(!u._perfil_original) return u;
         const {_perfil_original,...rest}=u;
         return {...rest,perfil:_perfil_original};
       }))}},
-      {ref: fbConfigDocRef(db,'mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}},
-      {ref: fbConfigDocRef(db,'criticos'),    data: {data: JSON.stringify([...criticosManual])}}
+      {ref: configRepository.ref('mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}},
+      {ref: configRepository.ref('criticos'),    data: {data: JSON.stringify([...criticosManual])}}
     );
 
     // Firestore batch limit is 500 — split into chunks of 450
-    for(let i = 0; i < ops.length; i += 450){
-      const batch = writeBatch(db);
-      ops.slice(i, i + 450).forEach(({ref, data}) => batch.set(ref, data));
-      await batch.commit();
-    }
+    await FirestoreRepositories.batchCommit(ops, 450);
 
     // Update sentinel so other sessions detect this save, then mark ourselves as current
-    await setDoc(fbConfigDocRef(db,'last_modified'), {ts: Date.now(), by: usuarioLogado?.email||''});
+    await configRepository.set('last_modified', {ts: Date.now(), by: usuarioLogado?.email||''});
     globalThis._fbLoadedAt = Date.now();
     const _cb = document.getElementById('concurrent-banner');
     if(_cb) _cb.style.display = 'none';
@@ -15975,21 +15962,19 @@ async function fbLoad(){
   }
   globalThis._fbDataReady = false;
   try {
-    const {db, collection, getDocs, doc, getDoc, getDocFromServer, deleteDoc} = fb();
-
-    await _fbLoadUsuarios(db, doc, getDoc, getDocFromServer);
-    await _fbLoadProcessos(db, collection, getDocs);
-    await _fbLoadKpis(db, collection, getDocs);
-    await _fbLoadPlano(db, collection, getDocs);
-    await _fbLoadSolicitacoes(db, collection, getDocs, doc, deleteDoc);
-    await _fbLoadPublicacoes(db, collection, getDocs);
-    await _fbLoadArquitetura(db, doc, getDoc);
+    await _fbLoadUsuarios();
+    await _fbLoadProcessos();
+    await _fbLoadKpis();
+    await _fbLoadPlano();
+    await _fbLoadSolicitacoes();
+    await _fbLoadPublicacoes();
+    await _fbLoadArquitetura();
     _arqSaveEnabled = true; // Firestore confirmed: either loaded real data or genuinely absent (new install)
-    await _fbLoadProjetosUsuarios(db, collection, getDocs);
-    await _fbLoadFlagsManuais(db, doc, getDoc);
+    await _fbLoadProjetosUsuarios();
+    await _fbLoadFlagsManuais();
 
     // emailjs config
-    const ejsDoc = await getDoc(fbConfigDocRef(db,'ejs'));
+    const ejsDoc = await configRepository.get('ejs');
     if(ejsDoc.exists()){
       const d = ejsDoc.data();
       ejsConfig.service  = d.service  || '';
@@ -16001,33 +15986,33 @@ async function fbLoad(){
     }
 
     // avisos
-    const avSnap = await getDocs(fbColRef(db,'avisos'));
+    const avSnap = await avisosRepository.list();
     if(!avSnap.empty){
       AVISOS = [];
-      avSnap.forEach(d => AVISOS.push(d.data()));
+      avSnap.docs.forEach(d => AVISOS.push(d.data));
     }
 
     // trilhas de capacitação
-    const trilhasSnap = await getDocs(fbColRef(db,'trilhas'));
+    const trilhasSnap = await trilhasRepository.list();
     if(!trilhasSnap.empty){
       TRILHAS = [];
-      trilhasSnap.forEach(d => TRILHAS.push(d.data()));
+      trilhasSnap.docs.forEach(d => TRILHAS.push(d.data));
       _trilhaIdC = Math.max(...TRILHAS.map(t => t.id), 0) + 1;
     }
 
     // metas do escritório
-    const metasSnap = await getDocs(fbColRef(db,'plano_metas'));
+    const metasSnap = await planoMetasRepository.list();
     if(!metasSnap.empty){
       PAT_METAS = [];
-      metasSnap.forEach(d => PAT_METAS.push(d.data()));
+      metasSnap.docs.forEach(d => PAT_METAS.push(d.data));
       _metaIdC = Math.max(...PAT_METAS.map(m => m.id), 0) + 1;
     }
 
     // relatórios oficiais de indicadores
-    const relIndSnap = await getDocs(fbColRef(db,'relatorios_ind'));
+    const relIndSnap = await relatoriosIndicadoresRepository.list();
     if(!relIndSnap.empty){
       RELATORIOS_IND = [];
-      relIndSnap.forEach(d => RELATORIOS_IND.push(d.data()));
+      relIndSnap.docs.forEach(d => RELATORIOS_IND.push(d.data));
       RELATORIOS_IND.sort((a,b) => b.id - a.id);
     }
 
@@ -16042,14 +16027,14 @@ async function fbLoad(){
     return false;
   }
 }
-async function _fbLoadUsuarios(db, doc, getDoc, getDocFromServer){
+async function _fbLoadUsuarios(){
   try {
-    const usrDocFirst = await getDocFromServer(fbConfigDocRef(db,'usuarios'));
+    const usrDocFirst = await configRepository.get('usuarios', {fromServer:true});
     if(usrDocFirst.exists() && usrDocFirst.data().data) USUARIOS = JSON.parse(usrDocFirst.data().data);
   } catch(error_){
     console.warn('fbLoad: fallback para cache local de usuarios:', error_.message);
     try {
-      const usrDocCache = await getDoc(fbConfigDocRef(db,'usuarios'));
+      const usrDocCache = await configRepository.get('usuarios');
       if(usrDocCache.exists() && usrDocCache.data().data) USUARIOS = JSON.parse(usrDocCache.data().data);
     } catch(cacheError){
       console.warn('fbLoad: erro ao carregar usuarios:', cacheError.message);
@@ -16057,77 +16042,77 @@ async function _fbLoadUsuarios(db, doc, getDoc, getDocFromServer){
   }
   USUARIOS.forEach(_normalizarUsuarioPerfil);
 }
-async function _fbLoadProcessos(db, collection, getDocs){
-  const pSnap = await getDocs(fbColRef(db,'processos'));
+async function _fbLoadProcessos(){
+  const pSnap = await processosRepository.list();
   if(pSnap.empty) return;
   processos = [];
-  pSnap.forEach(d => processos.push(d.data()));
+  pSnap.docs.forEach(d => processos.push(d.data));
   processos.forEach(p=>{ if(p.etapa==='complement') p.etapa='apresentacao'; });
   processos.sort((a,b) => a.id - b.id);
   nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
   const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replaceAll('ep',''))||0));
   if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
 }
-async function _fbLoadKpis(db, collection, getDocs){
-  const kSnap = await getDocs(fbColRef(db,'kpis'));
+async function _fbLoadKpis(){
+  const kSnap = await kpisRepository.list();
   if(kSnap.empty) return;
   kpis = [];
-  kSnap.forEach(d => kpis.push(d.data()));
+  kSnap.docs.forEach(d => kpis.push(d.data));
   _kpiIdC = Math.max(...kpis.map(k=>k.id), 0) + 1;
 }
-async function _fbLoadPlano(db, collection, getDocs){
-  const planoSnap = await getDocs(fbColRef(db,'plano'));
+async function _fbLoadPlano(){
+  const planoSnap = await planoRepository.list();
   if(planoSnap.empty) return;
   plano = [];
-  planoSnap.forEach(d => plano.push(d.data()));
+  planoSnap.docs.forEach(d => plano.push(d.data));
   _planoIdC = Math.max(...plano.map(a=>a.id), 0) + 1;
 }
-async function _fbLoadSolicitacoes(db, collection, getDocs, doc, deleteDoc){
-  const solSnap = await getDocs(fbColRef(db,'solicitacoes'));
+async function _fbLoadSolicitacoes(){
+  const solSnap = await solicitacoesRepository.list();
   if(solSnap.empty) return;
   solicitacoes = [];
   const limpezas = [];
-  solSnap.forEach(d => {
-    const data = d.data();
+  solSnap.docs.forEach(d => {
+    const data = d.data;
     if(_solIsValida(data)){
       solicitacoes.push(data);
       return;
     }
-    limpezas.push(deleteDoc(fbDocRef(db,'solicitacoes',d.id)).catch(error_=>console.warn('solicitacao invalida mantida:', d.id, error_.message)));
+    limpezas.push(solicitacoesRepository.remove(d.id).catch(error_=>console.warn('solicitacao invalida mantida:', d.id, error_.message)));
   });
   await Promise.all(limpezas);
 }
-async function _fbLoadPublicacoes(db, collection, getDocs){
-  const pubSnap = await getDocs(fbColRef(db,'publicacoes'));
+async function _fbLoadPublicacoes(){
+  const pubSnap = await publicacoesRepository.list();
   if(pubSnap.empty) return;
   publicacoes = [];
-  pubSnap.forEach(d => publicacoes.push(d.data()));
+  pubSnap.docs.forEach(d => publicacoes.push(d.data));
   _pubIdC = Math.max(...publicacoes.map(p=>p.id), 0) + 1;
 }
-async function _fbLoadArquitetura(db, doc, getDoc){
-  const arqDoc = await getDoc(fbConfigDocRef(db,'arquitetura'));
+async function _fbLoadArquitetura(){
+  const arqDoc = await configRepository.get('arquitetura');
   if(!(arqDoc.exists() && arqDoc.data().data)) return;
   try { ARQUITETURA = JSON.parse(arqDoc.data().data); } catch(e){ console.error('Erro ao parsear arquitetura:', e); }
 }
-async function _fbLoadProjetosUsuarios(db, collection, getDocs){
-  const projSnap = await getDocs(fbColRef(db,'projPROJETOS'));
+async function _fbLoadProjetosUsuarios(){
+  const projSnap = await projetosUsuariosRepository.list();
   if(projSnap.empty) return;
   PROJETOS_USUARIOS = [];
-  projSnap.forEach(d => PROJETOS_USUARIOS.push(d.data()));
+  projSnap.docs.forEach(d => PROJETOS_USUARIOS.push(d.data));
   PROJETOS_USUARIOS.sort((a,b) => String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
 }
-async function _fbLoadFlagsManuais(db, doc, getDoc){
-  await _fbLoadManualSet(db, doc, getDoc, 'mapeados', setVal=>{
+async function _fbLoadFlagsManuais(){
+  await _fbLoadManualSet('mapeados', setVal=>{
     mapeadosManual = setVal;
     lsSet('mapeadosManual', JSON.stringify([...mapeadosManual]));
   }, ()=>{ mapeadosManual = new Set(jsonArrayFromStorage('mapeadosManual')); });
-  await _fbLoadManualSet(db, doc, getDoc, 'criticos', setVal=>{
+  await _fbLoadManualSet('criticos', setVal=>{
     criticosManual = setVal;
     lsSet('criticosManual', JSON.stringify([...criticosManual]));
   }, ()=>{ criticosManual = new Set(jsonArrayFromStorage('criticosManual')); });
 }
-async function _fbLoadManualSet(db, doc, getDoc, key, applyLoaded, applyFallback){
-  const cfgDoc = await getDoc(fbConfigDocRef(db,key));
+async function _fbLoadManualSet(key, applyLoaded, applyFallback){
+  const cfgDoc = await configRepository.get(key);
   if(cfgDoc.exists() && cfgDoc.data().data){
     try {
       applyLoaded(new Set(JSON.parse(cfgDoc.data().data)));
@@ -16209,7 +16194,7 @@ async function salvarAviso(){
   const idx = AVISOS.findIndex(a=>a.id===id);
   if(idx>=0) AVISOS[idx]=aviso; else AVISOS.push(aviso);
   if(fbReady()){
-    try{ const {db,setDoc}=fb(); await setDoc(fbDocRef(db,'avisos',id), aviso); }
+    try{ await avisosRepository.set(id, aviso); }
     catch(e){ console.warn('salvarAviso error:',e.message); }
   }
   document.getElementById('aviso-modal').style.display='none';
@@ -16223,7 +16208,7 @@ async function excluirAvisoModal(){
   confirmar('Excluir este aviso permanentemente?', async () => {
     AVISOS = AVISOS.filter(a=>a.id!==id);
     if(fbReady()){
-      try{ const {db,deleteDoc}=fb(); await deleteDoc(fbDocRef(db,'avisos',id)); }
+      try{ await avisosRepository.remove(id); }
       catch(e){ console.warn('excluirAviso error:',e.message); }
     }
     document.getElementById('aviso-modal').style.display='none';
@@ -16626,8 +16611,7 @@ function excluirTrilha(id){
   confirmar('Remover esta trilha de capacitação?', () => {
     TRILHAS = TRILHAS.filter(t => t.id !== id);
     if(fbReady()){
-      const {db, doc, deleteDoc} = fb();
-      deleteDoc(fbDocRef(db,'trilhas',id)).catch(e => console.warn('deleteTrilha error:', e.message));
+      trilhasRepository.remove(id).catch(e => console.warn('deleteTrilha error:', e.message));
     }
     rTrilhas();
     toast('Trilha removida.','var(--amber)');
@@ -16738,9 +16722,9 @@ async function _fbReloadData(){
 
 function _fbWatchExternalChanges(){
   if(!fbReady() || globalThis._fbExternalWatcher) return;
-  const {db, doc, onSnapshot} = fb();
+  const {onSnapshot} = fb();
   globalThis._fbExternalWatcher = onSnapshot(
-    fbConfigDocRef(db,'last_modified'),
+    configRepository.ref('last_modified'),
     (snap) => {
       if(!snap.exists()) return;
       const d = snap.data();
@@ -16797,8 +16781,7 @@ function fbAutoSave(label){
 async function fbSaveEjs(){
   if(!fbReady()) return;
   try {
-    const {db, doc, setDoc} = fb();
-    await setDoc(fbConfigDocRef(db,'ejs'), ejsConfig);
+    await configRepository.set('ejs', ejsConfig);
   } catch(e){ console.warn('fbSaveEjs error:', e.message); }
 }
 
@@ -16806,8 +16789,7 @@ async function fbSaveEjs(){
 async function saveFluxoImg(arqId, base64){
   if(!fbReady()){ fluxosCache[arqId]=base64; return; }
   try {
-    const {db, doc, setDoc} = fb();
-    await setDoc(fbDocRef(db,'fluxos',arqId), {data: base64, updatedAt: Date.now()});
+    await fluxosRepository.set(arqId, {data: base64, updatedAt: Date.now()});
     fluxosCache[arqId] = base64;
   } catch(e){ console.warn('saveFluxoImg:', e.message); toast('⚠ Erro ao salvar imagem: '+e.message,'var(--red)'); }
 }
@@ -16815,8 +16797,7 @@ async function loadFluxoImg(arqId){
   if(fluxosCache[arqId] !== undefined) return fluxosCache[arqId];
   if(!fbReady()) return null;
   try {
-    const {db, doc, getDoc} = fb();
-    const snap = await getDoc(fbDocRef(db,'fluxos',arqId));
+    const snap = await fluxosRepository.get(arqId);
     const data = snap.exists() ? (snap.data().data||null) : null;
     fluxosCache[arqId] = data;
     return data;
@@ -17510,8 +17491,7 @@ function _relNomeClick(id){
     if(r && novo !== r.filtros){
       r.filtros = novo;
       if(fbReady()){
-        const {db,doc,setDoc}=fb();
-        await setDoc(fbDocRef(db,'relatorios_ind',id),_fsClean(r));
+        await relatoriosIndicadoresRepository.set(id, _fsClean(r));
       }
     }
     renderRelatoriosOficiais();
@@ -17555,8 +17535,7 @@ async function excluirRelatorioOficial(id){
   if(!isEP()) return;
   confirmar('Excluir este relatório oficial? Esta ação não pode ser desfeita.', async ()=>{
     if(fbReady()){
-      const {db,doc,deleteDoc}=fb();
-      await deleteDoc(fbDocRef(db,'relatorios_ind',id)).catch(e=>console.warn(e.message));
+      await relatoriosIndicadoresRepository.remove(id).catch(e=>console.warn(e.message));
     }
     RELATORIOS_IND = RELATORIOS_IND.filter(r=>r.id!==id);
     renderRelatoriosOficiais();
@@ -17577,8 +17556,7 @@ async function publicarRelatorioOficial(){
       html: _lastRelatorioIndHtml
     };
     if(fbReady()){
-      const {db,doc,setDoc}=fb();
-      await setDoc(fbDocRef(db,'relatorios_ind',rel.id),_fsClean(rel));
+      await relatoriosIndicadoresRepository.set(rel.id, _fsClean(rel));
     }
     RELATORIOS_IND.unshift(rel);
     renderRelatoriosOficiais();
