@@ -5456,8 +5456,6 @@ const ACOES = {
 
   esboco_tobe:{titulo:'Esboço TO BE',sub:'Descrever e desenhar o fluxo futuro proposto.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibp">Descreva o processo futuro e desenhe o fluxo TO BE no editor BPMN.</div>
-    <div class="fg"><label class="fl">Descrição TO BE</label>
-      <textarea class="fi" id="e-tobe" style="min-height:120px" placeholder="Como o processo deve funcionar após as melhorias...">${p.mod.toBe||''}</textarea></div>
     ${bpmnEditorHTML('tobe', p.mod.bpmnToBe)}
     <div style="margin:.8rem 0 .4rem;font-weight:600;font-size:13px">Etapas extraídas do BPMN TO BE</div>
     <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Extraia as etapas para que o dono possa detalhá-las na próxima etapa.</div>
@@ -6450,7 +6448,6 @@ const _CHECKLIST_DEFS={
     {lb:'Melhorias e mitigações revisadas',done:!!(p.mod&&(p.mod.melhorias||[]).length)},
   ],
   esboco_tobe:(p)=>[
-    {lb:'Descrição TO BE elaborada',done:!!(p.mod&&p.mod.toBe&&p.mod.toBe.trim())},
   ],
   det_valid_tobe:(p)=>[
     {lb:'Processo TO BE detalhado',done:!!(p.mod&&((p.mod.etapas_proc_tobe||[]).length||p.mod.toBe))},
@@ -7315,9 +7312,8 @@ async function salvarEsboco(avancar=true){
   else{fbAutoSave('salvarEsboco');toast('Dados salvos!','var(--teal)');}
 }
 async function salvarEsbocaTobe(avancar=true){
-  if(!_validarCampos([{id:'e-tobe',label:'Descrição do TO BE'}])) return;
   const p=curProc;
-  p.mod.toBe=document.getElementById('e-tobe')?.value||p.mod.toBe||'';
+  p.mod.toBe=p.mod.toBe||'';
   const hasModeler=!!bpmnModelers['tobe'];
   if(hasModeler){
     const xml=await _persistirBpmnXml('tobe', p);
