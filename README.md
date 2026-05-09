@@ -369,7 +369,8 @@ siga2.0/
 │   ├── shared/              # Código compartilhado entre módulos
 │   │   ├── tenant-config.js # Configuração de ambiente e tenant
 │   │   ├── org-config.js    # Configuração institucional compartilhada
-│   │   └── firebase-helpers.js # Helpers Firebase/Firestore tenant-aware
+│   │   ├── firebase-helpers.js # Helpers Firebase/Firestore tenant-aware
+│   │   └── firestore-repositories.js # Repositórios Firestore por domínio
 │   └── processos/           # Módulos extraídos gradualmente do SIGA Processos
 │       ├── app-constants.js # Labels, cores e enums centrais
 │       ├── module-hub-controller.js # Controller do hub de módulos
@@ -378,6 +379,8 @@ siga2.0/
 │       └── storage-utils.js # Utilitários seguros de armazenamento local
 ├── tests/
 │   └── e2e/                 # Smoke tests e simulações Playwright
+├── tools/
+│   └── migrate-firestore-tenant.mjs # Plano/migração Firestore para tenants
 └── .github/
     └── workflows/
         ├── firebase-deploy.yml  # Deploy para Firebase Hosting

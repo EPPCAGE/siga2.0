@@ -9,6 +9,7 @@ Arquivos em `src/shared/` podem ser usados por Processos e Projetos.
 - `tenant-config.js`: configuracao de ambiente e tenant.
 - `org-config.js`: identidade institucional e textos parametrizaveis.
 - `firebase-helpers.js`: helpers Firebase/Firestore tenant-aware.
+- `firestore-repositories.js`: camada unica de acesso a dados Firestore.
 
 ## Camada Processos
 

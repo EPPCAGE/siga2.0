@@ -22,7 +22,9 @@ TENANCY: {
 
 ## Caminhos
 
-Com tenant desligado:
+O codigo deve sempre montar caminhos por `tenantCollectionPath` e `tenantDocPath`.
+
+Com tenant desligado (`TENANCY.enabled:false`), o caminho ativo segue legado para preservar a base atual:
 
 ```text
 processos/{id}
@@ -30,7 +32,7 @@ config/usuarios
 kpis/{id}
 ```
 
-Com tenant ligado:
+Com tenant ligado (`TENANCY.enabled:true`), o caminho ativo passa a ser isolado:
 
 ```text
 tenants/{tenantId}/processos/{id}
@@ -38,16 +40,37 @@ tenants/{tenantId}/config/usuarios
 tenants/{tenantId}/kpis/{id}
 ```
 
+Mesmo com tenant desligado, `tenantScopedCollectionPath` e `tenantScopedDocPath` ja permitem prever o caminho alvo da migracao. Isso evita ativar multi-tenant antes dos dados estarem copiados e validados.
+
+## Migracao
+
+Existe um script de preparacao em `tools/migrate-firestore-tenant.mjs`.
+
+Para listar o plano sem alterar dados:
+
+```bash
+npm run tenant:migration:plan
+```
+
+Para execucao real, usar apenas em homologacao/controlado, com credenciais administrativas configuradas por `GOOGLE_APPLICATION_CREDENTIALS`:
+
+```bash
+node tools/migrate-firestore-tenant.mjs --tenant=cage-rs --execute
+```
+
+O script copia as colecoes legadas para `tenants/{tenantId}/...` e documentos conhecidos de `config/{doc}` para `tenants/{tenantId}/config/{doc}`. Ele nao apaga a base legada.
+
 ## Cuidados antes de ativar
 
 - Migrar dados existentes para o tenant correto.
-- Atualizar todos os pontos de leitura e escrita para usar helpers de caminho.
+- Atualizar todos os pontos de leitura e escrita para usar repositórios Firestore.
 - Atualizar regras Firestore para impedir acesso cruzado.
 - Validar login, solicitacoes, mapeamento, indicadores, relatorios e projetos em homologacao.
+- Ativar `TENANCY.enabled:true` somente apos comparar base legada e base tenant.
 
 ## Estado da preparacao
 
-- Processos: leituras/escritas centrais de colecoes de negocio ja usam helpers tenant-aware.
-- Projetos: leituras/escritas centrais de projetos, programas e configuracoes ja usam helpers tenant-aware.
-- Sessoes de login continuam globais por usuario, fora do tenant.
+- Processos: leituras/escritas centrais de colecoes de negocio passam por repositórios tenant-aware.
+- Projetos: leituras/escritas centrais de projetos, programas e configuracoes passam por repositórios tenant-aware.
+- Sessoes de login usam repositório proprio e serao copiadas se necessario.
 - `TENANCY.enabled` permanece `false`; por isso os caminhos gerados continuam iguais aos legados.

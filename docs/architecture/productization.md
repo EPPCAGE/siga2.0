@@ -35,9 +35,11 @@ Enquanto `CONFIG.TENANCY.enabled` estiver `false`, o sistema continua usando as 
 
 Proximos ajustes:
 
-- Criar adaptadores Firestore (`tenantCollectionPath`, `tenantDocPath`) em todos os pontos de leitura/escrita.
-- Criar script de migracao das colecoes raiz para `tenants/cage-rs/...`.
+- Consolidar o uso dos repositórios Firestore tenant-aware nos fluxos restantes.
+- Validar o script de migracao das colecoes raiz para `tenants/cage-rs/...` em homologacao.
 - Atualizar regras Firestore para validar `tenantId` por usuario.
+
+Status: os caminhos ativos continuam legados com `CONFIG.TENANCY.enabled:false`, mas o sistema ja possui caminho alvo tenant-aware por `tenantScopedCollectionPath`/`tenantScopedDocPath`. O script `tools/migrate-firestore-tenant.mjs` gera o plano de migracao sem alterar dados por padrao.
 
 ## 3. Backend e seguranca
 
