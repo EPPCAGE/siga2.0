@@ -11018,6 +11018,7 @@ function _bpmnAttachExisting(which, p, canvasEl){
   if(bpmnProcIds[which]!==p?.id) return false;
   try{
     bpmnModelers[which].attachTo(canvasEl);
+    _bpmnBindCanvasMousedown(which, canvasEl);
     _bpmnActivateKeyboard(which);
     _setDisplay(document.getElementById('bpmn-'+which+'-loading'), false);
     if(bpmnDirty[which]) _setDisplay(document.getElementById('bpmn-'+which+'-dirty'), true, 'inline');
@@ -11028,9 +11029,17 @@ function _bpmnAttachExisting(which, p, canvasEl){
     return false;
   }
 }
+function _bpmnBindCanvasMousedown(which, canvasEl){
+  if(!canvasEl) return;
+  canvasEl.addEventListener('mousedown',()=>{
+    if(document.activeElement&&document.activeElement!==document.body)
+      document.activeElement.blur();
+    _bpmnActivateKeyboard(which);
+  },true);
+}
 function _bpmnInitModelerEvents(mod, which){
   const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
-  if(canvasEl) canvasEl.addEventListener('mousedown',()=>_bpmnActivateKeyboard(which),true);
+  _bpmnBindCanvasMousedown(which, canvasEl);
   mod.on('commandStack.changed',()=>{
     bpmnDirty[which]=true;
     _setDisplay(document.getElementById('bpmn-'+which+'-dirty'), true, 'inline');
