@@ -4256,7 +4256,10 @@ function abrirProc(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-detalhe').classList.add('on');
-  document.getElementById('nb-proc').classList.add('on');
+  const navAtiva = curProc?.etapa==='auditoria' || curProc?.produto==='Análise de Aderência'
+    ? document.getElementById('nb-aud')
+    : document.getElementById('nb-proc');
+  navAtiva?.classList.add('on');
 }
 function rDetalhe(){
   const p=curProc;
@@ -5960,6 +5963,16 @@ const ACOES = {
           </div>
           <button type="button" class="btn btn-t" id="aud-rel-btn" onclick="iaGerarRelatorioAuditoria()" style="white-space:nowrap;flex-shrink:0">✦ Gerar relatório com IA</button>
         </div>
+        <div class="g2" style="align-items:start;margin-bottom:1rem">
+          <div class="fg" style="margin-bottom:0">
+            <label class="fl">Síntese executiva manual</label>
+            <textarea class="fi" id="aud-sintese" style="min-height:92px" placeholder="Resumo dos principais resultados, escopo analisado e nível geral de aderência.">${esc(aud.sintese_manual||'')}</textarea>
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label class="fl">Conclusão / encaminhamento manual</label>
+            <textarea class="fi" id="aud-conclusao" style="min-height:92px" placeholder="Conclusão do EPP, encaminhamentos e observações finais.">${esc(aud.conclusao_manual||'')}</textarea>
+          </div>
+        </div>
         <div id="aud-rel-result">${aud.relatorio_html||'<div class="ib ibsl">Clique em "Gerar relatório com IA" para criar o relatório executivo automaticamente a partir das abas anteriores.</div>'}</div>
         <div class="btn-row" style="margin-top:1rem">
           <button type="button" class="btn btn-a" onclick="exportarAuditoriaWord()">⬇ Exportar Word</button>
@@ -6521,6 +6534,7 @@ function _rAcaoAppendEPBars(el, p, isPulada){
   const isEPAcao=acObj?.rk==='ep';
   const showPrazo=isEPAcao&&(!atrib||atrib.para==='ep');
   const hasAdvance=isEPAcao&&!!_ADVANCE_MAP[p.etapa];
+  const hasNext=!!nextEt(p.etapa);
   const prazoAtual=showPrazo?((p.prazos_ep||{})[p.etapa]||''):'';
   const bar=document.createElement('div');
   bar.style.cssText='margin-top:.8rem;padding:.65rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--blue-l,#eff6ff)';
@@ -6534,11 +6548,12 @@ function _rAcaoAppendEPBars(el, p, isPulada){
   btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="abrirAtribuirEtapa('${p.etapa}')">👤 Atribuir a...</button>`);
   if(showPrazo) btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="definirPrazoEP('${p.etapa}')">✎ Definir prazo</button>`);
   if(prevEt(p.etapa)) btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red)" onclick="voltarEtapaConfirm()">↩ Voltar etapa</button>`);
-  if(!isPulada&&nextEt(p.etapa)) btns.push(`<button type="button" class="btn btn-a" style="font-size:11px;padding:3px 9px" onclick="pularEtapaConfirm('${p.etapa}')">⏭ Pular etapa</button>`);
+  if(!isPulada&&hasNext) btns.push(`<button type="button" class="btn btn-a" style="font-size:11px;padding:3px 9px" onclick="pularEtapaConfirm('${p.etapa}')">⏭ Pular etapa</button>`);
   if(hasAdvance){
+    const advanceLabel = hasNext ? '✓ Salvar e ir para próxima →' : '✓ Salvar e concluir etapa';
     btns.push(
       `<button type="button" class="btn" style="font-size:12px;padding:4px 12px" onclick="_SAVE_MAP[curProc?.etapa]?.()">💾 Salvar dados</button>`,
-      `<button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">✓ Salvar e ir para próxima →</button>`
+      `<button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">${advanceLabel}</button>`
     );
   }
   bar.innerHTML=leftHtml+`<div style="display:flex;gap:6px;flex-wrap:wrap">${btns.join('')}</div>`;
@@ -8774,7 +8789,15 @@ function salvarRelatorioAuditoria(concluir){
   const p=curProc;if(!p)return;
   if(!p.auditoria)p.auditoria={};
   const conf = document.getElementById('aud-conf')?.value || p.auditoria.conformidade || '';
-  Object.assign(p.auditoria,{conformidade:conf, data:now(), concluida:concluir});
+  const sinteseManual = document.getElementById('aud-sintese')?.value || p.auditoria.sintese_manual || '';
+  const conclusaoManual = document.getElementById('aud-conclusao')?.value || p.auditoria.conclusao_manual || '';
+  Object.assign(p.auditoria,{
+    conformidade:conf,
+    sintese_manual:sinteseManual,
+    conclusao_manual:conclusaoManual,
+    data:now(),
+    concluida:concluir
+  });
   if(concluir)push(p,'auditoria','EP','Análise de Aderência concluída. Conformidade: '+conf);
   fbAutoSave('salvar');toast(concluir?'Análise de Aderência concluída!':'Relatório salvo!','var(--teal)');
   if(concluir){updCounts();rDetalhe();}
