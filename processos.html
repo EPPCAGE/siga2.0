@@ -3269,8 +3269,8 @@ function _solServicoCardHTML(key){
     <button type="button" class="btn btn-p" onclick="abrirSolicitacaoModal('${key}')" style="margin-top:auto;min-height:42px">Solicitar serviço</button>
   </div>`;
 }
-function _solStatusInfo(status){
-  const st = status || 'nova';
+function _solStatusInfo(status='nova'){
+  const st = status;
   const map = {
     nova: ['Nova','#2563eb','bb'],
     em_analise: ['Em análise','#d97706','ba'],
@@ -3620,11 +3620,15 @@ function rMeusProc(){
   if(emptyEl) emptyEl.style.display = minhas.length ? 'none' : 'block';
   if(summaryEl){
     const mapeados = minhas.filter(u=>isMapeado(u.arq_id)).length;
+    const naoMapeados = minhas.length - mapeados;
+    const pluralProcessos = minhas.length===1 ? '' : 's';
+    const pluralMapeados = mapeados===1 ? '' : 's';
+    const pluralNaoMapeados = naoMapeados===1 ? '' : 's';
     summaryEl.innerHTML = minhas.length
       ? `<div class="card" style="border-left:4px solid var(--teal);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
-            <div class="card-t" style="margin-bottom:3px">${minhas.length} processo${minhas.length===1?'':'s'} no(s) macroprocesso(s) vinculado(s) ao seu usuário</div>
-            <div style="font-size:12px;color:var(--ink3)">${mapeados} mapeado${mapeados===1?'':'s'} na arquitetura · ${minhas.length-mapeados} não mapeado${(minhas.length-mapeados)===1?'':'s'}</div>
+            <div class="card-t" style="margin-bottom:3px">${minhas.length} processo${pluralProcessos} no(s) macroprocesso(s) vinculado(s) ao seu usuário</div>
+            <div style="font-size:12px;color:var(--ink3)">${mapeados} mapeado${pluralMapeados} na arquitetura · ${naoMapeados} não mapeado${pluralNaoMapeados}</div>
           </div>
           <button type="button" class="btn" onclick="go('arq',document.getElementById('nb-arq'))" style="font-size:12px">Ver arquitetura</button>
         </div>`
@@ -14467,10 +14471,16 @@ function renderVinculos(vinculos){
   el.innerHTML = _tempVinculos.map((vid,i)=>{
     const macro = ARQUITETURA.find(m=>m.id===vid);
     const total = macro ? (macro.processos||[]).reduce((s,p)=>s+1+(p.subprocessos||[]).length,0) : 0;
+    const macroNome = macro ? esc(macro.nome) : esc(vid);
+    const pluralProcesso = total===1 ? '' : 's';
+    const pluralSubprocesso = total===1 ? '' : 's';
+    const macroDetalheHtml = macro
+      ? `<div style="font-size:11px;color:var(--ink3)">${total} processo${pluralProcesso} / subprocesso${pluralSubprocesso} vinculados</div>`
+      : '';
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:4px;font-size:12px">
       <div style="flex:1">
-        <div style="font-weight:500">${macro?esc(macro.nome):esc(vid)}</div>
-        ${macro?`<div style="font-size:11px;color:var(--ink3)">${total} processo${total===1?'':'s'} / subprocesso${total===1?'':'s'} vinculados</div>`:''}
+        <div style="font-weight:500">${macroNome}</div>
+        ${macroDetalheHtml}
       </div>
       <button type="button" class="btn" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:var(--red-b)" onclick="remVinculo(${i})">× Remover</button>
     </div>`;
