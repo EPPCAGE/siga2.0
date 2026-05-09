@@ -1,49 +1,19 @@
 'use strict';
 
-const PERFIL_LABELS = {
-  ep: 'EPP',
+const PERFIL_LABELS = globalThis.PERFIL_LABELS || {
+  ep: ORG_CONFIG.epProfileLabel,
   dono: 'Executor de Processo',
   gestor: 'Gestor / Adjunto',
   gerente_projeto: 'Projetos'
 };
 
-const lsGet = (k, d = '') => {
-  try {
-    return localStorage.getItem(k) ?? d;
-  } catch {
-    return d;
-  }
-};
-
-const lsSet = (k, v) => {
-  try {
-    localStorage.setItem(k, String(v));
-  } catch {
-    console.warn('localStorage indisponível');
-  }
-};
-
-const lsRemove = (k) => {
-  try {
-    localStorage.removeItem(k);
-  } catch {}
-};
-
-const DOMINIOS_PERMITIDOS = ['sefaz.rs.gov.br', 'cage.rs.gov.br'];
+const DOMINIOS_PERMITIDOS = ORG_CONFIG.allowedDomains;
 
 let USUARIOS = [
-  { email: 'ep@sefaz.rs.gov.br', nome: 'Equipe EP', perfil: 'ep', iniciais: 'EP' }
+  { email: ORG_CONFIG.localEpEmail, nome: ORG_CONFIG.epTeamName, perfil: 'ep', iniciais: 'EP' }
 ];
 let solicitacoes = [];
 let usuarioLogado = null;
-
-function fbReady() {
-  return globalThis._fbReady === true;
-}
-
-function fb() {
-  return globalThis._fb;
-}
 
 function getPerfisUsuario(u = usuarioLogado) {
   if (!u) return [];
