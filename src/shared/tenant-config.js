@@ -11,7 +11,7 @@
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9_-]+/g, '-')
-      .replace(/^-+|-+$/g, '') || fallback;
+      .replace(/^-+/, '').replace(/-+$/, '') || fallback;
   }
 
   function buildTenantConfig(){
