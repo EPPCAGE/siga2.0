@@ -360,15 +360,20 @@ siga2.0/
 │   ├── config.example.js    # Modelo público de configuração
 │   └── README.md            # Orientações de configuração por ambiente
 ├── docs/
+│   ├── baseline/            # Pontos de controle funcionais
+│   ├── configuration/       # Parametrizacao institucional
 │   ├── deployment/          # Checklists de implantação
-│   ├── architecture/         # Plano de modularização e arquitetura
+│   ├── architecture/         # Plano de modularização, camadas e arquitetura
 │   └── security/             # Regras exemplo para modelo tenant/seguro
 ├── src/
 │   ├── shared/              # Código compartilhado entre módulos
-│   │   └── tenant-config.js # Configuração de ambiente e tenant
+│   │   ├── tenant-config.js # Configuração de ambiente e tenant
+│   │   ├── org-config.js    # Configuração institucional compartilhada
+│   │   └── firebase-helpers.js # Helpers Firebase/Firestore tenant-aware
 │   └── processos/           # Módulos extraídos gradualmente do SIGA Processos
-│       ├── org-config.js    # Configuração institucional padronizada
 │       ├── app-constants.js # Labels, cores e enums centrais
+│       ├── module-hub-controller.js # Controller do hub de módulos
+│       ├── org-branding.js # Aplicação da identidade institucional no módulo
 │       ├── security-utils.js # Escape de HTML e validação de URLs
 │       └── storage-utils.js # Utilitários seguros de armazenamento local
 ├── tests/

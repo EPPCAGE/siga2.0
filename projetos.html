@@ -29,6 +29,9 @@
   }
 </script>
 <script src="src/shared/tenant-config.js"></script>
+<script src="src/shared/org-config.js"></script>
+<script src="src/shared/firebase-helpers.js"></script>
+<script src="src/processos/storage-utils.js"></script>
 <!-- Firebase -->
 <script type="module">
   import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -1018,7 +1021,7 @@
         <div style="margin-bottom:1rem;color:var(--ink3)">Acesse <strong>emailjs.com</strong> e crie uma conta gratuita com o seu e-mail institucional.</div>
 
         <div style="font-family:var(--fh);font-size:13px;font-weight:600;margin-bottom:.5rem;color:var(--ink)">Passo 2 — Criar um Email Service</div>
-        <div style="margin-bottom:1rem;color:var(--ink3)">No painel do EmailJS, clique em <strong>Email Services → Add New Service</strong>. Escolha <strong>Gmail</strong> (ou Outlook, se preferir). Autorize a conta de e-mail que enviará as notificações (recomendado: crie uma conta dedicada como <em>noreply.ep@sefaz.rs.gov.br</em> ou use sua conta institucional). Anote o <strong>Service ID</strong> gerado (ex: <code>service_abc123</code>).</div>
+        <div style="margin-bottom:1rem;color:var(--ink3)">No painel do EmailJS, clique em <strong>Email Services → Add New Service</strong>. Escolha <strong>Gmail</strong> (ou Outlook, se preferir). Autorize a conta de e-mail que enviará as notificações (recomendado: crie uma conta dedicada como <em id="proj-ejs-noreply-suggestion">noreply@example.gov.br</em> ou use sua conta institucional). Anote o <strong>Service ID</strong> gerado (ex: <code>service_abc123</code>).</div>
 
         <div style="font-family:var(--fh);font-size:13px;font-weight:600;margin-bottom:.5rem;color:var(--ink)">Passo 3 — Criar um Email Template</div>
         <div style="margin-bottom:.5rem;color:var(--ink3)">Em <strong>Email Templates → Create New Template</strong>, configure o modelo do e-mail. Veja a aba <strong>"Modelo de e-mail"</strong> ao lado para o conteúdo sugerido. Anote o <strong>Template ID</strong> (ex: <code>template_xyz789</code>).</div>
@@ -1036,13 +1039,13 @@
       <div class="ib ibt" style="margin-bottom:1rem">Cole este conteúdo no seu template do EmailJS. As variáveis entre <code>{{ }}</code> são preenchidas automaticamente pelo sistema.</div>
       <div style="margin-bottom:.8rem">
         <div class="sec-lbl" style="margin-bottom:.3rem">Assunto do e-mail</div>
-        <div style="background:var(--bg2);padding:8px 12px;border-radius:6px;font-family:var(--fm);font-size:12px;border:1px solid var(--bdr)">EP·CAGE — Tarefa pendente: {{processo}}</div>
+        <div id="proj-ejs-subject-example" style="background:var(--bg2);padding:8px 12px;border-radius:6px;font-family:var(--fm);font-size:12px;border:1px solid var(--bdr)">Sistema — Tarefa pendente: {{processo}}</div>
       </div>
       <div style="margin-bottom:.8rem">
         <div class="sec-lbl" style="margin-bottom:.3rem">Corpo do e-mail (HTML)</div>
-        <pre style="background:var(--bg2);padding:12px;border-radius:6px;font-family:var(--fm);font-size:11px;border:1px solid var(--bdr);overflow-x:auto;white-space:pre-wrap;line-height:1.6">Olá, {{to_name}}.
+        <pre id="proj-ejs-body-example" style="background:var(--bg2);padding:12px;border-radius:6px;font-family:var(--fm);font-size:11px;border:1px solid var(--bdr);overflow-x:auto;white-space:pre-wrap;line-height:1.6">Olá, {{to_name}}.
 
-Você tem uma nova tarefa pendente no sistema EP·CAGE:
+Você tem uma nova tarefa pendente no sistema:
 
 Processo: {{processo}}
 Ação necessária: {{acao}}
@@ -1053,7 +1056,7 @@ Acesse o sistema para realizar a ação:
 {{link}}
 
 ---
-Este é um e-mail automático do EPP — CAGE/Sefaz-RS.
+Este é um e-mail automático.
 Não responda este e-mail.</pre>
       </div>
       <div>
@@ -1063,7 +1066,7 @@ Não responda este e-mail.</pre>
           <tbody>
             <tr><td><code>{{to_name}}</code></td><td>Nome do destinatário</td></tr>
             <tr><td><code>{{to_email}}</code></td><td>E-mail do destinatário (configurar como "To Email" no template)</td></tr>
-            <tr><td><code>{{from_name}}</code></td><td>Remetente (ex: EP·CAGE ou nome do usuário que avançou a etapa)</td></tr>
+            <tr><td><code>{{from_name}}</code></td><td>Remetente configurado ou nome do usuário que avançou a etapa</td></tr>
             <tr><td><code>{{processo}}</code></td><td>Nome do processo</td></tr>
             <tr><td><code>{{acao}}</code></td><td>Descrição da ação pendente</td></tr>
             <tr><td><code>{{prazo}}</code></td><td>Prazo estipulado (ou "Não definido")</td></tr>
@@ -1127,7 +1130,7 @@ Não responda este e-mail.</pre>
       <div class="fg"><label class="fl" for="pub-url">Link / URL do documento</label><input class="fi" id="pub-url" placeholder="https://... ou caminho da rede"></div>
       <div class="g2">
         <div class="fg"><label class="fl" for="pub-data">Data de publicação</label><input class="fi" type="date" id="pub-data"></div>
-        <div class="fg"><label class="fl" for="pub-resp">Responsável</label><input class="fi" id="pub-resp" placeholder="Ex: EP·CAGE"></div>
+        <div class="fg"><label class="fl" for="pub-resp">Responsável</label><input class="fi" id="pub-resp" placeholder="Ex: Escritório responsável"></div>
       </div>
       <div class="fg"><label class="fl" for="pub-tags">Tags (separadas por vírgula)</label><input class="fi" id="pub-tags" placeholder="Ex: bpmn, mapeamento, tutorial"></div>
       <div class="fg">
