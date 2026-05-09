@@ -10944,8 +10944,10 @@ function _bpmnAttachExisting(which, p, canvasEl){
     bpmnModelers[which].attachTo(canvasEl);
     _bpmnBindCanvasMousedown(which, canvasEl);
     _bpmnActivateKeyboard(which);
-    _setDisplay(document.getElementById('bpmn-'+which+'-loading'), false);
-    if(bpmnDirty[which]) _setDisplay(document.getElementById('bpmn-'+which+'-dirty'), true, 'inline');
+    const loadEl=document.getElementById('bpmn-'+which+'-loading');
+    if(loadEl) loadEl.style.display='none';
+    const dirtyEl=document.getElementById('bpmn-'+which+'-dirty');
+    if(bpmnDirty[which]&&dirtyEl) dirtyEl.style.display='inline';
     _bpmnFocusCanvas(bpmnModelers[which], p);
     globalThis._bpmnLastHL=null;
     return true;
@@ -10966,7 +10968,8 @@ function _bpmnInitModelerEvents(mod, which){
   _bpmnBindCanvasMousedown(which, canvasEl);
   mod.on('commandStack.changed',()=>{
     bpmnDirty[which]=true;
-    _setDisplay(document.getElementById('bpmn-'+which+'-dirty'), true, 'inline');
+    const dirtyEl=document.getElementById('bpmn-'+which+'-dirty');
+    if(dirtyEl) dirtyEl.style.display='inline';
   });
 }
 function initBpmnMod(which, p){
@@ -10994,7 +10997,8 @@ function initBpmnMod(which, p){
   const xmlKey=which==='asis'?'bpmnAsIs':'bpmnToBe';
   const xml=(p?.mod&&p.mod[xmlKey])?p.mod[xmlKey]:BPMN_DEFAULT;
   mod.importXML(xml).then(()=>{
-    _setDisplay(document.getElementById('bpmn-'+which+'-loading'), false);
+    const loadEl=document.getElementById('bpmn-'+which+'-loading');
+    if(loadEl) loadEl.style.display='none';
     _bpmnFocusCanvas(mod, p);
     _bpmnSyncIdsByName(mod);
     _bpmnBindEtapaDblClick(mod);
