@@ -3,9 +3,14 @@ functions/node_modules/
 .env
 .env.*
 *.log
+tests/e2e/artifacts/
 .firebase/
 firebase-debug.log
 firebase-debug.*.log
 .DS_Store
 config.local.js
+config.deploy.js
+config/config.local.js
+config/config.deploy.js
+!config/config.example.js
 *.local.js

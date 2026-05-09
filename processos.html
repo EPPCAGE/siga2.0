@@ -16,8 +16,16 @@
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" integrity="sha384-Cck14aA9cifjYolcnjebXRfWGkz5ltHMBiG4px/j8GS+xQcb7OhNQWZYyWjQ+UwQ" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 <!-- Config: loaded synchronously so globalThis.CONFIG is available immediately -->
-<script src="config.deploy.js" onerror="console.info('config.deploy.js not found')"></script>
-<script src="config.local.js" onerror="console.info('config.local.js not found')"></script>
+<script src="config/config.deploy.js" onerror="console.info('config/config.deploy.js not found')"></script>
+<script src="config/config.local.js" onerror="console.info('config/config.local.js not found')"></script>
+<!-- Temporary compatibility fallback for older local setups. Prefer config/*.js. -->
+<script src="config.deploy.js" onerror="console.info('legacy config.deploy.js not found')"></script>
+<script src="config.local.js" onerror="console.info('legacy config.local.js not found')"></script>
+<script src="src/shared/tenant-config.js"></script>
+<script src="src/processos/org-config.js"></script>
+<script src="src/processos/app-constants.js"></script>
+<script src="src/processos/security-utils.js"></script>
+<script src="src/processos/storage-utils.js"></script>
 <!-- Firebase -->
 <script type="module">
   import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -914,8 +922,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <div style="margin-top:1.4rem;border-top:1px solid rgba(255,255,255,.1);padding-top:1rem;text-align:center;font-size:11.5px;color:rgba(255,255,255,.35);line-height:1.6">
       Precisa de apoio com seus projetos ou processos?<br>
-      Entre em contato por <a href="mailto:epp.cage@sefaz.rs.gov.br" style="color:rgba(255,255,255,.55);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,.8)'" onfocus="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.55)'" onblur="this.style.color='rgba(255,255,255,.55)'">e-mail</a>
-      ou através do <a href="https://atendimentocage.sefaz.rs.gov.br/" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,.55);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,.8)'" onfocus="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.55)'" onblur="this.style.color='rgba(255,255,255,.55)'">Portal e-CAGE</a>.
+      Entre em contato por <a id="org-support-email-link" href="mailto:epp.cage@sefaz.rs.gov.br" style="color:rgba(255,255,255,.55);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,.8)'" onfocus="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.55)'" onblur="this.style.color='rgba(255,255,255,.55)'">e-mail</a>
+      ou através do <a id="org-support-portal-link" href="https://atendimentocage.sefaz.rs.gov.br/" target="_blank" rel="noopener noreferrer" style="color:rgba(255,255,255,.55);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,.8)'" onfocus="this.style.color='rgba(255,255,255,.8)'" onmouseout="this.style.color='rgba(255,255,255,.55)'" onblur="this.style.color='rgba(255,255,255,.55)'">Portal e-CAGE</a>.
     </div>
   </div>
 </div>
@@ -924,11 +932,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="module-hub-card">
     <div class="module-hub-hd">
       <div style="display:flex;align-items:center;justify-content:center;gap:1.2rem;margin-bottom:.8rem">
-        <img src="logo-siga.png" alt="SIGA 2.0" style="height:72px;filter:brightness(10)">
+        <img id="hub-logo-app" src="logo-siga.png" alt="SIGA 2.0" style="height:72px;filter:brightness(10)">
         <div style="width:1px;height:56px;background:rgba(255,255,255,.2)"></div>
-        <img src="epp-logo.png" alt="EPP·CAGE" style="height:44px">
+        <img id="hub-logo-org" src="epp-logo.png" alt="EPP·CAGE" style="height:44px">
       </div>
-      <div class="module-hub-ttl">EPP/CAGE</div>
+      <div class="module-hub-ttl" id="hub-org-title">EPP/CAGE</div>
       <div class="module-hub-sub">Selecione o módulo para acessar</div>
     </div>
     <div class="module-grid" id="module-grid">
@@ -1806,7 +1814,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <div style="margin-bottom:1rem;color:var(--ink3)">Acesse <strong>emailjs.com</strong> e crie uma conta gratuita com o seu e-mail institucional.</div>
 
         <div style="font-family:var(--fh);font-size:13px;font-weight:600;margin-bottom:.5rem;color:var(--ink)">Passo 2 — Criar um Email Service</div>
-        <div style="margin-bottom:1rem;color:var(--ink3)">No painel do EmailJS, clique em <strong>Email Services → Add New Service</strong>. Escolha <strong>Gmail</strong> (ou Outlook, se preferir). Autorize a conta de e-mail que enviará as notificações (recomendado: crie uma conta dedicada como <em>noreply.ep@sefaz.rs.gov.br</em> ou use sua conta institucional). Anote o <strong>Service ID</strong> gerado (ex: <code>service_abc123</code>).</div>
+        <div style="margin-bottom:1rem;color:var(--ink3)">No painel do EmailJS, clique em <strong>Email Services → Add New Service</strong>. Escolha <strong>Gmail</strong> (ou Outlook, se preferir). Autorize a conta de e-mail que enviará as notificações (recomendado: crie uma conta dedicada como <em id="ejs-noreply-suggestion">noreply.ep@sefaz.rs.gov.br</em> ou use sua conta institucional). Anote o <strong>Service ID</strong> gerado (ex: <code>service_abc123</code>).</div>
 
         <div style="font-family:var(--fh);font-size:13px;font-weight:600;margin-bottom:.5rem;color:var(--ink)">Passo 3 — Criar um Email Template</div>
         <div style="margin-bottom:.5rem;color:var(--ink3)">Em <strong>Email Templates → Create New Template</strong>, configure o modelo do e-mail. Veja a aba <strong>"Modelo de e-mail"</strong> ao lado para o conteúdo sugerido. Anote o <strong>Template ID</strong> (ex: <code>template_xyz789</code>).</div>
@@ -1824,11 +1832,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="ib ibt" style="margin-bottom:1rem">Cole este conteúdo no seu template do EmailJS. As variáveis entre <code>{{ }}</code> são preenchidas automaticamente pelo sistema.</div>
       <div style="margin-bottom:.8rem">
         <div class="sec-lbl" style="margin-bottom:.3rem">Assunto do e-mail</div>
-        <div style="background:var(--bg2);padding:8px 12px;border-radius:6px;font-family:var(--fm);font-size:12px;border:1px solid var(--bdr)">EP·CAGE — Tarefa pendente: {{processo}}</div>
+        <div id="ejs-subject-example" style="background:var(--bg2);padding:8px 12px;border-radius:6px;font-family:var(--fm);font-size:12px;border:1px solid var(--bdr)">EP·CAGE — Tarefa pendente: {{processo}}</div>
       </div>
       <div style="margin-bottom:.8rem">
         <div class="sec-lbl" style="margin-bottom:.3rem">Corpo do e-mail (HTML)</div>
-        <pre style="background:var(--bg2);padding:12px;border-radius:6px;font-family:var(--fm);font-size:11px;border:1px solid var(--bdr);overflow-x:auto;white-space:pre-wrap;line-height:1.6">Olá, {{to_name}}.
+        <pre id="ejs-body-example" style="background:var(--bg2);padding:12px;border-radius:6px;font-family:var(--fm);font-size:11px;border:1px solid var(--bdr);overflow-x:auto;white-space:pre-wrap;line-height:1.6">Olá, {{to_name}}.
 
 Você tem uma nova tarefa pendente no sistema EP·CAGE:
 
@@ -2000,28 +2008,6 @@ Não responda este e-mail.</pre>
 // ═══════════════════════════════════════════
 // DADOS CENTRAIS
 // ═══════════════════════════════════════════
-const PERFIL_LABELS = {ep:'EPP',dono:'Executor de Processo',gestor:'Gestor / Adjunto',gerente_projeto:'Projetos'};
-const PERFIL_COR = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
-// Enums frozen — usar em vez de strings literais em código novo
-const PERFIL = Object.freeze({EP:'ep', DONO:'dono', GESTOR:'gestor', GERENTE_PROJETO:'gerente_projeto'});
-const STATUS_ENTREGA = Object.freeze({EM_DIA:'em_dia', COM_ATRASO:'com_atraso', SEM_PRAZO:'sem_prazo'});
-const STATUS_PLANO = Object.freeze({PENDENTE:'pendente', EM_ANDAMENTO:'em_andamento', CONCLUIDO:'concluido', CANCELADO:'cancelado', PAUSADO:'pausado'});
-const MATURIDADE_LABELS = Object.freeze(['','Inicial','Repetível','Definido','Gerenciado','Otimizado']);
-const REUNIAO_TIPOS = Object.freeze({
-  reuniao_entendimento:'Reunião de entendimento',
-  reuniao_valid_asis:'Validação AS IS',
-  reuniao_valid_tobe:'Validação TO BE',
-  reuniao_complement:'Complementação',
-  reuniao_apresentacao:'Aprovação pelo Gestor',
-  acompanhamento:'Acompanhamento',
-  outra:'Outra reunião',
-});
-
-// ── localStorage seguro (try/catch para modo incógnito / bloqueio corporativo) ─
-const lsGet = (k, d='') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { console.warn('localStorage indisponível'); } };
-const lsRemove = (k) => { try { localStorage.removeItem(k); } catch {} };
-
 // ── Sessão única ─────────────────────────────────────────────────────────────
 let _sessionUnsub = null;
 
@@ -2047,22 +2033,14 @@ async function _iniciarSessaoUnica(uid) {
     console.warn('Sessão única: erro ao registrar.', e.message);
   }
 }
-function jsonArrayFromStorage(key, fallback='[]'){
-  const raw = lsGet(key, fallback);
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.warn('JSON inválido em localStorage para '+key+':', e.message);
-    return [];
-  }
-}
-
 let USUARIOS = [
-  {email:'ep@sefaz.rs.gov.br',nome:'Equipe EP',perfil:'ep',iniciais:'EP'},
+  {email:ORG_CONFIG.localEpEmail,nome:ORG_CONFIG.epTeamName,perfil:'ep',iniciais:'EP'},
 ];
 let PROJETOS_USUARIOS = [];
-let dominios = [{dominio:'sefaz.rs.gov.br',perfil:'ep'},{dominio:'cage.rs.gov.br',perfil:'ep'}];
+let dominios = ORG_CONFIG.allowedDomains.map(dominio=>({
+  dominio,
+  perfil: ORG_CONFIG.domainProfiles[dominio] || 'dono',
+}));
 
 const APONTAMENTOS_PADRAO = [
   {a:"Ausência de padronização das etapas do processo",c:"Inexistência de procedimento operacional formalizado ou atualização insuficiente da documentação",r:"Elaborar e institucionalizar um procedimento padrão, com definição clara das etapas, responsáveis e critérios de execução"},
@@ -2188,26 +2166,6 @@ const QUESTOES = [
   {id:'q15',dim:'Monitoramento e melhoria',txt:'As melhorias identificadas são priorizadas e implementadas sistematicamente.'},
 ];
 const LIKERT = ['Nunca','Raramente','Às vezes','Frequentemente','Sempre'];
-
-// ── SECURITY HELPERS ─────────────────────────
-// HTML-escape user-supplied content before inserting into innerHTML
-function esc(s){
-  return String(s ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'",'&#39;');
-}
-// Allow only http/https URLs; return empty string for anything else (blocks javascript: etc.)
-function safeUrl(url){
-  if(!url) return '';
-  try {
-    const parsed = new URL(url);
-    if(parsed.protocol === 'https:' || parsed.protocol === 'http:') return url;
-  } catch(_e){ console.warn('safeUrl: invalid URL', _e); }
-  return '';
-}
 
 let processos = [];
 let nextProcId = 1;
@@ -2363,7 +2321,7 @@ function renderHubAvisosCards(){
     </div>`).join('');
 }
 function abrirModalUsuarios(){
-  if(!isEP()){ toast('Acesso restrito ao EPP.','var(--red)'); return; }
+  if(!isEP()){ toast('Acesso restrito ao '+ORG_CONFIG.supportTeamLabel+'.','var(--red)'); return; }
   renderAdmin();
   document.getElementById('usr-list-modal').style.display='flex';
 }
@@ -2392,7 +2350,7 @@ function _aplicarUsuario(user){
   document.getElementById('login-screen').style.display='none';
   if(user.bloqueado){
     if(fbReady()){ const {auth, signOut} = fb(); signOut(auth).catch(()=>{}); }
-    mostrarErrLogin('Seu acesso foi bloqueado. Entre em contato com o EPP.');
+    mostrarErrLogin('Seu acesso foi bloqueado. Entre em contato com o '+ORG_CONFIG.supportTeamLabel+'.');
     return;
   }
   document.getElementById('aside-av').textContent=user.iniciais;
@@ -2456,10 +2414,10 @@ function togglePerfilEP(){
     const nb=document.getElementById('nb-'+id);
     go(id,nb||null);
   }
-  const msg=usuarioLogado.perfil==='dono'?'Simulando perfil Executor de Processo':'Voltou ao perfil EP';
+  const msg=usuarioLogado.perfil==='dono'?'Simulando perfil Executor de Processo':'Voltou ao perfil '+ORG_CONFIG.supportTeamLabel;
   toast(msg, usuarioLogado.perfil==='dono'?'var(--amber)':'var(--teal)');
 }
-const DOMINIOS_PERMITIDOS = ['sefaz.rs.gov.br','cage.rs.gov.br'];
+const DOMINIOS_PERMITIDOS = ORG_CONFIG.allowedDomains;
 
 async function doLogin(){
   const email = document.getElementById('login-email').value.trim().toLowerCase();
@@ -2485,7 +2443,7 @@ async function doLogin(){
       btn.textContent = 'Entrar'; btn.disabled = false;
       const msgs = {
         'auth/wrong-password':'Senha incorreta.',
-        'auth/user-not-found':'Usuário não encontrado. Verifique se o EP já encaminhou uma tarefa para o seu e-mail.',
+        'auth/user-not-found':'Usuário não encontrado. Verifique se '+ORG_CONFIG.supportTeamLabel+' já encaminhou uma tarefa para o seu e-mail.',
         'auth/invalid-credential':'E-mail ou senha incorretos.',
         'auth/too-many-requests':'Muitas tentativas. Tente novamente em alguns minutos.',
       };
@@ -2654,11 +2612,11 @@ function _enviarSenhaAcesso(email, nome, senha){
     emailjs.send(ejsConfig.service, ejsConfig.template, {
       to_name:  nome,
       to_email: email,
-      from_name: 'EPP·CAGE',
+      from_name: ORG_CONFIG.notificationFromName,
       processo: 'Acesso liberado',
-      acao: 'Seu acesso ao sistema EP·CAGE foi aprovado.\n\nSua senha temporária: ' + senha + '\n\nAcesse o sistema e altere sua senha no primeiro login.',
+      acao: 'Seu acesso ao sistema '+ORG_CONFIG.systemBrand+' foi aprovado.\n\nSua senha temporária: ' + senha + '\n\nAcesse o sistema e altere sua senha no primeiro login.',
       prazo: 'Alterar a senha no primeiro acesso',
-      link: 'https://sigaepp.web.app/',
+      link: ORG_CONFIG.publicUrl,
     }).then(()=>console.info('Senha temporária enviada para', email))
       .catch(err=>console.warn('EmailJS erro ao enviar senha:', err?.text||err?.message));
   } else {
@@ -2729,7 +2687,7 @@ async function salvarNovaSenha(){
     await fbSaveAll();
     const modal = document.getElementById('trocar-senha-modal');
     if(modal) modal.style.display='none';
-    toast('Senha definida com sucesso! Bem-vindo(a) ao EP·CAGE.', 'var(--green)');
+    toast('Senha definida com sucesso! Bem-vindo(a) ao '+ORG_CONFIG.systemBrand+'.', 'var(--green)');
     openModuleHub();
   } catch(e){
     const msgs = {
@@ -2975,11 +2933,11 @@ function testarEmailJS(){
   emailjs.send(ejsConfig.service, ejsConfig.template, {
     to_name: destNome,
     to_email: destEmail,
-    from_name: 'EP·CAGE — Teste',
+    from_name: ORG_CONFIG.notificationFromName+' — Teste',
     processo: 'Processo de teste',
-    acao: 'Este é um e-mail de teste do sistema EP·CAGE.',
+    acao: 'Este é um e-mail de teste do sistema '+ORG_CONFIG.systemBrand+'.',
     prazo: 'N/A',
-    link: 'https://sigaepp.web.app/',
+    link: ORG_CONFIG.publicUrl,
   }).then(()=>{
     res.textContent = '✓ E-mail de teste enviado para ' + destEmail;
     res.style.color = 'var(--green)';
@@ -3002,9 +2960,9 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
   if(ejsConfig.service&&ejsConfig.template&&ejsConfig.pubkey&&typeof emailjs!=='undefined'){
     emailjs.send(ejsConfig.service,ejsConfig.template,{
       to_name:para_nome,to_email:para_email,
-      from_name:de_nome||'EP·CAGE',
+      from_name:de_nome||ORG_CONFIG.notificationFromName,
       processo:proc_nome,acao,prazo:prazo||'',
-      link:'https://sigaepp.web.app/',
+      link:ORG_CONFIG.publicUrl,
     }).then(()=>{
       console.info('EmailJS: e-mail enviado para',para_email);
     }).catch(err=>{
@@ -3314,7 +3272,7 @@ function rSolicitacoes(){
   const title = document.getElementById('sol-list-title');
   const sub = document.getElementById('sol-list-sub');
   if(title) title.textContent = isEP() ? 'Solicitações recebidas' : 'Minhas solicitações';
-  if(sub) sub.textContent = isEP() ? 'Pedidos enviados ao EPP por usuários do SIGA Processos.' : 'Acompanhe os pedidos enviados ao EPP.';
+  if(sub) sub.textContent = isEP() ? 'Pedidos enviados ao '+ORG_CONFIG.supportTeamLabel+' por usuários do SIGA Processos.' : 'Acompanhe os pedidos enviados ao '+ORG_CONFIG.supportTeamLabel+'.';
   const list = document.getElementById('sol-list');
   if(!list) return;
   const email = usuarioLogado?.email || '';
@@ -3469,11 +3427,11 @@ function enviarSolicitacaoServico(){
   fbAutoSave('solicitacao');
   fecharSolicitacaoModal();
   rSolicitacoes();
-  toast('Solicitação enviada ao EPP.','var(--teal)');
+  toast('Solicitação enviada ao '+ORG_CONFIG.supportTeamLabel+'.','var(--teal)');
 }
 function _solDestinatariosEP(){
   const eps = USUARIOS.filter(u=>getPerfisUsuario(u).includes('ep')&&u.email);
-  return eps.length ? eps : [{nome:'EPP/CAGE',email:'epp.cage@sefaz.rs.gov.br'}];
+  return eps.length ? eps : [{nome:ORG_CONFIG.organizationName,email:ORG_CONFIG.epTeamEmail}];
 }
 function notificarEPSolicitacao(sol){
   const svc = SOL_SERVICOS[sol.servico] || {titulo:sol.servico};
@@ -3486,10 +3444,10 @@ function notificarEPSolicitacao(sol){
     'Justificativa: '+sol.justificativa,
     sol.resultado ? 'Resultado esperado: '+sol.resultado : ''
   ].filter(Boolean).join('\n');
-  _solDestinatariosEP().forEach(ep=>enviarNotif(ep.email,ep.nome||'EPP',acao,sol.processo_label,prazo,sol.solicitante_nome||'Solicitante'));
+  _solDestinatariosEP().forEach(ep=>enviarNotif(ep.email,ep.nome||ORG_CONFIG.supportTeamLabel,acao,sol.processo_label,prazo,sol.solicitante_nome||'Solicitante'));
 }
 function alterarSolicitacaoStatus(id,status){
-  if(!isEP()){ toast('Ação restrita ao EPP.','var(--amber)'); return; }
+  if(!isEP()){ toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)'); return; }
   const sol = solicitacoes.find(s=>s.id===id);
   if(!sol) return;
   sol.status = status;
@@ -3500,7 +3458,7 @@ function alterarSolicitacaoStatus(id,status){
   toast('Status da solicitação atualizado.','var(--teal)');
 }
 function aprovarSolicitacao(id){
-  if(!isEP()){ toast('Ação restrita ao EPP.','var(--amber)'); return; }
+  if(!isEP()){ toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)'); return; }
   alterarSolicitacaoStatus(id,'aprovada');
 }
 function excluirSolicitacao(id){
@@ -3511,7 +3469,7 @@ function excluirSolicitacao(id){
     solicitacoes = solicitacoes.filter(s=>s.id!==id);
     if(fbReady()){
       const {db,doc,deleteDoc}=fb();
-      deleteDoc(doc(db,'solicitacoes',String(id))).catch(e=>console.warn('deleteSolicitacao error:',e.message));
+      deleteDoc(fbDocRef(db,'solicitacoes',id)).catch(e=>console.warn('deleteSolicitacao error:',e.message));
     }
     fbAutoSave('solicitacaoExcluida');
     rSolicitacoes();
@@ -3575,7 +3533,7 @@ function _solMarcarConvertida(sol, processo, tipo){
   sol.processo_id = processo.id;
 }
 function converterSolicitacaoMapeamento(id){
-  if(!isEP()){ toast('Ação restrita ao EPP.','var(--amber)'); return; }
+  if(!isEP()){ toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)'); return; }
   const sol = solicitacoes.find(s=>s.id===id);
   if(!sol || sol.status!=='aprovada'){ toast('A solicitação precisa estar aprovada.','var(--amber)'); return; }
   const produto = sol.servico==='redesenho' ? 'Redesenho' : 'Mapeamento';
@@ -3590,7 +3548,7 @@ function converterSolicitacaoMapeamento(id){
   setTimeout(()=>abrirProc(p.id),200);
 }
 function converterSolicitacaoAnalise(id){
-  if(!isEP()){ toast('Ação restrita ao EPP.','var(--amber)'); return; }
+  if(!isEP()){ toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)'); return; }
   const sol = solicitacoes.find(s=>s.id===id);
   if(!sol || sol.status!=='aprovada'){ toast('A solicitação precisa estar aprovada.','var(--amber)'); return; }
   const p = _solEnsureProcesso(sol,'Análise de Aderência','auditoria');
@@ -4245,7 +4203,7 @@ function excluirMapeamento(id){
     // Apaga o documento do Firestore imediatamente (não basta só salvar os restantes)
     if(fbReady()){
       const {db,doc,deleteDoc}=fb();
-      deleteDoc(doc(db,'processos',String(id))).catch(e=>console.warn('deleteDoc error:',e.message));
+      deleteDoc(fbDocRef(db,'processos',id)).catch(e=>console.warn('deleteDoc error:',e.message));
     }
     fbAutoSave('excluirMapeamento');
     toast('Mapeamento "'+p.nome+'" excluído.','var(--red)');
@@ -4694,7 +4652,7 @@ function sugerirDono(){
   if(match && !emailEl.value) emailEl.value=match.email;
 }
 function criarProcesso(){
-  if(!isEP()){toast('Apenas o EPP pode abrir novos mapeamentos.','var(--amber)');return;}
+  if(!isEP()){toast('Apenas o '+ORG_CONFIG.supportTeamLabel+' pode abrir novos mapeamentos.','var(--amber)');return;}
   const mid=document.getElementById('novo-macro').value;
   const sid=document.getElementById('novo-proc-sel').value;
   const resp_ep=document.getElementById('novo-resp-ep').value;
@@ -4738,7 +4696,7 @@ function criarProcesso(){
     'Selecione quem deve receber o aviso de que o mapeamento de "'+p.nome+'" foi iniciado.',
     [{id:'dono',label:'Dono do processo',nome:p.dono,email:getDonoEmail(p)},
      {id:'gestor',label:'Gestor / Patrocinador',nome:p.pat,email:_gestorUserCriar?.email||''}],
-    alvos=>alvos.forEach(d=>enviarNotif(d.email,d.nome||d.email,'O mapeamento do processo "'+p.nome+'" foi iniciado.',p.nome,'','EP·CAGE'))
+    alvos=>alvos.forEach(d=>enviarNotif(d.email,d.nome||d.email,'O mapeamento do processo "'+p.nome+'" foi iniciado.',p.nome,'',ORG_CONFIG.notificationFromName))
   ),400);
   abrirProc(p.id);
 }
@@ -5080,9 +5038,9 @@ async function confirmarAtribuirEtapa(etapaId){
     toast('Etapa atribuída a '+paraNome+' com prazo '+prazoFmt,'var(--teal)');
   } else {
     const acessoInfo = senhaTemp
-      ? '\n\nSeu acesso ao EP·CAGE foi criado automaticamente.\nE-mail: '+paraEmail+'\nSenha temporária: '+senhaTemp+'\n\nNo primeiro acesso você será solicitado(a) a definir uma nova senha.'
-      : '\n\nVocê já possui acesso ao EP·CAGE. Use suas credenciais habituais para entrar.';
-    enviarNotif(paraEmail,paraNome,tarefaMsg+acessoInfo,p.nome,prazoFmt,usuarioLogado?.nome||'EP');
+      ? '\n\nSeu acesso ao '+ORG_CONFIG.systemBrand+' foi criado automaticamente.\nE-mail: '+paraEmail+'\nSenha temporária: '+senhaTemp+'\n\nNo primeiro acesso você será solicitado(a) a definir uma nova senha.'
+      : '\n\nVocê já possui acesso ao '+ORG_CONFIG.systemBrand+'. Use suas credenciais habituais para entrar.';
+    enviarNotif(paraEmail,paraNome,tarefaMsg+acessoInfo,p.nome,prazoFmt,usuarioLogado?.nome||ORG_CONFIG.notificationFromName);
     toast('Etapa atribuída a '+paraNome+' — acesso criado e e-mail enviado.','var(--teal)');
   }
 }
@@ -5117,7 +5075,7 @@ function verificarPrazosProximos(){
       const prazoFmt=atrib.prazo.split('-').reverse().join('/');
       enviarNotif(atrib.para_email,atrib.para_nome||atrib.para,
         'Lembrete: falta menos de 48h para o encerramento do prazo da tarefa "'+etLb(proc.etapa)+'" no processo "'+proc.nome+'". Prazo: '+prazoFmt,
-        proc.nome,prazoFmt,'EP·CAGE');
+        proc.nome,prazoFmt,ORG_CONFIG.notificationFromName);
       atrib.lembrete_enviado=true;
       salvou=true;
     }
@@ -13579,7 +13537,7 @@ function _kpiGetSamePeriods(k){
     .sort((a,b) => periodoToNum(a.periodo) - periodoToNum(b.periodo));
 }
 function abrirNovoKpi(preselArea){
-  if(!isEP()){toast('Ação restrita ao EPP.','var(--amber)');return;}
+  if(!isEP()){toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)');return;}
   const modal = document.getElementById('novo-kpi-modal');
   if(!modal) return;
   document.getElementById('kpi-modal-titulo').textContent = 'Novo indicador';
@@ -13829,7 +13787,7 @@ function deletarKpi(id){
     kpis = kpis.filter(k=>k.id !== delId);
     if(fbReady()){
       const {db,doc,deleteDoc}=fb();
-      deleteDoc(doc(db,'kpis',String(delId))).catch(e=>console.warn('deleteKpi error:',e.message));
+      deleteDoc(fbDocRef(db,'kpis',delId)).catch(e=>console.warn('deleteKpi error:',e.message));
     }
     document.getElementById('novo-kpi-modal').style.display = 'none';
     rInd(); toast('Indicador removido', 'var(--amber)');
@@ -13843,7 +13801,7 @@ async function limparKpisImportados(){
   confirmar(`Remover ${importados.length} indicador(es) importado(s)/sincronizado(s)? Indicadores manuais e os que foram editados manualmente serão mantidos.`, async () => {
     if(fbReady()){
       const {db,doc,deleteDoc}=fb();
-      await Promise.all(importados.map(k => deleteDoc(doc(db,'kpis',String(k.id))).catch(e=>console.warn(e.message))));
+      await Promise.all(importados.map(k => deleteDoc(fbDocRef(db,'kpis',k.id)).catch(e=>console.warn(e.message))));
     }
     kpis = kpis.filter(k => k.origem !== 'importado' && k.origem !== 'gsheets' && k.origem !== 'gsheets_editado');
     // importado_editado rows are kept because they have user edits
@@ -14008,7 +13966,7 @@ async function sincronizarGSheets(){
     // Delete old GSheets indicators from Firestore
     if(fbReady() && oldGSheets.length){
       const {db,doc,deleteDoc}=fb();
-      await Promise.all(oldGSheets.map(k => deleteDoc(doc(db,'kpis',String(k.id))).catch(e=>console.warn(e.message))));
+      await Promise.all(oldGSheets.map(k => deleteDoc(fbDocRef(db,'kpis',k.id)).catch(e=>console.warn(e.message))));
     }
 
     // Save all changes
@@ -14096,7 +14054,7 @@ function _pubCatChange(cat){
   if(wrap) wrap.style.display = cat==='POPs' ? '' : 'none';
 }
 function abrirModalPub(){
-  if(!isEP()){toast('Ação restrita ao EPP.','var(--amber)');return;}
+  if(!isEP()){toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)');return;}
   document.getElementById('pub-modal-titulo').textContent = 'Nova publicação';
   document.getElementById('pub-edit-id').value = '';
   document.getElementById('pub-del-btn').style.display = 'none';
@@ -14197,7 +14155,7 @@ function deletarPub(id){
     document.getElementById('pub-modal').style.display = 'none';
     if(fbReady()){
       const {db,doc,deleteDoc}=fb();
-      deleteDoc(doc(db,'publicacoes',String(delId))).catch(e=>console.warn('deletarPub error:',e.message));
+      deleteDoc(fbDocRef(db,'publicacoes',delId)).catch(e=>console.warn('deletarPub error:',e.message));
     }
     fbAutoSave('deletarPub');
     rPub();
@@ -14254,7 +14212,7 @@ function filtUsr(p, el){
 function renderAdmin(){
   const tbody = document.getElementById('usr-tbody');
   if(!tbody) return;
-  if(!isEP()){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,.35);padding:1rem">Acesso restrito ao EPP.</td></tr>';return;}
+  if(!isEP()){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,.35);padding:1rem">Acesso restrito ao '+ORG_CONFIG.supportTeamLabel+'.</td></tr>';return;}
 
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
@@ -14731,6 +14689,18 @@ async function deletarUsr(){
 // Helper: wait for Firebase module to be ready (loaded async)
 function fbReady(){ return globalThis._fbReady === true; }
 function fb(){ return globalThis._fb; }
+function fbColRef(db, collectionName){
+  const {collection} = fb();
+  return collection(db, tenantCollectionPath(collectionName));
+}
+function fbDocRef(db, collectionName, id){
+  const {doc} = fb();
+  return doc(db, tenantCollectionPath(collectionName), String(id));
+}
+function fbConfigDocRef(db, key){
+  const {doc} = fb();
+  return doc(db, tenantDocPath('config', key));
+}
 
 // ── SAVE ──────────────────────────────────
 // Each collection stores one document per logical "table"
@@ -14743,8 +14713,8 @@ function fb(){ return globalThis._fb; }
 async function fbSave(col, id, data){
   if(!fbReady()) return;
   try {
-    const {db, doc, setDoc} = fb();
-    await setDoc(doc(db, col, String(id)), data);
+    const {db, setDoc} = fb();
+    await setDoc(fbDocRef(db, col, id), data);
   } catch(e){ console.warn('fbSave error:', e.message); }
 }
 
@@ -16052,7 +16022,7 @@ async function deletarAtividade(id){
     if(fbReady()){
       try {
         const {db, doc, deleteDoc} = fb();
-        await deleteDoc(doc(db,'plano',String(id)));
+        await deleteDoc(fbDocRef(db,'plano',id));
       } catch(error_){
         console.warn('deletarAtividade error:', error_.message);
         toast('⚠ Não foi possível remover a atividade na nuvem.','var(--amber)');
@@ -16082,26 +16052,26 @@ function _fsClean(v){
 async function fbSaveAll(){
   if(!fbReady() || !globalThis._fbLoadedAt) return;
   try {
-    const {db, doc, writeBatch, setDoc} = fb();
+    const {db, writeBatch, setDoc} = fb();
 
     // Collect all set operations (strip undefined — Firestore rejects it)
     const ops = [];
-    processos.forEach(p => ops.push({ref: doc(db,'processos',String(p.id)), data: _fsClean(p)}));
-    kpis.forEach(k => ops.push({ref: doc(db,'kpis',String(k.id)), data: _fsClean(k)}));
-    publicacoes.forEach(p => ops.push({ref: doc(db,'publicacoes',String(p.id)), data: _fsClean(p)}));
-    plano.forEach(a => ops.push({ref: doc(db,'plano',String(a.id)), data: _fsClean(a)}));
-    TRILHAS.forEach(t => ops.push({ref: doc(db,'trilhas',String(t.id)), data: _fsClean(t)}));
-    PAT_METAS.forEach(m => ops.push({ref: doc(db,'plano_metas',String(m.id)), data: _fsClean(m)}));
-    solicitacoes.filter(_solIsValida).forEach(s => ops.push({ref: doc(db,'solicitacoes',String(s.id)), data: _fsClean(s)}));
+    processos.forEach(p => ops.push({ref: fbDocRef(db,'processos',p.id), data: _fsClean(p)}));
+    kpis.forEach(k => ops.push({ref: fbDocRef(db,'kpis',k.id), data: _fsClean(k)}));
+    publicacoes.forEach(p => ops.push({ref: fbDocRef(db,'publicacoes',p.id), data: _fsClean(p)}));
+    plano.forEach(a => ops.push({ref: fbDocRef(db,'plano',a.id), data: _fsClean(a)}));
+    TRILHAS.forEach(t => ops.push({ref: fbDocRef(db,'trilhas',t.id), data: _fsClean(t)}));
+    PAT_METAS.forEach(m => ops.push({ref: fbDocRef(db,'plano_metas',m.id), data: _fsClean(m)}));
+    solicitacoes.filter(_solIsValida).forEach(s => ops.push({ref: fbDocRef(db,'solicitacoes',s.id), data: _fsClean(s)}));
     ops.push(
-      ...(_arqSaveEnabled ? [{ref: doc(db,'config','arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}}] : []),
-      {ref: doc(db,'config','usuarios'),    data: {data: JSON.stringify(USUARIOS.map(u=>{
+      ...(_arqSaveEnabled ? [{ref: fbConfigDocRef(db,'arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}}] : []),
+      {ref: fbConfigDocRef(db,'usuarios'),    data: {data: JSON.stringify(USUARIOS.map(u=>{
         if(!u._perfil_original) return u;
         const {_perfil_original,...rest}=u;
         return {...rest,perfil:_perfil_original};
       }))}},
-      {ref: doc(db,'config','mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}},
-      {ref: doc(db,'config','criticos'),    data: {data: JSON.stringify([...criticosManual])}}
+      {ref: fbConfigDocRef(db,'mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}},
+      {ref: fbConfigDocRef(db,'criticos'),    data: {data: JSON.stringify([...criticosManual])}}
     );
 
     // Firestore batch limit is 500 — split into chunks of 450
@@ -16112,7 +16082,7 @@ async function fbSaveAll(){
     }
 
     // Update sentinel so other sessions detect this save, then mark ourselves as current
-    await setDoc(doc(db,'config','last_modified'), {ts: Date.now(), by: usuarioLogado?.email||''});
+    await setDoc(fbConfigDocRef(db,'last_modified'), {ts: Date.now(), by: usuarioLogado?.email||''});
     globalThis._fbLoadedAt = Date.now();
     const _cb = document.getElementById('concurrent-banner');
     if(_cb) _cb.style.display = 'none';
@@ -16143,7 +16113,7 @@ async function fbLoad(){
     await _fbLoadFlagsManuais(db, doc, getDoc);
 
     // emailjs config
-    const ejsDoc = await getDoc(doc(db,'config','ejs'));
+    const ejsDoc = await getDoc(fbConfigDocRef(db,'ejs'));
     if(ejsDoc.exists()){
       const d = ejsDoc.data();
       ejsConfig.service  = d.service  || '';
@@ -16155,14 +16125,14 @@ async function fbLoad(){
     }
 
     // avisos
-    const avSnap = await getDocs(collection(db,'avisos'));
+    const avSnap = await getDocs(fbColRef(db,'avisos'));
     if(!avSnap.empty){
       AVISOS = [];
       avSnap.forEach(d => AVISOS.push(d.data()));
     }
 
     // trilhas de capacitação
-    const trilhasSnap = await getDocs(collection(db,'trilhas'));
+    const trilhasSnap = await getDocs(fbColRef(db,'trilhas'));
     if(!trilhasSnap.empty){
       TRILHAS = [];
       trilhasSnap.forEach(d => TRILHAS.push(d.data()));
@@ -16170,7 +16140,7 @@ async function fbLoad(){
     }
 
     // metas do escritório
-    const metasSnap = await getDocs(collection(db,'plano_metas'));
+    const metasSnap = await getDocs(fbColRef(db,'plano_metas'));
     if(!metasSnap.empty){
       PAT_METAS = [];
       metasSnap.forEach(d => PAT_METAS.push(d.data()));
@@ -16178,7 +16148,7 @@ async function fbLoad(){
     }
 
     // relatórios oficiais de indicadores
-    const relIndSnap = await getDocs(collection(db,'relatorios_ind'));
+    const relIndSnap = await getDocs(fbColRef(db,'relatorios_ind'));
     if(!relIndSnap.empty){
       RELATORIOS_IND = [];
       relIndSnap.forEach(d => RELATORIOS_IND.push(d.data()));
@@ -16198,12 +16168,12 @@ async function fbLoad(){
 }
 async function _fbLoadUsuarios(db, doc, getDoc, getDocFromServer){
   try {
-    const usrDocFirst = await getDocFromServer(doc(db,'config','usuarios'));
+    const usrDocFirst = await getDocFromServer(fbConfigDocRef(db,'usuarios'));
     if(usrDocFirst.exists() && usrDocFirst.data().data) USUARIOS = JSON.parse(usrDocFirst.data().data);
   } catch(error_){
     console.warn('fbLoad: fallback para cache local de usuarios:', error_.message);
     try {
-      const usrDocCache = await getDoc(doc(db,'config','usuarios'));
+      const usrDocCache = await getDoc(fbConfigDocRef(db,'usuarios'));
       if(usrDocCache.exists() && usrDocCache.data().data) USUARIOS = JSON.parse(usrDocCache.data().data);
     } catch(cacheError){
       console.warn('fbLoad: erro ao carregar usuarios:', cacheError.message);
@@ -16212,7 +16182,7 @@ async function _fbLoadUsuarios(db, doc, getDoc, getDocFromServer){
   USUARIOS.forEach(_normalizarUsuarioPerfil);
 }
 async function _fbLoadProcessos(db, collection, getDocs){
-  const pSnap = await getDocs(collection(db,'processos'));
+  const pSnap = await getDocs(fbColRef(db,'processos'));
   if(pSnap.empty) return;
   processos = [];
   pSnap.forEach(d => processos.push(d.data()));
@@ -16223,21 +16193,21 @@ async function _fbLoadProcessos(db, collection, getDocs){
   if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
 }
 async function _fbLoadKpis(db, collection, getDocs){
-  const kSnap = await getDocs(collection(db,'kpis'));
+  const kSnap = await getDocs(fbColRef(db,'kpis'));
   if(kSnap.empty) return;
   kpis = [];
   kSnap.forEach(d => kpis.push(d.data()));
   _kpiIdC = Math.max(...kpis.map(k=>k.id), 0) + 1;
 }
 async function _fbLoadPlano(db, collection, getDocs){
-  const planoSnap = await getDocs(collection(db,'plano'));
+  const planoSnap = await getDocs(fbColRef(db,'plano'));
   if(planoSnap.empty) return;
   plano = [];
   planoSnap.forEach(d => plano.push(d.data()));
   _planoIdC = Math.max(...plano.map(a=>a.id), 0) + 1;
 }
 async function _fbLoadSolicitacoes(db, collection, getDocs, doc, deleteDoc){
-  const solSnap = await getDocs(collection(db,'solicitacoes'));
+  const solSnap = await getDocs(fbColRef(db,'solicitacoes'));
   if(solSnap.empty) return;
   solicitacoes = [];
   const limpezas = [];
@@ -16247,24 +16217,24 @@ async function _fbLoadSolicitacoes(db, collection, getDocs, doc, deleteDoc){
       solicitacoes.push(data);
       return;
     }
-    limpezas.push(deleteDoc(doc(db,'solicitacoes',d.id)).catch(error_=>console.warn('solicitacao invalida mantida:', d.id, error_.message)));
+    limpezas.push(deleteDoc(fbDocRef(db,'solicitacoes',d.id)).catch(error_=>console.warn('solicitacao invalida mantida:', d.id, error_.message)));
   });
   await Promise.all(limpezas);
 }
 async function _fbLoadPublicacoes(db, collection, getDocs){
-  const pubSnap = await getDocs(collection(db,'publicacoes'));
+  const pubSnap = await getDocs(fbColRef(db,'publicacoes'));
   if(pubSnap.empty) return;
   publicacoes = [];
   pubSnap.forEach(d => publicacoes.push(d.data()));
   _pubIdC = Math.max(...publicacoes.map(p=>p.id), 0) + 1;
 }
 async function _fbLoadArquitetura(db, doc, getDoc){
-  const arqDoc = await getDoc(doc(db,'config','arquitetura'));
+  const arqDoc = await getDoc(fbConfigDocRef(db,'arquitetura'));
   if(!(arqDoc.exists() && arqDoc.data().data)) return;
   try { ARQUITETURA = JSON.parse(arqDoc.data().data); } catch(e){ console.error('Erro ao parsear arquitetura:', e); }
 }
 async function _fbLoadProjetosUsuarios(db, collection, getDocs){
-  const projSnap = await getDocs(collection(db,'projPROJETOS'));
+  const projSnap = await getDocs(fbColRef(db,'projPROJETOS'));
   if(projSnap.empty) return;
   PROJETOS_USUARIOS = [];
   projSnap.forEach(d => PROJETOS_USUARIOS.push(d.data()));
@@ -16281,7 +16251,7 @@ async function _fbLoadFlagsManuais(db, doc, getDoc){
   }, ()=>{ criticosManual = new Set(jsonArrayFromStorage('criticosManual')); });
 }
 async function _fbLoadManualSet(db, doc, getDoc, key, applyLoaded, applyFallback){
-  const cfgDoc = await getDoc(doc(db,'config',key));
+  const cfgDoc = await getDoc(fbConfigDocRef(db,key));
   if(cfgDoc.exists() && cfgDoc.data().data){
     try {
       applyLoaded(new Set(JSON.parse(cfgDoc.data().data)));
@@ -16363,7 +16333,7 @@ async function salvarAviso(){
   const idx = AVISOS.findIndex(a=>a.id===id);
   if(idx>=0) AVISOS[idx]=aviso; else AVISOS.push(aviso);
   if(fbReady()){
-    try{ const {db,doc,setDoc}=fb(); await setDoc(doc(db,'avisos',id), aviso); }
+    try{ const {db,setDoc}=fb(); await setDoc(fbDocRef(db,'avisos',id), aviso); }
     catch(e){ console.warn('salvarAviso error:',e.message); }
   }
   document.getElementById('aviso-modal').style.display='none';
@@ -16377,7 +16347,7 @@ async function excluirAvisoModal(){
   confirmar('Excluir este aviso permanentemente?', async () => {
     AVISOS = AVISOS.filter(a=>a.id!==id);
     if(fbReady()){
-      try{ const {db,doc,deleteDoc}=fb(); await deleteDoc(doc(db,'avisos',id)); }
+      try{ const {db,deleteDoc}=fb(); await deleteDoc(fbDocRef(db,'avisos',id)); }
       catch(e){ console.warn('excluirAviso error:',e.message); }
     }
     document.getElementById('aviso-modal').style.display='none';
@@ -16479,7 +16449,7 @@ function _trilhaMacroNome(macroId){
 
 // ── Abrir / Fechar Modal ───────────────────
 function abrirNovaTrilha(){
-  if(!isEP()){ toast('Ação restrita ao EPP.','var(--amber)'); return; }
+  if(!isEP()){ toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)'); return; }
   const modal = document.getElementById('trilha-modal');
   if(!modal) return;
   document.getElementById('trilha-modal-t').textContent = 'Nova trilha';
@@ -16494,7 +16464,7 @@ function abrirNovaTrilha(){
 }
 
 function editarTrilha(id){
-  if(!isEP()){ toast('Ação restrita ao EPP.','var(--amber)'); return; }
+  if(!isEP()){ toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)'); return; }
   const t = TRILHAS.find(x => x.id === id);
   if(!t) return;
   const modal = document.getElementById('trilha-modal');
@@ -16781,7 +16751,7 @@ function excluirTrilha(id){
     TRILHAS = TRILHAS.filter(t => t.id !== id);
     if(fbReady()){
       const {db, doc, deleteDoc} = fb();
-      deleteDoc(doc(db,'trilhas',String(id))).catch(e => console.warn('deleteTrilha error:', e.message));
+      deleteDoc(fbDocRef(db,'trilhas',id)).catch(e => console.warn('deleteTrilha error:', e.message));
     }
     rTrilhas();
     toast('Trilha removida.','var(--amber)');
@@ -16894,7 +16864,7 @@ function _fbWatchExternalChanges(){
   if(!fbReady() || globalThis._fbExternalWatcher) return;
   const {db, doc, onSnapshot} = fb();
   globalThis._fbExternalWatcher = onSnapshot(
-    doc(db,'config','last_modified'),
+    fbConfigDocRef(db,'last_modified'),
     (snap) => {
       if(!snap.exists()) return;
       const d = snap.data();
@@ -16952,7 +16922,7 @@ async function fbSaveEjs(){
   if(!fbReady()) return;
   try {
     const {db, doc, setDoc} = fb();
-    await setDoc(doc(db,'config','ejs'), ejsConfig);
+    await setDoc(fbConfigDocRef(db,'ejs'), ejsConfig);
   } catch(e){ console.warn('fbSaveEjs error:', e.message); }
 }
 
@@ -16961,7 +16931,7 @@ async function saveFluxoImg(arqId, base64){
   if(!fbReady()){ fluxosCache[arqId]=base64; return; }
   try {
     const {db, doc, setDoc} = fb();
-    await setDoc(doc(db,'fluxos',arqId), {data: base64, updatedAt: Date.now()});
+    await setDoc(fbDocRef(db,'fluxos',arqId), {data: base64, updatedAt: Date.now()});
     fluxosCache[arqId] = base64;
   } catch(e){ console.warn('saveFluxoImg:', e.message); toast('⚠ Erro ao salvar imagem: '+e.message,'var(--red)'); }
 }
@@ -16970,7 +16940,7 @@ async function loadFluxoImg(arqId){
   if(!fbReady()) return null;
   try {
     const {db, doc, getDoc} = fb();
-    const snap = await getDoc(doc(db,'fluxos',arqId));
+    const snap = await getDoc(fbDocRef(db,'fluxos',arqId));
     const data = snap.exists() ? (snap.data().data||null) : null;
     fluxosCache[arqId] = data;
     return data;
@@ -17035,6 +17005,58 @@ function fbStatusBadge(){
   span.style.color = fbReady() ? '#8DD5C8' : 'rgba(255,255,255,.25)';
   brand.appendChild(span);
 }
+function _applyOrgBranding(){
+  const loginEmail=document.getElementById('login-email');
+  const firstAccessEmail=document.getElementById('pa-email');
+  if(loginEmail) loginEmail.placeholder=ORG_CONFIG.loginEmailPlaceholder;
+  if(firstAccessEmail) firstAccessEmail.placeholder=ORG_CONFIG.loginEmailPlaceholder;
+
+  const supportEmail=document.getElementById('org-support-email-link');
+  if(supportEmail){
+    supportEmail.href='mailto:'+ORG_CONFIG.epTeamEmail;
+    supportEmail.title=ORG_CONFIG.epTeamEmail;
+  }
+  const supportPortal=document.getElementById('org-support-portal-link');
+  if(supportPortal){
+    supportPortal.href=ORG_CONFIG.supportPortalUrl;
+    supportPortal.textContent=ORG_CONFIG.supportPortalLabel;
+  }
+
+  const appLogo=document.getElementById('hub-logo-app');
+  const orgLogo=document.getElementById('hub-logo-org');
+  const hubTitle=document.getElementById('hub-org-title');
+  if(appLogo) appLogo.src=ORG_CONFIG.logos.app;
+  if(orgLogo) {
+    orgLogo.src=ORG_CONFIG.logos.organization;
+    orgLogo.alt=ORG_CONFIG.organizationName;
+  }
+  if(hubTitle) hubTitle.textContent=ORG_CONFIG.organizationName;
+
+  const noreplySuggestion=document.getElementById('ejs-noreply-suggestion');
+  if(noreplySuggestion) noreplySuggestion.textContent=ORG_CONFIG.noreplySuggestion;
+  const subjectExample=document.getElementById('ejs-subject-example');
+  if(subjectExample) subjectExample.textContent=ORG_CONFIG.notificationFromName+' — Tarefa pendente: {{processo}}';
+  const bodyExample=document.getElementById('ejs-body-example');
+  if(bodyExample){
+    bodyExample.textContent = [
+      'Olá, {{to_name}}.',
+      '',
+      'Você tem uma nova tarefa pendente no sistema '+ORG_CONFIG.systemBrand+':',
+      '',
+      'Processo: {{processo}}',
+      'Ação necessária: {{acao}}',
+      'Prazo: {{prazo}}',
+      'Enviado por: {{from_name}}',
+      '',
+      'Acesse o sistema para realizar a ação:',
+      '{{link}}',
+      '',
+      '---',
+      ORG_CONFIG.automaticEmailFooter,
+      'Não responda este e-mail.'
+    ].join('\n');
+  }
+}
 function syncLoginModeUI(){
   const hint=document.getElementById('login-mode-hint');
   const senha=document.getElementById('login-senha');
@@ -17059,6 +17081,7 @@ document.getElementById('login-screen').style.display='flex';
 
 // Boot sequence: load from Firebase (if configured), else fall back to localStorage
 async function bootApp() {
+  _applyOrgBranding();
   const loadMsg = _bootCreateLoadMsg();
   await _bootWaitFirebase();
   await fbLoad();
@@ -17138,7 +17161,7 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
   }
   const {signOut} = fb();
   signOut(auth).catch(()=>{});
-  mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao EPP.');
+  mostrarErrLogin('Acesso não autorizado. Solicite cadastro ao '+ORG_CONFIG.supportTeamLabel+'.');
 }
 function _bootRestoreLocalSession(){
   mapeadosManual = new Set(jsonArrayFromStorage('mapeadosManual'));
@@ -17664,7 +17687,7 @@ function _relNomeClick(id){
       r.filtros = novo;
       if(fbReady()){
         const {db,doc,setDoc}=fb();
-        await setDoc(doc(db,'relatorios_ind',String(id)),_fsClean(r));
+        await setDoc(fbDocRef(db,'relatorios_ind',id),_fsClean(r));
       }
     }
     renderRelatoriosOficiais();
@@ -17709,7 +17732,7 @@ async function excluirRelatorioOficial(id){
   confirmar('Excluir este relatório oficial? Esta ação não pode ser desfeita.', async ()=>{
     if(fbReady()){
       const {db,doc,deleteDoc}=fb();
-      await deleteDoc(doc(db,'relatorios_ind',String(id))).catch(e=>console.warn(e.message));
+      await deleteDoc(fbDocRef(db,'relatorios_ind',id)).catch(e=>console.warn(e.message));
     }
     RELATORIOS_IND = RELATORIOS_IND.filter(r=>r.id!==id);
     renderRelatoriosOficiais();
@@ -17731,7 +17754,7 @@ async function publicarRelatorioOficial(){
     };
     if(fbReady()){
       const {db,doc,setDoc}=fb();
-      await setDoc(doc(db,'relatorios_ind',String(rel.id)),_fsClean(rel));
+      await setDoc(fbDocRef(db,'relatorios_ind',rel.id),_fsClean(rel));
     }
     RELATORIOS_IND.unshift(rel);
     renderRelatoriosOficiais();

@@ -13,18 +13,22 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js" integrity="sha384-/cXAMbzovUIKbBERjPmR3SnPTh8siWr5lsvFYj1Uq4XP0yaJUZJmsh0YXyGv5P0y" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" integrity="sha384-Cck14aA9cifjYolcnjebXRfWGkz5ltHMBiG4px/j8GS+xQcb7OhNQWZYyWjQ+UwQ" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js" integrity="sha384-rRoXxn2yHlrZYB587Ki9RO1tONhLdM6XfORg7Rw4uwH4/Fh/5nP7IUX91bkaKUgs" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js" integrity="sha384-1CMXl090wj8Dd6YfnzSQUOgWbE6suWCaenYG7pox5AX7apTpY3PmJMeS2oPql4Gk" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 <!-- Config: loaded synchronously so globalThis.CONFIG is available immediately -->
-<script src="config.deploy.js" onerror="console.info('config.deploy.js not found')"></script>
+<script src="config/config.deploy.js" onerror="console.info('config/config.deploy.js not found')"></script>
+<script src="config/config.local.js" onerror="console.info('config/config.local.js not found')"></script>
+<!-- Temporary compatibility fallback for older local setups. Prefer config/*.js. -->
+<script src="config.deploy.js" onerror="console.info('legacy config.deploy.js not found')"></script>
 <script>
   if (location.protocol === 'file:' || ['localhost', '127.0.0.1'].includes(location.hostname)) {
     const localConfigScript = document.createElement('script');
     localConfigScript.src = 'config.local.js';
-    localConfigScript.onerror = () => console.info('config.local.js not found');
+    localConfigScript.onerror = () => console.info('legacy config.local.js not found');
     document.head.appendChild(localConfigScript);
   }
 </script>
+<script src="src/shared/tenant-config.js"></script>
 <!-- Firebase -->
 <script type="module">
   import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -33,7 +37,7 @@
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
   // ── PREENCHA AQUI APÓS CRIAR O PROJETO FIREBASE
-  // IMPORTANT: Do not commit real keys. Load from config.local.js or environment
+  // IMPORTANT: Do not commit real keys. Load from config/*.js or environment
   const FIREBASE_CONFIG = {
     apiKey:            (globalThis.CONFIG?.FIREBASE_API_KEY || "__FIREBASE_API_KEY__"),
     authDomain:        "gesproc2.firebaseapp.com",

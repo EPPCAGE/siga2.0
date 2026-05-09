@@ -355,7 +355,24 @@ siga2.0/
 ├── firestore.rules          # Regras de segurança do Firestore
 ├── .firebaserc              # ID do projeto Firebase
 ├── sonar-project.properties # Configuração SonarCloud
-├── config.local.js          # Credenciais locais (não commitado — ver SETUP_LOCAL.md)
+├── package.json             # Scripts de QA/testes locais
+├── config/
+│   ├── config.example.js    # Modelo público de configuração
+│   └── README.md            # Orientações de configuração por ambiente
+├── docs/
+│   ├── deployment/          # Checklists de implantação
+│   ├── architecture/         # Plano de modularização e arquitetura
+│   └── security/             # Regras exemplo para modelo tenant/seguro
+├── src/
+│   ├── shared/              # Código compartilhado entre módulos
+│   │   └── tenant-config.js # Configuração de ambiente e tenant
+│   └── processos/           # Módulos extraídos gradualmente do SIGA Processos
+│       ├── org-config.js    # Configuração institucional padronizada
+│       ├── app-constants.js # Labels, cores e enums centrais
+│       ├── security-utils.js # Escape de HTML e validação de URLs
+│       └── storage-utils.js # Utilitários seguros de armazenamento local
+├── tests/
+│   └── e2e/                 # Smoke tests e simulações Playwright
 └── .github/
     └── workflows/
         ├── firebase-deploy.yml  # Deploy para Firebase Hosting
@@ -431,7 +448,7 @@ Acesse: `http://localhost:3000/processos.html`
 
 - Nenhuma credencial commitada no repositório
 - Secrets gerenciados via GitHub Actions e Google Cloud Secret Manager
-- `config.local.js` ignorado pelo Git
+- `config/config.local.js` e `config/config.deploy.js` reais ignorados pelo Git
 - CORS restrito às origens permitidas na Cloud Function
 - Firebase ID token verificado no servidor antes de cada chamada de IA
 - Firestore Rules restringem leitura/escrita por autenticação

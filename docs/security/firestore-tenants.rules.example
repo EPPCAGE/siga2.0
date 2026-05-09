@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function tenantRole(tenantId) {
+      return isAuth()
+        ? get(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isTenantMember(tenantId) {
+      return tenantRole(tenantId) in ['ep', 'admin', 'dono', 'gestor', 'gerente_projeto'];
+    }
+
+    function isTenantAdmin(tenantId) {
+      return tenantRole(tenantId) in ['ep', 'admin'];
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if isTenantMember(tenantId);
+      allow write: if isTenantAdmin(tenantId);
+
+      match /members/{uid} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /config/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /audit_logs/{logId} {
+        allow read: if isTenantAdmin(tenantId);
+        allow write: if false;
+      }
+
+      match /{collectionName}/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+    }
+
+    match /sessions/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

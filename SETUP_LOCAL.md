@@ -17,18 +17,26 @@ A aplicação precisa de duas credenciais para funcionar localmente:
 | `FIREBASE_API_KEY` | Firebase Console → Configurações do Projeto → `apiKey` |
 | `AI_FUNCTION_URL` | Google Cloud Console → Cloud Run → função `ai` → URL de invocação |
 
-### Configuração via `config.local.js` (recomendado)
+### Configuração via `config/config.local.js` (recomendado)
 
-1. Crie o arquivo `config.local.js` na raiz do projeto (já está no `.gitignore`):
+1. Copie o modelo `config/config.example.js` para `config/config.local.js`:
 
 ```javascript
 window.CONFIG = {
   FIREBASE_API_KEY: 'sua-chave-api-aqui',
-  AI_FUNCTION_URL: 'https://sua-funcao.a.run.app'
+  AI_FUNCTION_URL: 'https://sua-funcao.a.run.app',
+  TENANCY: {
+    enabled: false,
+    tenantId: 'cage-rs',
+    dataRoot: 'tenants',
+    environment: 'dev'
+  }
 };
 ```
 
-2. O arquivo é carregado automaticamente por `processos.html` e `projetos.html` quando presente.
+2. O arquivo é carregado automaticamente por `processos.html` quando presente.
+
+> Compatibilidade: `processos.html` ainda tenta carregar `config.local.js` da raiz como fallback temporário, mas novas instalações devem usar a pasta `config/`.
 
 ---
 
@@ -57,5 +65,5 @@ Em produção, as credenciais são injetadas automaticamente pelo workflow `fire
 ## Segurança
 
 - **NUNCA** commite credenciais reais em `processos.html`, `.env` ou qualquer arquivo rastreado pelo Git
-- `config.local.js` está no `.gitignore` — é seguro usar localmente
+- `config/config.local.js` está no `.gitignore` — é seguro usar localmente
 - Em produção, use os Secrets do GitHub Actions e do Google Cloud Secret Manager
