@@ -1,0 +1,33 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function tenantRole(tenantId) {
+      return isAuth()
+        ? firestore.get(/databases/(default)/documents/tenants/$(tenantId)/members/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isTenantMember(tenantId) {
+      return tenantRole(tenantId) in ['ep', 'admin', 'dono', 'gestor', 'gerente_projeto'];
+    }
+
+    function isTenantAdmin(tenantId) {
+      return tenantRole(tenantId) in ['ep', 'admin'];
+    }
+
+    match /tenants/{tenantId}/{moduleName}/{allPaths=**} {
+      allow read: if isTenantMember(tenantId);
+      allow write: if isTenantAdmin(tenantId)
+        && request.resource.size < 15 * 1024 * 1024;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
