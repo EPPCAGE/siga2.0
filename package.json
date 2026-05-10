@@ -5,7 +5,8 @@
     "test:e2e:mapeamento": "node tests/e2e/mapeamento.cjs",
     "test:e2e:aderencia": "node tests/e2e/aderencia.cjs",
     "test:e2e:meus-processos": "node tests/e2e/meus-processos-align.cjs",
-    "tenant:migration:plan": "node tools/migrate-firestore-tenant.mjs --tenant=cage-rs"
+    "tenant:migration:plan": "node tools/migrate-firestore-tenant.mjs --tenant=cage-rs",
+    "tenant:migration:validate": "node tools/migrate-firestore-tenant.mjs --tenant=cage-rs --validate"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1"

@@ -6,18 +6,50 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function tenantRole(tenantId) {
-      return isAuth()
-        ? get(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid)).data.role
-        : null;
+    function memberPath(tenantId) {
+      return /databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid);
+    }
+
+    function hasMemberDoc(tenantId) {
+      return isAuth() && exists(memberPath(tenantId));
+    }
+
+    function memberData(tenantId) {
+      return get(memberPath(tenantId)).data;
+    }
+
+    function memberIsActive(tenantId) {
+      return hasMemberDoc(tenantId) && memberData(tenantId).active != false;
+    }
+
+    function memberRoles(tenantId) {
+      return memberData(tenantId).roles is list
+        ? memberData(tenantId).roles
+        : [memberData(tenantId).role];
+    }
+
+    function hasAnyRole(tenantId, roles) {
+      return memberIsActive(tenantId) && memberRoles(tenantId).hasAny(roles);
     }
 
     function isTenantMember(tenantId) {
-      return tenantRole(tenantId) in ['ep', 'admin', 'dono', 'gestor', 'gerente_projeto'];
+      return hasAnyRole(tenantId, ['admin', 'ep', 'dono', 'gestor', 'gerente_projeto']);
     }
 
     function isTenantAdmin(tenantId) {
-      return tenantRole(tenantId) in ['ep', 'admin'];
+      return hasAnyRole(tenantId, ['admin', 'ep']);
+    }
+
+    function isProcessActor(tenantId) {
+      return hasAnyRole(tenantId, ['admin', 'ep', 'dono', 'gestor']);
+    }
+
+    function isProjectActor(tenantId) {
+      return hasAnyRole(tenantId, ['admin', 'ep', 'gerente_projeto']);
+    }
+
+    function isSelf(uid) {
+      return isAuth() && request.auth.uid == uid;
     }
 
     match /tenants/{tenantId} {
@@ -25,12 +57,73 @@ service cloud.firestore {
       allow write: if isTenantAdmin(tenantId);
 
       match /members/{uid} {
-        allow read: if isTenantMember(tenantId);
+        allow read: if isTenantAdmin(tenantId) || isSelf(uid);
         allow write: if isTenantAdmin(tenantId);
       }
 
       match /config/{docId} {
         allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /processos/{docId} {
+        allow read: if isProcessActor(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /solicitacoes/{docId} {
+        allow read: if isProcessActor(tenantId);
+        allow create: if isProcessActor(tenantId);
+        allow update, delete: if isTenantAdmin(tenantId);
+      }
+
+      match /kpis/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /publicacoes/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /plano/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /trilhas/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /plano_metas/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /avisos/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /relatorios_ind/{docId} {
+        allow read: if isTenantMember(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /fluxos/{docId} {
+        allow read: if isProcessActor(tenantId);
+        allow write: if isTenantAdmin(tenantId);
+      }
+
+      match /projPROJETOS/{docId} {
+        allow read: if isProjectActor(tenantId) || isTenantAdmin(tenantId);
+        allow write: if isProjectActor(tenantId);
+      }
+
+      match /projPROGRAMAS/{docId} {
+        allow read: if isProjectActor(tenantId) || isTenantAdmin(tenantId);
         allow write: if isTenantAdmin(tenantId);
       }
 
@@ -41,7 +134,7 @@ service cloud.firestore {
 
       match /{collectionName}/{docId} {
         allow read: if isTenantMember(tenantId);
-        allow write: if isTenantAdmin(tenantId);
+        allow write: if false;
       }
     }
 

@@ -2,6 +2,8 @@
 
 Sistema web para mapeamento, auditoria e gestão estratégica de processos e projetos institucionais da CAGE/Sefaz-RS, com integração de IA (Azure OpenAI via Firebase Cloud Functions) e persistência em Firestore.
 
+Para entender a organização técnica atual, comece por [`docs/architecture/index.md`](docs/architecture/index.md).
+
 ---
 
 ## Módulos
@@ -364,7 +366,7 @@ siga2.0/
 │   ├── configuration/       # Parametrizacao institucional
 │   ├── deployment/          # Checklists de implantação
 │   ├── architecture/         # Plano de modularização, camadas e arquitetura
-│   └── security/             # Regras exemplo para modelo tenant/seguro
+│   └── security/             # Modelo de membros e regras exemplo tenant/seguro
 ├── src/
 │   ├── shared/              # Código compartilhado entre módulos
 │   │   ├── tenant-config.js # Configuração de ambiente e tenant
