@@ -16,31 +16,106 @@ const AZURE_DEPLOY   = defineSecret("AZURE_OPENAI_DEPLOYMENT");
 
 const MAX_PAYLOAD_BYTES = 20 * 1024; // 20 KB
 
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin || "";
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+  }
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  res.set("Vary", "Origin");
+}
+
+async function verifyToken(req, res) {
+  const idToken = req.body?._token;
+  if (!idToken) {
+    res.status(401).json({ error: "Autenticação necessária" });
+    return null;
+  }
+  try {
+    return await admin.auth().verifyIdToken(idToken);
+  } catch {
+    res.status(401).json({ error: "Token inválido ou expirado" });
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// checkEmail — verifica se um e-mail está cadastrado em config/usuarios.
+// Endpoint público (sem auth): elimina a necessidade de leitura pública do
+// Firestore para o fluxo de Primeiro Acesso.
+// Retorna apenas {exists: boolean} — nunca expõe o documento completo.
+// ---------------------------------------------------------------------------
+exports.checkEmail = onRequest(async (req, res) => {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+  const email = req.body?.email;
+  if (!email || typeof email !== "string" || email.length > 254) {
+    res.status(400).json({ error: "Campo obrigatório: email" });
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  try {
+    const doc = await admin.firestore().doc("config/usuarios").get();
+    if (!doc.exists) { res.status(200).json({ exists: false }); return; }
+    const rawData = doc.data()?.data;
+    const usuarios = typeof rawData === "string" ? JSON.parse(rawData) : [];
+    const exists = Array.isArray(usuarios) && usuarios.some(u => u?.email === normalizedEmail);
+    res.status(200).json({ exists });
+  } catch (e) {
+    console.error("checkEmail error:", e);
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// setUserClaims — atribui Custom Claim {perfil} ao token do usuário autenticado.
+// Deve ser chamado logo após o login. O cliente precisa renovar o ID Token
+// (getIdToken(true)) após a resposta para que as regras do Firestore recebam
+// o claim atualizado.
+// ---------------------------------------------------------------------------
+exports.setUserClaims = onRequest(async (req, res) => {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+  const decoded = await verifyToken(req, res);
+  if (!decoded) return;
+
+  try {
+    const doc = await admin.firestore().doc("config/usuarios").get();
+    const rawData = doc.exists ? doc.data()?.data : null;
+    const usuarios = typeof rawData === "string" ? JSON.parse(rawData) : [];
+    const user = Array.isArray(usuarios)
+      ? usuarios.find(u => u?.email === decoded.email)
+      : null;
+
+    const perfil = user?.perfil || "dono";
+    await admin.auth().setCustomUserClaims(decoded.uid, { perfil });
+    res.status(200).json({ ok: true, perfil });
+  } catch (e) {
+    console.error("setUserClaims error:", e);
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// ai — proxy autenticado para Azure OpenAI.
+// ---------------------------------------------------------------------------
 exports.ai = onRequest(
   { secrets: [AZURE_KEY, AZURE_ENDPOINT, AZURE_DEPLOY] },
   async (req, res) => {
-    const origin = req.headers.origin || "";
-    const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-    res.set("Access-Control-Allow-Origin", allowedOrigin);
-    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.set("Vary", "Origin");
+    setCorsHeaders(req, res);
 
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
-    // Verify Firebase ID token (sent in body to avoid CORS preflight with Authorization header)
-    const idToken = req.body?._token;
-    if (!idToken) {
-      res.status(401).json({ error: "Autenticação necessária" });
-      return;
-    }
-    try {
-      await admin.auth().verifyIdToken(idToken);
-    } catch {
-      res.status(401).json({ error: "Token inválido ou expirado" });
-      return;
-    }
+    const decoded = await verifyToken(req, res);
+    if (!decoded) return;
 
     // Validate payload size
     if (JSON.stringify(req.body).length > MAX_PAYLOAD_BYTES) {
@@ -72,7 +147,6 @@ exports.ai = onRequest(
       gerar_questoes: `Você é especialista em auditoria de processos da administração pública brasileira.\nCom base no objetivo, escopo, critérios da auditoria e no conteúdo do processo mapeado fornecidos, gere uma lista de questões de auditoria relevantes e objetivas.\nCada questão deve ser verificável, diretamente ligada a um critério e adequada ao contexto do processo.\nRetorne APENAS um JSON válido (sem markdown, sem bloco de código) com a estrutura:\n[\n  {"questao": "texto da questão", "criterio": "critério relacionado"},\n  ...\n]\nGere entre 8 e 15 questões cobrindo conformidade, desempenho, controles internos e evidências documentais.`,
 
       gerar_faq: `Você é especialista em gestão de processos e comunicação institucional da administração pública brasileira.\nCom base nas informações do processo fornecidas, gere entre 5 e 8 perguntas frequentes (FAQ) com suas respectivas respostas.\nAs perguntas devem refletir dúvidas reais de cidadãos ou servidores sobre o processo.\nFormato de saída: apenas o texto puro, sem markdown, sem numeração extra, no padrão:\nP: [pergunta]\nR: [resposta objetiva em até 3 frases]\n\nRepita o bloco P/R para cada item.`,
-
     };
 
     const systemPrompt = SYSTEM[mode];

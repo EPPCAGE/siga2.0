@@ -32,7 +32,7 @@ Ordem conceitual de carregamento:
 | Firebase helpers | `src/shared/firebase-helpers.js` | Criar referencias Firestore respeitando tenant |
 | Repositorios de dados | `src/shared/firestore-repositories.js` | Centralizar leituras/escritas Firestore por dominio |
 | Utilitarios de front | `src/processos/*` | Primeiros utilitarios e controllers extraidos do monolito |
-| UI legada | `processos.html`, `projetos.html`, `scripts.js` | Renderizacao e regras ainda majoritariamente monoliticas |
+| UI legada | `processos.html`, `projetos.html`, `projetos-logic.js` | Renderizacao e regras ainda majoritariamente monoliticas |
 | Functions | `functions/index.js` | Proxy autenticado para IA/Azure OpenAI |
 | Testes | `tests/e2e/` | Smoke tests e simulacoes Playwright |
 | Ferramentas | `tools/` | Scripts auxiliares, como plano/migracao tenant |
@@ -91,7 +91,7 @@ Arquivos ainda monoliticos:
 
 - `processos.html`
 - `projetos.html`
-- `scripts.js`
+- `projetos-logic.js`
 
 Eles devem ser quebrados gradualmente, mantendo compatibilidade global ate cada fatia estar coberta por testes.
 

@@ -11,7 +11,7 @@
 
 - `npm run test:e2e:smoke`: aprovado.
 - `npm run test:e2e:projetos`: aprovado.
-- `node --check scripts.js`: aprovado.
+- `node --check projetos-logic.js`: aprovado.
 - `git diff --check`: aprovado.
 
 Observacoes esperadas nos testes locais:

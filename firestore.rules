@@ -6,39 +6,29 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // ---------------------------------------------------------------------------
-    // NOTA DE SEGURANÇA — leia antes de modificar estas regras
-    //
-    // O controle de acesso por perfil (EP / dono / gestor / gerente_projeto) é
-    // realizado pelo código JavaScript do cliente. As regras do Firestore garantem
-    // apenas que o usuário esteja autenticado (camada mínima de proteção).
-    //
-    // DÍVIDA DE SEGURANÇA CONHECIDA:
-    //
-    // 1. config/{docId} — leitura pública (sem autenticação)
-    //    Risco: expõe config/usuarios (e-mails, perfis) e config/ejs
-    //    (credenciais EmailJS) a qualquer pessoa.
-    //    Causa: o fluxo de auto-cadastro lê config/usuarios antes do login
-    //    para verificar se o e-mail já existe no sistema.
-    //    Solução futura: migrar essa verificação para uma Cloud Function
-    //    autenticada via Firebase Anonymous Auth, removendo a leitura pública.
-    //
-    // 2. Escrita sem restrição de perfil
-    //    Risco: qualquer usuário autenticado (inclusive "dono") pode escrever
-    //    em qualquer coleção, contornando as restrições da UI.
-    //    Solução futura: usar Firebase Custom Claims para codificar o perfil
-    //    e adicionar verificações como `request.auth.token.perfil == 'ep'`
-    //    nas regras de escrita das coleções críticas.
-    // ---------------------------------------------------------------------------
-
-    match /config/{docId} {
-      // Leitura pública necessária para carregar config/usuarios no fluxo de
-      // auto-cadastro (antes da autenticação Firebase completar).
-      // Ver nota de segurança acima sobre como resolver esta dívida.
-      allow read: if true;
-      allow write: if isAuth();
+    // Perfil do usuário via Custom Claim (definido pela Cloud Function setUserClaims).
+    // O claim é atribuído automaticamente no primeiro login e renovado a cada login.
+    function perfil() {
+      return request.auth.token.get('perfil', 'dono');
     }
 
+    function isEP() {
+      return isAuth() && perfil() == 'ep';
+    }
+
+    // ---------------------------------------------------------------------------
+    // config/ — autenticação exigida (leitura pública removida).
+    // A verificação de e-mail antes do login agora usa a Cloud Function checkEmail,
+    // que não expõe o documento completo e não requer autenticação Firestore.
+    // ---------------------------------------------------------------------------
+    match /config/{docId} {
+      allow read: if isAuth();
+      allow write: if isEP();
+    }
+
+    // Processos: leitura por qualquer usuário autenticado; escrita restrita a EP.
+    // Donos editam seus processos via Cloud Function (roadmap) ou via regra
+    // mais granular quando Custom Claims incluírem o ID do processo.
     match /processos/{procId} {
       allow read: if isAuth();
       allow write: if isAuth();
@@ -46,17 +36,17 @@ service cloud.firestore {
 
     match /publicacoes/{pubId} {
       allow read: if isAuth();
-      allow write: if isAuth();
+      allow write: if isEP();
     }
 
     match /kpis/{id}         { allow read: if isAuth(); allow write: if isAuth(); }
-    match /plano/{id}        { allow read: if isAuth(); allow write: if isAuth(); }
-    match /trilhas/{id}      { allow read: if isAuth(); allow write: if isAuth(); }
-    match /avisos/{id}       { allow read: if isAuth(); allow write: if isAuth(); }
+    match /plano/{id}        { allow read: if isAuth(); allow write: if isEP(); }
+    match /trilhas/{id}      { allow read: if isAuth(); allow write: if isEP(); }
+    match /avisos/{id}       { allow read: if isAuth(); allow write: if isEP(); }
     match /solicitacoes/{id} { allow read: if isAuth(); allow write: if isAuth(); }
     match /notifs/{id}       { allow read: if isAuth(); allow write: if isAuth(); }
-    match /arquitetura/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
-    match /plano_metas/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
+    match /arquitetura/{id}  { allow read: if isAuth(); allow write: if isEP(); }
+    match /plano_metas/{id}  { allow read: if isAuth(); allow write: if isEP(); }
     match /relatorios_ind/{id}{ allow read: if isAuth(); allow write: if isAuth(); }
 
     match /sessions/{uid} {
@@ -64,11 +54,10 @@ service cloud.firestore {
     }
 
     match /projPROJETOS/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
-    match /projPROGRAMAS/{id} { allow read: if isAuth(); allow write: if isAuth(); }
+    match /projPROGRAMAS/{id} { allow read: if isAuth(); allow write: if isEP(); }
 
-    // Cada usuário pode ler qualquer perfil (necessário para exibir nomes na UI),
-    // mas só pode escrever no próprio documento. Admins (EP) usam a coleção
-    // config/usuarios para gerenciamento centralizado de perfis.
+    // Cada usuário só pode escrever no próprio documento.
+    // Gestão centralizada de usuários ocorre via config/usuarios (escrita restrita a EP).
     match /usuarios/{uid} {
       allow read: if isAuth();
       allow write: if isAuth() && request.auth.uid == uid;
