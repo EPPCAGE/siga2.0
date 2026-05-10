@@ -6,57 +6,61 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // isEP() usa Custom Claim {perfil} definido pela Cloud Function setUserClaims.
-    // REQUISITO: as Cloud Functions devem estar deployadas E os Secrets
-    // CHECK_EMAIL_URL / SET_CLAIMS_URL devem estar configurados no GitHub
-    // antes de reativar as restrições isEP() nas escritas abaixo.
-    // Enquanto as Claims não estiverem ativas, isEP() retorna false para todos
-    // e as escritas restritas a EP falham — use isAuth() como fallback seguro.
+    // Verifica Custom Claim {perfil} definido pela Cloud Function setUserClaims.
+    // A função é chamada automaticamente após cada login. O token é renovado
+    // com getIdToken(true) para que o claim fique disponível imediatamente.
     function isEP() {
       return isAuth() && request.auth.token.get('perfil', '') == 'ep';
     }
 
     // ---------------------------------------------------------------------------
-    // config/ — leitura exige autenticação (leitura pública removida).
-    // A verificação de e-mail antes do login usa a Cloud Function checkEmail.
+    // config/ — leitura exige autenticação (leitura pública removida em PR #508).
+    // Escrita restrita a EP: cadastro de usuários, configurações institucionais.
     // ---------------------------------------------------------------------------
     match /config/{docId} {
       allow read: if isAuth();
-      allow write: if isAuth();
-      // TODO: restringir escrita a isEP() após deploy das Cloud Functions e
-      //       configuração dos Secrets CHECK_EMAIL_URL e SET_CLAIMS_URL.
+      allow write: if isEP();
     }
 
+    // Processos: qualquer usuário autenticado lê e escreve (dono edita o próprio).
     match /processos/{procId} {
       allow read: if isAuth();
       allow write: if isAuth();
     }
 
+    // Publicações e metodologias: somente EP publica.
     match /publicacoes/{pubId} {
       allow read: if isAuth();
-      allow write: if isAuth();
-      // TODO: allow write: if isEP(); — após Custom Claims ativas
+      allow write: if isEP();
     }
 
-    match /kpis/{id}         { allow read: if isAuth(); allow write: if isAuth(); }
-    match /plano/{id}        { allow read: if isAuth(); allow write: if isAuth(); }
-    match /trilhas/{id}      { allow read: if isAuth(); allow write: if isAuth(); }
-    match /avisos/{id}       { allow read: if isAuth(); allow write: if isAuth(); }
-    match /solicitacoes/{id} { allow read: if isAuth(); allow write: if isAuth(); }
-    match /notifs/{id}       { allow read: if isAuth(); allow write: if isAuth(); }
-    match /arquitetura/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
-    match /plano_metas/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
+    // KPIs e relatórios: donos escrevem seus próprios indicadores.
+    match /kpis/{id}          { allow read: if isAuth(); allow write: if isAuth(); }
     match /relatorios_ind/{id}{ allow read: if isAuth(); allow write: if isAuth(); }
 
+    // Conteúdo institucional gerenciado pelo EP.
+    match /plano/{id}       { allow read: if isAuth(); allow write: if isEP(); }
+    match /trilhas/{id}     { allow read: if isAuth(); allow write: if isEP(); }
+    match /avisos/{id}      { allow read: if isAuth(); allow write: if isEP(); }
+    match /arquitetura/{id} { allow read: if isAuth(); allow write: if isEP(); }
+    match /plano_metas/{id} { allow read: if isAuth(); allow write: if isEP(); }
+
+    // Solicitações e notificações: qualquer usuário autenticado envia/recebe.
+    match /solicitacoes/{id} { allow read: if isAuth(); allow write: if isAuth(); }
+    match /notifs/{id}       { allow read: if isAuth(); allow write: if isAuth(); }
+
+    // Sessões: cada usuário acessa apenas a própria.
     match /sessions/{uid} {
       allow read, write: if isAuth() && request.auth.uid == uid;
     }
 
+    // Projetos: gerentes e EP escrevem.
     match /projPROJETOS/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
-    match /projPROGRAMAS/{id} { allow read: if isAuth(); allow write: if isAuth(); }
-    // TODO: allow write: if isEP(); para projPROGRAMAS — após Custom Claims ativas
 
-    // Cada usuário só pode escrever no próprio documento.
+    // Programas: criados e mantidos pelo EP.
+    match /projPROGRAMAS/{id} { allow read: if isAuth(); allow write: if isEP(); }
+
+    // Documento do usuário: cada um escreve apenas no próprio.
     match /usuarios/{uid} {
       allow read: if isAuth();
       allow write: if isAuth() && request.auth.uid == uid;
