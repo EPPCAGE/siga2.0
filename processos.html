@@ -6416,7 +6416,35 @@ function _rAcaoHandleDono(el, ac, p){
   el.innerHTML=minhaTarefa
     ?`<div class="ib ibt" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>O EP encaminhou esta tarefa para você. Complete quando estiver pronto.</span>${prazoBanner}</div>${buildAcaoCardHTML(ac,p,'')}`
     :`<div class="card"><div class="ib iba" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem"><span>Esta etapa — <strong>${ac.titulo}</strong> — aguarda ação de <strong>${p.dono||'dono'}</strong>.</span>${prazoBanner}</div><div style="font-size:13px;color:var(--ink2)">${ac.sub}</div></div>`;
+  if(minhaTarefa && _ADVANCE_MAP[p.etapa]){
+    const bar=document.createElement('div');
+    bar.style.cssText='margin-top:.8rem;padding:.65rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;background:var(--blue-l,#eff6ff)';
+    bar.innerHTML=`<button type="button" class="btn" style="font-size:12px;padding:4px 12px" onclick="_SAVE_MAP[curProc?.etapa]?.()">💾 Salvar dados</button>
+      <button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_concluirDonoAtribuido()">✓ Concluir e notificar EP</button>`;
+    el.appendChild(bar);
+  }
   _rAcaoInitBpmn(p, minhaTarefa);
+}
+function _concluirDonoAtribuido(){
+  const etapa=curProc?.etapa;
+  if(!etapa||!_ADVANCE_MAP[etapa]) return;
+  const ac=ACOES[etapa];
+  const _origAv=globalThis.av;
+  let _avChamado=false;
+  globalThis.av=(etAtu)=>{
+    _avChamado=true;
+    globalThis.av=_origAv;
+    registrarRespondidoPor(etAtu);
+    if(!curProc.ent) curProc.ent={};
+    curProc.ent.revisao_ep_pendente={etapa_dono:etAtu,dt:now()};
+    curProc.status_workflow='aguardando_revisao_ep';
+    _origAv(etAtu,'Dono do processo','Tarefa "'+(ac?.titulo||etAtu)+'" concluída pelo usuário atribuído.',null);
+    const epUser=USUARIOS.find(u=>(u.nome===curProc.resp_ep||u.perfil==='ep')&&u.email);
+    if(epUser?.email) enviarNotif(epUser.email,epUser.nome,(curProc.dono||usuarioLogado?.nome)+' concluiu "'+etLb(etAtu)+'". Aguarda sua revisão.',curProc.nome,'',curProc.dono||'Dono');
+    setTimeout(()=>popupConclusaoDono('Obrigado! Sua validação foi registrada e o EP foi notificado para continuar o processo.'),200);
+  };
+  _ADVANCE_MAP[etapa]();
+  if(!_avChamado) globalThis.av=_origAv;
 }
 function _rAcaoAppendEPBars(el, p, isPulada){
   const atrib=(p.atribuicoes||{})[p.etapa];
