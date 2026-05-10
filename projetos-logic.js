@@ -246,7 +246,7 @@ function projSafeStorageName(name, fallback){
   return String(name || fallback || 'imagem')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/^-+/, '').replace(/-+$/, '')
     .slice(0, 90) || 'imagem';
 }
 
@@ -4755,9 +4755,9 @@ function projStrategyRelatedHtml(kind, values) {
 
 function projStrategyParts(value) {
   const raw = String(value||'').trim();
-  const m = raw.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+  const m = raw.match(/^\[([^\]]+)\](.*)/);
   let group = m ? m[1] : 'Outros';
-  let name = (m ? m[2] : raw) || raw;
+  let name = (m ? m[2].trim() : raw) || raw;
   if(group.toLowerCase() === 'finalístico') group = 'Finalísticos';
   return { group, name };
 }
