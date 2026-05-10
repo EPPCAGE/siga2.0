@@ -14163,6 +14163,10 @@ async function bloquearUsuario(idx){
   toast(u.bloqueado ? u.nome+' bloqueado(a). O acesso será negado no próximo login.' : u.nome+' desbloqueado(a).', u.bloqueado?'var(--red)':'var(--green)');
 }
 
+function _setDisplay(el, show, displayValue){
+  if(el) el.style.display = show ? displayValue : 'none';
+}
+
 function onUsrPerfilChg(){
   const perfil = document.getElementById('usr-perfil')?.value;
   const sec       = document.getElementById('usr-proc-section');
