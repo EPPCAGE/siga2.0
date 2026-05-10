@@ -15990,9 +15990,11 @@ async function fbSaveAll(){
     // Firestore batch limit is 500 — split into chunks of 450
     await FirestoreRepositories.batchCommit(ops, 450);
 
-    // Update sentinel so other sessions detect this save, then mark ourselves as current
-    await configRepository.set('last_modified', {ts: Date.now(), by: usuarioLogado?.email||''});
-    globalThis._fbLoadedAt = Date.now();
+    // Mark ourselves as current FIRST (before Firestore update triggers listeners)
+    const now = Date.now();
+    globalThis._fbLoadedAt = now;
+    // Then update sentinel so other sessions detect this save
+    await configRepository.set('last_modified', {ts: now, by: usuarioLogado?.email||''});
     const _cb = document.getElementById('concurrent-banner');
     if(_cb) _cb.style.display = 'none';
 
