@@ -18,8 +18,9 @@ const MAX_PAYLOAD_BYTES = 20 * 1024; // 20 KB
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || "";
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-  res.set("Access-Control-Allow-Origin", allowedOrigin);
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+  }
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type");
   res.set("Vary", "Origin");
