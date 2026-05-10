@@ -6,29 +6,27 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Perfil do usuário via Custom Claim (definido pela Cloud Function setUserClaims).
-    // O claim é atribuído automaticamente no primeiro login e renovado a cada login.
-    function perfil() {
-      return request.auth.token.get('perfil', 'dono');
-    }
-
+    // isEP() usa Custom Claim {perfil} definido pela Cloud Function setUserClaims.
+    // REQUISITO: as Cloud Functions devem estar deployadas E os Secrets
+    // CHECK_EMAIL_URL / SET_CLAIMS_URL devem estar configurados no GitHub
+    // antes de reativar as restrições isEP() nas escritas abaixo.
+    // Enquanto as Claims não estiverem ativas, isEP() retorna false para todos
+    // e as escritas restritas a EP falham — use isAuth() como fallback seguro.
     function isEP() {
-      return isAuth() && perfil() == 'ep';
+      return isAuth() && request.auth.token.get('perfil', '') == 'ep';
     }
 
     // ---------------------------------------------------------------------------
-    // config/ — autenticação exigida (leitura pública removida).
-    // A verificação de e-mail antes do login agora usa a Cloud Function checkEmail,
-    // que não expõe o documento completo e não requer autenticação Firestore.
+    // config/ — leitura exige autenticação (leitura pública removida).
+    // A verificação de e-mail antes do login usa a Cloud Function checkEmail.
     // ---------------------------------------------------------------------------
     match /config/{docId} {
       allow read: if isAuth();
-      allow write: if isEP();
+      allow write: if isAuth();
+      // TODO: restringir escrita a isEP() após deploy das Cloud Functions e
+      //       configuração dos Secrets CHECK_EMAIL_URL e SET_CLAIMS_URL.
     }
 
-    // Processos: leitura por qualquer usuário autenticado; escrita restrita a EP.
-    // Donos editam seus processos via Cloud Function (roadmap) ou via regra
-    // mais granular quando Custom Claims incluírem o ID do processo.
     match /processos/{procId} {
       allow read: if isAuth();
       allow write: if isAuth();
@@ -36,17 +34,18 @@ service cloud.firestore {
 
     match /publicacoes/{pubId} {
       allow read: if isAuth();
-      allow write: if isEP();
+      allow write: if isAuth();
+      // TODO: allow write: if isEP(); — após Custom Claims ativas
     }
 
     match /kpis/{id}         { allow read: if isAuth(); allow write: if isAuth(); }
-    match /plano/{id}        { allow read: if isAuth(); allow write: if isEP(); }
-    match /trilhas/{id}      { allow read: if isAuth(); allow write: if isEP(); }
-    match /avisos/{id}       { allow read: if isAuth(); allow write: if isEP(); }
+    match /plano/{id}        { allow read: if isAuth(); allow write: if isAuth(); }
+    match /trilhas/{id}      { allow read: if isAuth(); allow write: if isAuth(); }
+    match /avisos/{id}       { allow read: if isAuth(); allow write: if isAuth(); }
     match /solicitacoes/{id} { allow read: if isAuth(); allow write: if isAuth(); }
     match /notifs/{id}       { allow read: if isAuth(); allow write: if isAuth(); }
-    match /arquitetura/{id}  { allow read: if isAuth(); allow write: if isEP(); }
-    match /plano_metas/{id}  { allow read: if isAuth(); allow write: if isEP(); }
+    match /arquitetura/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
+    match /plano_metas/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
     match /relatorios_ind/{id}{ allow read: if isAuth(); allow write: if isAuth(); }
 
     match /sessions/{uid} {
@@ -54,10 +53,10 @@ service cloud.firestore {
     }
 
     match /projPROJETOS/{id}  { allow read: if isAuth(); allow write: if isAuth(); }
-    match /projPROGRAMAS/{id} { allow read: if isAuth(); allow write: if isEP(); }
+    match /projPROGRAMAS/{id} { allow read: if isAuth(); allow write: if isAuth(); }
+    // TODO: allow write: if isEP(); para projPROGRAMAS — após Custom Claims ativas
 
     // Cada usuário só pode escrever no próprio documento.
-    // Gestão centralizada de usuários ocorre via config/usuarios (escrita restrita a EP).
     match /usuarios/{uid} {
       allow read: if isAuth();
       allow write: if isAuth() && request.auth.uid == uid;
