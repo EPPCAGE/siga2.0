@@ -12,7 +12,7 @@
     if(!url) return '';
     try {
       const parsed = new URL(url);
-      if(parsed.protocol === 'https:' || parsed.protocol === 'http:') return url;
+      if(parsed.protocol === 'https:') return url;
     } catch(error) {
       console.warn('safeUrl: invalid URL', error);
     }

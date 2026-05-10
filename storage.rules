@@ -5,16 +5,23 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function withinSizeLimit() {
+      return request.resource.size < 20 * 1024 * 1024; // 20 MB
+    }
+
     match /projetos/{allPaths=**} {
-      allow read, write: if isAuth();
+      allow read: if isAuth();
+      allow write: if isAuth() && withinSizeLimit();
     }
 
     match /publicacoes/{allPaths=**} {
-      allow read, write: if isAuth();
+      allow read: if isAuth();
+      allow write: if isAuth() && withinSizeLimit();
     }
 
     match /auditoria/{allPaths=**} {
-      allow read, write: if isAuth();
+      allow read: if isAuth();
+      allow write: if isAuth() && withinSizeLimit();
     }
 
     match /{allPaths=**} {
