@@ -345,7 +345,7 @@ Painel de administração (EPP)
 siga2.0/
 ├── processos.html           # SIGA Processos — front-end completo (~15 000 linhas)
 ├── projetos.html            # SIGA Projetos — front-end completo (~1 200 linhas)
-├── scripts.js               # Lógica de negócio compartilhada (~13 700 linhas)
+├── projetos-logic.js        # Lógica exclusiva do módulo de projetos
 ├── styles.css               # CSS compartilhado
 ├── fonts/                   # Fontes woff2 e fonts.css
 ├── logo-siga.png            # Logo da aplicação

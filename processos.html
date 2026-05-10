@@ -30,6 +30,8 @@
 <script src="src/processos/storage-utils.js"></script>
 <script src="src/processos/module-hub-controller.js"></script>
 <script src="src/processos/org-branding.js"></script>
+<script src="src/processos/auto-logout.js"></script>
+<script src="src/processos/concurrent-edit.js"></script>
 <!-- Firebase -->
 <script type="module">
   import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -2496,7 +2498,8 @@ async function processarPrimeiroAcesso(){
 
   if(btn){ btn.disabled=true; btn.textContent='Enviando…'; }
   try {
-    if(USUARIOS.some(u=>u.email===email)){
+    const emailCadastrado = await _checkEmailExists(email);
+    if(emailCadastrado){
       await _primeiroAcessoExistente(email, showErr, showOk);
     } else {
       await _primeiroAcessoNovo(email, nome, showErr, showOk);
@@ -16627,117 +16630,8 @@ function excluirTrilhaModal(){
 
 // ── END TRILHAS ────────────────────────────
 
-// ── AUTO-LOGOUT POR INATIVIDADE ──────────────────────────────
-const _INACTIVITY_MS   = 15 * 60 * 1000; // 15 min até logout
-const _INACTIVITY_WARN = 30 * 1000;      // aviso 30s antes
-const _INACT_EVENTS = ['mousemove','mousedown','keydown','touchstart','scroll','click'];
-let _inactTimer = null;
-let _inactWarnTimer = null;
-let _inactInterval = null;
-
-function _resetInactivityTimer(){
-  clearTimeout(_inactTimer);
-  clearTimeout(_inactWarnTimer);
-  clearInterval(_inactInterval);
-  const w = document.getElementById('inactivity-warning');
-  if(w) w.style.display = 'none';
-  _inactWarnTimer = setTimeout(_showInactivityWarning, _INACTIVITY_MS - _INACTIVITY_WARN);
-  _inactTimer     = setTimeout(_doInactivityLogout,   _INACTIVITY_MS);
-}
-
-function _startInactivityWatch(){
-  _INACT_EVENTS.forEach(e => document.addEventListener(e, _resetInactivityTimer, {passive:true}));
-  _resetInactivityTimer();
-}
-
-function _stopInactivityWatch(){
-  _INACT_EVENTS.forEach(e => document.removeEventListener(e, _resetInactivityTimer));
-  clearTimeout(_inactTimer);
-  clearTimeout(_inactWarnTimer);
-  clearInterval(_inactInterval);
-  const w = document.getElementById('inactivity-warning');
-  if(w) w.style.display = 'none';
-}
-
-function _showInactivityWarning(){
-  const w = document.getElementById('inactivity-warning');
-  if(!w) return;
-  let secs = 30;
-  const el = document.getElementById('inactivity-countdown');
-  if(el) el.textContent = secs;
-  w.style.display = 'flex';
-  _inactInterval = setInterval(()=>{
-    secs--;
-    if(el) el.textContent = secs;
-    if(secs <= 0) clearInterval(_inactInterval);
-  }, 1000);
-}
-
-async function _doInactivityLogout(){
-  _stopInactivityWatch();
-  toast('Sessão encerrada por inatividade.', 'var(--amber)');
-  await doLogout();
-}
-
-function _keepSessionAlive(){
-  _resetInactivityTimer();
-}
-// ── END AUTO-LOGOUT ───────────────────────────────────────────
-
-// ── CONCURRENT EDIT DETECTION ────────────────────────────────
-globalThis._fbLoadedAt = 0;
-globalThis._fbDataReady = false;
-globalThis._fbExternalWatcher = null;
-
-function _fbShowConcurrentBanner(byEmail){
-  const banner = document.getElementById('concurrent-banner');
-  if(!banner) return;
-  const msg = document.getElementById('concurrent-msg');
-  if(msg) msg.textContent = 'Dados foram modificados por ' + (byEmail||'outro dispositivo') + '. Suas alterações não salvas podem sobrescrever as delas.';
-  banner.style.display = 'flex';
-}
-
-function _fbDismissBanner(){
-  const banner = document.getElementById('concurrent-banner');
-  if(banner) banner.style.display = 'none';
-  globalThis._fbLoadedAt = Date.now();
-}
-
-async function _fbReloadData(){
-  const banner = document.getElementById('concurrent-banner');
-  if(banner) banner.style.display = 'none';
-  clearTimeout(globalThis._fbSaveTimer);
-  toast('Recarregando dados do servidor…', 'var(--blue)');
-  try {
-    await fbLoad();
-    globalThis._fbLoadedAt = Date.now();
-    const pAtivo = document.querySelector('.page.on');
-    if(pAtivo){
-      const id = pAtivo.id.replace('page-','');
-      go(id, document.getElementById('nb-'+id)||null);
-    }
-    toast('✓ Dados recarregados do servidor', 'var(--teal)');
-  } catch(e){ toast('⚠ Erro ao recarregar: '+e.message,'var(--red)'); }
-}
-
-function _fbWatchExternalChanges(){
-  if(!fbReady() || globalThis._fbExternalWatcher) return;
-  const {onSnapshot} = fb();
-  globalThis._fbExternalWatcher = onSnapshot(
-    configRepository.ref('last_modified'),
-    (snap) => {
-      if(!snap.exists()) return;
-      const d = snap.data();
-      const ts = d?.ts || 0;
-      const by = d?.by || '';
-      if(ts > (globalThis._fbLoadedAt||0) && by && by !== (usuarioLogado?.email||'')){
-        _fbShowConcurrentBanner(by);
-      }
-    },
-    (err) => { console.warn('_fbWatchExternalChanges:', err.message); }
-  );
-}
-// ── END CONCURRENT EDIT ──────────────────────────────────────
+// Auto-logout e detecção de edição concorrente extraídos para módulos em src/processos/.
+// Ver: src/processos/auto-logout.js e src/processos/concurrent-edit.js
 
 function fbSaveNow(label){
   if(!fbReady() || !globalThis._fbLoadedAt) return;
@@ -16962,6 +16856,9 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
     _iniciarSessaoUnica(firebaseUser.uid);
     _aplicarUsuario(user);
     if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
+    // Define Custom Claim {perfil} no token de forma não-bloqueante.
+    // Permite que as regras do Firestore apliquem restrições por perfil.
+    _setUserClaimsForUser(firebaseUser).catch(()=>{});
     return;
   }
   const {signOut} = fb();
@@ -16987,6 +16884,46 @@ window.addEventListener('load', bootApp, {once: true});
 // URL da Firebase Function (preencher após deploy)
 // NOTE: Load from config.local.js or localStorage for local development
 const AI_FUNCTION_URL = (globalThis.CONFIG?.AI_FUNCTION_URL || 'https://ai-kvhsbvnxhq-uc.a.run.app');
+
+// Verifica se um e-mail existe em config/usuarios via Cloud Function pública.
+// Elimina a necessidade de leitura pública do Firestore no fluxo de Primeiro Acesso.
+// Fallback: verificação local em USUARIOS (funciona em modo offline/dev sem Firebase).
+async function _checkEmailExists(email){
+  const url = globalThis.CONFIG?.CHECK_EMAIL_URL;
+  if(!url) return USUARIOS.some(u => u.email === email);
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email}),
+    });
+    if(!resp.ok) return USUARIOS.some(u => u.email === email);
+    const data = await resp.json();
+    return data.exists === true;
+  } catch(e){
+    console.warn('_checkEmailExists: fallback local', e.message);
+    return USUARIOS.some(u => u.email === email);
+  }
+}
+
+// Solicita à Cloud Function setUserClaims que grave o Custom Claim {perfil}
+// no token do usuário. Chamado de forma não-bloqueante após o login bem-sucedido.
+// Requer que o token seja renovado para que as regras do Firestore recebam o claim.
+async function _setUserClaimsForUser(firebaseUser){
+  const url = globalThis.CONFIG?.SET_CLAIMS_URL;
+  if(!url) return;
+  try {
+    const token = await firebaseUser.getIdToken();
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({_token: token}),
+    });
+    if(resp.ok) await firebaseUser.getIdToken(true); // renova token com o novo claim
+  } catch(e){
+    console.warn('_setUserClaimsForUser: erro ao definir custom claim', e.message);
+  }
+}
 
 async function chamarIA(mode, payload, targetEl){
   const url = globalThis._aiUrl || AI_FUNCTION_URL;

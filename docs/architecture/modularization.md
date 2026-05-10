@@ -31,7 +31,7 @@ O arquivo `processos.html` ainda concentra HTML, CSS e JavaScript do modulo de p
 - `src/processos/org-branding.js`: aplicacao da identidade institucional no login, hub e exemplos de e-mail do modulo Processos.
 - `src/processos/security-utils.js`: helpers de escape de HTML e validacao de URLs antes de inserir conteudo dinamico.
 - `src/processos/storage-utils.js`: utilitarios seguros de `localStorage` e leitura de arrays JSON extraidos do monolito.
-- `processos.html` e `scripts.js`: acessos Firestore centrais ja passam por helpers de caminho tenant-aware, mantendo `TENANCY.enabled:false` por compatibilidade.
+- `processos.html` e `projetos-logic.js`: acessos Firestore centrais ja passam por helpers de caminho tenant-aware, mantendo `TENANCY.enabled:false` por compatibilidade.
 
 Detalhamento das camadas iniciais: `docs/architecture/frontend-layers.md`.
 

@@ -9,7 +9,7 @@ Firebase Hosting + Firestore + Cloud Functions (Node.js 20) + Azure OpenAI.
 siga2.0/
 ├── processos.html          # Módulo principal (monolito, ~18 mil linhas)
 ├── projetos.html           # Módulo de projetos (~1.3 mil linhas)
-├── scripts.js              # Lógica exclusiva do módulo de projetos
+├── projetos-logic.js       # Lógica exclusiva do módulo de projetos
 ├── projetos.shared.js      # Funções compartilhadas do módulo de projetos
 ├── styles.css              # CSS compartilhado entre módulos
 ├── src/

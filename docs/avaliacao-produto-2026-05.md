@@ -38,7 +38,7 @@ em qualquer coleção contornando a UI.
   `FIREBASE_SERVICE_ACCOUNT` injetados via GitHub Secrets. `AZURE_OPENAI_KEY` nunca
   sai do Secret Manager. Nenhuma credencial hardcoded no repositório.
 
-- **Proteção contra prototype pollution**: `_fsClean()` em `scripts.js` bloqueia
+- **Proteção contra prototype pollution**: `_fsClean()` em `projetos-logic.js` bloqueia
   chaves `__proto__`, `constructor`, `prototype` antes de escrever no Firestore.
 
 - **Sanitização de HTML**: `esc()` em `security-utils.js` escapa os 5 caracteres
@@ -157,9 +157,9 @@ isoladamente, propenso a regressões invisíveis.
 Cada módulo deve virar um arquivo `.js` em `src/processos/` e ser carregado via
 `<script src="...">` no HTML, que passa a ser apenas o esqueleto estrutural.
 
-#### ALTO — `scripts.js` com nome enganoso
+#### ALTO — `projetos-logic.js` com nome enganoso
 
-`scripts.js` contém exclusivamente a lógica do **módulo de projetos** (4.9 mil linhas),
+`projetos-logic.js` contém exclusivamente a lógica do **módulo de projetos** (4.9 mil linhas),
 mas o nome sugere ser um arquivo utilitário genérico. Isso causará confusão ao
 onboarding de novos desenvolvedores.
 
@@ -221,7 +221,7 @@ Sem um guia de entrada para o repositório, qualquer desenvolvedor novo precisa 
 README inteiro antes de entender onde tocar. O `CLAUDE.md` criado neste commit supre
 isso com um mapa direto das convenções, estrutura e dívidas conhecidas.
 
-#### BAIXO — Separação entre `projetos.html`, `projetos.shared.js` e `scripts.js`
+#### BAIXO — Separação entre `projetos.html`, `projetos.shared.js` e `projetos-logic.js`
 
 O módulo de projetos está dividido em três arquivos sem separação clara de
 responsabilidades entre eles. A convenção "o que vai em cada arquivo" não está
@@ -281,7 +281,7 @@ monolito atual, mas precisa ser endereçado antes de qualquer modularização s�
 |---|------|---------|
 | 7 | Criar Cloud Function `checkEmail` e remover leitura pública de `config/` | Segurança crítica |
 | 8 | Implementar Firebase Custom Claims para perfis | Segurança alta |
-| 9 | Renomear `scripts.js` → `projetos-logic.js` | Estrutura |
+| 9 | Renomear `projetos-logic.js` → `projetos-logic.js` | Estrutura |
 | 10 | Extrair 2-3 módulos de `processos.html` para `src/processos/` | Estrutura |
 
 ### Médio prazo (arquiteturais)

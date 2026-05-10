@@ -39,7 +39,7 @@ Esta documentacao lista os campos de identidade que devem ser ajustados quando o
 
 ## Regra de Uso
 
-Textos institucionais novos nao devem ser escritos diretamente em `processos.html`, `projetos.html` ou `scripts.js`. Use `ORG_CONFIG`.
+Textos institucionais novos nao devem ser escritos diretamente em `processos.html`, `projetos.html` ou `projetos-logic.js`. Use `ORG_CONFIG`.
 
 Exemplo:
 

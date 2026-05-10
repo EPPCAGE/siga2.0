@@ -4,6 +4,14 @@
 window.CONFIG = {
   FIREBASE_API_KEY: '',
   AI_FUNCTION_URL: '',
+  // URL da Cloud Function checkEmail (público, sem auth).
+  // Elimina a leitura pública do Firestore no fluxo de Primeiro Acesso.
+  // Obtida após o primeiro deploy das Cloud Functions.
+  CHECK_EMAIL_URL: '',
+  // URL da Cloud Function setUserClaims (autenticada).
+  // Define o Custom Claim {perfil} no token do usuário após o login,
+  // permitindo que as regras do Firestore apliquem controle por perfil.
+  SET_CLAIMS_URL: '',
   TENANCY: {
     // Manter false enquanto usa a base legada nas colecoes raiz do Firestore.
     // Ao ativar, os dados passam a usar caminhos como tenants/{tenantId}/processos.
