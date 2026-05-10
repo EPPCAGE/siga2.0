@@ -115,6 +115,6 @@
   globalScope.sessoesRepository = collectionRepository('sessions');
   globalScope.projetosRepository = collectionRepository('projPROJETOS');
   globalScope.programasRepository = collectionRepository('projPROGRAMAS');
-  globalScope.projetosUsuariosRepository = collectionRepository('projPROJETOS');
+  globalScope.projetosUsuariosRepository = globalScope.projetosRepository;
   globalScope.configRepository = repositories.config;
 })(globalThis);
