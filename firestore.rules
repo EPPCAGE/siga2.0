@@ -6,6 +6,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isCurrentProcessOwner() {
+      // Apenas o dono ATUAL pode editar (não o futuro)
+      return resource.data.dono_email == request.auth.token.email;
+    }
+
     // Qualquer usuário autenticado pode ler tudo.
     // O controle de acesso por perfil (EP/dono/gestor) é feito pelo código JavaScript.
     // Escrita é restrita por coleção conforme necessário.
@@ -17,7 +26,8 @@ service cloud.firestore {
 
     match /processos/{procId} {
       allow read: if isAuth();
-      allow write: if isAuth();
+      // Write: apenas o dono ATUAL do processo pode editar
+      allow write: if isAuth() && isCurrentProcessOwner();
     }
 
     match /publicacoes/{pubId} {
