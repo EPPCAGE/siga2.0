@@ -1104,7 +1104,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="fg"><label class="fl" for="usr-nome">Nome<span>*</span></label><input class="fi" id="usr-nome"></div>
       <div class="fg"><label class="fl" for="usr-ini">Iniciais</label><input class="fi" id="usr-ini" maxlength="2"></div>
     </div>
-    <div class="fg"><label class="fl" for="usr-cargo">Cargo</label><input class="fi" id="usr-cargo" placeholder="Ex: Auditor Fiscal, Gestor, Analista..."></div>
+    <div class="fg"><label class="fl" for="usr-area">Área</label><select class="fi" id="usr-area"><option value="">Selecione a área...</option></select></div>
     <div class="fg"><label class="fl" for="usr-email">E-mail<span>*</span></label><input class="fi" id="usr-email" type="email"></div>
     <div class="fg"><label class="fl" for="usr-perfil">Perfil<span>*</span></label>
       <select class="fi" id="usr-perfil" onchange="onUsrPerfilChg()">
@@ -1219,7 +1219,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <input class="hub-srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
     </div>
     <div class="hub-tbl-wrap">
-      <table class="hub-tbl"><thead><tr><th></th><th>Nome</th><th>Cargo</th><th>E-mail</th><th>Perfil</th><th>Vínculos</th><th>Ações</th></tr></thead>
+      <table class="hub-tbl"><thead><tr><th></th><th>Nome</th><th>Área</th><th>E-mail</th><th>Perfil</th><th>Vínculos</th><th>Ações</th></tr></thead>
       <tbody id="usr-tbody"></tbody></table>
     </div>
   </div>
@@ -14135,7 +14135,7 @@ function renderAdmin(){
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
     (!filtUsrPerfil||getPerfisUsuario(u).includes(filtUsrPerfil)) &&
-    (!srch||u.nome.toLowerCase().includes(srch)||u.email.toLowerCase().includes(srch)||(u.cargo||'').toLowerCase().includes(srch))
+    (!srch||u.nome.toLowerCase().includes(srch)||u.email.toLowerCase().includes(srch)||(u.area||'').toLowerCase().includes(srch))
   );
   const cors = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
   const pBadge = p=>`<span class="badge ${{ep:'bb',dono:'bt',gestor:'ba',gerente_projeto:'bp'}[p]||'bgr'}">${PERFIL_LABELS[p]||p}</span>`;
@@ -14160,7 +14160,7 @@ function renderAdmin(){
     return `<tr style="${trStyle}">
       <td><div style="width:28px;height:28px;border-radius:50%;background:${cors[u.perfil]||'#888'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${u.iniciais}</div></td>
       <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span style="background:rgba(176,28,28,.2);color:#f87171;font-size:10px;padding:1px 6px;border-radius:4px">bloqueado</span>':''}</td>
-      <td style="font-size:12px;color:rgba(255,255,255,.45)">${u.cargo||'—'}</td>
+      <td style="font-size:12px;color:rgba(255,255,255,.45)">${u.area||'—'}</td>
       <td style="font-size:12px;color:rgba(255,255,255,.45)">${u.email}</td>
       <td>${pBadges(u)}</td>
       <td style="font-size:11px;color:rgba(255,255,255,.45)">
@@ -14270,6 +14270,17 @@ function _usrPopulateSelectors(){
     projSel.innerHTML = '<option value="">Selecione um projeto para vincular...</option>' +
       projetos.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('');
   }
+  const areaSel = document.getElementById('usr-area');
+  if(areaSel){
+    const areas = new Set();
+    ARQUITETURA.forEach(m=>m.processos.forEach(p=>{
+      if(p.area) areas.add(p.area);
+      (p.subprocessos||[]).forEach(s=>{ if(s.area) areas.add(s.area); });
+    }));
+    const cur = areaSel.value;
+    areaSel.innerHTML = '<option value="">Selecione a área...</option>' +
+      [...areas].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(a=>`<option value="${esc(a)}" ${cur===a?'selected':''}>${esc(a)}</option>`).join('');
+  }
 }
 function _usrResetSecondaryFields(){
   const extraPr=document.getElementById('usr-proc-also-extra');
@@ -14282,7 +14293,8 @@ function _usrResetSecondaryFields(){
 function _abrirModalUsrNovo(delBtn){
   document.getElementById('usr-modal-t').textContent = 'Novo usuário';
   document.getElementById('usr-idx').value = '';
-  ['usr-nome','usr-ini','usr-cargo','usr-email'].forEach(id=>document.getElementById(id).value='');
+  ['usr-nome','usr-ini','usr-email'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('usr-area').value = '';
   document.getElementById('usr-perfil').value = 'dono';
   document.getElementById('usr-vinculos-list').innerHTML = '';
   _setDisplay(document.getElementById('usr-proc-section'), true, 'block');
@@ -14301,8 +14313,14 @@ function _abrirModalUsrEdicao(idx, delBtn){
   document.getElementById('usr-idx').value = idx;
   document.getElementById('usr-nome').value = u.nome;
   document.getElementById('usr-ini').value = u.iniciais;
-  document.getElementById('usr-cargo').value = u.cargo||'';
   document.getElementById('usr-email').value = u.email;
+  const areaSel = document.getElementById('usr-area');
+  if(areaSel){
+    if(u.area && ![...areaSel.options].some(o=>o.value===u.area)){
+      areaSel.appendChild(Object.assign(document.createElement('option'),{value:u.area,textContent:u.area}));
+    }
+    areaSel.value = u.area||'';
+  }
   document.getElementById('usr-perfil').value = primaryPerfil;
   _abrirModalUsrPerfis(primaryPerfil, perfis);
   renderVinculos(getMacroprocessosVinculadosUsuario(u));
@@ -14463,7 +14481,7 @@ function syncDonoProcessoUsuario({ nome, email, arqId }){
     USUARIOS.push({
       email: emailLimpo,
       nome: nomeLimpo,
-      cargo: '',
+      area: '',
       perfil: 'dono',
       iniciais: gerarIniciaisUsuario(nomeLimpo),
       macroprocessos_vinculados: macroId ? [macroId] : [],
@@ -14510,7 +14528,7 @@ function _mmPrefillCampo(id, valor){
 
 async function salvarUsr(){
   const nome = document.getElementById('usr-nome').value.trim();
-  const cargo = document.getElementById('usr-cargo').value.trim();
+  const area = document.getElementById('usr-area').value.trim();
   const email = document.getElementById('usr-email').value.trim().toLowerCase();
   const perfil = document.getElementById('usr-perfil').value;
   if(!nome||!email){ toast('Preencha nome e e-mail.','var(--amber)'); return; }
@@ -14523,7 +14541,7 @@ async function salvarUsr(){
 
   if(idxStr===''){
     if(USUARIOS.some(u=>u.email===email)){ toast('E-mail já cadastrado.','var(--amber)'); return; }
-    USUARIOS.push(_salvarUsrBuildPayload({email, nome, cargo, perfil, perfisArr, ini, vinculos, projetosVinculados, trocarSenha:true}));
+    USUARIOS.push(_salvarUsrBuildPayload({email, nome, area, perfil, perfisArr, ini, vinculos, projetosVinculados, trocarSenha:true}));
     document.getElementById('usr-modal').style.display = 'none';
     renderAdmin();
     await fbSaveAll();
@@ -14532,7 +14550,7 @@ async function salvarUsr(){
   }
   const idx = Number.parseInt(idxStr);
   if(USUARIOS.some((u,i)=>u.email===email&&i!==idx)){ toast('E-mail já usado por outro usuário.','var(--amber)'); return; }
-  USUARIOS[idx] = {...USUARIOS[idx], ..._salvarUsrBuildPayload({email, nome, cargo, perfil, perfisArr, ini, vinculos, projetosVinculados})};
+  USUARIOS[idx] = {...USUARIOS[idx], ..._salvarUsrBuildPayload({email, nome, area, perfil, perfisArr, ini, vinculos, projetosVinculados})};
   _salvarUsrAtualizarSessao(idx, email, nome, perfil);
   document.getElementById('usr-modal').style.display = 'none';
   renderAdmin();
@@ -14547,9 +14565,9 @@ function _salvarUsrPerfis(perfil){
   if(tambemProcAlso) return [procAlsoPerfil,'gerente_projeto'];
   return [perfil];
 }
-function _salvarUsrBuildPayload({email, nome, cargo, perfil, perfisArr, ini, vinculos, projetosVinculados, trocarSenha=false}){
+function _salvarUsrBuildPayload({email, nome, area, perfil, perfisArr, ini, vinculos, projetosVinculados, trocarSenha=false}){
   return {
-    email, nome, cargo, perfil, perfis:perfisArr, iniciais:ini,
+    email, nome, area, perfil, perfis:perfisArr, iniciais:ini,
     macroprocessos_vinculados:vinculos,
     processos_vinculados:[],
     projetos_vinculados:projetosVinculados,
