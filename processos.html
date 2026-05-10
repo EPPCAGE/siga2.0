@@ -15960,21 +15960,24 @@ async function fbSaveAll(){
     const ops = [];
     processos.forEach(p => ops.push({ref: processosRepository.ref(p.id), data: _fsClean(p)}));
     kpis.forEach(k => ops.push({ref: kpisRepository.ref(k.id), data: _fsClean(k)}));
-    publicacoes.forEach(p => ops.push({ref: publicacoesRepository.ref(p.id), data: _fsClean(p)}));
-    plano.forEach(a => ops.push({ref: planoRepository.ref(a.id), data: _fsClean(a)}));
-    TRILHAS.forEach(t => ops.push({ref: trilhasRepository.ref(t.id), data: _fsClean(t)}));
-    PAT_METAS.forEach(m => ops.push({ref: planoMetasRepository.ref(m.id), data: _fsClean(m)}));
     solicitacoes.filter(_solIsValida).forEach(s => ops.push({ref: solicitacoesRepository.ref(s.id), data: _fsClean(s)}));
-    ops.push(
-      ...(_arqSaveEnabled ? [{ref: configRepository.ref('arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}}] : []),
-      {ref: configRepository.ref('usuarios'),    data: {data: JSON.stringify(USUARIOS.map(u=>{
-        if(!u._perfil_original) return u;
-        const {_perfil_original,...rest}=u;
-        return {...rest,perfil:_perfil_original};
-      }))}},
-      {ref: configRepository.ref('mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}},
-      {ref: configRepository.ref('criticos'),    data: {data: JSON.stringify([...criticosManual])}}
-    );
+    // Coleções restritas ao EP — ignoradas se o usuário não tiver permissão
+    if(isEP()){
+      publicacoes.forEach(p => ops.push({ref: publicacoesRepository.ref(p.id), data: _fsClean(p)}));
+      plano.forEach(a => ops.push({ref: planoRepository.ref(a.id), data: _fsClean(a)}));
+      TRILHAS.forEach(t => ops.push({ref: trilhasRepository.ref(t.id), data: _fsClean(t)}));
+      PAT_METAS.forEach(m => ops.push({ref: planoMetasRepository.ref(m.id), data: _fsClean(m)}));
+      ops.push(
+        ...(_arqSaveEnabled ? [{ref: configRepository.ref('arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}}] : []),
+        {ref: configRepository.ref('usuarios'),    data: {data: JSON.stringify(USUARIOS.map(u=>{
+          if(!u._perfil_original) return u;
+          const {_perfil_original,...rest}=u;
+          return {...rest,perfil:_perfil_original};
+        }))}},
+        {ref: configRepository.ref('mapeados'),    data: {data: JSON.stringify([...mapeadosManual])}},
+        {ref: configRepository.ref('criticos'),    data: {data: JSON.stringify([...criticosManual])}}
+      );
+    }
 
     // Firestore batch limit is 500 — split into chunks of 450
     await FirestoreRepositories.batchCommit(ops, 450);
@@ -15982,8 +15985,8 @@ async function fbSaveAll(){
     // Mark ourselves as current FIRST (before Firestore update triggers listeners)
     const now = Date.now();
     globalThis._fbLoadedAt = now;
-    // Then update sentinel so other sessions detect this save
-    await configRepository.set('last_modified', {ts: now, by: usuarioLogado?.email||''});
+    // Then update sentinel so other sessions detect this save (EP only — config write)
+    if(isEP()) await configRepository.set('last_modified', {ts: now, by: usuarioLogado?.email||''});
     const _cb = document.getElementById('concurrent-banner');
     if(_cb) _cb.style.display = 'none';
 
