@@ -243,11 +243,13 @@ function projDataUrlToBlob(dataUrl){
 }
 
 function projSafeStorageName(name, fallback){
-  return String(name || fallback || 'imagem')
+  let s = String(name || fallback || 'imagem')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+/, '').replace(/-+$/, '')
-    .slice(0, 90) || 'imagem';
+    .replace(/^-+/, '');
+  let end = s.length;
+  while (end > 0 && s[end - 1] === '-') end--;
+  return s.slice(0, Math.min(end, 90)) || 'imagem';
 }
 
 async function projFbUploadConclusaoImage(storageApi, proj, img, index){
