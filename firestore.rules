@@ -11,6 +11,12 @@ service cloud.firestore {
       return resource.data.dono_email == request.auth.token.email;
     }
 
+    function isEPOrGestor() {
+      // Verifica se o usuário é EP ou Gestor lendo do documento de config/usuarios
+      let userEmails = get(/databases/$(database)/documents/config/ep_gestor_emails).data.emails;
+      return request.auth.token.email in userEmails;
+    }
+
     // Qualquer usuário autenticado pode ler tudo.
     // O controle de acesso por perfil (EP/dono/gestor) é feito pelo código JavaScript.
     // Escrita é restrita por coleção conforme necessário.
@@ -22,8 +28,8 @@ service cloud.firestore {
 
     match /processos/{procId} {
       allow read: if isAuth();
-      // Write: apenas o dono ATUAL do processo pode editar
-      allow write: if isAuth() && isCurrentProcessOwner();
+      // Write: EP/Gestor podem editar qualquer processo, Donos apenas seus próprios
+      allow write: if isAuth() && (isEPOrGestor() || isCurrentProcessOwner());
     }
 
     match /publicacoes/{pubId} {

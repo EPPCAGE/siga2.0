@@ -15987,6 +15987,12 @@ async function fbSaveAll(){
       {ref: configRepository.ref('criticos'),    data: {data: JSON.stringify([...criticosManual])}}
     );
 
+    // Maintain list of EP/Gestor emails for Firestore rules
+    const epGestorEmails = USUARIOS.filter(u => u.perfil === 'ep' || u.perfil === 'gestor')
+                                  .map(u => u.email)
+                                  .filter(Boolean);
+    ops.push({ref: configRepository.ref('ep_gestor_emails'), data: {emails: epGestorEmails}});
+
     // Firestore batch limit is 500 — split into chunks of 450
     await FirestoreRepositories.batchCommit(ops, 450);
 
