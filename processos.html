@@ -14276,7 +14276,7 @@ function syncDonoProcessoUsuario({ nome, email, arqId }){
   if(!usuario.perfil) usuario.perfil = 'dono';
 
   if(usuarioLogado?.email && usuarioLogado.email.toLowerCase() === emailLimpo){
-    usuarioLogado = usuario;
+    globalThis.usuarioLogado = usuario;
   }
   return true;
 }
