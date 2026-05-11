@@ -1161,6 +1161,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <div class="btn-row">
       <button type="button" class="btn btn-r" id="usr-del-btn" onclick="deletarUsr()" style="margin-right:auto;display:none">Remover usuário</button>
+      <button type="button" class="btn" id="usr-block-btn" onclick="alternarBloqueioUsrModal()" style="display:none"></button>
       <button type="button" class="btn" onclick="document.getElementById('usr-modal').style.display='none'">Cancelar</button>
       <button type="button" class="btn btn-p" onclick="salvarUsr()">Salvar</button>
     </div>
@@ -1219,7 +1220,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <input class="hub-srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
     </div>
     <div class="hub-tbl-wrap">
-      <table class="hub-tbl"><thead><tr><th></th><th>Nome</th><th>Área</th><th>E-mail</th><th>Perfil</th><th>Vínculos</th><th>Ações</th></tr></thead>
+      <table class="hub-tbl"><thead><tr><th></th><th>Nome</th><th>Área</th><th>E-mail</th><th>Perfil</th><th>Vínculos</th></tr></thead>
       <tbody id="usr-tbody"></tbody></table>
     </div>
   </div>
@@ -14226,7 +14227,7 @@ function filtUsr(p, el){
 function renderAdmin(){
   const tbody = document.getElementById('usr-tbody');
   if(!tbody) return;
-  if(!isEP()){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,.35);padding:1rem">Acesso restrito ao '+ORG_CONFIG.supportTeamLabel+'.</td></tr>';return;}
+  if(!isEP()){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:rgba(255,255,255,.35);padding:1rem">Acesso restrito ao '+ORG_CONFIG.supportTeamLabel+'.</td></tr>';return;}
 
   const srch = (document.getElementById('srch-usr')?.value||'').toLowerCase();
   const lista = USUARIOS.filter(u=>
@@ -14236,7 +14237,7 @@ function renderAdmin(){
   const cors = {ep:'#1A5DC8',dono:'#0A7060',gestor:'#A85C00',gerente_projeto:'#7c3aed'};
   const pBadge = p=>`<span class="badge ${{ep:'bb',dono:'bt',gestor:'ba',gerente_projeto:'bp'}[p]||'bgr'}">${PERFIL_LABELS[p]||p}</span>`;
   const pBadges = u=>{ const ps=getPerfisUsuario(u); return ps.map(pBadge).join(' '); };
-  if(!lista.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,.35);padding:1.2rem">Nenhum usuário encontrado.</td></tr>';return;}
+  if(!lista.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:rgba(255,255,255,.35);padding:1.2rem">Nenhum usuário encontrado.</td></tr>';return;}
   tbody.innerHTML = lista.map(u=>{
     const idx = USUARIOS.indexOf(u);
     const isMe = usuarioLogado?.email===u.email;
@@ -14249,15 +14250,15 @@ function renderAdmin(){
           return `<span class="badge bp" style="margin:1px;font-size:10px">${p ? p.nome : pid}</span>`;
         }).join('')
       : '';
-    const bloqStyle = u.bloqueado ? 'background:rgba(176,28,28,.25);color:#f87171;border-color:rgba(176,28,28,.4);' : '';
-    const bloqLabel = u.bloqueado ? 'Desbloquear' : 'Bloquear';
     let trStyle = '';
     if(isMe){ trStyle = 'background:rgba(26,93,200,.18)'; } else if(u.bloqueado){ trStyle = 'opacity:.6'; }
+    const nomeHtml = `<button type="button" style="background:none;border:none;padding:0;margin:0;color:inherit;font:inherit;font-weight:600;cursor:pointer;text-align:left" onclick="abrirModalUsr(${idx})">${esc(u.nome)}</button>`;
+    const emailHtml = `<button type="button" style="background:none;border:none;padding:0;margin:0;color:rgba(255,255,255,.72);font:inherit;cursor:pointer;text-align:left" onclick="abrirModalUsr(${idx})">${esc(u.email)}</button>`;
     return `<tr style="${trStyle}">
       <td><div style="width:28px;height:28px;border-radius:50%;background:${cors[u.perfil]||'#888'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${u.iniciais}</div></td>
-      <td style="font-weight:500">${u.nome}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span style="background:rgba(176,28,28,.2);color:#f87171;font-size:10px;padding:1px 6px;border-radius:4px">bloqueado</span>':''}</td>
+      <td style="font-weight:500">${nomeHtml}${isMe?' <span class="badge bb" style="font-size:10px">você</span>':''}${u.bloqueado?' <span style="background:rgba(176,28,28,.2);color:#f87171;font-size:10px;padding:1px 6px;border-radius:4px">bloqueado</span>':''}</td>
       <td style="font-size:12px;color:rgba(255,255,255,.45)">${u.area||'—'}</td>
-      <td style="font-size:12px;color:rgba(255,255,255,.45)">${u.email}</td>
+      <td style="font-size:12px;color:rgba(255,255,255,.45)">${emailHtml}</td>
       <td>${pBadges(u)}</td>
       <td style="font-size:11px;color:rgba(255,255,255,.45)">
         ${vinculos.length
@@ -14268,10 +14269,6 @@ function renderAdmin(){
           : ''}
         ${projetosHtml}
         ${(!vinculos.length && !projetosVinc.length) ? noVinculoHtml : ''}
-      </td>
-      <td style="white-space:nowrap">
-        <button type="button" class="btn" style="font-size:11px;padding:3px 8px;margin-right:4px" onclick="abrirModalUsr(${idx})">Editar</button>
-        ${isMe?'':`<button type="button" class="btn" style="font-size:11px;padding:3px 8px;${bloqStyle}" onclick="bloquearUsuario(${idx})">${bloqLabel}</button>`}
       </td>
     </tr>`;
   }).join('');
@@ -14346,13 +14343,14 @@ function abrirModalUsr(idx){
   const modal = document.getElementById('usr-modal');
   modal.style.display = 'flex';
   const delBtn = document.getElementById('usr-del-btn');
+  const blockBtn = document.getElementById('usr-block-btn');
   _usrPopulateSelectors();
   _usrResetSecondaryFields();
   if(idx===null){
-    _abrirModalUsrNovo(delBtn);
+    _abrirModalUsrNovo(delBtn, blockBtn);
     return;
   }
-  _abrirModalUsrEdicao(idx, delBtn);
+  _abrirModalUsrEdicao(idx, delBtn, blockBtn);
 }
 function _usrPopulateSelectors(){
   const sel = document.getElementById('usr-proc-add-sel');
@@ -14386,7 +14384,7 @@ function _usrResetSecondaryFields(){
   if(chkPr) chkPr.checked=false;
   _setDisplay(selPr, false, 'block');
 }
-function _abrirModalUsrNovo(delBtn){
+function _abrirModalUsrNovo(delBtn, blockBtn){
   document.getElementById('usr-modal-t').textContent = 'Novo usuário';
   document.getElementById('usr-idx').value = '';
   ['usr-nome','usr-ini','usr-email'].forEach(id=>document.getElementById(id).value='');
@@ -14400,8 +14398,9 @@ function _abrirModalUsrNovo(delBtn){
   _setDisplay(document.getElementById('usr-proj-section'), false, 'block');
   renderVinculosProj([]);
   _setDisplay(delBtn, false, 'inline-flex');
+  _setDisplay(blockBtn, false, 'inline-flex');
 }
-function _abrirModalUsrEdicao(idx, delBtn){
+function _abrirModalUsrEdicao(idx, delBtn, blockBtn){
   const u = USUARIOS[idx];
   const perfis = getPerfisUsuario(u);
   const primaryPerfil = u.perfil || perfis[0] || 'dono';
@@ -14422,6 +14421,21 @@ function _abrirModalUsrEdicao(idx, delBtn){
   renderVinculos(getMacroprocessosVinculadosUsuario(u));
   renderVinculosProj(u.projetos_vinculados||[]);
   _setDisplay(delBtn, true, 'inline-flex');
+  _setDisplay(blockBtn, usuarioLogado?.email!==u.email, 'inline-flex');
+  if(blockBtn){
+    blockBtn.textContent = u.bloqueado ? 'Desbloquear usuário' : 'Bloquear usuário';
+    blockBtn.style.background = u.bloqueado ? 'rgba(16,185,129,.14)' : 'rgba(176,28,28,.14)';
+    blockBtn.style.color = u.bloqueado ? 'var(--green)' : 'var(--red)';
+    blockBtn.style.borderColor = u.bloqueado ? 'rgba(16,185,129,.35)' : 'rgba(176,28,28,.35)';
+  }
+}
+
+async function alternarBloqueioUsrModal(){
+  const idxStr = document.getElementById('usr-idx')?.value;
+  if(idxStr==null || idxStr==='') return;
+  const idx = Number.parseInt(idxStr,10);
+  await bloquearUsuario(idx);
+  abrirModalUsr(idx);
 }
 function _abrirModalUsrPerfis(primaryPerfil, perfis){
   const extra=document.getElementById('usr-gerproj-extra');
