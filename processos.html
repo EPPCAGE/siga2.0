@@ -14767,17 +14767,15 @@ async function migrarCustomClaims() {
 
     const migrate = httpsCallable(functions, 'migrateAllUserClaims');
 
-    // Obter token do usuário atual
+    // Verificar se usuário está autenticado
     const user = auth.currentUser;
     if (!user) {
       toast('Usuário não autenticado', 'var(--red)');
       return;
     }
 
-    const token = await user.getIdToken();
-
-    // Chamar Cloud Function
-    const result = await migrate({ _token: token });
+    // Chamar Cloud Function - o Firebase SDK envia o token automaticamente
+    const result = await migrate({});
     
     console.log('Resultado da migração:', result.data);
 

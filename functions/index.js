@@ -27,14 +27,26 @@ function setCorsHeaders(req, res) {
 }
 
 async function verifyToken(req, res) {
-  const idToken = req.body?._token;
+  // Aceitar token do body (_token) ou do header Authorization
+  let idToken = req.body?._token;
+  
+  // Se não veio no body, tentar pegar do header Authorization
+  if (!idToken) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      idToken = authHeader.substring(7); // Remove "Bearer "
+    }
+  }
+  
   if (!idToken) {
     res.status(401).json({ error: "Autenticação necessária" });
     return null;
   }
+  
   try {
     return await admin.auth().verifyIdToken(idToken);
-  } catch {
+  } catch (error) {
+    console.error('Token verification error:', error);
     res.status(401).json({ error: "Token inválido ou expirado" });
     return null;
   }
