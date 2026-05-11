@@ -206,3 +206,93 @@ exports.ai = onRequest(
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// migrateAllUserClaims — Migra perfis de TODOS os usuários para Custom Claims.
+// Esta função deve ser executada UMA VEZ após o primeiro deploy da Fase 1.
+// Requer autenticação e perfil EP.
+// ---------------------------------------------------------------------------
+exports.migrateAllUserClaims = onRequest(async (req, res) => {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+  const decoded = await verifyToken(req, res);
+  if (!decoded) return;
+
+  // Verificar se quem está chamando é EP
+  try {
+    const doc = await admin.firestore().doc("config/usuarios").get();
+    const rawData = doc.exists ? doc.data()?.data : null;
+    const usuarios = typeof rawData === "string" ? JSON.parse(rawData) : [];
+    const caller = Array.isArray(usuarios)
+      ? usuarios.find(u => u?.email === decoded.email)
+      : null;
+
+    if (!caller || caller.perfil !== 'ep') {
+      res.status(403).json({ error: "Apenas usuários EP podem executar migração" });
+      return;
+    }
+
+    // Processar todos os usuários
+    const resultados = {
+      total: usuarios.length,
+      sucesso: 0,
+      erros: 0,
+      detalhes: []
+    };
+
+    for (const usuario of usuarios) {
+      try {
+        const { id: uid, perfil, email } = usuario;
+        
+        if (!uid) {
+          resultados.erros++;
+          resultados.detalhes.push({
+            email: email || 'N/A',
+            erro: 'UID ausente'
+          });
+          continue;
+        }
+
+        if (!perfil) {
+          resultados.erros++;
+          resultados.detalhes.push({
+            uid,
+            email: email || 'N/A',
+            erro: 'Perfil ausente'
+          });
+          continue;
+        }
+
+        // Setar Custom Claim
+        await admin.auth().setCustomUserClaims(uid, { perfil });
+        resultados.sucesso++;
+        
+        console.log(`Claim migrado: uid=${uid}, perfil=${perfil}`);
+        
+      } catch (error) {
+        resultados.erros++;
+        resultados.detalhes.push({
+          uid: usuario.id,
+          email: usuario.email || 'N/A',
+          erro: error.message
+        });
+        console.error(`Erro ao migrar usuário ${usuario.id}:`, error);
+      }
+    }
+
+    console.log('Migração concluída:', resultados);
+    res.status(200).json({
+      ok: true,
+      resultados
+    });
+    
+  } catch (error) {
+    console.error('Erro na migração de claims:', error);
+    res.status(500).json({ 
+      error: "Erro interno durante migração",
+      message: error.message 
+    });
+  }
+});
