@@ -2298,7 +2298,7 @@ function abrirModalUsuarios(){
 
 function _aplicarUsuario(user){
   user = _normalizarUsuarioPerfil(user);
-  usuarioLogado=user;
+  globalThis.usuarioLogado=user;
   document.getElementById('login-err').style.display='none';
   document.getElementById('login-screen').style.display='none';
   if(user.bloqueado){
@@ -3079,7 +3079,7 @@ function excluirSolicitacao(id){
   if(!sol) return;
   if(!_solPodeExcluir(sol)){ toast('Esta solicitação não pode ser excluída.','var(--amber)'); return; }
   confirmar('Excluir esta solicitação?\n\nEsta ação removerá o pedido da lista de solicitações.',()=>{
-    solicitacoes = solicitacoes.filter(s=>s.id!==id);
+    globalThis.solicitacoes = globalThis.solicitacoes.filter(s=>s.id!==id);
     if(fbReady()){
       solicitacoesRepository.remove(id).catch(e=>console.warn('deleteSolicitacao error:',e.message));
     }
@@ -16053,12 +16053,12 @@ async function fbLoad(){
 async function _fbLoadUsuarios(){
   try {
     const usrDocFirst = await configRepository.get('usuarios', {fromServer:true});
-    if(usrDocFirst.exists() && usrDocFirst.data().data) USUARIOS = JSON.parse(usrDocFirst.data().data);
+    if(usrDocFirst.exists() && usrDocFirst.data().data) globalThis.USUARIOS = JSON.parse(usrDocFirst.data().data);
   } catch(error_){
     console.warn('fbLoad: fallback para cache local de usuarios:', error_.message);
     try {
       const usrDocCache = await configRepository.get('usuarios');
-      if(usrDocCache.exists() && usrDocCache.data().data) USUARIOS = JSON.parse(usrDocCache.data().data);
+      if(usrDocCache.exists() && usrDocCache.data().data) globalThis.USUARIOS = JSON.parse(usrDocCache.data().data);
     } catch(cacheError){
       console.warn('fbLoad: erro ao carregar usuarios:', cacheError.message);
     }
