@@ -4736,7 +4736,7 @@ function projStrategyRelatedHtml(kind, values) {
   return `<div class="proj-v10-related"><div class="proj-v10-related-title">Projetos relacionados</div>${
     values.length ? values.map(v => {
       const ps = projProjetosRelacionados(kind, v);
-      return `<div class="proj-v10-related-group"><div class="proj-v10-related-name">${projEsc(v)} <span style="color:var(--ink3);font-weight:700">(${ps.length})</span></div>${ps.length ? ps.map(p => `<a href="#" class="proj-v10-chart-project" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)">${projIconHtml(p)}<span>${projEsc(p.nome||'Projeto sem nome')}</span></a>`).join('') : '<div style="font-size:11px;color:var(--ink3)">Nenhum projeto vinculado.</div>'}</div>`;
+      return `<div class="proj-v10-related-group"><div class="proj-v10-related-name">${projEsc(v)} <span style="color:var(--ink3);font-weight:700">(${ps.length})</span></div>${ps.length ? ps.map(p => `<a href="#" class="proj-v10-chart-project" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)">${projIconHtml(p)}<span>${projEsc(p.nome||'Projeto sem nome')}</span></a>`).join('') : '<div style="font-size:11px;color:var(--ink3)">-</div>'}</div>`;
     }).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum item cadastrado.</div>'
   }</div>`;
 }
@@ -4774,7 +4774,7 @@ function projStrategyGroupMeta(kind, group) {
 
 function projStrategyProjectLinks(kind, value) {
   const ps = projProjetosRelacionados(kind, value);
-  return ps.length ? ps.map(p => `<a href="#" class="proj-strategy-project" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)">${projIconHtml(p)}<span>${projEsc(p.nome||'Projeto sem nome')}</span></a>`).join('') : '<div class="proj-strategy-empty">Nenhum projeto vinculado</div>';
+  return ps.length ? ps.map(p => `<a href="#" class="proj-strategy-project" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)">${projIconHtml(p)}<span>${projEsc(p.nome||'Projeto sem nome')}</span></a>`).join('') : '<div class="proj-strategy-empty">-</div>';
 }
 
 function projStrategyGroupIcon(kind, group) {
