@@ -258,13 +258,13 @@ exports.migrateAllUserClaims = onCall(async (request) => {
 
     for (const usuario of usuarios) {
       try {
-        const { id: uid, perfil, email } = usuario;
+        const { perfil, email } = usuario;
         
-        if (!uid) {
+        if (!email) {
           resultados.erros++;
           resultados.detalhes.push({
-            email: email || 'N/A',
-            erro: 'UID ausente'
+            nome: usuario.nome || 'N/A',
+            erro: 'E-mail ausente'
           });
           continue;
         }
@@ -272,9 +272,22 @@ exports.migrateAllUserClaims = onCall(async (request) => {
         if (!perfil) {
           resultados.erros++;
           resultados.detalhes.push({
-            uid,
-            email: email || 'N/A',
+            email: email,
             erro: 'Perfil ausente'
+          });
+          continue;
+        }
+
+        // Buscar UID do Firebase Auth pelo e-mail
+        let uid;
+        try {
+          const userRecord = await admin.auth().getUserByEmail(email);
+          uid = userRecord.uid;
+        } catch (authError) {
+          resultados.erros++;
+          resultados.detalhes.push({
+            email: email,
+            erro: `Usuário não encontrado no Firebase Auth: ${authError.message}`
           });
           continue;
         }
@@ -283,16 +296,15 @@ exports.migrateAllUserClaims = onCall(async (request) => {
         await admin.auth().setCustomUserClaims(uid, { perfil });
         resultados.sucesso++;
         
-        console.log(`Claim migrado: uid=${uid}, perfil=${perfil}`);
+        console.log(`Claim migrado: uid=${uid}, email=${email}, perfil=${perfil}`);
         
       } catch (error) {
         resultados.erros++;
         resultados.detalhes.push({
-          uid: usuario.id,
           email: usuario.email || 'N/A',
           erro: error.message
         });
-        console.error(`Erro ao migrar usuário ${usuario.id}:`, error);
+        console.error(`Erro ao migrar usuário ${usuario.email}:`, error);
       }
     }
 
