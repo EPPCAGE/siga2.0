@@ -676,19 +676,18 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
 .proj-rocket-status-flag {
   position: absolute;
-  right: -18px;
-  top: -1px;
-  bottom: -1px;
-  width: 18px;
-  border: 1px solid rgba(255,255,255,.16);
-  border-left: 0;
-  border-radius: 0 8px 8px 0;
-  box-shadow: 0 2px 8px rgba(15,23,42,.24);
+  right: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 999px;
+  opacity: .68;
+  box-shadow: 6px 0 14px currentColor;
 }
 
-.proj-rocket-status-flag.ok { background: #16a34a; }
-.proj-rocket-status-flag.warn { background: #f59e0b; }
-.proj-rocket-status-flag.danger { background: #dc2626; }
+.proj-rocket-status-flag.ok { background: #16a34a; color: rgba(22,163,74,.35); }
+.proj-rocket-status-flag.warn { background: #f59e0b; color: rgba(245,158,11,.35); }
+.proj-rocket-status-flag.danger { background: #dc2626; color: rgba(220,38,38,.35); }
 
 .proj-rocket-name {
   font-family: var(--fb);
@@ -1905,15 +1904,14 @@ select.proj-fi { cursor:pointer; }
   border-bottom:1px solid rgba(255,255,255,.78);
 }
 .proj-strategy-visual.macros .proj-strategy-side {
-  background:#ffffff;
-  color:#06476d;
+  background:#005a83;
+  color:#fff;
   border-radius:0;
-  border:1px solid #dbe8f3;
-  border-right:0;
+  border:0;
 }
 .proj-strategy-visual.macros .proj-strategy-side-icon {
-  border-color:rgba(0,90,131,.32);
-  color:#005a83;
+  border-color:rgba(255,255,255,.82);
+  color:#fff;
 }
 .proj-strategy-visual.macros .proj-strategy-band-head {
   display:none;
