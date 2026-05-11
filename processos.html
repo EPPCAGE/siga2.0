@@ -7433,13 +7433,26 @@ async function gerarFAQIA(){
   const btn=document.getElementById('btn-gerar-faq');
   const st=document.getElementById('faq-ia-status');
   if(btn) btn.disabled=true;
+  // Captura valores atuais do DOM/estado para evitar gerar FAQ com contexto defasado.
+  _rsPOP(p);
+  const popObj=(document.getElementById('pp-obj')?.value||'').trim()||p.form?.pop?.obj||p.objetivo||'';
+  const popEnt=(document.getElementById('pp-ent')?.value||'').trim()||p.form?.pop?.ent||p.ent?.entradas||'';
+  const popSai=(document.getElementById('pp-sai')?.value||'').trim()||p.form?.pop?.sai||p.ent?.saidas||'';
+  const asIsAtual=((p.mod?.asIs||'').trim()||'').substring(0,3000);
+  const etapasDetalhadas=(p.mod?.etapas_proc||[])
+    .map((e,i)=>`${i+1}. ${e?.nome||e?.desc||''} | Tipo: ${e?.tipo||'Atividade'} | Responsavel: ${e?.resp||e?.executor||'Nao informado'}`)
+    .join('\n');
   const payload={
     processo: p.nome,
-    objetivo: p.objetivo||'',
-    etapas: (p.mod?.etapas_proc||[]).map(e=>e.nome).join(', '),
-    problemas: (p.ent?.prob||[]).map(x=>typeof x==='string'?x:x.desc||'').filter(Boolean).join('; '),
+    objetivo: popObj,
+    entradas: popEnt,
+    saidas: popSai,
     atores: p.ent?.atores||'',
-    produto: p.produto||''
+    etapas: etapasDetalhadas,
+    descricao_as_is: asIsAtual,
+    problemas: (p.ent?.prob||[]).map(x=>typeof x==='string'?x:x.desc||'').filter(Boolean).join('; '),
+    produto: p.produto||'',
+    contexto_atualizado_em: now()
   };
   try{
     const res = await chamarIA('gerar_faq', payload, st);
