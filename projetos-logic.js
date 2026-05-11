@@ -839,7 +839,7 @@ function projRenderInicio() {
               ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">` : emoji}
             </div>
             <div class="proj-rocket-label">
-              <span class="proj-rocket-status-dot ${atrasoStatus.cls}" title="${projEsc(atrasoStatus.label)}"></span>
+              <span class="proj-rocket-status-flag ${atrasoStatus.cls}" title="${projEsc(atrasoStatus.label)}"></span>
               <div class="proj-rocket-name" title="${projEsc(p.nome)}">${projEsc(p.nome)}</div>
               <div class="proj-rocket-mgr">${projEsc(p.gerente||'')}</div>
               <div class="proj-rocket-pct">${pct}%</div>
@@ -4792,7 +4792,7 @@ function projStrategyGroupIcon(kind, group) {
   return icons[key] || '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 8l14 8v16l-14 8-14-8V16z"/><path d="M24 8v16l14 8M24 24L10 16"/></svg>';
 }
 
-function projStrategyVisual(kind, values, title, subtitle, className) {
+function projStrategyVisual(kind, values, title, className) {
   const groups = {};
   (values||[]).forEach(v => {
     const parts = projStrategyParts(v);
@@ -4803,7 +4803,7 @@ function projStrategyVisual(kind, values, title, subtitle, className) {
     const meta = projStrategyGroupMeta(kind, group);
     return `<section class="proj-strategy-band"><div class="proj-strategy-side"><div class="proj-strategy-side-icon">${projStrategyGroupIcon(kind, group)}</div><div class="proj-strategy-band-title">${projEsc(meta.label)}</div></div><div class="proj-strategy-band-main"><div class="proj-strategy-band-head">${projEsc(meta.label)}</div><div class="proj-strategy-items">${items.map(item => `<article class="proj-strategy-node"><h4>${projEsc(item.name)}</h4><div class="proj-strategy-projects">${projStrategyProjectLinks(kind,item.value)}</div></article>`).join('')}</div></div></section>`;
   }).join('');
-  return `<div class="proj-strategy-visual ${className||''}"><div class="proj-card-t">${projEsc(title)}</div><div class="proj-ib proj-ib-blue" style="font-size:12px">${projEsc(subtitle)}</div>${groupsHtml || '<div style="font-size:12px;color:var(--ink3)">Nenhum item cadastrado.</div>'}</div>`;
+  return `<div class="proj-strategy-visual ${className||''}"><div class="proj-strategy-title">${projEsc(title)}</div>${groupsHtml || '<div style="font-size:12px;color:var(--ink3)">Nenhum item cadastrado.</div>'}</div>`;
 }
 
 function projToggleStrategyEditor(kind) {
@@ -4826,7 +4826,7 @@ function projRenderEstrategiaPage() {
   const el = document.getElementById('proj-estrategia-content');
   if(!el) return;
   const editors = isEP() ? `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Macroprocessos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('macro')">Abrir edição</button></div><div id="proj-strategy-editor-macro" class="proj-strategy-editor-body"><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div></div></div><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Objetivos Estratégicos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('objetivo')">Abrir edição</button></div><div id="proj-strategy-editor-objetivo" class="proj-strategy-editor-body"><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div></div></div></div>` : '';
-  el.innerHTML = `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'Objetivos estratégicos agrupados por perspectiva, com os projetos vinculados em cada área.', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'Macroprocessos organizados por tipo, com acesso direto aos projetos relacionados.', 'macros')}${editors}`;
+  el.innerHTML = `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'macros')}${editors}`;
 }
 
 function projSalvarEstrategia(kind) {

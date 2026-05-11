@@ -674,20 +674,21 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   box-shadow: 0 2px 8px rgba(0,0,0,.2);
 }
 
-.proj-rocket-status-dot {
+.proj-rocket-status-flag {
   position: absolute;
-  right: -9px;
-  top: 10px;
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 8px rgba(15,23,42,.28);
+  right: -18px;
+  top: -1px;
+  bottom: -1px;
+  width: 18px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  box-shadow: 0 2px 8px rgba(15,23,42,.24);
 }
 
-.proj-rocket-status-dot.ok { background: #16a34a; }
-.proj-rocket-status-dot.warn { background: #f59e0b; }
-.proj-rocket-status-dot.danger { background: #dc2626; }
+.proj-rocket-status-flag.ok { background: #16a34a; }
+.proj-rocket-status-flag.warn { background: #f59e0b; }
+.proj-rocket-status-flag.danger { background: #dc2626; }
 
 .proj-rocket-name {
   font-family: var(--fb);
@@ -1825,9 +1826,18 @@ select.proj-fi { cursor:pointer; }
   margin-bottom:1rem;
   box-shadow:var(--shadow);
 }
+.proj-strategy-title {
+  font-family:var(--f);
+  font-size:31px;
+  line-height:1.05;
+  font-weight:600;
+  color:var(--ink);
+  text-align:center;
+  margin:4px 0 18px;
+}
 .proj-strategy-band {
   display:grid;
-  grid-template-columns:130px 1fr;
+  grid-template-columns:170px 1fr;
   min-height:130px;
   margin-top:14px;
 }
@@ -1886,8 +1896,8 @@ select.proj-fi { cursor:pointer; }
   border-radius:0 0 18px 0;
 }
 .proj-strategy-visual.macros .proj-strategy-band-main {
-  background:#b5ddd9;
-  border-color:#ffffff;
+  background:#ffffff;
+  border-color:#dbe8f3;
 }
 .proj-strategy-visual.macros .proj-strategy-band {
   margin-top:0;
@@ -1895,13 +1905,15 @@ select.proj-fi { cursor:pointer; }
   border-bottom:1px solid rgba(255,255,255,.78);
 }
 .proj-strategy-visual.macros .proj-strategy-side {
-  background:#a9d8d4;
+  background:#ffffff;
   color:#06476d;
   border-radius:0;
+  border:1px solid #dbe8f3;
+  border-right:0;
 }
 .proj-strategy-visual.macros .proj-strategy-side-icon {
-  border-color:rgba(255,255,255,.95);
-  color:#fff;
+  border-color:rgba(0,90,131,.32);
+  color:#005a83;
 }
 .proj-strategy-visual.macros .proj-strategy-band-head {
   display:none;
