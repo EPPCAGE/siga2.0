@@ -1,4 +1,4 @@
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 
@@ -224,26 +224,28 @@ exports.ai = onRequest(
 // Esta função deve ser executada UMA VEZ após o primeiro deploy da Fase 1.
 // Requer autenticação e perfil EP.
 // ---------------------------------------------------------------------------
-exports.migrateAllUserClaims = onRequest(async (req, res) => {
-  setCorsHeaders(req, res);
-  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
-  if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+exports.migrateAllUserClaims = onCall(async (request) => {
+  // Verificar autenticação (onCall faz automaticamente)
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Usuário não autenticado');
+  }
 
-  const decoded = await verifyToken(req, res);
-  if (!decoded) return;
-
-  // Verificar se quem está chamando é EP
   try {
-    const doc = await admin.firestore().doc("config/usuarios").get();
+    const db = admin.firestore();
+    const doc = await db.doc("config/usuarios").get();
     const rawData = doc.exists ? doc.data()?.data : null;
     const usuarios = typeof rawData === "string" ? JSON.parse(rawData) : [];
+    
+    // Verificar se quem está chamando é EP
     const caller = Array.isArray(usuarios)
-      ? usuarios.find(u => u?.email === decoded.email)
+      ? usuarios.find(u => u?.email === request.auth.token.email)
       : null;
 
     if (!caller || caller.perfil !== 'ep') {
-      res.status(403).json({ error: "Apenas usuários EP podem executar migração" });
-      return;
+      throw new HttpsError(
+        'permission-denied',
+        'Apenas usuários EP podem executar migração'
+      );
     }
 
     // Processar todos os usuários
@@ -295,16 +297,18 @@ exports.migrateAllUserClaims = onRequest(async (req, res) => {
     }
 
     console.log('Migração concluída:', resultados);
-    res.status(200).json({
+    
+    // onCall retorna diretamente o objeto (não precisa de res.json)
+    return {
       ok: true,
       resultados
-    });
+    };
     
   } catch (error) {
     console.error('Erro na migração de claims:', error);
-    res.status(500).json({ 
-      error: "Erro interno durante migração",
-      message: error.message 
-    });
+    throw new HttpsError(
+      'internal',
+      `Erro interno durante migração: ${error.message}`
+    );
   }
 });
