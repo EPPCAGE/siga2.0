@@ -32,53 +32,89 @@
 
 ---
 
-## 📋 Módulos Identificados (20 módulos)
+## � Código Compartilhado (projetos.shared.js)
+
+**Problema identificado:** ~300 linhas de código duplicado entre `processos.html` e `projetos.html`
+
+### Conteúdo de `projetos.shared.js`:
+- ✅ Autenticação e login (`doLogin`, `togglePrimeiroAcesso`)
+- ✅ Gestão de perfis (`isEP`, `isDono`, `isGerenteProjeto`, `getPerfisUsuario`)
+- ✅ Verificação de acesso (`hasProcessosAccess`, `hasProjetosAccess`)
+- ✅ Navegação entre módulos (`mostrarHub`, `abrirModuloProcessos`, `abrirModuloProjetos`)
+- ✅ Gestão de usuários (`USUARIOS`, `usuarioLogado`, `_carregarUsuariosFirebase`)
+- ✅ Sistema de permissões (`aplicarPermissoes`)
+
+**Este código precisa ser extraído PRIMEIRO** para evitar duplicação e facilitar manutenção.
+
+---
+
+## 📋 Módulos Identificados (22 módulos)
 
 | # | Módulo | Linhas | Risco | Prioridade | Testes E2E | Depende de |
 |---|--------|--------|-------|------------|------------|------------|
+| **FASE 0: Código compartilhado (PRIORIDADE MÁXIMA)** |
+| 1 | 🔐 Auth/Login | ~150 | ⚪ Baixo | 🔥🔥🔥 Crítica | ❌ Criar | Firebase Auth |
+| 2 | 👤 Perfis/Usuários | ~80 | ⚪ Baixo | 🔥🔥🔥 Crítica | ❌ Criar | Firestore |
+| 3 | 🧭 Navegação/Hub | ~70 | ⚪ Baixo | 🔥🔥🔥 Crítica | ❌ Criar | Auth |
 | **FASE 1: Fundação (baixo risco, alto isolamento)** |
-| 1 | 🎓 Trilhas | ~800 | ⚪ Baixo | 🔥 Alta | ❌ Criar | - |
-| 2 | 📢 Notificações/Email | ~600 | ⚪ Baixo | 🔥 Alta | ❌ Criar | EmailJS |
-| 3 | 🔔 Avisos | ~400 | ⚪ Baixo | 🔥 Alta | ❌ Criar | - |
-| 4 | 📊 Auditoria | ~1.500 | ⚪ Baixo | 🔥 Alta | ✅ Existe | BPMN |
-| 5 | 💾 Backup/Restore | ~300 | ⚪ Baixo | 🟡 Média | ❌ Criar | - |
+| 4 | 🎓 Trilhas | ~800 | ⚪ Baixo | 🔥 Alta | ❌ Criar | - |
+| 5 | 📢 Notificações/Email | ~600 | ⚪ Baixo | 🔥 Alta | ❌ Criar | EmailJS |
+| 6 | 🔔 Avisos | ~400 | ⚪ Baixo | 🔥 Alta | ❌ Criar | - |
+| 7 | 📊 Auditoria | ~1.500 | ⚪ Baixo | 🔥 Alta | ✅ Existe | BPMN |
+| 8 | 💾 Backup/Restore | ~300 | ⚪ Baixo | 🟡 Média | ❌ Criar | - |
 | **FASE 2: Gestão de dados (médio risco)** |
-| 6 | 👥 Usuários/Admin | ~1.200 | 🟡 Médio | 🟡 Média | ❌ Criar | Auth |
-| 7 | 🏗️ Arquitetura | ~1.000 | 🟡 Médio | 🟡 Média | ❌ Criar | - |
-| 8 | 📈 KPIs/Indicadores | ~2.000 | 🟡 Médio | 🔥 Alta | ❌ Criar | IA, Processos |
-| 9 | 🎯 Metas/PAT | ~800 | 🟡 Médio | 🟡 Média | ❌ Criar | - |
-| 10 | 📝 Solicitações | ~1.200 | 🟡 Médio | 🔥 Alta | ❌ Criar | Processos, Email |
+| 9 | 🏗️ Arquitetura | ~1.000 | 🟡 Médio | 🟡 Média | ❌ Criar | - |
+| 10 | 📈 KPIs/Indicadores | ~2.000 | 🟡 Médio | 🔥 Alta | ❌ Criar | IA, Processos |
+| 11 | 🎯 Metas/PAT | ~800 | 🟡 Médio | 🟡 Média | ❌ Criar | - |
+| 12 | 📝 Solicitações | ~1.200 | 🟡 Médio | 🔥 Alta | ❌ Criar | Processos, Email |
+| 13 | 👥 Admin Usuários | ~800 | 🟡 Médio | 🟡 Média | ❌ Criar | Auth, Firestore |
 | **FASE 3: Mapeamento (alto risco, alto acoplamento)** |
-| 11 | 🗺️ BPMN Editor | ~2.500 | 🔴 Alto | 🔥 Alta | ✅ Existe | BpmnJS |
-| 12 | 📋 Ciclo de vida | ~800 | 🔴 Alto | 🔥 Alta | ✅ Existe | Processos |
-| 13 | 🎭 Etapas: Abertura | ~600 | 🔴 Alto | 🟡 Média | ✅ Existe | BPMN |
-| 14 | 🎭 Etapas: Modelagem | ~1.800 | 🔴 Alto | 🔥 Alta | ✅ Existe | BPMN, IA |
-| 15 | 🎭 Etapas: Formalização | ~1.200 | 🔴 Alto | 🟡 Média | ✅ Existe | POP, PPT |
-| 16 | 🎭 Etapas: Operação | ~400 | 🔴 Alto | 🟡 Média | ❌ Criar | - |
-| 17 | 🎭 Etapas: Auditoria Proc | ~600 | 🔴 Alto | 🟡 Média | ❌ Criar | - |
-| 18 | 📄 Geração de POP | ~1.500 | 🟡 Médio | 🔥 Alta | ❌ Criar | IA, BPMN |
-| 19 | 📊 Geração de PPT | ~800 | 🟡 Médio | 🟡 Média | ❌ Criar | IA |
-| 20 | 📊 Dashboard | ~1.000 | 🟡 Médio | 🟡 Média | ❌ Criar | KPIs, Processos |
+| 14 | 🗺️ BPMN Editor | ~2.500 | 🔴 Alto | 🔥 Alta | ✅ Existe | BpmnJS |
+| 15 | 📋 Ciclo de vida | ~800 | 🔴 Alto | 🔥 Alta | ✅ Existe | Processos |
+| 16 | 🎭 Etapas: Abertura | ~600 | 🔴 Alto | 🟡 Média | ✅ Existe | BPMN |
+| 17 | 🎭 Etapas: Modelagem | ~1.800 | 🔴 Alto | 🔥 Alta | ✅ Existe | BPMN, IA |
+| 18 | 🎭 Etapas: Formalização | ~1.200 | 🔴 Alto | 🟡 Média | ✅ Existe | POP, PPT |
+| 19 | 🎭 Etapas: Operação | ~400 | 🔴 Alto | 🟡 Média | ❌ Criar | - |
+| 20 | 🎭 Etapas: Auditoria Proc | ~600 | 🔴 Alto | 🟡 Média | ❌ Criar | - |
+| 21 | 📄 Geração de POP | ~1.500 | 🟡 Médio | 🔥 Alta | ❌ Criar | IA, BPMN |
+| 22 | 📊 Geração de PPT | ~800 | 🟡 Médio | 🟡 Média | ❌ Criar | IA |
+| 23 | 📊 Dashboard | ~1.000 | 🟡 Médio | 🟡 Média | ❌ Criar | KPIs, Processos |
 
-**Total:** ~20.100 linhas a serem extraídas
+**Total:** ~20.400 linhas a serem extraídas
 
 ---
 
 ## 🗓️ Cronograma Sugerido
 
+### **Fase 0: Código compartilhado** (1 semana) ⭐ **INÍCIO OBRIGATÓRIO**
+Extrair código usado por AMBOS os módulos (processos e projetos)
+
+**Semana 1:**
+- ✅ Análise de duplicação (`projetos.shared.js` vs `processos.html`)
+- 🔐 Módulo Auth/Login compartilhado (150 linhas)
+- 👤 Módulo Perfis/Usuários compartilhado (80 linhas)
+- 🧭 Módulo Navegação/Hub compartilhado (70 linhas)
+- 📝 Atualizar ambos módulos para usar código compartilhado
+- 🧪 Validar ambos módulos funcionando
+
+**Resultado:** ~300 linhas extraídas para `src/shared/`, zero duplicação
+
+---
+
+### **Fase 1: Fundação** (3-4 semanas)
 ### **Fase 1: Fundação** (3-4 semanas)
 Extrair módulos isolados e de baixo risco
 
-**Semana 1:**
+**Semana 2:**
 - ✅ Estrutura base de modularização
 - 🎓 Módulo Trilhas (800 linhas)
 - 📢 Módulo Notificações (600 linhas)
 
-**Semana 2:**
+**Semana 3:**
 - 🔔 Módulo Avisos (400 linhas)
 - 📊 Módulo Auditoria (1.500 linhas)
 
-**Semana 3:**
+**Semana 4:**
 - 💾 Módulo Backup (300 linhas)
 - 📝 Documentação e validação
 
@@ -87,9 +123,6 @@ Extrair módulos isolados e de baixo risco
 ---
 
 ### **Fase 2: Gestão de dados** (4-5 semanas)
-
-**Semana 4:**
-- 👥 Módulo Usuários/Admin (1.200 linhas)
 
 **Semana 5:**
 - 🏗️ Módulo Arquitetura (1.000 linhas)
@@ -102,31 +135,34 @@ Extrair módulos isolados e de baixo risco
 - 📝 Módulo Solicitações (1.200 linhas)
 
 **Semana 8:**
+- 👥 Módulo Admin Usuários (800 linhas)
+
+**Semana 9:**
 - 📝 Testes e validação
 
-**Resultado:** ~6.200 linhas adicionais, sistema 50% mais modular
+**Resultado:** ~5.800 linhas adicionais, sistema 50% mais modular
 
 ---
 
 ### **Fase 3: Mapeamento** (6-8 semanas)
 
-**Semana 9-10:**
+**Semana 10-11:**
 - 🗺️ Módulo BPMN Editor (2.500 linhas)
 
-**Semana 11:**
+**Semana 12:**
 - 📋 Módulo Ciclo de vida (800 linhas)
 
-**Semana 12-13:**
+**Semana 13-14:**
 - 🎭 Módulos de Etapas: Abertura, Modelagem (2.400 linhas)
 
-**Semana 14:**
+**Semana 15:**
 - 🎭 Módulos de Etapas: Formalização, Operação, Auditoria (2.200 linhas)
 
-**Semana 15:**
+**Semana 16:**
 - 📄 Módulo Geração POP (1.500 linhas)
 - 📊 Módulo Geração PPT (800 linhas)
 
-**Semana 16:**
+**Semana 17:**
 - 📊 Módulo Dashboard (1.000 linhas)
 - 📝 Validação final
 
@@ -137,44 +173,69 @@ Extrair módulos isolados e de baixo risco
 ## 📁 Estrutura de diretórios proposta
 
 ```
-src/processos/
-├── core/
-│   ├── state-manager.js       # Store centralizado (criado gradualmente)
-│   ├── event-bus.js           # Sistema de eventos entre módulos
-│   └── router.js              # Navegação entre telas
-├── trilhas/
-│   ├── trilhas-state.js       # Estado local do módulo
-│   ├── trilhas-renderer.js    # Renderização UI
-│   ├── trilhas-controller.js  # Lógica e eventos
-│   └── trilhas-types.js       # Tipos e constantes
-├── notificacoes/
-│   ├── notificacoes-state.js
-│   ├── notificacoes-renderer.js
-│   ├── notificacoes-controller.js
-│   └── email-service.js
-├── avisos/
-│   └── ...
-├── auditoria/
-│   └── ...
-├── kpis/
-│   └── ...
-├── solicitacoes/
-│   └── ...
-├── bpmn/
-│   ├── bpmn-editor.js
-│   ├── bpmn-renderer.js
-│   └── bpmn-validators.js
-├── etapas/
-│   ├── abertura/
-│   ├── modelagem/
-│   ├── formalizacao/
-│   ├── operacao/
-│   └── auditoria/
-├── geracao/
-│   ├── pop-generator.js
-│   └── ppt-generator.js
-└── dashboard/
-    └── ...
+src/
+├── shared/                    # ⭐ FASE 0: Código compartilhado entre módulos
+│   ├── firebase-helpers.js    # (já existe)
+│   ├── firestore-repositories.js  # (já existe)
+│   ├── org-config.js          # (já existe)
+│   ├── tenant-config.js       # (já existe)
+│   ├── auth/                  # ⭐ NOVO: Autenticação compartilhada
+│   │   ├── auth-state.js      # Estado do usuário logado
+│   │   ├── auth-controller.js # Login, logout, primeiro acesso
+│   │   └── auth-ui.js         # UI de login
+│   ├── users/                 # ⭐ NOVO: Gestão de usuários compartilhada
+│   │   ├── users-repository.js   # Acesso ao Firestore config/usuarios
+│   │   ├── users-permissions.js  # isEP(), isDono(), etc
+│   │   └── users-types.js        # PERFIL_LABELS, tipos
+│   └── navigation/            # ⭐ NOVO: Navegação compartilhada
+│       ├── hub-controller.js  # Hub central de módulos
+│       ├── module-router.js   # Roteamento entre processos/projetos
+│       └── hub-ui.js          # Interface do hub
+├── processos/
+│   ├── core/
+│   │   ├── state-manager.js       # Store centralizado (criado gradualmente)
+│   │   ├── event-bus.js           # Sistema de eventos entre módulos
+│   │   └── router.js              # Navegação entre telas
+│   ├── trilhas/
+│   │   ├── trilhas-state.js       # Estado local do módulo
+│   │   ├── trilhas-renderer.js    # Renderização UI
+│   │   ├── trilhas-controller.js  # Lógica e eventos
+│   │   └── trilhas-types.js       # Tipos e constantes
+│   ├── notificacoes/
+│   │   ├── notificacoes-state.js
+│   │   ├── notificacoes-renderer.js
+│   │   ├── notificacoes-controller.js
+│   │   └── email-service.js
+│   ├── avisos/
+│   │   └── ...
+│   ├── auditoria/
+│   │   └── ...
+│   ├── kpis/
+│   │   └── ...
+│   ├── solicitacoes/
+│   │   └── ...
+│   ├── bpmn/
+│   │   ├── bpmn-editor.js
+│   │   ├── bpmn-renderer.js
+│   │   └── bpmn-validators.js
+│   ├── etapas/
+│   │   ├── abertura/
+│   │   ├── modelagem/
+│   │   ├── formalizacao/
+│   │   ├── operacao/
+│   │   └── auditoria/
+│   ├── geracao/
+│   │   ├── pop-generator.js
+│   │   └── ppt-generator.js
+│   └── dashboard/
+│       └── ...
+└── projetos/                  # Módulo de projetos (usa src/shared/)
+    ├── core/
+    │   └── ...
+    ├── portfolio/
+    │   └── ...
+    └── programas/
+        └── ...
 ```
 
 ---
@@ -209,14 +270,16 @@ Para cada módulo extraído:
 
 ## 📈 Métricas de sucesso
 
-| Métrica | Início | Meta Fase 1 | Meta Fase 2 | Meta Fase 3 |
-|---------|--------|-------------|-------------|-------------|
-| Linhas em processos.html | 18.000 | 14.400 | 8.200 | <2.000 |
-| Módulos independentes | 0 | 5 | 10 | 20 |
-| Variáveis globais | 20+ | 15 | 8 | 0 |
-| Handlers inline | 300+ | 200 | 100 | 0 |
-| Cobertura testes E2E | 40% | 50% | 70% | 90% |
-| Tempo onboarding dev | 2-3 sem | 1-2 sem | 5-7 dias | 3-5 dias |
+| Métrica | Início | Meta Fase 0 | Meta Fase 1 | Meta Fase 2 | Meta Fase 3 |
+|---------|--------|-------------|-------------|-------------|-------------|
+| Duplicação de código | ~300 linhas | 0 | 0 | 0 | 0 |
+| Linhas em processos.html | 18.000 | 18.000 | 14.400 | 8.600 | <2.000 |
+| Linhas em projetos.shared.js | 300 | 0 | 0 | 0 | 0 |
+| Módulos independentes | 0 | 3 | 8 | 13 | 23 |
+| Variáveis globais | 20+ | 18 | 13 | 6 | 0 |
+| Handlers inline | 300+ | 300+ | 200 | 100 | 0 |
+| Cobertura testes E2E | 40% | 45% | 55% | 75% | 95% |
+| Tempo onboarding dev | 2-3 sem | 1.5-2 sem | 1-1.5 sem | 5-7 dias | 2-3 dias |
 
 ---
 
@@ -238,17 +301,42 @@ Para cada módulo extraído:
 
 ## 🎯 Próximo passo imediato
 
-**Iniciar Fase 1 extraindo módulo Trilhas:**
+**⭐ Iniciar FASE 0 extraindo código compartilhado:**
 
-1. Criar branch `feature/modularizacao-trilhas`
-2. Criar testes E2E para trilhas
-3. Extrair código para `src/processos/trilhas/`
-4. Validar com testes
-5. Merge na main
+### Etapa 1: Análise de duplicação (2h)
+1. Mapear todas as funções duplicadas entre `processos.html` e `projetos.shared.js`
+2. Identificar dependências de cada função
+3. Planejar ordem de extração
 
-**Tempo estimado:** 1-2 dias  
-**Linhas extraídas:** 800  
-**Risco:** Baixo
+### Etapa 2: Módulo Auth/Login (1 dia)
+1. Criar branch `feature/fase0-auth-compartilhado`
+2. Criar `src/shared/auth/auth-controller.js`
+3. Mover `doLogin()`, `togglePrimeiroAcesso()`, etc.
+4. Atualizar `processos.html` e `projetos.html` para usar módulo compartilhado
+5. Testar login em ambos módulos
+
+### Etapa 3: Módulo Perfis/Usuários (1 dia)
+1. Criar `src/shared/users/users-permissions.js`
+2. Mover `isEP()`, `isDono()`, `getPerfisUsuario()`, etc.
+3. Atualizar ambos módulos
+4. Testar permissões em ambos módulos
+
+### Etapa 4: Módulo Navegação/Hub (1 dia)
+1. Criar `src/shared/navigation/hub-controller.js`
+2. Mover `mostrarHub()`, `abrirModuloProcessos()`, etc.
+3. Atualizar ambos módulos
+4. Testar navegação entre módulos
+
+### Etapa 5: Remover `projetos.shared.js` (2h)
+1. Validar que todo código foi migrado
+2. Remover arquivo `projetos.shared.js`
+3. Remover `<script src="projetos.shared.js">` de `projetos.html`
+4. Merge na main
+
+**Tempo total estimado:** 3-4 dias  
+**Linhas extraídas:** ~300  
+**Linhas duplicadas removidas:** ~300  
+**Risco:** ⚪ Baixo (código já testado em produção)
 
 ---
 
