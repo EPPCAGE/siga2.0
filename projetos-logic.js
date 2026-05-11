@@ -633,7 +633,6 @@ function projGo(pageId, btnEl) {
   // Render page
   switch(pageId) {
     case 'inicio':    projRenderInicio(); break;
-    case 'painel-geral': projRenderPainelGeral(); break;
     case 'portfolio': projRenderPortfolio(); break;
     case 'concluidos': projRenderConcluidos(); break;
     case 'programas': progRenderPage(); break;
@@ -832,7 +831,7 @@ function projRenderInicio() {
           <div class="proj-launchpad-lane-grid">${gridSegs}</div>
           <div class="proj-rocket" id="proj-rocket-${p.id}"
                data-id="${p.id}" data-pct="${pct}"
-               style="left:calc(${pct}% - 22px)"
+               style="left:${projRocketLeftStyle(pct)}"
                onmousedown="projRocketUnifiedDrag(event,'${p.id}')"
                ontouchstart="projRocketUnifiedDrag(event,'${p.id}')"
                ondblclick="projAbrirDetalhe('${p.id}')">
@@ -922,11 +921,14 @@ function projDragPoint(ev) {
   const point = ev.touches ? ev.touches[0] : ev.changedTouches ? ev.changedTouches[0] : ev;
   return { x: point.clientX, y: point.clientY };
 }
+function projRocketLeftStyle(pct) {
+  return Number(pct) <= 0 ? '4px' : `calc(${pct}% - 22px)`;
+}
 function projRocketSetPct(rocket, laneRect, clientX) {
   let relX = clientX - laneRect.left;
   relX = Math.max(0, Math.min(relX, laneRect.width));
   const pct = Math.round((relX / laneRect.width) * 100);
-  rocket.style.left = `calc(${pct}% - 22px)`;
+  rocket.style.left = projRocketLeftStyle(pct);
   rocket.dataset.pct = String(pct);
   const pctEl = rocket.querySelector('.proj-rocket-pct');
   if(pctEl) pctEl.textContent = pct + '%';
@@ -1102,22 +1104,6 @@ function projToggleReuniao(projetoId, reuniaoId) {
 }
 
 function projAtualizarBadgeReunioes() {
-  const { mes, ano } = projGetMesAtual();
-  let pendentes = 0;
-  PROJETOS.forEach(p => {
-    (p.execucao?.reunioes||[]).forEach(r => {
-      const isCurrentMonth = !r.data || (() => {
-        const d = new Date(r.data);
-        return d.getMonth() === mes && d.getFullYear() === ano;
-      })();
-      if(isCurrentMonth && !r.realizada) pendentes++;
-    });
-  });
-  const badge = document.getElementById('pnb-reunioes-cnt');
-  if(badge) {
-    badge.textContent = pendentes;
-    badge.style.display = pendentes > 0 ? 'inline-block' : 'none';
-  }
 }
 
 // ════════════════════════════════════════════════════════════════════
