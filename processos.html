@@ -14379,7 +14379,7 @@ async function _salvarUsrCriarConta(email, nome){
 }
 function _salvarUsrAtualizarSessao(idx, email, nome, perfil){
   if(usuarioLogado?.email!==email) return;
-  usuarioLogado = USUARIOS[idx];
+  globalThis.usuarioLogado = USUARIOS[idx];
   document.getElementById('aside-name').textContent = nome;
   document.getElementById('aside-role').textContent = PERFIL_LABELS[perfil]||perfil;
 }
