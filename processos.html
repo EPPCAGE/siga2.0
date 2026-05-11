@@ -25,6 +25,12 @@
 <script src="src/shared/org-config.js"></script>
 <script src="src/shared/firebase-helpers.js"></script>
 <script src="src/shared/firestore-repositories.js"></script>
+<!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
+<script src="src/shared/users/users-state.js"></script>
+<script src="src/shared/users/users-permissions.js"></script>
+<script src="src/shared/auth/auth-controller.js"></script>
+<script src="src/shared/navigation/navigation-controller.js"></script>
+<!-- Módulos específicos de processos -->
 <script src="src/processos/app-constants.js"></script>
 <script src="src/processos/security-utils.js"></script>
 <script src="src/processos/storage-utils.js"></script>
@@ -2045,9 +2051,13 @@ async function _iniciarSessaoUnica(uid) {
     console.warn('Sessão única: erro ao registrar.', e.message);
   }
 }
-let USUARIOS = [
-  {email:ORG_CONFIG.localEpEmail,nome:ORG_CONFIG.epTeamName,perfil:'ep',iniciais:'EP'},
-];
+
+// ⭐ FASE 0: Variáveis movidas para src/shared/users/users-state.js
+// let USUARIOS = [...];
+// let solicitacoes = [];
+// let usuarioLogado = null;
+// const DOMINIOS_PERMITIDOS = [...];
+
 let PROJETOS_USUARIOS = [];
 let dominios = ORG_CONFIG.allowedDomains.map(dominio=>({
   dominio,
@@ -2364,8 +2374,12 @@ function togglePerfilEP(){
   const msg=usuarioLogado.perfil==='dono'?'Simulando perfil Executor de Processo':'Voltou ao perfil '+ORG_CONFIG.supportTeamLabel;
   toast(msg, usuarioLogado.perfil==='dono'?'var(--amber)':'var(--teal)');
 }
-const DOMINIOS_PERMITIDOS = ORG_CONFIG.allowedDomains;
 
+// ⭐ FASE 0: Constante movida para src/shared/users/users-state.js
+// const DOMINIOS_PERMITIDOS = ORG_CONFIG.allowedDomains;
+
+// ⭐ FASE 0: Função movida para src/shared/auth/auth-controller.js
+/* async function doLogin() {...} */
 async function doLogin(){
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   const senha = document.getElementById('login-senha').value;
@@ -3656,18 +3670,14 @@ function taskCard(p,ACT){
 // DASHBOARD
 // ═══════════════════════════════════════════
 
-// ─── PERMISSÕES ───────────────────────────────────────────
-function getPerfisUsuario(u){
-  u = u || usuarioLogado;
-  if(!u) return [];
-  if(Array.isArray(u.perfis) && u.perfis.length) return [...new Set(u.perfis.filter(Boolean))];
-  return u.perfil ? [u.perfil] : [];
-}
-function hasPerfil(p, u){ return getPerfisUsuario(u || usuarioLogado).includes(p); }
-function hasProcessosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('dono')||ps.includes('gestor'); }
-function hasProjetosAccess(u){ const ps=getPerfisUsuario(u||usuarioLogado); return ps.includes('ep')||ps.includes('gestor')||ps.includes('gerente_projeto'); }
-function isEP(u){ return (u || usuarioLogado)?.perfil === 'ep'; }
-function isDono(){ return hasPerfil('dono'); }
+// ⭐ FASE 0: Funções movidas para src/shared/users/users-permissions.js
+// function getPerfisUsuario(u) {...}
+// function hasPerfil(p, u) {...}
+// function hasProcessosAccess(u) {...}
+// function hasProjetosAccess(u) {...}
+// function isEP(u) {...}
+// function isDono() {...}
+
 
 
 function _aplicarPermissoesNavBtns(){

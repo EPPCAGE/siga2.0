@@ -32,6 +32,12 @@
 <script src="src/shared/org-config.js"></script>
 <script src="src/shared/firebase-helpers.js"></script>
 <script src="src/shared/firestore-repositories.js"></script>
+<!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
+<script src="src/shared/users/users-state.js"></script>
+<script src="src/shared/users/users-permissions.js"></script>
+<script src="src/shared/auth/auth-controller.js"></script>
+<script src="src/shared/navigation/navigation-controller.js"></script>
+<!-- Utilitários compartilhados -->
 <script src="src/processos/storage-utils.js"></script>
 <!-- Firebase -->
 <script type="module">
@@ -1274,7 +1280,7 @@ Não responda este e-mail.</pre>
 
 </main>
 </div>
-<script src="projetos.shared.js?v=20260508-1"></script>
+<!-- ⭐ FASE 0: projetos.shared.js removido - usando módulos compartilhados src/shared/ -->
 <script src="projetos-logic.js?v=20260511-3"></script>
 </body>
 </html>
