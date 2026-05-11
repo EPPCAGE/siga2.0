@@ -14823,6 +14823,108 @@ async function migrarCustomClaims() {
 // Expor globalmente para fácil acesso via console
 globalThis.migrarCustomClaims = migrarCustomClaims;
 
+// ── VERIFICAR CUSTOM CLAIMS (DEBUG) ──────────────────────────────────────────
+/**
+ * Função helper para verificar Custom Claims do usuário atual.
+ * Útil para debug e suporte.
+ * 
+ * USO: Execute verificarMeusClaims() no console do navegador.
+ */
+async function verificarMeusClaims() {
+  const { auth } = fb();
+  
+  if (!auth) {
+    console.log('❌ Firebase não inicializado');
+    return;
+  }
+  
+  const user = auth.currentUser;
+  
+  if (!user) {
+    console.log('❌ Usuário não autenticado. Faça login primeiro.');
+    return;
+  }
+
+  try {
+    const token = await user.getIdTokenResult();
+    
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('🔐 INFORMAÇÕES DE AUTENTICAÇÃO E CUSTOM CLAIMS');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('');
+    console.log('📧 E-mail:', user.email);
+    console.log('🆔 UID:', user.uid);
+    console.log('📛 Nome:', user.displayName || '(não definido)');
+    console.log('✅ Email verificado:', user.emailVerified ? 'Sim' : 'Não');
+    console.log('');
+    console.log('───────────────────────────────────────────────────────────');
+    console.log('CUSTOM CLAIMS');
+    console.log('───────────────────────────────────────────────────────────');
+    
+    if (token.claims.perfil) {
+      const perfilLabel = PERFIL_LABELS[token.claims.perfil] || token.claims.perfil;
+      console.log('👤 Perfil:', perfilLabel, `(${token.claims.perfil})`);
+      console.log('✅ Status: Claim setado corretamente');
+    } else {
+      console.log('⚠️  Perfil: NÃO SETADO');
+      console.log('');
+      console.log('AÇÃO NECESSÁRIA:');
+      console.log('1. Faça logout e login novamente');
+      console.log('2. Ou execute: await user.getIdToken(true)');
+      console.log('3. Se o problema persistir, peça ao EP para executar migrarCustomClaims()');
+    }
+    
+    console.log('');
+    console.log('───────────────────────────────────────────────────────────');
+    console.log('OUTROS CLAIMS');
+    console.log('───────────────────────────────────────────────────────────');
+    
+    const outrosClaims = Object.keys(token.claims)
+      .filter(k => !['iss', 'aud', 'auth_time', 'user_id', 'sub', 'iat', 'exp', 'email', 'email_verified', 'firebase'].includes(k));
+    
+    if (outrosClaims.length > 0) {
+      outrosClaims.forEach(claim => {
+        console.log(`  ${claim}:`, token.claims[claim]);
+      });
+    } else {
+      console.log('  (nenhum claim adicional)');
+    }
+    
+    console.log('');
+    console.log('───────────────────────────────────────────────────────────');
+    console.log('TOKEN INFO');
+    console.log('───────────────────────────────────────────────────────────');
+    console.log('🕐 Emitido em:', new Date(token.issuedAtTime));
+    console.log('⏰ Expira em:', new Date(token.expirationTime));
+    console.log('🔄 Renova em:', new Date(Date.now() + 3600000)); // 1h
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('');
+    
+    // Retornar objeto para inspeção
+    return {
+      email: user.email,
+      uid: user.uid,
+      perfil: token.claims.perfil,
+      claims: token.claims,
+      issuedAt: new Date(token.issuedAtTime),
+      expiresAt: new Date(token.expirationTime)
+    };
+    
+  } catch (error) {
+    console.error('❌ Erro ao verificar claims:', error);
+    console.log('');
+    console.log('Possíveis causas:');
+    console.log('- Token expirado (tente fazer logout/login)');
+    console.log('- Conexão com Firebase perdida');
+    console.log('- Erro na configuração do Firebase');
+  }
+}
+
+// Expor globalmente para fácil acesso via console
+globalThis.verificarMeusClaims = verificarMeusClaims;
+
 
 // ═══════════════════════════════════════════
 // FIREBASE — PERSISTÊNCIA
