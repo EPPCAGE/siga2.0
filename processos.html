@@ -14293,7 +14293,7 @@ function unsyncDonoProcessoUsuario({ nome, email, arqId }){
   usuario.processos_vinculados = usuario.processos_vinculados.filter(id => id !== arqIdLimpo);
 
   if(usuarioLogado?.email && normalizarTextoUsuario(usuarioLogado.email) === normalizarTextoUsuario(usuario.email)){
-    usuarioLogado = usuario;
+    globalThis.usuarioLogado = usuario;
   }
   return usuario.processos_vinculados.length !== origLen;
 }
