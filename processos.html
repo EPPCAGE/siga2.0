@@ -10180,8 +10180,13 @@ async function _getFluxogramaAsIsPng(p){
 }
 
 async function _getFluxogramaToBePng(p){
-  if(!p?.mod?.bpmnToBe) return null;
-  return renderBpmnToPng(p.mod.bpmnToBe);
+  if(!p) return null;
+  if(p.mod?.bpmnToBe) return renderBpmnToPng(p.mod.bpmnToBe);
+  const m=bpmnModelers['tobe'];
+  if(m&&bpmnProcIds['tobe']===p?.id){
+    try{const{xml}=await m.saveXML({format:true});if(xml)return renderBpmnToPng(xml);}catch{}
+  }
+  return null;
 }
 function _popPdfVolumetriaSection(e, secH, fld){
   if(!(e.vol?.exec||e.t_ciclo!=null||e.t_real!=null)) return '';
@@ -10310,8 +10315,10 @@ async function _popPdfAnexo(p){
 
   // ── 12.0 Desenho do processo (BPMN) — página separada em paisagem ────────
   let bpmnLandscape='';
-  const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs);
-  const hasBpmnT=!!(p.mod?.bpmnToBe);
+  const hasAsIsModeler=!!(bpmnModelers['asis']&&bpmnProcIds['asis']===p?.id);
+  const hasTobeModeler=!!(bpmnModelers['tobe']&&bpmnProcIds['tobe']===p?.id);
+  const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs||hasAsIsModeler);
+  const hasBpmnT=!!(p.mod?.bpmnToBe||hasTobeModeler);
   if(hasFluxoA||hasBpmnT){
     // Converte SVG para data URI de <img> — mais confiável no print que SVG inline
     // (height="auto" não é atributo SVG válido e causa altura 0 em alguns motores de impressão)
