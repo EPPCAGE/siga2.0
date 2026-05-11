@@ -167,17 +167,6 @@
   async function bootProjetosApp() {
     console.info('[projetos-boot] Iniciando...');
 
-    // Mostra tela de login enquanto carrega
-    const loginEl = document.getElementById('login-screen');
-    if (loginEl) {
-      loginEl.style.display = 'flex';
-      const btn = loginEl.querySelector('.login-btn');
-      if (btn) {
-        btn.textContent = 'Carregando...';
-        btn.disabled = true;
-      }
-    }
-
     // Tenta restaurar sessão do Firebase ou local
     if (globalScope.fbReady && globalScope.fbReady()) {
       await bootRestoreFirebaseSession();
