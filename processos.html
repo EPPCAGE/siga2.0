@@ -38,6 +38,7 @@
   import { getFirestore, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+  import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
 
   // ── PREENCHA AQUI APÓS CRIAR O PROJETO FIREBASE
   // IMPORTANT: Do not commit real keys. Load from config.local.js or environment
@@ -60,7 +61,8 @@
       const db  = getFirestore(app);
       const auth = getAuth(app);
       const storage = getStorage(app);
-      globalThis._fb = { db, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, FIREBASE_CONFIG };
+      const functions = getFunctions(app);
+      globalThis._fb = { db, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, functions, httpsCallable, FIREBASE_CONFIG };
       globalThis._fbReady = true;
       console.info('Firebase conectado');
     } catch(e) {
@@ -14755,8 +14757,14 @@ async function migrarCustomClaims() {
   toast('Iniciando migração de Custom Claims...', 'var(--blue)');
 
   try {
-    const { getFunctions, httpsCallable } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js');
-    const functions = getFunctions();
+    // Usar instâncias globais do Firebase que já estão inicializadas
+    const { functions, httpsCallable, auth } = fb();
+    
+    if (!functions) {
+      toast('Firebase Functions não inicializado. Recarregue a página.', 'var(--red)');
+      return;
+    }
+
     const migrate = httpsCallable(functions, 'migrateAllUserClaims');
 
     // Obter token do usuário atual
