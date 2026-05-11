@@ -1,0 +1,188 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Verifica Custom Claim {perfil} setado pela Cloud Function.
+    // IMPORTANTE: Claims são setados após login via setUserClaims.
+    // Usuários devem fazer getIdToken(true) para renovar o token.
+    function isEP() {
+      return isAuth() && request.auth.token.get('perfil', '') == 'ep';
+    }
+    
+    function isDono() {
+      return isAuth() && request.auth.token.get('perfil', '') == 'dono';
+    }
+    
+    function isGestor() {
+      return isAuth() && request.auth.token.get('perfil', '') == 'gestor';
+    }
+    
+    function isGerenteProjeto() {
+      return isAuth() && request.auth.token.get('perfil', '') == 'gerente_projeto';
+    }
+
+    // ---------------------------------------------------------------------------
+    // config/ — MIGRAÇÃO GRADUAL
+    // Fase 1: Leitura autenticada (atual)
+    // Fase 2: Leitura via Cloud Function checkEmail (futuro)
+    // ---------------------------------------------------------------------------
+    match /config/{docId} {
+      // FASE 1 (ATUAL): Mantém leitura autenticada
+      allow read: if isAuth();
+      allow write: if isEP();
+      
+      // FASE 2 (FUTURO): Remover read, usar apenas checkEmail function
+      // allow read: if false;  // Forçar uso de checkEmail
+      // allow write: if isEP();
+    }
+
+    // ---------------------------------------------------------------------------
+    // processos/ — REGRAS MELHORADAS
+    // EP: leitura/escrita total
+    // Dono: pode editar apenas seus próprios processos
+    // Gestor: pode ler tudo, mas não editar
+    // ---------------------------------------------------------------------------
+    match /processos/{procId} {
+      allow read: if isAuth();  // Todos podem ler
+      
+      allow create: if isAuth();  // Qualquer um pode criar
+      
+      allow update: if isAuth() && (
+        isEP() ||  // EP pode editar tudo
+        resource.data.dono == request.auth.uid  // Dono pode editar próprio
+      );
+      
+      allow delete: if isEP();  // Apenas EP pode deletar
+    }
+
+    // ---------------------------------------------------------------------------
+    // publicacoes/ — Apenas EP publica e edita
+    // ---------------------------------------------------------------------------
+    match /publicacoes/{pubId} {
+      allow read: if isAuth();
+      allow write: if isEP();
+    }
+
+    // ---------------------------------------------------------------------------
+    // kpis/ — Donos editam seus próprios indicadores
+    // ---------------------------------------------------------------------------
+    match /kpis/{id} {
+      allow read: if isAuth();
+      
+      allow create: if isAuth();
+      
+      allow update: if isAuth() && (
+        isEP() ||
+        resource.data.responsavel == request.auth.email ||
+        resource.data.responsavel_uid == request.auth.uid
+      );
+      
+      allow delete: if isEP();
+    }
+
+    // ---------------------------------------------------------------------------
+    // relatorios_ind/ — Mesma lógica de kpis
+    // ---------------------------------------------------------------------------
+    match /relatorios_ind/{id} {
+      allow read: if isAuth();
+      
+      allow create: if isAuth();
+      
+      allow update: if isAuth() && (
+        isEP() ||
+        resource.data.responsavel == request.auth.email
+      );
+      
+      allow delete: if isEP();
+    }
+
+    // ---------------------------------------------------------------------------
+    // Conteúdo institucional — Apenas EP gerencia
+    // ---------------------------------------------------------------------------
+    match /plano/{id}       { allow read: if isAuth(); allow write: if isEP(); }
+    match /trilhas/{id}     { allow read: if isAuth(); allow write: if isEP(); }
+    match /avisos/{id}      { allow read: if isAuth(); allow write: if isEP(); }
+    match /arquitetura/{id} { allow read: if isAuth(); allow write: if isEP(); }
+    match /plano_metas/{id} { allow read: if isAuth(); allow write: if isEP(); }
+
+    // ---------------------------------------------------------------------------
+    // solicitacoes/ — Fluxo de aprovação
+    // Criador pode editar enquanto não aprovada
+    // EP pode aprovar/rejeitar
+    // ---------------------------------------------------------------------------
+    match /solicitacoes/{id} {
+      allow read: if isAuth();
+      
+      allow create: if isAuth();
+      
+      allow update: if isAuth() && (
+        isEP() ||  // EP pode tudo (aprovar, rejeitar, editar)
+        (resource.data.solicitante_email == request.auth.email &&
+         resource.data.status != 'aprovada')  // Solicitante pode editar se não aprovada
+      );
+      
+      allow delete: if isEP();
+    }
+
+    // ---------------------------------------------------------------------------
+    // notifs/ — Notificações: criador pode criar, EP pode editar
+    // ---------------------------------------------------------------------------
+    match /notifs/{id} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isEP();
+      allow delete: if isEP();
+    }
+
+    // ---------------------------------------------------------------------------
+    // sessions/ — Cada usuário acessa apenas a própria sessão
+    // ---------------------------------------------------------------------------
+    match /sessions/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------------------------
+    // projetos/ — Gerentes de projeto e EP podem editar
+    // ---------------------------------------------------------------------------
+    match /projPROJETOS/{id} {
+      allow read: if isAuth();
+      
+      allow create: if isAuth() && (isEP() || isGerenteProjeto());
+      
+      allow update: if isAuth() && (
+        isEP() ||
+        (isGerenteProjeto() && 
+         resource.data.gerente_email == request.auth.email)
+      );
+      
+      allow delete: if isEP();
+    }
+
+    // ---------------------------------------------------------------------------
+    // programas/ — Apenas EP gerencia programas
+    // ---------------------------------------------------------------------------
+    match /projPROGRAMAS/{id} {
+      allow read: if isAuth();
+      allow write: if isEP();
+    }
+
+    // ---------------------------------------------------------------------------
+    // usuarios/ — Cada usuário escreve apenas no próprio documento
+    // ---------------------------------------------------------------------------
+    match /usuarios/{uid} {
+      allow read: if isAuth();
+      allow write: if isAuth() && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Regra padrão: negar tudo que não foi explicitamente permitido
+    // ---------------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
