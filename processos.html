@@ -2391,7 +2391,7 @@ async function doLogout(){
     const {auth, signOut} = fb();
     await signOut(auth).catch(()=>{});
   }
-  usuarioLogado=null;
+  globalThis.usuarioLogado=null;
   lsRemove('siga_user');
   const epToggle=document.getElementById('ep-toggle-wrap');if(epToggle)epToggle.style.display='none';
   const hub=document.getElementById('module-hub');if(hub)hub.classList.remove('on');
@@ -16093,7 +16093,7 @@ async function _fbLoadPlano(){
 async function _fbLoadSolicitacoes(){
   const solSnap = await solicitacoesRepository.list();
   if(solSnap.empty) return;
-  solicitacoes = [];
+  globalThis.solicitacoes = [];
   const limpezas = [];
   solSnap.docs.forEach(d => {
     const data = d.data;
