@@ -933,17 +933,33 @@ function projRocketApplyPct(rocket, laneRect, pct) {
   const icon = rocket.querySelector('.proj-rocket-icon');
   const iconWidth = icon ? icon.offsetWidth : 40;
   const pctX = (pct / 100) * laneRect.width;
-  const rocketWidth = rocket.offsetWidth || 0;
-  const normalLeft = pctX - iconWidth / 2;
-  const shouldFlip = normalLeft + rocketWidth > laneRect.width;
-  rocket.classList.toggle('edge-right', shouldFlip);
-  const desiredLeft = shouldFlip ? pctX - rocketWidth + iconWidth / 2 : normalLeft;
-  const maxLeft = Math.max(0, laneRect.width - rocketWidth);
-  const fittedLeft = Math.max(0, Math.min(desiredLeft, maxLeft));
-  rocket.style.left = fittedLeft + 'px';
+  rocket.style.left = Math.max(0, pctX - iconWidth / 2) + 'px';
+}
+function projResizeLaunchpadLabels(track, rockets) {
+  const DEFAULT_LABEL_WIDTH = 320;
+  const MIN_LABEL_WIDTH = 210;
+  const ICON_LABEL_GAP = 10;
+  const RIGHT_PAD = 8;
+  let labelWidth = DEFAULT_LABEL_WIDTH;
+  rockets.forEach(rocket => {
+    const lane = rocket.closest('.proj-launchpad-lane');
+    if(!lane) return;
+    const icon = rocket.querySelector('.proj-rocket-icon');
+    const iconWidth = icon ? icon.offsetWidth : 40;
+    const laneWidth = lane.getBoundingClientRect().width;
+    const pct = Math.max(0, Math.min(100, Number.parseInt(rocket.dataset.pct, 10) || 0));
+    const pctX = (pct / 100) * laneWidth;
+    const available = laneWidth - pctX - iconWidth / 2 - ICON_LABEL_GAP - RIGHT_PAD;
+    labelWidth = Math.min(labelWidth, Math.floor(available));
+  });
+  track.style.setProperty('--proj-rocket-label-width', Math.max(MIN_LABEL_WIDTH, labelWidth) + 'px');
 }
 function projFitLaunchpadRockets() {
-  document.querySelectorAll('.proj-rocket').forEach(rocket => {
+  const track = document.getElementById('proj-launchpad-track');
+  const rockets = Array.from(document.querySelectorAll('.proj-rocket'));
+  if(!track || !rockets.length) return;
+  projResizeLaunchpadLabels(track, rockets);
+  rockets.forEach(rocket => {
     const lane = rocket.closest('.proj-launchpad-lane');
     if(!lane) return;
     const pct = Math.max(0, Math.min(100, Number.parseInt(rocket.dataset.pct, 10) || 0));
@@ -961,12 +977,12 @@ function projRocketSetPct(rocket, laneRect, clientX) {
   let relX = clientX - laneRect.left;
   relX = Math.max(0, Math.min(relX, laneRect.width));
   const pct = Math.round((relX / laneRect.width) * 100);
-  projRocketApplyPct(rocket, laneRect, pct);
   rocket.dataset.pct = String(pct);
   const pctEl = rocket.querySelector('.proj-rocket-pct');
   if(pctEl) pctEl.textContent = pct + '%';
   const barFill = rocket.querySelector('.proj-rocket-bar-fill');
   if(barFill) barFill.style.width = pct + '%';
+  projFitLaunchpadRockets();
 }
 function projRocketMarkDropLane(lanes, dragLaneEl, clientY) {
   lanes.forEach(l => { l.classList.remove('lane-drop-above','lane-drop-below'); });
