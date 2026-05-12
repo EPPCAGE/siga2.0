@@ -6,6 +6,7 @@
   const _fbState = {
     saving:        false,  // true durante fbSaveAll; snapshots são pausados
     pendingRender: false,  // true se chegou update remoto enquanto salvava
+    ownSaveGrace:  false,  // true por 3s após save próprio; suprime banner falso-positivo
     listenersStarted: false,
     unsubscribers: [],
     pollTimer: null

@@ -2197,13 +2197,56 @@ let kpis = [];
 // Expõe substituição in-place para o listener onSnapshot em concurrent-edit.js.
 // Necessário porque variáveis `let` não são propriedades de globalThis,
 // então globalThis.processos e `let processos` são entidades distintas.
+//
+// Estratégia: usa docChanges() (onSnapshot real) para atualização granular,
+// evitando sobrescrever dados locais de coleções não alteradas.
+// Fallback de polling recebe snap sintético sem docChanges → substituição completa.
 globalThis._replaceProcessos = function(snap){
-  processos = [];
-  snap.forEach(function(d){ processos.push(d.data()); });
+  if(snap.docChanges){
+    snap.docChanges().forEach(function(change){
+      const data = change.doc.data();
+      if(change.type === 'removed'){
+        const idx = processos.findIndex(function(p){ return p.id === data.id; });
+        if(idx >= 0) processos.splice(idx, 1);
+      } else {
+        const idx = processos.findIndex(function(p){ return p.id === data.id; });
+        if(idx >= 0) processos[idx] = data; else processos.push(data);
+      }
+    });
+    // Avisa se o processo aberto foi modificado por outro usuário
+    if(curProc && !globalThis._fbState?.ownSaveGrace){
+      const conflict = snap.docChanges().find(function(c){
+        return c.type === 'modified' && c.doc.data().id === curProc.id;
+      });
+      if(conflict){
+        const byEmail = conflict.doc.data()._lastSavedBy || '';
+        if(typeof globalThis._fbShowConcurrentBanner === 'function'){
+          globalThis._fbShowConcurrentBanner(byEmail);
+        }
+      }
+    }
+  } else {
+    // Fallback polling: substituição completa
+    processos = [];
+    snap.forEach(function(d){ processos.push(d.data()); });
+  }
 };
 globalThis._replaceKpis = function(snap){
-  kpis = [];
-  snap.forEach(function(d){ kpis.push(d.data()); });
+  if(snap.docChanges){
+    snap.docChanges().forEach(function(change){
+      const data = change.doc.data();
+      if(change.type === 'removed'){
+        const idx = kpis.findIndex(function(k){ return k.id === data.id; });
+        if(idx >= 0) kpis.splice(idx, 1);
+      } else {
+        const idx = kpis.findIndex(function(k){ return k.id === data.id; });
+        if(idx >= 0) kpis[idx] = data; else kpis.push(data);
+      }
+    });
+  } else {
+    kpis = [];
+    snap.forEach(function(d){ kpis.push(d.data()); });
+  }
 };
 let _lastIndAnalise = '';
 let _lastIndLista   = [];
@@ -15981,8 +16024,9 @@ async function fbSaveAll(){
   try {
     // Collect all set operations (strip undefined — Firestore rejects it)
     const ops = [];
-    processos.forEach(p => ops.push({ref: processosRepository.ref(p.id), data: _fsClean(p)}));
-    kpis.forEach(k => ops.push({ref: kpisRepository.ref(k.id), data: _fsClean(k)}));
+    const _savedBy = usuarioLogado?.email || '';
+    processos.forEach(p => ops.push({ref: processosRepository.ref(p.id), data: _fsClean({...p, _lastSavedBy: _savedBy})}));
+    kpis.forEach(k => ops.push({ref: kpisRepository.ref(k.id), data: _fsClean({...k, _lastSavedBy: _savedBy})}));
     solicitacoes.filter(_solIsValida).forEach(s => ops.push({ref: solicitacoesRepository.ref(s.id), data: _fsClean(s)}));
     // Coleções restritas ao EP — ignoradas se o usuário não tiver permissão
     if(isEP()){
@@ -16016,9 +16060,13 @@ async function fbSaveAll(){
   } catch(e){
     console.warn('fbSaveAll error:', e.message); toast('⚠ Erro ao salvar na nuvem: '+e.message,'var(--red)');
   } finally {
-    // Retoma os listeners — se chegou update remoto durante o save, re-renderiza
+    // Retoma os listeners — se chegou update remoto durante o save, re-renderiza.
+    // ownSaveGrace: janela de 3s que impede o banner de conflito disparar para o
+    // próprio snapshot de confirmação que o Firestore envia após o nosso save.
     if(globalThis._fbState){
+      globalThis._fbState.ownSaveGrace = true;
       globalThis._fbState.saving = false;
+      setTimeout(function(){ if(globalThis._fbState) globalThis._fbState.ownSaveGrace = false; }, 3000);
       if(globalThis._fbState.pendingRender){
         globalThis._fbState.pendingRender = false;
         if(typeof renderProcs === 'function') renderProcs();
