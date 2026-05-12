@@ -35,8 +35,11 @@
           // Aguarda o carregamento inicial antes de aceitar updates
           if(!globalScope._fbDataReady) return;
           if(_fbState.saving){ _fbState.pendingRender = true; return; }
-          globalScope.processos = [];
-          snap.forEach(d => globalScope.processos.push(d.data()));
+          // Usa _replaceProcessos (exposta em processos.html) para atualizar
+          // a variável `let processos` — globalScope.processos != let processos
+          if(typeof globalScope._replaceProcessos === 'function'){
+            globalScope._replaceProcessos(snap);
+          }
           _cloudRender();
         },
         (err) => console.warn('_fbWatchExternalChanges (processos):', err.message)
@@ -50,8 +53,9 @@
         (snap) => {
           if(!globalScope._fbDataReady) return;
           if(_fbState.saving){ _fbState.pendingRender = true; return; }
-          globalScope.kpis = [];
-          snap.forEach(d => globalScope.kpis.push(d.data()));
+          if(typeof globalScope._replaceKpis === 'function'){
+            globalScope._replaceKpis(snap);
+          }
           _cloudRender();
         },
         (err) => console.warn('_fbWatchExternalChanges (kpis):', err.message)

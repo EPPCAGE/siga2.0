@@ -2193,6 +2193,18 @@ let processos = [];
 let nextProcId = 1;
 
 let kpis = [];
+
+// Expõe substituição in-place para o listener onSnapshot em concurrent-edit.js.
+// Necessário porque variáveis `let` não são propriedades de globalThis,
+// então globalThis.processos e `let processos` são entidades distintas.
+globalThis._replaceProcessos = function(snap){
+  processos = [];
+  snap.forEach(function(d){ processos.push(d.data()); });
+};
+globalThis._replaceKpis = function(snap){
+  kpis = [];
+  snap.forEach(function(d){ kpis.push(d.data()); });
+};
 let _lastIndAnalise = '';
 let _lastIndLista   = [];
 let _lastRelatorioIndHtml    = '';
