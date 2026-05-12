@@ -450,6 +450,144 @@
     }
   };
 
+  // ══════════════════════════════════════════════════════════════
+  // MENU DE USUÁRIO (popup nas iniciais)
+  // ══════════════════════════════════════════════════════════════
+
+  globalScope.abrirMenuUsuario = function abrirMenuUsuario(event, el) {
+    event.stopPropagation();
+    const popup = document.getElementById('user-menu-popup');
+    if (!popup) return;
+    const rect = el.getBoundingClientRect();
+    popup.style.display = 'block';
+    // Posiciona acima ou abaixo do botão, alinhado à direita
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const popupH = popup.offsetHeight || 100;
+    if (spaceBelow < popupH + 8) {
+      popup.style.top  = (rect.top - popupH - 6) + 'px';
+    } else {
+      popup.style.top  = (rect.bottom + 6) + 'px';
+    }
+    popup.style.left = Math.max(8, rect.right - popup.offsetWidth) + 'px';
+    // Fecha ao clicar fora
+    setTimeout(function() {
+      document.addEventListener('click', globalScope.fecharMenuUsuario, { once: true });
+    }, 0);
+  };
+
+  globalScope.fecharMenuUsuario = function fecharMenuUsuario() {
+    const popup = document.getElementById('user-menu-popup');
+    if (popup) popup.style.display = 'none';
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  // TROCAR SENHA (primeiro acesso com senha temporária)
+  // ══════════════════════════════════════════════════════════════
+
+  globalScope.abrirModalTrocarSenha = function abrirModalTrocarSenha() {
+    const modal = document.getElementById('trocar-senha-modal');
+    if (modal) modal.style.display = 'flex';
+  };
+
+  globalScope.salvarNovaSenha = async function salvarNovaSenha() {
+    const nova  = document.getElementById('ts-nova')?.value  || '';
+    const conf  = document.getElementById('ts-conf')?.value  || '';
+    const msg   = document.getElementById('ts-msg');
+    const btn   = document.querySelector('#trocar-senha-modal .login-btn');
+
+    function showMsg(txt, ok) {
+      if (!msg) return;
+      msg.textContent = txt;
+      msg.style.color = ok ? '#7fe0b0' : '#F2A0A0';
+      msg.style.display = 'block';
+    }
+
+    if (nova.length < 6)       { showMsg('A senha deve ter ao menos 6 caracteres.', false); return; }
+    if (nova !== conf)          { showMsg('As senhas não coincidem.', false); return; }
+
+    if (btn) { btn.textContent = 'Salvando…'; btn.disabled = true; }
+    try {
+      const { auth, updatePassword } = globalScope.fb();
+      await updatePassword(auth.currentUser, nova);
+
+      // Remove flag trocar_senha e persiste
+      const usuario = globalScope.usuarioLogado;
+      if (usuario) {
+        usuario.trocar_senha = false;
+        const idx = (globalScope.USUARIOS || []).findIndex(function(u) { return u.email === usuario.email; });
+        if (idx >= 0) globalScope.USUARIOS[idx].trocar_senha = false;
+        await _fbSaveUsuarios();
+      }
+
+      const modal = document.getElementById('trocar-senha-modal');
+      if (modal) modal.style.display = 'none';
+      if (typeof globalScope.openModuleHub === 'function') globalScope.openModuleHub();
+    } catch (e) {
+      showMsg('Erro ao salvar: ' + (e.message || e.code), false);
+    } finally {
+      if (btn) { btn.textContent = 'Definir senha e entrar →'; btn.disabled = false; }
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  // ALTERAR SENHA (voluntário, usuário já logado)
+  // ══════════════════════════════════════════════════════════════
+
+  globalScope.abrirAlterarSenha = function abrirAlterarSenha() {
+    globalScope.fecharMenuUsuario();
+    ['alt-pwd-atual','alt-pwd-nova','alt-pwd-conf'].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const msg = document.getElementById('alt-pwd-msg');
+    if (msg) msg.style.display = 'none';
+    const modal = document.getElementById('alterar-senha-modal');
+    if (modal) modal.style.display = 'flex';
+  };
+
+  globalScope.salvarAlterarSenha = async function salvarAlterarSenha() {
+    const atual = document.getElementById('alt-pwd-atual')?.value || '';
+    const nova  = document.getElementById('alt-pwd-nova')?.value  || '';
+    const conf  = document.getElementById('alt-pwd-conf')?.value  || '';
+    const btn   = document.getElementById('alt-pwd-btn');
+
+    function showMsg(txt, ok) {
+      const msg = document.getElementById('alt-pwd-msg');
+      if (!msg) return;
+      msg.textContent = txt;
+      msg.style.background = ok ? 'rgba(127,224,176,.15)' : 'rgba(242,160,160,.15)';
+      msg.style.color = ok ? '#7fe0b0' : '#F2A0A0';
+      msg.style.display = 'block';
+    }
+
+    if (!atual)              { showMsg('Informe a senha atual.', false); return; }
+    if (nova.length < 6)    { showMsg('A nova senha deve ter ao menos 6 caracteres.', false); return; }
+    if (nova !== conf)       { showMsg('As senhas não coincidem.', false); return; }
+
+    if (btn) { btn.textContent = 'Salvando…'; btn.disabled = true; }
+    try {
+      const { auth, reauthenticateWithCredential, EmailAuthProvider, updatePassword } = globalScope.fb();
+      const user = auth.currentUser;
+      const cred = EmailAuthProvider.credential(user.email, atual);
+      await reauthenticateWithCredential(user, cred);
+      await updatePassword(user, nova);
+      showMsg('Senha alterada com sucesso!', true);
+      setTimeout(function() {
+        const modal = document.getElementById('alterar-senha-modal');
+        if (modal) modal.style.display = 'none';
+      }, 1500);
+    } catch (e) {
+      const msgs = {
+        'auth/wrong-password':      'Senha atual incorreta.',
+        'auth/invalid-credential':  'Senha atual incorreta.',
+        'auth/too-many-requests':   'Muitas tentativas. Aguarde alguns minutos.',
+      };
+      showMsg(msgs[e.code] || ('Erro: ' + e.message), false);
+    } finally {
+      if (btn) { btn.textContent = 'Salvar'; btn.disabled = false; }
+    }
+  };
+
   console.info('[auth-controller] Módulo carregado');
 
 })(globalThis);
