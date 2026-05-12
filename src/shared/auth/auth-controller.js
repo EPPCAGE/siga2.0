@@ -588,6 +588,52 @@
     }
   };
 
+  // ══════════════════════════════════════════════════════════════
+  // CRIAR USUÁRIO PARA ATRIBUIÇÃO DE ETAPA (chamado por EP logado)
+  // ══════════════════════════════════════════════════════════════
+
+  globalScope._criarUsuarioParaAtribuicao = async function _criarUsuarioParaAtribuicao(email, nome, perfil) {
+    // Se já existe no SIGA, não recria — retorna null para o chamador saber
+    if (globalScope._findUsuarioByEmail && globalScope._findUsuarioByEmail(email)) return null;
+
+    const senhaTemp = globalScope.gerarSenhaTemp();
+
+    // Cria conta no Firebase Auth via app secundária (não deslogar o EP atual)
+    const { initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG } = globalScope.fb();
+    const secApp = initializeApp(FIREBASE_CONFIG, 'sec_atrib_' + Date.now());
+    const secAuth = getAuth(secApp);
+    try {
+      await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
+    } catch (e) {
+      if (e.code !== 'auth/email-already-in-use') throw e;
+      // Conta Auth já existe — garante só o registro no SIGA
+    } finally {
+      await deleteApp(secApp).catch(() => {});
+    }
+
+    // Adiciona ao SIGA
+    const palavras = (nome || email.split('@')[0]).trim().split(/\s+/).filter(Boolean);
+    const iniciais = (palavras.length >= 2
+      ? palavras[0][0] + palavras[palavras.length - 1][0]
+      : (palavras[0] || '?').slice(0, 2)
+    ).toUpperCase();
+
+    (globalScope.USUARIOS || []).push({
+      email,
+      nome: palavras.join(' ') || email,
+      perfil: perfil || 'dono',
+      perfis: perfil === 'gestor' ? ['gestor'] : ['dono', 'gerente_projeto'],
+      iniciais,
+      macroprocessos_vinculados: [],
+      processos_vinculados: [],
+      trocar_senha: true,
+    });
+
+    await _fbSaveUsuarios();
+
+    return senhaTemp;
+  };
+
   console.info('[auth-controller] Módulo carregado');
 
 })(globalThis);
