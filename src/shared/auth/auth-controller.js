@@ -173,6 +173,20 @@
     }
   };
 
+  // Salva config/usuarios diretamente no Firestore, sem exigir perfil EP.
+  // fbSaveAll() só grava usuarios dentro de if(isEP()), o que falha no
+  // auto-cadastro porque nenhum usuário está logado nesse momento.
+  async function _fbSaveUsuarios() {
+    const repo = globalScope.configRepository;
+    if (!repo) return;
+    const lista = (globalScope.USUARIOS || []).map(function(u) {
+      if (!u._perfil_original) return u;
+      const { _perfil_original, ...rest } = u;
+      return { ...rest, perfil: _perfil_original };
+    });
+    await repo.set('usuarios', { data: JSON.stringify(lista) });
+  }
+
   // Garante que o usuário está em USUARIOS (cadastro mínimo), salvando no Firestore.
   // Usado quando a conta Auth existe mas o SIGA ainda não tem o registro.
   async function _garantirCadastroSiga(email, nome) {
@@ -192,7 +206,7 @@
       processos_vinculados: [],
       trocar_senha: true
     });
-    if (globalScope.fbSaveAll) await globalScope.fbSaveAll();
+    await _fbSaveUsuarios();
     // Notifica EPPs do novo cadastro automático
     if (globalScope.enviarNotif) {
       (globalScope.USUARIOS || []).filter(u => u.perfil === 'ep' && u.email).forEach(ep =>
@@ -239,7 +253,7 @@
         const user = globalScope._findUsuarioByEmail(email);
         if (user) {
           user.trocar_senha = true;
-          if (globalScope.fbSaveAll) await globalScope.fbSaveAll();
+          await _fbSaveUsuarios();
         }
         const nome = user?.nome || email;
         if (globalScope._enviarSenhaAcesso) {
@@ -331,7 +345,7 @@
       trocar_senha: true
     });
     
-    if (globalScope.fbSaveAll) await globalScope.fbSaveAll();
+    await _fbSaveUsuarios();
 
     // Envia senha temporária
     if (globalScope._enviarSenhaAcesso) {
