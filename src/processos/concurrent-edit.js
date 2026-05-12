@@ -26,9 +26,20 @@
   }
 
   // ── Polling: fallback para redes que bloqueiam WebSocket (proxies corp.) ──
-  // Lê apenas o sentinel last_modified (1 doc) e recarrega processos+kpis
+  // Lê apenas o sentinel last_modified (1 doc) e recarrega todas as coleções
   // somente se outro usuário tiver salvo após o nosso último carregamento.
   const POLL_INTERVAL_MS = 30000;
+
+  // Mesma lista de coleções do onSnapshot; usada no fallback de polling
+  const POLL_COLLECTIONS = [
+    {repo: 'processosRepository',   fn: '_replaceProcessos'},
+    {repo: 'kpisRepository',        fn: '_replaceKpis'},
+    {repo: 'publicacoesRepository', fn: '_replacePublicacoes'},
+    {repo: 'solicitacoesRepository',fn: '_replaceSolicitacoes'},
+    {repo: 'planoRepository',       fn: '_replacePlano'},
+    {repo: 'trilhasRepository',     fn: '_replaceTrilhas'},
+    {repo: 'planoMetasRepository',  fn: '_replaceMetas'},
+  ];
 
   async function _pollOnce(){
     if(!globalScope.fbReady || !globalScope.fbReady()) return;
@@ -44,18 +55,19 @@
       if(ts <= (globalScope._fbLoadedAt || 0)) return;
       if(by && by === (globalScope.usuarioLogado?.email || '')) return;
 
-      // Recarrega processos
-      const pSnap = await globalScope.processosRepository.list();
-      if(typeof globalScope._replaceProcessos === 'function' && !pSnap.empty){
-        // list() retorna d.data como objeto, _replaceProcessos espera snap.forEach(d => d.data())
-        const fakeProcSnap = { forEach: cb => pSnap.docs.forEach(d => cb({ data: () => d.data })) };
-        globalScope._replaceProcessos(fakeProcSnap);
-      }
-      // Recarrega kpis
-      const kSnap = await globalScope.kpisRepository.list();
-      if(typeof globalScope._replaceKpis === 'function' && !kSnap.empty){
-        const fakeKpiSnap = { forEach: cb => kSnap.docs.forEach(d => cb({ data: () => d.data })) };
-        globalScope._replaceKpis(fakeKpiSnap);
+      // Recarrega todas as coleções monitoradas
+      for(const item of POLL_COLLECTIONS){
+        const repo = globalScope[item.repo];
+        const replaceFn = globalScope[item.fn];
+        if(!repo || typeof replaceFn !== 'function') continue;
+        try {
+          const colSnap = await repo.list();
+          if(!colSnap.empty){
+            // list() retorna d.data como objeto; adapta para o formato forEach esperado
+            const fakeSnap = { forEach: function(cb){ colSnap.docs.forEach(function(d){ cb({ data: function(){ return d.data; } }); }); } };
+            replaceFn(fakeSnap);
+          }
+        } catch(colErr){ console.warn('_pollOnce (' + item.repo + '):', colErr.message); }
       }
 
       globalScope._fbLoadedAt = ts;
@@ -81,37 +93,32 @@
     try {
       const {onSnapshot} = globalScope.fb();
       if(onSnapshot){
-        // Listener: processos
-        _fbState.unsubscribers.push(
-          onSnapshot(
-            globalScope.processosRepository.colRef(),
-            (snap) => {
-              if(!globalScope._fbDataReady) return;
-              if(_fbState.saving){ _fbState.pendingRender = true; return; }
-              if(typeof globalScope._replaceProcessos === 'function'){
-                globalScope._replaceProcessos(snap);
-              }
-              _cloudRender();
-            },
-            (err) => console.warn('_fbWatchExternalChanges (processos):', err.message)
-          )
-        );
-
-        // Listener: kpis
-        _fbState.unsubscribers.push(
-          onSnapshot(
-            globalScope.kpisRepository.colRef(),
-            (snap) => {
-              if(!globalScope._fbDataReady) return;
-              if(_fbState.saving){ _fbState.pendingRender = true; return; }
-              if(typeof globalScope._replaceKpis === 'function'){
-                globalScope._replaceKpis(snap);
-              }
-              _cloudRender();
-            },
-            (err) => console.warn('_fbWatchExternalChanges (kpis):', err.message)
-          )
-        );
+        // Coleções com listener dedicado
+        const watched = [
+          {repo: 'processosRepository',   fn: '_replaceProcessos'},
+          {repo: 'kpisRepository',        fn: '_replaceKpis'},
+          {repo: 'publicacoesRepository', fn: '_replacePublicacoes'},
+          {repo: 'solicitacoesRepository',fn: '_replaceSolicitacoes'},
+          {repo: 'planoRepository',       fn: '_replacePlano'},
+          {repo: 'trilhasRepository',     fn: '_replaceTrilhas'},
+          {repo: 'planoMetasRepository',  fn: '_replaceMetas'},
+        ];
+        watched.forEach(function(item){
+          const repo = globalScope[item.repo];
+          if(!repo) return;
+          _fbState.unsubscribers.push(
+            onSnapshot(
+              repo.colRef(),
+              function(snap){
+                if(!globalScope._fbDataReady) return;
+                if(_fbState.saving){ _fbState.pendingRender = true; return; }
+                if(typeof globalScope[item.fn] === 'function') globalScope[item.fn](snap);
+                _cloudRender();
+              },
+              function(err){ console.warn('_fbWatchExternalChanges (' + item.repo + '):', err.message); }
+            )
+          );
+        });
       }
     } catch(e){
       console.warn('_fbWatchExternalChanges: onSnapshot indisponível —', e.message);

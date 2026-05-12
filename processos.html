@@ -2248,6 +2248,30 @@ globalThis._replaceKpis = function(snap){
     snap.forEach(function(d){ kpis.push(d.data()); });
   }
 };
+// Funções de substituição para as demais coleções ouvidas em tempo real
+globalThis._replacePublicacoes = function(snap){
+  publicacoes = [];
+  snap.forEach(function(d){ publicacoes.push(d.data()); });
+};
+globalThis._replaceSolicitacoes = function(snap){
+  globalThis.solicitacoes = [];
+  snap.forEach(function(d){ globalThis.solicitacoes.push(d.data()); });
+};
+globalThis._replacePlano = function(snap){
+  plano = [];
+  snap.forEach(function(d){ plano.push(d.data()); });
+  if(plano.length) _planoIdC = Math.max(...plano.map(function(a){ return a.id||0; })) + 1;
+};
+globalThis._replaceTrilhas = function(snap){
+  TRILHAS = [];
+  snap.forEach(function(d){ TRILHAS.push(d.data()); });
+  if(TRILHAS.length) _trilhaIdC = Math.max(...TRILHAS.map(function(t){ return t.id||0; })) + 1;
+};
+globalThis._replaceMetas = function(snap){
+  PAT_METAS = [];
+  snap.forEach(function(d){ PAT_METAS.push(d.data()); });
+  if(PAT_METAS.length) _metaIdC = Math.max(...PAT_METAS.map(function(m){ return m.id||0; })) + 1;
+};
 let _lastIndAnalise = '';
 let _lastIndLista   = [];
 let _lastRelatorioIndHtml    = '';
