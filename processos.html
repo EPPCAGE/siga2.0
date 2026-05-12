@@ -2475,6 +2475,19 @@ function go(page,btn){
   const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',dashboard:'Painel geral',processos:'Processos',arq:'Arquitetura',solicitacoes:'Solicitações',faq:'Base de FAQs',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',avisos:'Avisos',detalhe:'Processo',trilhas:'Trilhas de capacitação'};
   const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||'SIGA 2.0';
 }
+// Re-renderiza a página ativa sem alterar a navegação.
+// Chamada pelo listener de tempo real quando chegam dados de outro usuário.
+function _renderCurrentPage(){
+  const active = document.querySelector('.page.on');
+  if(!active) return;
+  const page = active.id.replace('page-','');
+  ({fila:rFila,meusprocessos:rMeusProc,dashboard:rDash,processos:renderProcs,
+    arq:rArq,solicitacoes:rSolicitacoes,faq:rFaq,indicadores:()=>{rInd();},
+    notificacoes:()=>{rNotif();},auditoria:rAuditoria,publicacoes:()=>{rPub();},
+    admin:renderAdmin,plano:rPlano,avisos:rAvisos,trilhas:rTrilhas}[page]||function(){})();
+}
+globalThis._renderCurrentPage = _renderCurrentPage;
+
 function setMobileDrawerState(isOpen){
   const aside=document.querySelector('.aside');
   const backdrop=document.getElementById('mob-backdrop');
