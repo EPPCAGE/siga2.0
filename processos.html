@@ -9919,8 +9919,11 @@ async function _getFluxogramaAsIsPng(p){
   if(!p) return null;
   const linkedImg = p.arq_id ? await loadFluxoImg(p.arq_id) : null;
   if(linkedImg) return linkedImg;
-  // Fallback: imagem importada via POP (salva diretamente no processo)
-  if(p.mod?.fluxoImgBase64) return p.mod.fluxoImgBase64;
+  // Fallback: imagem importada via POP (salva em fluxos/{p.id})
+  if(p.mod?.hasFluxoImg || p.mod?.fluxoImgBase64){
+    const imported = p.mod?.fluxoImgBase64 || await loadFluxoImg(p.id);
+    if(imported) return imported;
+  }
   if(p.mod?.bpmnAsIs) return renderBpmnToPng(p.mod.bpmnAsIs);
   // Fallback: use active modeler if still loaded for this process in the same session
   const m=bpmnModelers['asis'];
@@ -10068,7 +10071,7 @@ async function _popPdfAnexo(p){
   let bpmnLandscape='';
   const hasAsIsModeler=!!(bpmnModelers['asis']&&bpmnProcIds['asis']===p?.id);
   const hasTobeModeler=!!(bpmnModelers['tobe']&&bpmnProcIds['tobe']===p?.id);
-  const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs||hasAsIsModeler);
+  const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs||p.mod?.hasFluxoImg||p.mod?.fluxoImgBase64||hasAsIsModeler);
   const hasBpmnT=!!(p.mod?.bpmnToBe||hasTobeModeler);
   if(hasFluxoA||hasBpmnT){
     // Converte SVG para data URI de <img> — mais confiável no print que SVG inline
@@ -17826,10 +17829,12 @@ function confirmarImportPOP(){
       const reader = new FileReader();
       reader.onload = async e => {
         const base64 = e.target.result;
-        // Salva no mod do processo (funciona com ou sem arq_id)
-        novoProc.mod.fluxoImgBase64 = base64;
+        // Salva na coleção fluxos com chave do processo (não depende de arq_id)
+        await saveFluxoImg(novoProc.id, base64);
+        // Marca o processo com flag leve (sem base64 inline no documento)
+        novoProc.mod.hasFluxoImg = true;
         fbAutoSave('importPOP_fluxo');
-        // Salva também no repositório de fluxos se tiver arq_id
+        // Salva também indexado pelo arq_id se disponível
         if(arqId) await saveFluxoImg(arqId, base64);
       };
       reader.readAsDataURL(fluxoFile);
