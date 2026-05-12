@@ -14,9 +14,15 @@
   globalScope._fbState = _fbState;
 
   // ── Re-render após receber dados remotos ──────────────────────────────────
+  // Usa _renderCurrentPage (definida em processos.html) para atualizar
+  // qualquer página que o usuário estiver vendo, não só a lista de processos.
   function _cloudRender(){
     if(_fbState.saving){ _fbState.pendingRender = true; return; }
-    if(typeof globalScope.renderProcs === 'function') globalScope.renderProcs();
+    if(typeof globalScope._renderCurrentPage === 'function'){
+      globalScope._renderCurrentPage();
+    } else if(typeof globalScope.renderProcs === 'function'){
+      globalScope.renderProcs();
+    }
   }
 
   // ── Polling: fallback para redes que bloqueiam WebSocket (proxies corp.) ──
