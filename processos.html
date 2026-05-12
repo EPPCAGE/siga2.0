@@ -2253,6 +2253,13 @@ const APP = {
   get filtFaseAtual() { return filtFaseAtual; }, set filtFaseAtual(v) { filtFaseAtual = v; },
 };
 
+// Expõe ejsConfig no globalThis para que auth-controller.js acesse via globalScope.ejsConfig
+Object.defineProperty(globalThis, 'ejsConfig', {
+  get: () => ejsConfig,
+  set: v => { ejsConfig = v; },
+  configurable: true,
+});
+
 const BPMN_DEFAULT = `<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://ep.cage">
   <process id="proc1" isExecutable="true">
