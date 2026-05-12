@@ -1,13 +1,70 @@
 (function initConcurrentEdit(globalScope){
-  globalScope._fbLoadedAt        = 0;
-  globalScope._fbDataReady       = false;
-  globalScope._fbExternalWatcher = null;
+  globalScope._fbLoadedAt    = 0;
+  globalScope._fbDataReady   = false;
 
+  // Estado compartilhado — espelhado no padrão do módulo de projetos
+  const _fbState = {
+    saving:        false,  // true durante fbSaveAll; snapshots são pausados
+    pendingRender: false,  // true se chegou update remoto enquanto salvava
+    listenersStarted: false,
+    unsubscribers: []
+  };
+  globalScope._fbState = _fbState;
+
+  // ── Re-render após receber dados remotos ────────────────────────────────────────────
+  function _cloudRender(){
+    if(_fbState.saving){ _fbState.pendingRender = true; return; }
+    if(typeof globalScope.renderProcs === 'function') globalScope.renderProcs();
+  }
+
+  // ── Listeners em tempo real (mesmo padrão de projFbStartRealtime) ─────────────
+  function _fbWatchExternalChanges(){
+    if(!globalScope.fbReady || !globalScope.fbReady()) return;
+    if(_fbState.listenersStarted) return;
+
+    const {onSnapshot} = globalScope.fb();
+    if(!onSnapshot) return;
+
+    _fbState.listenersStarted = true;
+
+    // Listener: processos
+    _fbState.unsubscribers.push(
+      onSnapshot(
+        globalScope.processosRepository.colRef(),
+        (snap) => {
+          // Aguarda o carregamento inicial antes de aceitar updates
+          if(!globalScope._fbDataReady) return;
+          if(_fbState.saving){ _fbState.pendingRender = true; return; }
+          globalScope.processos = [];
+          snap.forEach(d => globalScope.processos.push(d.data()));
+          _cloudRender();
+        },
+        (err) => console.warn('_fbWatchExternalChanges (processos):', err.message)
+      )
+    );
+
+    // Listener: kpis
+    _fbState.unsubscribers.push(
+      onSnapshot(
+        globalScope.kpisRepository.colRef(),
+        (snap) => {
+          if(!globalScope._fbDataReady) return;
+          if(_fbState.saving){ _fbState.pendingRender = true; return; }
+          globalScope.kpis = [];
+          snap.forEach(d => globalScope.kpis.push(d.data()));
+          _cloudRender();
+        },
+        (err) => console.warn('_fbWatchExternalChanges (kpis):', err.message)
+      )
+    );
+  }
+
+  // ── Funções de compatibilidade (banner mantido para erros manuais) ─────────
   function _fbShowConcurrentBanner(byEmail){
     const banner = document.getElementById('concurrent-banner');
     if(!banner) return;
     const msg = document.getElementById('concurrent-msg');
-    if(msg) msg.textContent = 'Dados foram modificados por ' + (byEmail || 'outro dispositivo') + '. Suas alterações não salvas podem sobrescrever as delas.';
+    if(msg) msg.textContent = 'Dados foram modificados por ' + (byEmail || 'outro dispositivo') + '.';
     banner.style.display = 'flex';
   }
 
@@ -34,25 +91,6 @@
     } catch(e){
       if(typeof globalScope.toast === 'function') globalScope.toast('⚠ Erro ao recarregar: ' + e.message, 'var(--red)');
     }
-  }
-
-  function _fbWatchExternalChanges(){
-    if(!globalScope.fbReady || !globalScope.fbReady()) return;
-    if(globalScope._fbExternalWatcher) return;
-    const {onSnapshot} = globalScope.fb();
-    globalScope._fbExternalWatcher = onSnapshot(
-      globalScope.configRepository.ref('last_modified'),
-      (snap) => {
-        if(!snap.exists()) return;
-        const d = snap.data();
-        const ts = d?.ts || 0;
-        const by = d?.by || '';
-        if(ts > (globalScope._fbLoadedAt || 0) && by && by !== (globalScope.usuarioLogado?.email || '')){
-          _fbShowConcurrentBanner(by);
-        }
-      },
-      (err) => { console.warn('_fbWatchExternalChanges:', err.message); }
-    );
   }
 
   globalScope._fbShowConcurrentBanner = _fbShowConcurrentBanner;
