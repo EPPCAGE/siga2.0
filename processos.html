@@ -4328,6 +4328,12 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
     push(curProc, nx, 'Sistema', 'Etapa iniciada');
     // status_workflow é 'em_andamento' por default; muda para aguardando_* só ao atribuir
     curProc.status_workflow='em_andamento';
+    // Agendar próximo acompanhamento automaticamente ao entrar em etapas mapeadas
+    if(['acompanha','auditoria'].includes(nx) && !curProc.dt_proximo_acompanhamento){
+      const _hoje = new Date().toISOString().slice(0,10);
+      const _baseCalc = curProc.ent?.dt_efetiva || curProc.dt_etapas?.publicacao || _hoje;
+      curProc.dt_proximo_acompanhamento = _addDias(_baseCalc, 180);
+    }
   } else if(etAtu==='auditoria'){
     // processo concluído (publicacao → acompanha → auditoria)
     curProc.status_workflow='concluido';
@@ -16166,6 +16172,14 @@ async function fbLoad(){
     globalThis._fbDataReady = true;
     globalThis._fbLoadedAt = Date.now();
     _fbWatchExternalChanges();
+    // Salvar automaticamente processos corrigidos durante o carregamento
+    if(globalThis._needsAutoFixSave){
+      console.info('Auto-fix: persistindo processos corrigidos no Firestore...');
+      setTimeout(() => fbSaveAll().then(() => {
+        globalThis._needsAutoFixSave = false;
+        console.info('Auto-fix: processos salvos com sucesso');
+      }).catch(e => console.warn('Auto-fix: erro ao salvar:', e.message)), 1500);
+    }
     return true;
   } catch(e){
     console.warn('fbLoad error:', e.message);
@@ -16195,6 +16209,21 @@ async function _fbLoadProcessos(){
   pSnap.docs.forEach(d => processos.push(d.data));
   processos.forEach(p=>{ if(p.etapa==='complement') p.etapa='apresentacao'; });
   processos.sort((a,b) => a.id - b.id);
+  // Corrigir processos mapeados (acompanha/auditoria) sem dt_proximo_acompanhamento
+  const _hoje = new Date().toISOString().slice(0,10);
+  const _processosCorrigidos = [];
+  processos.forEach(p => {
+    if(['acompanha','auditoria'].includes(p.etapa) && !p.dt_proximo_acompanhamento){
+      const _baseCalc = p.ent?.dt_efetiva || p.dt_etapas?.publicacao || _hoje;
+      p.dt_proximo_acompanhamento = _addDias(_baseCalc, 180);
+      _processosCorrigidos.push(p.id);
+    }
+  });
+  if(_processosCorrigidos.length > 0) {
+    console.info(`Auto-fix aplicado: ${_processosCorrigidos.length} processo(s) mapeado(s) receberam dt_proximo_acompanhamento automaticamente (IDs: ${_processosCorrigidos.join(', ')})`);
+    // Marca flag para salvar após carregamento completo
+    globalThis._needsAutoFixSave = true;
+  }
   nextProcId = Math.max(...processos.map(p=>p.id), 0) + 1;
   const allEtapaNums = processos.flatMap(p=>(p.mod?.etapas_proc||[]).map(e=>Number.parseInt(String(e.id||'').replaceAll('ep',''))||0));
   if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
