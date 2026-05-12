@@ -60,10 +60,10 @@
     const shell = document.getElementById('proc-shell');
     if(hub) hub.classList.remove('on');
     if(shell) shell.style.display = 'grid';
-    if(usuarioLogado?.perfil === 'dono'){
-      go('meusprocessos', document.getElementById('nb-meusproc'));
-    } else {
+    if(isEP()){
       go('fila', document.getElementById('nb-fila'));
+    } else {
+      go('meusprocessos', document.getElementById('nb-meusproc'));
     }
   }
 
