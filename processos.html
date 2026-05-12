@@ -16001,7 +16001,7 @@ async function fbSaveAll(){
     const now = Date.now();
     globalThis._fbLoadedAt = now;
     // Atualiza sentinel para que outros usuários detectem a mudança via polling
-    await configRepository.set('last_modified', {ts: now, by: usuárioLogado?.email||''}).catch(()=>{});
+    await configRepository.set('last_modified', {ts: now, by: usuarioLogado?.email||''}).catch(()=>{});
     const _cb = document.getElementById('concurrent-banner');
     if(_cb) _cb.style.display = 'none';
 
