@@ -16094,11 +16094,21 @@ async function _fbLoadProcessos(){
   pSnap.docs.forEach(d => processos.push(d.data));
   processos.forEach(p=>{ if(p.etapa==='complement') p.etapa='apresentacao'; });
   processos.sort((a,b) => a.id - b.id);
-  // Corrigir processos mapeados (acompanha/auditoria) sem dt_proximo_acompanhamento
+  // Corrigir dt_proximo_acompanhamento nos processos mapeados (acompanha/auditoria):
+  // - Se tem reuniões registradas, sempre recalcula a partir da mais recente (garante sincronia)
+  // - Se não tem reuniões, preenche a partir da data de entrega efetiva ou publicação
   const _hoje = new Date().toISOString().slice(0,10);
   const _processosCorrigidos = [];
   processos.forEach(p => {
-    if(['acompanha','auditoria'].includes(p.etapa) && !p.dt_proximo_acompanhamento){
+    if(!['acompanha','auditoria'].includes(p.etapa)) return;
+    const _ultimaReuniao = (p.reunioes_acomp||[]).filter(r=>r.data).sort((a,b)=>a.data<b.data?1:-1)[0];
+    if(_ultimaReuniao) {
+      const _esperado = _addDias(_ultimaReuniao.data, 180);
+      if(p.dt_proximo_acompanhamento !== _esperado) {
+        p.dt_proximo_acompanhamento = _esperado;
+        _processosCorrigidos.push(p.id);
+      }
+    } else if(!p.dt_proximo_acompanhamento) {
       const _baseCalc = p.ent?.dt_efetiva || p.dt_etapas?.publicacao || _hoje;
       p.dt_proximo_acompanhamento = _addDias(_baseCalc, 180);
       _processosCorrigidos.push(p.id);
