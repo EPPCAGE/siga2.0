@@ -885,6 +885,10 @@ function projRenderInicio() {
         </div>
       </div>
     `;
+    requestAnimationFrame(() => {
+      projFitLaunchpadRockets();
+      projBindLaunchpadResize();
+    });
   }
 
   // 2. Painéis executivos v9
@@ -917,6 +921,7 @@ function projRenderInicio() {
 
 // ── UNIFIED DRAG: detects horizontal vs vertical intent ──
 let _rocketDrag = null;
+let _projLaunchpadResizeObserver = null;
 function projDragPoint(ev) {
   const point = ev.touches ? ev.touches[0] : ev.changedTouches ? ev.changedTouches[0] : ev;
   return { x: point.clientX, y: point.clientY };
@@ -924,11 +929,39 @@ function projDragPoint(ev) {
 function projRocketLeftStyle(pct) {
   return Number(pct) <= 0 ? '4px' : `calc(${pct}% - 22px)`;
 }
+function projRocketApplyPct(rocket, laneRect, pct) {
+  const icon = rocket.querySelector('.proj-rocket-icon');
+  const iconWidth = icon ? icon.offsetWidth : 40;
+  const pctX = (pct / 100) * laneRect.width;
+  const rocketWidth = rocket.offsetWidth || 0;
+  const normalLeft = pctX - iconWidth / 2;
+  const shouldFlip = normalLeft + rocketWidth > laneRect.width;
+  rocket.classList.toggle('edge-right', shouldFlip);
+  const desiredLeft = shouldFlip ? pctX - rocketWidth + iconWidth / 2 : normalLeft;
+  const maxLeft = Math.max(0, laneRect.width - rocketWidth);
+  const fittedLeft = Math.max(0, Math.min(desiredLeft, maxLeft));
+  rocket.style.left = fittedLeft + 'px';
+}
+function projFitLaunchpadRockets() {
+  document.querySelectorAll('.proj-rocket').forEach(rocket => {
+    const lane = rocket.closest('.proj-launchpad-lane');
+    if(!lane) return;
+    const pct = Math.max(0, Math.min(100, Number.parseInt(rocket.dataset.pct, 10) || 0));
+    projRocketApplyPct(rocket, lane.getBoundingClientRect(), pct);
+  });
+}
+function projBindLaunchpadResize() {
+  const track = document.getElementById('proj-launchpad-track');
+  if(!track || typeof ResizeObserver === 'undefined') return;
+  if(_projLaunchpadResizeObserver) _projLaunchpadResizeObserver.disconnect();
+  _projLaunchpadResizeObserver = new ResizeObserver(() => projFitLaunchpadRockets());
+  _projLaunchpadResizeObserver.observe(track);
+}
 function projRocketSetPct(rocket, laneRect, clientX) {
   let relX = clientX - laneRect.left;
   relX = Math.max(0, Math.min(relX, laneRect.width));
   const pct = Math.round((relX / laneRect.width) * 100);
-  rocket.style.left = projRocketLeftStyle(pct);
+  projRocketApplyPct(rocket, laneRect, pct);
   rocket.dataset.pct = String(pct);
   const pctEl = rocket.querySelector('.proj-rocket-pct');
   if(pctEl) pctEl.textContent = pct + '%';
