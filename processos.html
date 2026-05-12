@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -15998,7 +15998,10 @@ async function fbSaveAll(){
     // Firestore batch limit is 500 — split into chunks of 450
     await FirestoreRepositories.batchCommit(ops, 450);
 
-    globalThis._fbLoadedAt = Date.now();
+    const now = Date.now();
+    globalThis._fbLoadedAt = now;
+    // Atualiza sentinel para que outros usuários detectem a mudança via polling
+    await configRepository.set('last_modified', {ts: now, by: usuárioLogado?.email||''}).catch(()=>{});
     const _cb = document.getElementById('concurrent-banner');
     if(_cb) _cb.style.display = 'none';
 
