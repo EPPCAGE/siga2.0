@@ -9919,6 +9919,8 @@ async function _getFluxogramaAsIsPng(p){
   if(!p) return null;
   const linkedImg = p.arq_id ? await loadFluxoImg(p.arq_id) : null;
   if(linkedImg) return linkedImg;
+  // Fallback: imagem importada via POP (salva diretamente no processo)
+  if(p.mod?.fluxoImgBase64) return p.mod.fluxoImgBase64;
   if(p.mod?.bpmnAsIs) return renderBpmnToPng(p.mod.bpmnAsIs);
   // Fallback: use active modeler if still loaded for this process in the same session
   const m=bpmnModelers['asis'];
@@ -17818,11 +17820,18 @@ function confirmarImportPOP(){
   // Salva imagem do fluxo Bizagi se selecionada
   const fluxoInput = document.getElementById('pop-fluxo-img');
   const fluxoFile = fluxoInput?.files?.[0];
-  if(fluxoFile && arqId){
+  if(fluxoFile){
     if(fluxoFile.size > 3*1024*1024){ toast('Imagem de fluxo muito grande (máx. 3 MB). Processo salvo sem a imagem.','var(--amber)'); }
     else {
       const reader = new FileReader();
-      reader.onload = async e => { await saveFluxoImg(arqId, e.target.result); };
+      reader.onload = async e => {
+        const base64 = e.target.result;
+        // Salva no mod do processo (funciona com ou sem arq_id)
+        novoProc.mod.fluxoImgBase64 = base64;
+        fbAutoSave('importPOP_fluxo');
+        // Salva também no repositório de fluxos se tiver arq_id
+        if(arqId) await saveFluxoImg(arqId, base64);
+      };
       reader.readAsDataURL(fluxoFile);
     }
   }
