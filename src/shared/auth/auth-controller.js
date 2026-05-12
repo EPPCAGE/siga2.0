@@ -173,6 +173,36 @@
     }
   };
 
+  // Garante que o usuário está em USUARIOS (cadastro mínimo), salvando no Firestore.
+  // Usado quando a conta Auth existe mas o SIGA ainda não tem o registro.
+  async function _garantirCadastroSiga(email, nome) {
+    if (globalScope._findUsuarioByEmail(email)) return; // já existe
+    const palavras = (nome || email.split('@')[0]).trim().split(/\s+/).filter(Boolean);
+    const iniciais = (palavras.length >= 2
+      ? palavras[0][0] + palavras[palavras.length - 1][0]
+      : (palavras[0] || '?').slice(0, 2)
+    ).toUpperCase();
+    globalScope.USUARIOS.push({
+      email,
+      nome: palavras.join(' ') || email,
+      perfil: 'dono',
+      perfis: ['dono', 'gerente_projeto'],
+      iniciais,
+      macroprocessos_vinculados: [],
+      processos_vinculados: [],
+      trocar_senha: true
+    });
+    if (globalScope.fbSaveAll) await globalScope.fbSaveAll();
+    // Notifica EPPs do novo cadastro automático
+    if (globalScope.enviarNotif) {
+      (globalScope.USUARIOS || []).filter(u => u.perfil === 'ep' && u.email).forEach(ep =>
+        globalScope.enviarNotif(ep.email, ep.nome,
+          'Usuário cadastrado automaticamente via "Primeiro Acesso": ' + email,
+          'Controle de Acesso', '', 'Sistema')
+      );
+    }
+  }
+
   /**
    * Primeiro acesso para usuário já cadastrado (envia reset de senha)
    * @async
@@ -217,9 +247,19 @@
         }
         showOk('Acesso liberado! Enviamos uma senha temporária para ' + email + '. Use-a para entrar e defina sua senha definitiva.');
       } else {
-        // Conta já existe — envia link de reset
-        await sendPasswordResetEmail(auth, email);
-        showOk('Link de redefinição enviado para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
+        // Conta já existe no Auth — garante cadastro no SIGA antes de enviar reset
+        const user = globalScope._findUsuarioByEmail(email);
+        if (!user) {
+          // Usuário tem Auth mas não está no SIGA — cadastra automaticamente
+          const { auth: _auth, sendPasswordResetEmail: _spr } = globalScope.fb();
+          await _garantirCadastroSiga(email, email.split('@')[0]);
+          await _spr(_auth, email);
+          showOk('Acesso configurado! Enviamos um link de redefinição de senha para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
+        } else {
+          // Usuário já cadastrado — apenas reset de senha
+          await sendPasswordResetEmail(auth, email);
+          showOk('Link de redefinição enviado para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
+        }
       }
     } catch (err) {
       showErr('Erro ao enviar e-mail: ' + err.message);
@@ -256,9 +296,13 @@
       try {
         await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
       } catch (error_) {
-        await deleteApp(secApp);
+        await deleteApp(secApp).catch(() => {});
         if (error_.code === 'auth/email-already-in-use') {
-          showErr('Este e-mail já possui acesso. Use suas credenciais para entrar.');
+          // Conta Auth já existe — garante cadastro no SIGA e envia reset de senha
+          const { auth: _auth, sendPasswordResetEmail: _spr } = globalScope.fb();
+          await _garantirCadastroSiga(email, nome);
+          await _spr(_auth, email);
+          showOk('Acesso configurado! Enviamos um link de redefinição de senha para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
           return;
         }
         throw error_;
