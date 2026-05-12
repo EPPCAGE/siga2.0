@@ -638,6 +638,7 @@ function projGo(pageId, btnEl) {
     case 'programas': progRenderPage(); break;
     case 'estrategia': projRenderEstrategiaPage(); break;
     case 'reunioes':  projRenderReunioesPage(); break;
+    case 'usuarios':  projRenderUsuariosPage(); break;
     case 'status-report': projRenderStatusReport(); break;
     case 'indicadores': projRenderIndicadoresPage(); break;
     case 'novo':      projRenderNovo(); break;
@@ -668,6 +669,61 @@ function projToast(msg, color) {
 // ── Utilitários ────────────────────────────────────────────────────
 function projEsc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function projNormKey(s) {
+  return String(s||'').trim().toLowerCase();
+}
+
+function projUserDisplayName(u) {
+  return String(u?.nome || u?.name || u?.email || '').trim();
+}
+
+function projUserInitials(label) {
+  const parts = String(label||'').trim().split(/\s+/).filter(Boolean);
+  if(!parts.length) return '?';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length-1][0] : '')).toUpperCase();
+}
+
+function projUsersLinkedToProject(projectId) {
+  const id = String(projectId || '');
+  return (USUARIOS||[]).filter(u => projProjetosVinculadosUsuario(u).includes(id))
+    .slice()
+    .sort((a,b) => projUserDisplayName(a).localeCompare(projUserDisplayName(b), 'pt-BR'));
+}
+
+function projFindProjectUserByResponsibleValue(projectId, value) {
+  const key = projNormKey(value);
+  if(!key) return null;
+  return projUsersLinkedToProject(projectId).find(u => {
+    const nome = projNormKey(projUserDisplayName(u));
+    const email = projNormKey(u.email);
+    return key === nome || key === email || key === `${nome} <${email}>`;
+  }) || null;
+}
+
+function projResponsibleLabel(t) {
+  const email = projNormKey(t?.responsavel_email);
+  if(email) {
+    const u = (USUARIOS||[]).find(x => projNormKey(x.email) === email);
+    if(u) return projUserDisplayName(u);
+  }
+  return String(t?.responsavel || '').trim();
+}
+
+function projUserByResponsibleText(value) {
+  const key = projNormKey(value);
+  if(!key) return null;
+  return (USUARIOS||[]).find(u => projNormKey(projUserDisplayName(u)) === key || projNormKey(u.email) === key) || null;
+}
+
+function projProjectResponsibleOptions(projectId) {
+  const users = projUsersLinkedToProject(projectId);
+  if(!users.length) return '';
+  return `<datalist id="proj-responsaveis-options">${users.map(u => {
+    const name = projUserDisplayName(u);
+    return `<option value="${projEsc(name)}" label="${projEsc(u.email||'')}"></option>`;
+  }).join('')}</datalist>`;
 }
 
 function projFaseLabel(id) {
@@ -1273,6 +1329,109 @@ function projRenderConcluidos() {
 // ════════════════════════════════════════════════════════════════════
 // PÁGINA: REUNIÕES
 // ════════════════════════════════════════════════════════════════════
+function projTaskResponsibleKey(t) {
+  const email = projNormKey(t?.responsavel_email);
+  if(email) return 'u:'+email;
+  const user = projUserByResponsibleText(t?.responsavel);
+  return user && user.email ? 'u:'+projNormKey(user.email) : 't:'+projNormKey(t?.responsavel);
+}
+
+function projAllResponsibleTasks() {
+  const today = new Date().toISOString().slice(0,10);
+  const rows = [];
+  (PROJETOS||[]).filter(p => p.status !== 'cancelado').forEach(p => {
+    projFlattenTasks(p.execucao?.tarefas || []).forEach(t => {
+      const label = projResponsibleLabel(t);
+      if(!label) return;
+      rows.push({
+        key: projTaskResponsibleKey(t),
+        label,
+        email: projNormKey(t.responsavel_email),
+        projectId: String(p.id),
+        projectName: p.nome || 'Projeto sem nome',
+        project: p,
+        task: t,
+        overdue: !t.concluida && t.dt_fim && t.dt_fim < today
+      });
+    });
+  });
+  return rows;
+}
+
+function projUsuariosFilterOptions(rows) {
+  const map = new Map();
+  (USUARIOS||[]).forEach(u => {
+    const label = projUserDisplayName(u);
+    const email = projNormKey(u.email);
+    if(label) map.set('u:'+(email || projNormKey(label)), {key:'u:'+(email || projNormKey(label)), label, detail:u.email||'Usuário cadastrado'});
+  });
+  rows.forEach(r => {
+    if(!map.has(r.key)) map.set(r.key, {key:r.key, label:r.label, detail:r.email || 'Texto livre'});
+  });
+  return Array.from(map.values()).sort((a,b) => a.label.localeCompare(b.label, 'pt-BR'));
+}
+
+function projUsuariosAgg(rows) {
+  const map = new Map();
+  rows.forEach(r => {
+    const item = map.get(r.key) || {key:r.key, label:r.label, total:0, overdue:0, done:0};
+    item.total += 1;
+    if(r.overdue) item.overdue += 1;
+    if(r.task.concluida) item.done += 1;
+    map.set(r.key, item);
+  });
+  return Array.from(map.values()).sort((a,b) => b.overdue - a.overdue || b.total - a.total || a.label.localeCompare(b.label, 'pt-BR'));
+}
+
+function projUsuariosBars(title, rows, field) {
+  const max = Math.max(1, ...rows.map(r => r[field] || 0));
+  const body = rows.length ? rows.slice(0,10).map(r => {
+    const val = r[field] || 0;
+    const width = Math.max(3, Math.round((val / max) * 100));
+    return `<div class="proj-user-bar-row"><span title="${projEsc(r.label)}">${projEsc(r.label)}</span><div class="proj-user-bar"><div style="width:${width}%"></div></div><strong>${val}</strong></div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum dado para exibir.</div>';
+  return `<div class="proj-v9-chart-card"><div class="proj-card-t">${projEsc(title)}</div><div class="proj-user-bars">${body}</div></div>`;
+}
+
+function projRenderUsuariosPage() {
+  projLoad();
+  const el = document.getElementById('proj-usuarios-content');
+  if(!el) return;
+  const allRows = projAllResponsibleTasks();
+  const selectedResponsible = document.getElementById('proj-user-filter-resp')?.value || '';
+  const selectedProject = document.getElementById('proj-user-filter-proj')?.value || '';
+  const rows = allRows.filter(r => (!selectedResponsible || r.key === selectedResponsible) && (!selectedProject || r.projectId === selectedProject));
+  const agg = projUsuariosAgg(rows);
+  const filters = projUsuariosFilterOptions(allRows);
+  const projectOpts = (PROJETOS||[]).filter(p => p.status !== 'cancelado').slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||'', 'pt-BR'));
+  const overdue = rows.filter(r => r.overdue);
+  const done = rows.filter(r => r.task.concluida);
+  const table = rows.length ? `<table class="proj-v9-table"><thead><tr><th>Responsável</th><th>Projeto</th><th>Tarefa</th><th>Fim Prev.</th><th>Status</th><th>%</th></tr></thead><tbody>${rows.map(r => `<tr class="${r.overdue?'proj-user-row-overdue':''}"><td><span class="proj-user-avatar">${projEsc(projUserInitials(r.label))}</span>${projEsc(r.label)}</td><td>${projEsc(r.projectName)}</td><td>${r.task._parentName ? `<span style="color:var(--ink3)">${projEsc(r.task._parentName)} / </span>` : ''}${projEsc(r.task.nome||'Tarefa sem nome')}</td><td>${projEsc(projFormatDate(r.task.dt_fim))}</td><td>${r.overdue ? '<span class="risk-heat risk-alto">Atrasada</span>' : (r.task.concluida ? '<span class="risk-heat risk-baixo">Concluída</span>' : '<span class="risk-heat risk-medio">Em andamento</span>')}</td><td>${Number(r.task.conclusao||0)}%</td></tr>`).join('')}</tbody></table>` : '<div class="proj-v9-chart-card" style="font-size:12px;color:var(--ink3)">Nenhuma tarefa com responsável nos filtros atuais.</div>';
+  el.innerHTML = `
+    <div class="proj-v9-filter-card">
+      <div class="proj-card-t">Filtros</div>
+      <div class="proj-v9-filter-grid">
+        <div class="proj-fg" style="margin:0"><label class="proj-fl">Responsável</label><select class="proj-fi" id="proj-user-filter-resp" onchange="projRenderUsuariosPage()"><option value="">Todos</option>${filters.map(f => `<option value="${projEsc(f.key)}" ${selectedResponsible===f.key?'selected':''}>${projEsc(f.label)}${f.detail?` · ${projEsc(f.detail)}`:''}</option>`).join('')}</select></div>
+        <div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-user-filter-proj" onchange="projRenderUsuariosPage()"><option value="">Todos</option>${projectOpts.map(p => `<option value="${projEsc(String(p.id))}" ${selectedProject===String(p.id)?'selected':''}>${projEsc(p.nome||'Projeto sem nome')}</option>`).join('')}</select></div>
+      </div>
+    </div>
+    <div class="proj-user-summary">
+      <div><strong>${rows.length}</strong><span>Tarefas vinculadas</span></div>
+      <div><strong>${overdue.length}</strong><span>Atrasadas</span></div>
+      <div><strong>${done.length}</strong><span>Concluídas</span></div>
+      <div><strong>${agg.length}</strong><span>Responsáveis</span></div>
+    </div>
+    <div class="proj-v9-chart-grid">
+      ${projUsuariosBars('Tarefas por responsável', agg, 'total')}
+      ${projUsuariosBars('Atrasadas por responsável', agg.filter(r => r.overdue > 0), 'overdue')}
+    </div>
+    <div class="proj-v9-chart-card">
+      <div class="proj-card-t">Tarefas vinculadas</div>
+      ${table}
+    </div>
+  `;
+}
+
 function projRenderStatusReport() {
   projLoad();
   const el = document.getElementById('proj-status-report-content');
@@ -3188,6 +3347,7 @@ function projTabExecucao(p) {
           </div>
         ` : ''}
         <!-- Tabela de tarefas -->
+        ${projProjectResponsibleOptions(p.id)}
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>
@@ -3301,13 +3461,14 @@ function projSyncDerivedTaskDates(tarefas) {
   return tarefas || [];
 }
 
-function projFlattenTasks(tarefas, depth, parentName) {
+function projFlattenTasks(tarefas, depth, parentName, parentPath) {
   let result = [];
-  (tarefas||[]).forEach(t => {
-    const copy = Object.assign({}, t, {_depth: depth||0, _children: t.subtarefas||[], _parentName: parentName || ''});
+  (tarefas||[]).forEach((t, i) => {
+    const path = parentPath !== undefined && parentPath !== null && parentPath !== '' ? parentPath+'.'+i : ''+i;
+    const copy = Object.assign({}, t, {_depth: depth||0, _children: t.subtarefas||[], _parentName: parentName || '', _path: path});
     result.push(copy);
     if(t.subtarefas && t.subtarefas.length > 0) {
-      result = result.concat(projFlattenTasks(t.subtarefas, (depth||0)+1, t.nome || 'Tarefa superior'));
+      result = result.concat(projFlattenTasks(t.subtarefas, (depth||0)+1, t.nome || 'Tarefa superior', path));
     }
   });
   return result;
@@ -3356,7 +3517,7 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
       </td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}"><input type="date" value="${t.dt_inicio||''}" ${hasSubs?'disabled data-derived-disabled="1" title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_inicio',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}${overdue?';color:#dc2626;font-weight:600':''}"><input type="date" value="${t.dt_fim||''}" ${hasSubs?'disabled data-derived-disabled="1" title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_fim',this.value)" style="font-size:11px;border:1px solid ${overdue?'#fca5a5':'#ddd'};border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
-      <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike}"><input type="text" value="${projEsc(t.responsavel||'')}" onchange="projUpdateTarefa('${path}','responsavel',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%" placeholder="—"></td>
+      <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike}"><input type="text" list="proj-responsaveis-options" value="${projEsc(t.responsavel||'')}" onchange="projUpdateTarefaResponsavel('${path}',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%" placeholder="Usuário ou área"></td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}">
         ${hasSubs ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${pct}%</span>` :
           `<input type="number" min="0" max="100" value="${pct}" onchange="projUpdateTarefa('${path}','conclusao',Number.parseInt(this.value,10)||0)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:50px;text-align:center">`}
@@ -3439,6 +3600,25 @@ function projUpdateTarefa(path, field, value) {
     proj.percentual = projCalcDerivedPct(proj.execucao.tarefas);
     proj.execucao.percentual = proj.percentual;
   }
+  projSave();
+  projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
+}
+
+function projUpdateTarefaResponsavel(path, rawValue) {
+  return projWithScheduleWrite(() => {
+  projLoad();
+  const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
+  if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
+  const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
+  if(ref && ref.list[ref.index]) {
+    const value = String(rawValue||'').trim();
+    const user = projFindProjectUserByResponsibleValue(proj.id, value);
+    ref.list[ref.index].responsavel = user ? projUserDisplayName(user) : value;
+    if(user && user.email) ref.list[ref.index].responsavel_email = String(user.email).trim().toLowerCase();
+    else delete ref.list[ref.index].responsavel_email;
+  }
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
   });

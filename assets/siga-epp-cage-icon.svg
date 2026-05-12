@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="SIGA EPP/CAGE">
+  <rect width="256" height="256" fill="#f1f3f5"/>
+  <path fill="#145c95" d="M184 28v44H94c-31 0-56 25-56 56s25 56 56 56h35v-48H94c-4 0-8-4-8-8s4-8 8-8h90v44l58-68-58-68z"/>
+  <path fill="#08bfb2" d="M72 228v-44h90c31 0 56-25 56-56s-25-56-56-56h-35v48h35c4 0 8 4 8 8s-4 8-8 8H72V92l-58 68 58 68z"/>
+</svg>
