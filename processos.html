@@ -15957,6 +15957,8 @@ function _fsClean(v){
 }
 async function fbSaveAll(){
   if(!fbReady() || !globalThis._fbLoadedAt) return;
+  // Pausa os listeners de tempo real durante o save (mesmo padrão do módulo de projetos)
+  if(globalThis._fbState) globalThis._fbState.saving = true;
   try {
     // Collect all set operations (strip undefined — Firestore rejects it)
     const ops = [];
@@ -15984,16 +15986,23 @@ async function fbSaveAll(){
     // Firestore batch limit is 500 — split into chunks of 450
     await FirestoreRepositories.batchCommit(ops, 450);
 
-    // Mark ourselves as current FIRST (before Firestore update triggers listeners)
-    const now = Date.now();
-    globalThis._fbLoadedAt = now;
-    // Then update sentinel so other sessions detect this save (EP only — config write)
-    if(isEP()) await configRepository.set('last_modified', {ts: now, by: usuarioLogado?.email||''});
+    globalThis._fbLoadedAt = Date.now();
     const _cb = document.getElementById('concurrent-banner');
     if(_cb) _cb.style.display = 'none';
 
     toast('✓ Dados salvos na nuvem', 'var(--teal)');
-  } catch(e){ console.warn('fbSaveAll error:', e.message); toast('⚠ Erro ao salvar na nuvem: '+e.message,'var(--red)'); }
+  } catch(e){
+    console.warn('fbSaveAll error:', e.message); toast('⚠ Erro ao salvar na nuvem: '+e.message,'var(--red)');
+  } finally {
+    // Retoma os listeners — se chegou update remoto durante o save, re-renderiza
+    if(globalThis._fbState){
+      globalThis._fbState.saving = false;
+      if(globalThis._fbState.pendingRender){
+        globalThis._fbState.pendingRender = false;
+        if(typeof renderProcs === 'function') renderProcs();
+      }
+    }
+  }
 }
 
 // ── LOAD ──────────────────────────────────
