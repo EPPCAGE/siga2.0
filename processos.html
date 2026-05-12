@@ -1227,6 +1227,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <button type="button" class="btn btn-p" onclick="migrarCustomClaims()" style="margin-left:auto;padding:6px 12px;font-size:12px" title="Migrar perfis para Custom Claims (Fase 1 Segurança)">
           🔐 Migrar Claims
         </button>
+        <button type="button" class="btn btn-s" onclick="migrarProximoAcompanhamento()" style="padding:6px 12px;font-size:12px" title="Preencher dt_proximo_acompanhamento em processos publicados">
+          📅 Migrar Acompanhamentos
+        </button>
       </div>
       <input class="hub-srch" id="srch-usr" placeholder="Buscar..." oninput="renderAdmin()">
     </div>
@@ -14585,6 +14588,126 @@ async function verificarMeusClaims() {
 
 // Expor globalmente para fácil acesso via console
 globalThis.verificarMeusClaims = verificarMeusClaims;
+
+// ── MIGRAÇÃO DE dt_proximo_acompanhamento ────────────────────────────────────
+/**
+ * Migra campo dt_proximo_acompanhamento para todos os processos publicados que não têm esse campo.
+ * Calcula com base na data de entrega efetiva + 180 dias.
+ * Requer perfil EP para executar.
+ * 
+ * USO: Chame migrarProximoAcompanhamento() no console do navegador (logado como EP).
+ */
+async function migrarProximoAcompanhamento() {
+  if (!isEP()) {
+    toast('Apenas usuários EP podem executar esta migração', 'var(--red)');
+    return;
+  }
+
+  // Função helper para adicionar dias a uma data
+  const _addDias = (dtStr, dias) => {
+    const d = new Date(dtStr + 'T00:00:00');
+    d.setDate(d.getDate() + dias);
+    return d.toISOString().slice(0, 10);
+  };
+
+  // Filtrar processos publicados sem dt_proximo_acompanhamento
+  const processosParaMigrar = processos.filter(p => {
+    // Processo deve estar publicado (tem dt_efetiva)
+    const publicado = p.ent?.dt_efetiva;
+    // E não deve ter dt_proximo_acompanhamento
+    const semAcomp = !p.dt_proximo_acompanhamento;
+    return publicado && semAcomp;
+  });
+
+  if (processosParaMigrar.length === 0) {
+    toast('Nenhum processo precisa de migração. Todos já têm dt_proximo_acompanhamento!', 'var(--green)');
+    console.log('✅ Nenhum processo precisa de migração.');
+    return;
+  }
+
+  const confirmMsg = `Encontrados ${processosParaMigrar.length} processos publicados sem data de próximo acompanhamento.\n\n` +
+    `Esta migração irá:\n` +
+    `1. Calcular dt_proximo_acompanhamento = dt_efetiva + 180 dias\n` +
+    `2. Salvar no Firestore\n\n` +
+    `Processos afetados:\n${processosParaMigrar.slice(0, 5).map(p => '• ' + p.nome).join('\n')}` +
+    `${processosParaMigrar.length > 5 ? `\n... e mais ${processosParaMigrar.length - 5}` : ''}\n\n` +
+    `Confirma migração?`;
+
+  if (!confirm(confirmMsg)) {
+    console.log('Migração cancelada pelo usuário.');
+    return;
+  }
+
+  toast(`Iniciando migração de ${processosParaMigrar.length} processos...`, 'var(--blue)');
+
+  let sucesso = 0;
+  let erros = 0;
+  const detalhes = [];
+
+  for (const p of processosParaMigrar) {
+    try {
+      const dtEfetiva = p.ent.dt_efetiva;
+      const dtProximo = _addDias(dtEfetiva, 180);
+      
+      // Atualizar no objeto local
+      p.dt_proximo_acompanhamento = dtProximo;
+      
+      // Salvar no Firestore
+      const docRef = processosRepository.ref(String(p.id));
+      await setDoc(docRef, _fsClean(p));
+      
+      sucesso++;
+      detalhes.push({
+        id: p.id,
+        nome: p.nome,
+        dt_efetiva: dtEfetiva,
+        dt_proximo_acompanhamento: dtProximo,
+        status: '✅ OK'
+      });
+      
+      console.log(`✅ [${sucesso}/${processosParaMigrar.length}] ${p.nome} → próx. acomp: ${dtProximo}`);
+      
+    } catch (error) {
+      erros++;
+      detalhes.push({
+        id: p.id,
+        nome: p.nome,
+        status: '❌ ERRO',
+        erro: error.message
+      });
+      console.error(`❌ Erro ao migrar processo ${p.id} (${p.nome}):`, error);
+    }
+  }
+
+  // Atualizar interface
+  renderProcs();
+
+  // Mostrar resumo
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log('RESUMO DA MIGRAÇÃO DE dt_proximo_acompanhamento');
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log(`Total de processos: ${processosParaMigrar.length}`);
+  console.log(`Migrados com sucesso: ${sucesso}`);
+  console.log(`Erros: ${erros}`);
+  console.log('');
+  console.log('Detalhes:');
+  console.table(detalhes);
+  console.log('═══════════════════════════════════════════════════════════');
+
+  if (erros === 0) {
+    toast(`✅ Migração concluída com sucesso! ${sucesso} processos atualizados.`, 'var(--green)', 5000);
+    console.log('✅ Todos os processos foram migrados com sucesso!');
+    console.log('');
+    console.log('📋 Os processos agora exibem:');
+    console.log('  • Entrega efetiva em [data]');
+    console.log('  • Próx. acompanhamento: [data]');
+  } else {
+    toast(`⚠️ Migração concluída com avisos: ${sucesso} sucessos, ${erros} erros. Veja o console.`, 'var(--amber)', 5000);
+  }
+}
+
+// Expor globalmente para fácil acesso via console
+globalThis.migrarProximoAcompanhamento = migrarProximoAcompanhamento;
 
 
 // ═══════════════════════════════════════════
