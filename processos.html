@@ -9345,7 +9345,7 @@ function _ilpBranchScore(result){
   return (result.activities?.length||0) + ((result.gwXorNodes?.length||0) * 0.25);
 }
 
-function _ilpTraverseEtapas(nodes, linkedGatewayMap, consumedLinkedIds){
+function _ilpTraverseEtapas(nodes, linkedGatewayMap, consumedLinkedIds, allBranches=false){
   const activities=[];
   const gwXorNodes=[];
   for(const node of (nodes||[])){
@@ -9375,8 +9375,8 @@ function _ilpTraverseEtapas(nodes, linkedGatewayMap, consumedLinkedIds){
     const branches=[...branchMap.values()].filter(branch=>branch.nodes.length);
     if(!branches.length) continue;
 
-    const branchResults=branches.map(branch=>_ilpTraverseEtapas(branch.nodes, linkedGatewayMap, consumedLinkedIds));
-    if(_ilpIsParallelGw(node)){
+    const branchResults=branches.map(branch=>_ilpTraverseEtapas(branch.nodes, linkedGatewayMap, consumedLinkedIds, allBranches));
+    if(_ilpIsParallelGw(node)||allBranches){
       branchResults.forEach(result=>{
         activities.push(...result.activities);
         gwXorNodes.push(...result.gwXorNodes);
@@ -9397,13 +9397,16 @@ function _ilpTraverseEtapas(nodes, linkedGatewayMap, consumedLinkedIds){
 function calcILPFromEtapas(etapas){
   if(!etapas||!etapas.length)return null;
   const linkedGatewayMap=_ilpBuildLinkedGatewayMap(etapas);
+  // Longest path: para gateways (G) e propor\u00e7\u00e3o de automa\u00e7\u00e3o (A)
   const {activities:atividades, gwXorNodes}= _ilpTraverseEtapas(etapas, linkedGatewayMap, new Set());
   const total=atividades.length;
   if(!total)return null;
   const gxorDiv=gwXorNodes.length;
+  // Todos os ramos: para contar atores distintos (T) \u2014 ator em ramo mais curto tamb\u00e9m conta
+  const {activities:todasAtividades}=_ilpTraverseEtapas(etapas, _ilpBuildLinkedGatewayMap(etapas), new Set(), true);
   const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
   const atoresMap=new Map();
-  atividades.forEach(n=>{
+  todasAtividades.forEach(n=>{
     const raw=(n.executor||'').trim();
     if(!raw)return;
     const key=_normAtor(raw);
@@ -9465,12 +9468,22 @@ function calcILPFromBpmn(bpmnXml, etapas){
     }
     const r=[id]; nexts.forEach(t=>traverse(t,vis2).forEach(x=>r.push(x))); return r;
   }
+  // Todos os ramos (para contagem de atores)
+  function traverseAll(id,vis){
+    if(vis.has(id))return[];
+    const n=nodeInfo[id];if(!n)return[];
+    const vis2=new Set(vis);vis2.add(id);
+    const nexts=(outgoing[id]||[]).filter(t=>nodeInfo[t]&&!vis2.has(t));
+    const r=[id];nexts.forEach(t=>traverseAll(t,vis2).forEach(x=>r.push(x)));return r;
+  }
   const startIds=Object.keys(nodeInfo).filter(id=>nodeInfo[id].subtipo==='Início');
   const roots=startIds.length?startIds:Object.keys(nodeInfo).filter(id=>!incoming[id]);
   let pathIds=[];
   roots.forEach(rid=>{const p=traverse(rid,new Set());if(p.length>pathIds.length)pathIds=p;});
   if(!pathIds.length)return null;
   pathIds=_dedupeIds(pathIds);
+  let allIds=[];roots.forEach(rid=>traverseAll(rid,new Set()).forEach(id=>allIds.push(id)));
+  allIds=_dedupeIds(allIds);
   // Modo de execução: lê do etapas_proc (override manual) ou do tipo BPMN
   const bpmnIdToModo={};
   (etapas||[]).forEach(e=>{if(e.bpmn_id&&e.modo)bpmnIdToModo[e.bpmn_id]=e.modo;});
@@ -9490,10 +9503,10 @@ function calcILPFromBpmn(bpmnXml, etapas){
     return outs>1;
   }).map(id=>{const n=nodeInfo[id];return{nome:n.nome||'Gateway',subtipo:n.subtipo_gateway||'exclusivo',caminhos:(outgoing[id]||[]).length};});
   const gxorDiv=gwXorNodes.length;
-  // Atores distintos a partir das raias (laneMap → executor de cada atividade)
+  // Atores distintos de TODOS os ramos (inclusive ramos mais curtos de XOR)
   const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'');
   const atoresMap=new Map();
-  actIds.forEach(id=>{
+  allIds.filter(id=>nodeInfo[id]?.tipo==='Atividade').forEach(id=>{
     const raw=(nodeInfo[id]?.executor||'').trim(); if(!raw)return;
     const k=_normAtor(raw); if(!atoresMap.has(k))atoresMap.set(k,raw);
   });
