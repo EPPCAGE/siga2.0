@@ -5132,7 +5132,7 @@ const ACOES = {
       <button type="button" class="btn" style="font-size:11px;padding:3px 10px" onclick="exportarEtapasAsIsXlsx()" title="Exportar todas as etapas para planilha Excel">⬇ Exportar Excel</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
-    ${_rRetrabalhosPanel(p,'asis')}
+    <div id="rework-panel-asis">${_rRetrabalhosPanel(p,'asis')}</div>
     `},
 
   det_valid_asis:{titulo:'Detalhamento e Validação AS IS',sub:'O dono detalha as etapas do fluxo e valida o desenho AS IS elaborado pelo EP.',role:'Dono do processo',rk:'dono',
@@ -5181,7 +5181,7 @@ const ACOES = {
       <button type="button" class="btn" onclick="addEtapaProc()">+ Adicionar manualmente</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc_tobe||[])}</div>
-    ${_rRetrabalhosPanel(p,'tobe')}
+    <div id="rework-panel-tobe">${_rRetrabalhosPanel(p,'tobe')}</div>
     <div id="tobe-relatorio-outer" style="margin-top:.4rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
       ${_rTobeRelatorioSecao(p)}
     </div>
@@ -9070,6 +9070,7 @@ function remEtapaProc(id){
   curProc.mod[key]=curProc.mod[key].filter(e=>e.id!==id);
   curProc.mod[key].forEach((e,i)=>e.seq=i+1);
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(curProc.mod[key]);
+  _refreshReworkPanel();
 }
 
 // ── DRAG-AND-DROP REORDERING ─────────────────
@@ -9106,6 +9107,7 @@ function onEtapaDrop(e, id){
   etapas.splice(tgtIdx, 0, moved);
   etapas.forEach((et,i)=>et.seq=i+1);
   document.getElementById('etapas-proc-list').innerHTML = renderEtapasProc(etapas);
+  _refreshReworkPanel();
   fbAutoSave('reordenarEtapas');
 }
 function addEtapaProc(){
@@ -9115,6 +9117,7 @@ function addEtapaProc(){
   const nova={id:'ep'+etapasIdC++,seq,nome:'Nova etapa '+seq,tipo:'Atividade',natureza:'Execucao',modo:'Manual',executor:'',desc:'',subtipo_evento:null,caminhos:[],vinculo_gw:null};
   curProc.mod[key].push(nova);
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(curProc.mod[key]);
+  _refreshReworkPanel();
   setTimeout(()=>{ toggleEtapaDetalhe(nova.id); },50);
 }
 function _bpmnNodeType(tag, GW_TAGS, TASK_TAGS){
@@ -9301,6 +9304,7 @@ function extrairBpmn(){
   p.mod[key]=[...p.mod[key],...novas];
   p.mod[key].forEach((e,i)=>e.seq=i+1);
   document.getElementById('etapas-proc-list').innerHTML=renderEtapasProc(p.mod[key]);
+  _refreshReworkPanel();
   fbAutoSave('extrairBpmn');
   toast(novas.length+' etapas extraídas do BPMN na ordem do fluxo!');
 }
@@ -9739,6 +9743,11 @@ function _salvarRetrabalhos(which){
   fbAutoSave('salvarRetrabalhos');
   toast('✓ Análise de retrabalho salva: '+confirmados.length+' confirmado'+(confirmados.length!==1?'s':''));
   rForm(p);
+}
+function _refreshReworkPanel(){
+  const which=_ekey()==='etapas_proc_tobe'?'tobe':'asis';
+  const el=document.getElementById('rework-panel-'+which);
+  if(el)el.innerHTML=_rRetrabalhosPanel(curProc,which);
 }
 function _rEntIlpPalette(ilp){
   if(ilp>=80) return {bg:'#d1fae5',color:'#065f46',label:'Processo enxuto'};
