@@ -9812,7 +9812,8 @@ function rEnt(p){
     if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
-  const hasTobe=!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
+  const comToBe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
+  const hasTobe=comToBe&&!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
   const ilpCard=hasTobe?_rIlpComparacao(p):_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null));
       const linkPubHtml = p.form?.link_pub
         ? '<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="'+esc(p.form.link_pub)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(p.form.link_pub)+'</a></div></div>'
