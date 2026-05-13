@@ -48,6 +48,7 @@
       
       try {
         const { auth, signInWithEmailAndPassword } = globalScope.fb();
+        globalScope._isManualLogin = true;
         await signInWithEmailAndPassword(auth, email, senha);
         // onAuthStateChanged vai carregar dados e aplicar o usuário
       } catch (e) {
