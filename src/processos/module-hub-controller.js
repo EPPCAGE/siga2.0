@@ -73,6 +73,7 @@
       toast('Seu perfil não tem acesso ao SIGA Projetos.','var(--red)');
       return;
     }
+    lsSet('siga_module', 'projetos');
     globalScope.location.href = 'projetos.html';
   }
 
