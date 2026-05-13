@@ -9356,12 +9356,13 @@ function _ilpTraverseEtapas(nodes, linkedGatewayMap, consumedLinkedIds, allBranc
     })));
 
     const linkedBranches=new Map();
+    const linkedNodeIds=[];
     (linkedGatewayMap.get(node.id)||[]).forEach(linkedNode=>{
       if(!linkedNode||consumedLinkedIds.has(linkedNode.id)) return;
       const label=linkedNode.vinculo_gw?.label||'';
       if(!linkedBranches.has(label)) linkedBranches.set(label, {label, nodes:[]});
       linkedBranches.get(label).nodes.push(linkedNode);
-      consumedLinkedIds.add(linkedNode.id);
+      linkedNodeIds.push(linkedNode.id);
     });
     _ilpMergeGatewayBranches(branchMap, [...linkedBranches.values()]);
 
@@ -9369,6 +9370,8 @@ function _ilpTraverseEtapas(nodes, linkedGatewayMap, consumedLinkedIds, allBranc
     if(!branches.length) continue;
 
     const branchResults=branches.map(branch=>_ilpTraverseEtapas(branch.nodes, linkedGatewayMap, consumedLinkedIds, allBranches));
+    // Marcar como consumidos APÓS o recursivo para que ele consiga processar os nós
+    linkedNodeIds.forEach(id=>consumedLinkedIds.add(id));
     if(_ilpIsParallelGw(node)||allBranches){
       branchResults.forEach(result=>{
         activities.push(...result.activities);
@@ -9394,9 +9397,7 @@ function _ilpDetectarRetrabalhos(atividades){
 }
 function _ilpGetAllAtividades(etapas){
   if(!etapas||!etapas.length)return[];
-  const lm=_ilpBuildLinkedGatewayMap(etapas);
-  const{activities}=_ilpTraverseEtapas(etapas,lm,new Set(),true);
-  return activities;
+  return etapas.filter(e=>!e.tipo||e.tipo==='Atividade');
 }
 function calcILPFromEtapas(etapas,retrabalhosConfirmados=undefined){
   if(!etapas||!etapas.length)return null;
