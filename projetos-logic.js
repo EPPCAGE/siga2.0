@@ -2898,19 +2898,69 @@ function projCanvasObjetivoCell(p) {
   const selected = projCanvasObjetivosSelecionados(p);
   const options = [...new Set([...(PROJ_OBJETIVOS || []), ...selected])]
     .filter(Boolean)
-    .map(o => `<option value="${projEsc(o)}" ${selected.includes(o) ? 'selected' : ''}>${projEsc(o)}</option>`)
+    .filter(o => !selected.includes(o))
+    .map(o => `<option value="${projEsc(o)}">${projEsc(o)}</option>`)
     .join('');
+  const selectedHtml = selected.length
+    ? selected.map((o,i)=>`<div class="proj-canvas-oe-chip"><span>${projEsc(o)}</span><button type="button" onclick="projCanvasRemoverObj(${i})" aria-label="Remover objetivo estratégico">×</button></div>`).join('')
+    : '<div class="proj-canvas-oe-empty">Nenhum OE vinculado.</div>';
   return `
     <div class="proj-canvas-cell proj-canvas-cell-oe">
       <div class="proj-canvas-cell-num">11</div>
       <div class="proj-canvas-cell-label">OBJETIVO ESTRATÉGICO</div>
       <div class="proj-canvas-cell-sub">Vincule o projeto a um ou mais objetivos estratégicos</div>
-      <select id="canvas-objetivo_estrategico" class="proj-canvas-oe-select" multiple size="7" onchange="projSalvarIdeacao()">
-        ${options}
-      </select>
-      <div class="proj-canvas-oe-hint">Use Ctrl ou Shift para selecionar mais de um OE.</div>
+      <div id="canvas-objetivo_estrategico-list" class="proj-canvas-oe-list">${selectedHtml}</div>
+      <div class="proj-canvas-oe-add">
+        <select id="canvas-objetivo_estrategico-sel" class="proj-fi">
+          <option value="">Selecione...</option>${options}
+        </select>
+        <button type="button" class="proj-btn primary" onclick="projCanvasAddObj()">+ Adicionar</button>
+      </div>
     </div>
   `;
+}
+
+function projSyncIdeacaoObjetivos(proj) {
+  if(!proj) return;
+  if(!proj.ideacao) proj.ideacao = {};
+  proj.objetivos_estrategicos = [...new Set((proj.objetivos_estrategicos || [])
+    .map(v => projCanonicalStrategyValue(v, PROJ_OBJETIVOS))
+    .filter(Boolean))];
+  proj.ideacao.objetivo_estrategico = proj.objetivos_estrategicos.join('\n');
+}
+
+function projRerenderIdeacaoTab() {
+  projDetalheTab('ideacao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(2)'));
+}
+
+function projCanvasAddObj() {
+  if(!projEnsureWriteAll()) return;
+  const s = document.getElementById('canvas-objetivo_estrategico-sel');
+  if(!s || !s.value) { projToast('Selecione um objetivo.', '#d97706'); return; }
+  projLoad();
+  const p = PROJETOS.find(x => String(x.id) === _projCurrentId);
+  if(!p) return;
+  if(!p.objetivos_estrategicos) p.objetivos_estrategicos = [];
+  const value = projCanonicalStrategyValue(s.value, PROJ_OBJETIVOS);
+  if(p.objetivos_estrategicos.map(v => projCanonicalStrategyValue(v, PROJ_OBJETIVOS)).includes(value)) {
+    projToast('Já vinculado.', '#d97706');
+    return;
+  }
+  p.objetivos_estrategicos.push(value);
+  projSyncIdeacaoObjetivos(p);
+  projSave();
+  projRerenderIdeacaoTab();
+}
+
+function projCanvasRemoverObj(i) {
+  if(!projEnsureWriteAll()) return;
+  projLoad();
+  const p = PROJETOS.find(x => String(x.id) === _projCurrentId);
+  if(!p || !p.objetivos_estrategicos) return;
+  p.objetivos_estrategicos.splice(i, 1);
+  projSyncIdeacaoObjetivos(p);
+  projSave();
+  projRerenderIdeacaoTab();
 }
 
 function projSalvarIdeacao() {
@@ -2926,14 +2976,7 @@ function projSalvarIdeacao() {
     const el = document.getElementById('canvas-'+f);
     if(el) proj.ideacao[f] = el.value;
   });
-  const objetivoEl = document.getElementById('canvas-objetivo_estrategico');
-  if(objetivoEl) {
-    const selected = Array.from(objetivoEl.selectedOptions || [])
-      .map(opt => projCanonicalStrategyValue(opt.value, PROJ_OBJETIVOS))
-      .filter(Boolean);
-    proj.objetivos_estrategicos = [...new Set(selected)];
-    proj.ideacao.objetivo_estrategico = proj.objetivos_estrategicos.join('\n');
-  }
+  if(document.getElementById('canvas-objetivo_estrategico-list')) projSyncIdeacaoObjetivos(proj);
   // Save HTML canvas and link
   const htmlCodeEl = document.getElementById('canvas-html-code');
   if(htmlCodeEl) proj.ideacao.canvas_html = htmlCodeEl.value;
