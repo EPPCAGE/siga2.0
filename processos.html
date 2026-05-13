@@ -11013,6 +11013,8 @@ function bpmnOpenFullscreen(which){
     return;
   }
   try{m.get('canvas').zoom('fit-viewport');}catch{}
+  _bpmnActivateKeyboard(which);
+  _bpmnBindCanvasMousedown(which, canvasEl);
 
   const _escHandler=e=>{if(e.key==='Escape')bpmnCloseFullscreen(which);};
   overlay._escHandler=_escHandler;
@@ -11029,6 +11031,7 @@ function bpmnCloseFullscreen(which){
   if(m&&inlineCanvas){
     try{m.attachTo(inlineCanvas);}catch{}
     try{m.get('canvas').zoom('fit-viewport');}catch{}
+    _bpmnActivateKeyboard(which);
   }
   overlay.remove();
 }
