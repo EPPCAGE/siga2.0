@@ -9303,7 +9303,28 @@ function extrairBpmn(){
 // T = índice de atores:    clamp(0,100, (10−nAtores)/9×100)  — 1 ator=100, 10+ atores=0
 // G = índice de gateways:  max(0, 100 − gwXOR_caminhoMaisLongo)
 // R = índice de retrabalho: max(0, 100 − qtdRetrabalhos×10)  — condicional
-const ILP_REWORK_KEYWORDS=['revisar','corrigir','refazer','ajustar','rever','realizar ajuste','realizar revisão','retificar','consertar','sanar','adequar','esclarecer','prestar esclarecimento','complementar','rediagramar','reescrever','redesenhar','novamente','outra vez','mais uma vez','repetir','reanalisar','reapreciar','realizar nova análise','retornar'];
+const ILP_REWORK_KEYWORDS=[
+  // radicais — capturam infinitivo, substantivo e particípio em português
+  'revis',       // revisar, revisão, revisado, revisando
+  'corrig','correc', // corrigir, correção, corrigido
+  'refaz','refeito', // refazer, refeito
+  'ajust',       // ajustar, ajuste, ajustes, ajustado
+  'retrab',      // retrabalho, retrabalhou
+  'retific',     // retificar, retificação
+  'adequ',       // adequar, adequação
+  'sanea','sanar', // saneamento, sanar
+  'complement',  // complementar, complementação
+  'esclare',     // esclarecer, esclarecimento
+  'rediagram','redesenh','reescrev', // rediagramar, redesenhar, reescrever
+  'repeti','novamente','outra vez','mais uma vez', // repetição, novamente
+  'reanali','reapre', // reanalisar, reanálise, reapreciar
+  'devolu','devolv', // devolução, devolver — muito comum em gov.
+  'retorn',      // retornar, retorno ao setor
+  'glosa','gloso', // glosa (comum em processos de pagamento)
+  'impugn',      // impugnar, impugnação
+  'recurs',      // recurso, recorrer
+];
+
 const ILP_REWORK_PENALTY=10;
 function _ilpNormTxt(s){
   return (s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
