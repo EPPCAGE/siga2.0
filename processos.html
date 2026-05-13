@@ -17044,6 +17044,15 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
   }
   if(user){
     _iniciarSessaoUnica(firebaseUser.uid);
+    // Não-EP muda senha mas não pode escrever em config/usuarios;
+    // o override fica em /usuarios/{uid} — aplica antes de mostrar hub.
+    if(user.trocar_senha){
+      try{
+        const {db,doc:_d,getDoc:_g}=fb();
+        const _snap=await _g(_d(db,'usuarios',firebaseUser.uid));
+        if(_snap.exists()&&_snap.data().trocar_senha===false) user.trocar_senha=false;
+      }catch(e_){}
+    }
     _aplicarUsuario(user);
     if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
     // Define Custom Claim {perfil} no token de forma não-bloqueante.

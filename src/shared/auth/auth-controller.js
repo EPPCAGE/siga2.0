@@ -511,17 +511,21 @@
       await updatePassword(auth.currentUser, nova);
 
       // Remove flag trocar_senha.
-      // config/usuarios só permite escrita por EP; usamos /usuarios/{uid}
-      // (regra: isAuth() && request.auth.uid == uid) para persistir o override.
+      // EP pode escrever em config/usuarios; não-EP usa /usuarios/{uid} como override.
       const usuario = globalScope.usuarioLogado;
       if (usuario) {
         usuario.trocar_senha = false;
         const idx = (globalScope.USUARIOS || []).findIndex(function(u) { return u.email === usuario.email; });
         if (idx >= 0) globalScope.USUARIOS[idx].trocar_senha = false;
         try {
-          const { auth: _a, db, doc: _doc, setDoc: _set } = globalScope.fb();
-          await _set(_doc(db, 'usuarios', _a.currentUser.uid), { trocar_senha: false }, { merge: true });
-        } catch(fsErr) { console.warn('salvarNovaSenha: não foi possível persistir trocar_senha:', fsErr.message); }
+          await _fbSaveUsuarios(); // funciona para EP (escreve em config/usuarios)
+        } catch(configErr) {
+          // Não-EP: persiste override em /usuarios/{uid} (regra: uid == uid)
+          try {
+            const { auth: _a, db, doc: _doc, setDoc: _set } = globalScope.fb();
+            await _set(_doc(db, 'usuarios', _a.currentUser.uid), { trocar_senha: false }, { merge: true });
+          } catch(fsErr) { console.warn('salvarNovaSenha: não foi possível persistir trocar_senha:', fsErr.message); }
+        }
       }
 
       const modal = document.getElementById('trocar-senha-modal');
