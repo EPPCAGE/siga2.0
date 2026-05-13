@@ -1303,7 +1303,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a5 5 0 00-5 5v3l-1 2h12l-1-2V7a5 5 0 00-5-5z" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg>
     Notificações <span class="nav-cnt" id="nb-notif-cnt">0</span>
   </button>
-  <button type="button" class="nav-btn" onclick="openModuleHub()" id="nb-modhub" style="display:none;margin-top:4px;border-top:1px solid var(--bdr2);padding-top:10px">
+  <button type="button" class="nav-btn" onclick="lsSet('siga_module','hub');openModuleHub()" id="nb-modhub" style="display:none;margin-top:4px;border-top:1px solid var(--bdr2);padding-top:10px">
     <svg viewBox="0 0 16 16" fill="none"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" stroke="currentColor" stroke-width="1.2"/></svg>
     Voltar para o hub
   </button>
@@ -2414,8 +2414,11 @@ function _aplicarUsuario(user){
   if(user.trocar_senha){
     abrirModalTrocarSenha();
   } else {
-    openModuleHub();
-    if(lsGet('siga_module') === 'processos') enterProcessModule();
+    if(lsGet('siga_module') !== 'hub' && hasProcessosAccess()) {
+      enterProcessModule();
+    } else {
+      openModuleHub();
+    }
   }
   setTimeout(verificarPrazosProximos, 1500);
 }
