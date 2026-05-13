@@ -9355,7 +9355,7 @@ function _ilpTraverseEtapas(nodes, linkedGatewayMap, consumedLinkedIds, allBranc
   const gwXorNodes=[];
   for(const node of (nodes||[])){
     if(!node||consumedLinkedIds.has(node.id)) continue;
-    if(node.tipo==='Atividade'){
+    if(!node.tipo||node.tipo==='Atividade'){
       activities.push(node);
       continue;
     }
