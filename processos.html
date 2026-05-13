@@ -5180,7 +5180,6 @@ const ACOES = {
       <button type="button" class="btn" onclick="addEtapaProc()">+ Adicionar manualmente</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc_tobe||[])}</div>
-    ${_rIlpComparacao(p)}
     <div id="tobe-relatorio-outer" style="margin-top:.4rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
       ${_rTobeRelatorioSecao(p)}
     </div>
@@ -9815,7 +9814,8 @@ function rEnt(p){
     if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
-  const ilpCard=_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null));
+  const hasTobe=!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
+  const ilpCard=hasTobe?_rIlpComparacao(p):_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null));
       const linkPubHtml = p.form?.link_pub
         ? '<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="'+esc(p.form.link_pub)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(p.form.link_pub)+'</a></div></div>'
         : '';
