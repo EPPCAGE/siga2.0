@@ -102,7 +102,7 @@ html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;min-height:100vh}
 body.drawer-open{overflow:hidden;touch-action:none}
 .shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-.aside{background:var(--ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:10}
+.aside{background:var(--ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:10;scrollbar-width:none}.aside::-webkit-scrollbar{display:none}
 .main-area{overflow-y:auto;max-height:100vh;min-width:0}
 /* sidebar */
 .aside-top{padding:1.4rem 1.2rem 1rem;border-bottom:1px solid rgba(255,255,255,.07)}
@@ -1324,7 +1324,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         </div>
       </button>
     </div>
-    <button type="button" class="logout-btn" onclick="doLogout()">Sair da conta</button>
   </div>
 </aside>
 <main class="main-area">
