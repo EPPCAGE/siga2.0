@@ -2138,6 +2138,7 @@ const ETAPAS = [
   {id:'esboco_tobe',lb:'Esboço TO BE',fase:'Modelagem',cor:'pip-m',resp:'ep',tobe:true},
   {id:'det_valid_tobe',lb:'Detalhamento e validação TO BE',fase:'Modelagem',cor:'pip-m',resp:'dono',tobe:true},
   // Formalização
+  {id:'desenho_final',lb:'Desenho final',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'indicadores_proc',lb:'Indicadores',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'pop',lb:'Construção POP',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'apresentacao',lb:'Aprov. gestor',fase:'Formalizacao',cor:'pip-f',resp:'gestor'},
@@ -2154,7 +2155,7 @@ function getEtapas(p){
 }
 const FASES = ['Entendimento','Modelagem','Formalizacao','Operacao','Auditoria'];
 const FASE_COR = {Entendimento:'bt',Modelagem:'bp',Formalizacao:'ba',Operacao:'bb',Auditoria:'br'};
-const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',esboco_asis:'bp',det_valid_asis:'bp',riscos:'bp',analise:'bp',melhorias:'bp',esboco_tobe:'bp',det_valid_tobe:'bp',pop:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
+const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',esboco_asis:'bp',det_valid_asis:'bp',riscos:'bp',analise:'bp',melhorias:'bp',esboco_tobe:'bp',det_valid_tobe:'bp',desenho_final:'ba',pop:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
 
 function etIdx(id,p){return getEtapas(p||curProc).findIndex(e=>e.id===id);}
 function etFase(id){return ETAPAS.find(e=>e.id===id)?.fase||'';}
@@ -2873,7 +2874,7 @@ function rFila(){
   if(!usuarioLogado)return;
   const tarefas=getTarefasUsr();
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
-  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',det_valid_asis:'Detalhar etapas e validar AS IS',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir análise de aderência do processo'};
+  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',det_valid_asis:'Detalhar etapas e validar AS IS',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',desenho_final:'Finalizar desenho do processo',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir análise de aderência do processo'};
   const el=document.getElementById('fila-content');
   if(!tarefas.length){el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>';rMeusProc();return;}
   // Q010: separar vencidos, críticos, normais
@@ -5247,6 +5248,14 @@ const ACOES = {
       `;
     }},
 
+  desenho_final:{titulo:'Desenho final do processo',sub:'Consolide e finalize o fluxo validado pelo dono.',role:'EP',rk:'ep',
+    form:p=>{
+      return `<div class="ib ibg" style="margin-bottom:.8rem">O fluxo foi validado pelo dono. Revise o diagrama AS IS abaixo e avance para a próxima etapa.</div>
+      ${bpmnEditorHTML('asis',p.mod?.bpmnAsIs)}
+      <div class="fg" style="margin-top:.8rem"><label class="fl">Observações sobre ajustes finais</label><textarea class="fi" id="a-obs" style="min-height:60px" placeholder="Descreva eventuais alterações feitas...">${esc(p.form?.obs_final||'')}</textarea></div>
+      `;
+    }},
+
   indicadores_proc:{titulo:'Indicadores do processo',sub:'Defina indicadores de desempenho para monitoramento contínuo do processo.',role:'EP',rk:'ep',
     form:p=>{
       const inds=p.form?.indicadores_proc||[];
@@ -5708,7 +5717,7 @@ function rAcaoRetro(){
       <button type="button" class="btn btn-p" onclick="salvarEIrProximo('${etId}')">💾 Salvar e ir para próxima →</button>
     </div>`;
   document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
-  if(etId==='esboco_asis'||etId==='det_valid_asis') setTimeout(()=>initBpmnMod('asis',p),120);
+  if(etId==='esboco_asis'||etId==='det_valid_asis'||etId==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
   if(etId==='esboco_tobe'||etId==='det_valid_tobe') setTimeout(()=>initBpmnMod('tobe',p),120);
 }
 function _publicacaoCard(titulo, descricao, botaoHtml){
@@ -5895,6 +5904,10 @@ function _rsQuestionario(p){
 function _rsAnalise(p){
   p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
 }
+function _rsDesenhoFinal(p){
+  p.form=p.form||{};
+  p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
+}
 function _rsPOP(p){
   p.form=p.form||{};
   const etapas=p.mod?.etapas_proc||[];
@@ -5974,6 +5987,7 @@ const _RESET_MAP={
   melhorias:     p=>{ if(p.ent?.analise) p.ent.analise.feedback_dono={}; },
   esboco_tobe:   p=>{ if(p.mod){p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];p.mod.tobe_relatorio=null;} },
   det_valid_tobe:p=>{ if(p.ent?.evidencias) p.ent.evidencias.det_valid_tobe=[]; },
+  desenho_final: p=>{ if(p.form){p.form.obs_final='';} },
   indicadores_proc: p=>{ if(p.form) p.form.indicadores_proc=[]; },
   pop:           p=>{ if(p.form){p.form.pop=null;p.form.faq='';p.form.excecoes='';p.form.contatos='';p.form.forms='';p.form.obs_complement='';} },
   apresentacao:  p=>{ if(p.ent?.evidencias) p.ent.evidencias.apresentacao=[]; },
@@ -6000,7 +6014,7 @@ const _RS_MAP={
   esboco_asis:_rsEsbocaAsis, esboco_tobe:_rsEsbocaTobe,
   det_valid_asis:_rsDetValidAsis, det_valid_tobe:_rsDetValidTobe,
   apresentacao:_rsApresentacao, questionario:_rsQuestionario,
-  analise:_rsAnalise,
+  analise:_rsAnalise, desenho_final:_rsDesenhoFinal,
   indicadores_proc:()=>{},
   pop:_rsPOP, publicacao:_rsPublicacao,
   melhorias:_rsMelhorias, acompanha:_rsAcompanha,
@@ -6035,6 +6049,7 @@ const _ADVANCE_MAP={
   esboco_asis:      ()=>salvarEsboco(),
   melhorias:        ()=>salvarMelhorias(),
   esboco_tobe:      ()=>salvarEsbocaTobe(),
+  desenho_final:    ()=>salvarDesenhoFinal(),
   indicadores_proc: ()=>salvarIndicadoresProc(),
   pop:              ()=>salvarPOP(),
   publicacao:       ()=>publicarProcesso(),
@@ -6049,6 +6064,7 @@ const _SAVE_MAP={
   esboco_asis:      ()=>salvarEsboco(false),
   melhorias:        ()=>salvarMelhorias(false),
   esboco_tobe:      ()=>salvarEsbocaTobe(false),
+  desenho_final:    ()=>salvarDesenhoFinal(false),
   indicadores_proc: ()=>salvarIndicadoresProc(false),
   pop:              ()=>salvarPOP(false),
   publicacao:       ()=>salvarDadosPublicacao(),
@@ -6100,6 +6116,7 @@ const _BPMN_INIT = {
   det_valid_tobe: (p) => { setTimeout(()=>initBpmnMod('tobe',p),120); },
   esboco_asis:    (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); },
   esboco_tobe:    (p)    => { setTimeout(()=>initBpmnMod('tobe',p),120); },
+  desenho_final:  (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); },
   pop:            ()     => { setTimeout(injectIaPop,100); },
 };
 function _rAcaoInitBpmn(p, minhaTarefa){
@@ -6144,6 +6161,9 @@ const _CHECKLIST_DEFS={
   det_valid_tobe:(p)=>[
     {lb:'Processo TO BE detalhado',done:!!(p.mod&&((p.mod.etapas_proc_tobe||[]).length||p.mod.toBe))},
     {lb:'Evidências de validação TO BE enviadas',done:!!((p.evidencias||{}).det_valid_tobe?.length)},
+  ],
+  desenho_final:(p)=>[
+    {lb:'Desenho final concluído',done:!!(p.form&&(p.form.pop||p.mod?.desenho_final))},
   ],
   pop:(p)=>[
     {lb:'POP redigido (objetivo e responsabilidades preenchidos)',done:!!(p.form&&p.form.pop&&p.form.pop.obj)},
@@ -11074,6 +11094,14 @@ function vincularDesenhoFinalArq(){
     img.src=svgUri;
   }).catch(e=>toast('Erro: '+(e.message||e),'var(--red)'));
 }
+function salvarDesenhoFinal(avancar=true){
+  const p=curProc; if(!p) return;
+  p.form=p.form||{};
+  p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
+  if(avancar) av('desenho_final','EP','Desenho final concluído',null,p.pat);
+  else{fbAutoSave('salvarDesenhoFinal');toast('Dados salvos!','var(--teal)');}
+}
+
 // ─── Sugestão TO BE em texto — gerada por IA ────────────────────────────────
 function _rTobeRelatorioSecao(p){
   const texto=p.mod?.tobe_relatorio||'';
@@ -15451,6 +15479,7 @@ const STATUS_REPORT_ETAPA_LABELS = {
   melhorias:'Melhorias',
   esboco_tobe:'Esboço TO BE',
   det_valid_tobe:'Det. TO BE',
+  desenho_final:'Desenho Final',
   indicadores_proc:'Indicadores',
   pop:'POP',
   apresentacao:'Apresentação',
