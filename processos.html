@@ -5299,7 +5299,7 @@ const ACOES = {
       <div class="fg"><label class="fl">Saídas do processo <span style="font-size:10px;color:var(--teal);font-weight:400">← SIPOC</span></label><textarea class="fi" id="pp-sai" style="min-height:54px" placeholder="O que é produzido ao final?">${esc(p.form?.pop?.sai||p.ent?.saidas||'')}</textarea></div>
     </div>
     <div id="pp3" class="tab-p" style="display:none">
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Atividades puxadas do detalhamento feito pelo dono (etapa de validação AS IS). Revise tipo, descrição, responsável e etapa seguinte.</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:.8rem">Atividades puxadas do TO BE (quando disponível) ou do AS IS. Revise tipo, descrição e responsável.</div>
       ${popAtivCards(p)}
     </div>
     <div id="pp4" class="tab-p" style="display:none">
@@ -5898,7 +5898,8 @@ function _rsAnalise(p){
 }
 function _rsPOP(p){
   p.form=p.form||{};
-  const etapas=p.mod?.etapas_proc||[];
+  const _tobeEtRs=p.mod?.etapas_proc_tobe||[];
+  const etapas=_tobeEtRs.length?_tobeEtRs:(p.mod?.etapas_proc||[]);
   const ativ_detalhes={...p.form.pop?.ativ_detalhes};
   etapas.forEach((e,i)=>{
     const descEl=document.getElementById(`pop-at-desc-${i}`);
@@ -8636,7 +8637,7 @@ function exportarAuditoriaWord(){
 }
 function visPopPreview(){
   const p=curProc;
-  if(!p.form?.pop && !p.mod?.etapas_proc?.length){toast('Preencha o POP primeiro.','var(--amber)');return;}
+  if(!p.form?.pop && !(p.mod?.etapas_proc_tobe||[]).length && !p.mod?.etapas_proc?.length){toast('Preencha o POP primeiro.','var(--amber)');return;}
   // Coleta estado atual do DOM sem avançar o workflow
   if(!p.form)p.form={};
   if(!p.form.pop)p.form.pop={};
@@ -8662,9 +8663,10 @@ function visPopPreview(){
   rForm(p);
 }
 function popAtivCards(p){
-  const etapas=p.mod?.etapas_proc||[];
+  const _tobeEt=p.mod?.etapas_proc_tobe||[];
+  const etapas=_tobeEt.length?_tobeEt:(p.mod?.etapas_proc||[]);
   const det=p.form?.pop?.ativ_detalhes||{};
-  if(!etapas.length) return '<div class="ib iba">Nenhuma etapa cadastrada na modelagem. Complete a etapa "Detalhamento de etapas" primeiro.</div>';
+  if(!etapas.length) return '<div class="ib iba">Nenhuma etapa cadastrada. Complete o detalhamento TO BE (ou AS IS) primeiro.</div>';
   const TIPOS=['Atividade','Decisão','Observação','Evento'];
   // normTipo retorna '' para entrada falsa, permitindo que o || avance para o fallback correto
   const normTipo=t=>{if(!t){return '';}if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t;};
@@ -10178,7 +10180,10 @@ function _popPdfVolumetriaSection(e, secH, fld){
     </div>`;
 }
 function _popPdfIlpSection(p, secH){
-  const ilpData=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados);
+  const _ilpTobe=(p.mod?.etapas_proc_tobe||[]).length||p.mod?.bpmnToBe;
+  const ilpData=_ilpTobe
+    ?calcILP(p.mod?.etapas_proc_tobe||[], p.mod?.bpmnToBe||null, p.mod?.retrabalhos_confirmados_tobe)
+    :calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados);
   if(!ilpData) return '';
   const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
   const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
@@ -10290,42 +10295,41 @@ async function _popPdfAnexo(p){
   }
 
   // ── 12.0 Desenho do processo (BPMN) — página separada em paisagem ────────
+  // Regra: se TO BE existe, usar apenas o TO BE; caso contrário, usar o AS IS.
   let bpmnLandscape='';
   const hasAsIsModeler=!!(bpmnModelers['asis']&&bpmnProcIds['asis']===p?.id);
   const hasTobeModeler=!!(bpmnModelers['tobe']&&bpmnProcIds['tobe']===p?.id);
   const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs||p.mod?.hasFluxoImg||p.mod?.fluxoImgBase64||hasAsIsModeler);
   const hasBpmnT=!!(p.mod?.bpmnToBe||hasTobeModeler);
   if(hasFluxoA||hasBpmnT){
-    // Converte SVG para data URI de <img> — mais confiável no print que SVG inline
-    // (height="auto" não é atributo SVG válido e causa altura 0 em alguns motores de impressão)
     const _svgToImg=(svg,alt)=>{
       const uri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
       return `<img src="${uri}" alt="${alt}" style="max-width:100%;height:auto;display:block">`;
     };
     let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">12.0 Desenho do Processo</div>`;
     let hasDiagramContent=false;
-    if(hasFluxoA){
-      const svg=await _bpmnGetSvg('asis',p);
-      if(svg){
-        bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;margin-bottom:1.4rem;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma AS IS')}</div>`;
-        hasDiagramContent=true;
-      }else{
-        const png=await _getFluxogramaAsIsPng(p);
-        if(png){
-          bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">AS IS — Situação Atual</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;margin-bottom:1.4rem;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma AS IS" style="max-width:100%;height:auto;display:block"></div>`;
-          hasDiagramContent=true;
-        }
-      }
-    }
     if(hasBpmnT){
+      // TO BE tem prioridade — não incluir o AS IS quando TO BE existe
       const svg=await _bpmnGetSvg('tobe',p);
       if(svg){
-        bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma TO BE')}</div>`;
+        bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma do processo')}</div>`;
         hasDiagramContent=true;
       }else{
         const png=await _getFluxogramaToBePng(p);
         if(png){
-          bpInner+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#8888aa;margin-bottom:.5rem">TO BE — Situação Proposta</div><div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma TO BE" style="max-width:100%;height:auto;display:block"></div>`;
+          bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma do processo" style="max-width:100%;height:auto;display:block"></div>`;
+          hasDiagramContent=true;
+        }
+      }
+    }else if(hasFluxoA){
+      const svg=await _bpmnGetSvg('asis',p);
+      if(svg){
+        bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma do processo')}</div>`;
+        hasDiagramContent=true;
+      }else{
+        const png=await _getFluxogramaAsIsPng(p);
+        if(png){
+          bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma do processo" style="max-width:100%;height:auto;display:block"></div>`;
           hasDiagramContent=true;
         }
       }
@@ -10379,7 +10383,7 @@ async function gerarPopPdf(){
 async function gerarPopPdfDireto(){
   const p=curProc;
   if(!p){return;}
-  if(!p.form?.pop&&!(p.mod?.etapas_proc||[]).length){
+  if(!p.form?.pop&&!(p.mod?.etapas_proc_tobe||[]).length&&!(p.mod?.etapas_proc||[]).length){
     toast('O POP ainda não foi preenchido.','var(--amber)');return;
   }
   const nome=esc(p?.nome||'POP');
