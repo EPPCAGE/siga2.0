@@ -2137,7 +2137,6 @@ const ETAPAS = [
   {id:'esboco_tobe',lb:'Esboço TO BE',fase:'Modelagem',cor:'pip-m',resp:'ep',tobe:true},
   {id:'det_valid_tobe',lb:'Detalhamento e validação TO BE',fase:'Modelagem',cor:'pip-m',resp:'dono',tobe:true},
   // Formalização
-  {id:'desenho_final',lb:'Desenho final',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'indicadores_proc',lb:'Indicadores',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'pop',lb:'Construção POP',fase:'Formalizacao',cor:'pip-f',resp:'ep'},
   {id:'apresentacao',lb:'Aprov. gestor',fase:'Formalizacao',cor:'pip-f',resp:'gestor'},
@@ -2154,7 +2153,7 @@ function getEtapas(p){
 }
 const FASES = ['Entendimento','Modelagem','Formalizacao','Operacao','Auditoria'];
 const FASE_COR = {Entendimento:'bt',Modelagem:'bp',Formalizacao:'ba',Operacao:'bb',Auditoria:'br'};
-const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',esboco_asis:'bp',det_valid_asis:'bp',riscos:'bp',analise:'bp',melhorias:'bp',esboco_tobe:'bp',det_valid_tobe:'bp',desenho_final:'ba',pop:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
+const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',esboco_asis:'bp',det_valid_asis:'bp',riscos:'bp',analise:'bp',melhorias:'bp',esboco_tobe:'bp',det_valid_tobe:'bp',pop:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
 
 function etIdx(id,p){return getEtapas(p||curProc).findIndex(e=>e.id===id);}
 function etFase(id){return ETAPAS.find(e=>e.id===id)?.fase||'';}
@@ -2873,7 +2872,7 @@ function rFila(){
   if(!usuarioLogado)return;
   const tarefas=getTarefasUsr();
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
-  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',det_valid_asis:'Detalhar etapas e validar AS IS',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',desenho_final:'Finalizar desenho do processo',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir análise de aderência do processo'};
+  const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',det_valid_asis:'Detalhar etapas e validar AS IS',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir análise de aderência do processo'};
   const el=document.getElementById('fila-content');
   if(!tarefas.length){el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>';rMeusProc();return;}
   // Q010: separar vencidos, críticos, normais
@@ -5157,6 +5156,10 @@ const ACOES = {
           <div class="btn-row">
             <button type="button" class="btn btn-g" onclick="aprovarDetValidAsis()">Aprovar AS IS ✓</button>
           </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:.5rem">
+            <button type="button" class="btn" style="font-size:11px" onclick="bpmnExportPNG('asis')">↓ PNG do fluxo AS IS</button>
+            <button type="button" class="btn btn-t" style="font-size:11px" onclick="vincularDesenhoFinalArq()">📎 Vincular imagem à arquitetura</button>
+          </div>
           ${_renderEvidencias(p,'det_valid_asis')}
         </div>
 
@@ -5176,6 +5179,10 @@ const ACOES = {
       <button type="button" class="btn" onclick="addEtapaProc()">+ Adicionar manualmente</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc_tobe||[])}</div>
+    ${_rIlpComparacao(p)}
+    <div id="tobe-relatorio-outer" style="margin-top:.4rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
+      ${_rTobeRelatorioSecao(p)}
+    </div>
     `},
 
   det_valid_tobe:{titulo:'Detalhamento e Validação TO BE',sub:'O dono detalha as etapas do fluxo futuro e valida o desenho TO BE elaborado pelo EP.',role:'Dono do processo',rk:'dono',tobe:true,
@@ -5236,34 +5243,6 @@ const ACOES = {
         :'<div class="ib iba">Análise inteligente ainda não gerada. Execute a etapa de Análise inteligente antes.</div>';
       return `<div class="ib ibp" style="margin-bottom:1.2rem">Com base na análise inteligente e nos riscos identificados, confirme (✓) os itens que serão trabalhados como melhorias ou descarte (✗) os que não se aplicam.</div>
       ${analiseHtml}
-      `;
-    }},
-
-    desenho_final:{titulo:'Desenho final do processo',sub:'Consolide e finalize o fluxo validado pelo dono.',role:'EP',rk:'ep',
-    form:p=>{
-      const fb=p.ent?.analise?.feedback_dono||{};
-      const override=p.ent?.analise?.ep_override||[];
-      const descartados=Object.entries(fb).flatMap(([,items])=>Object.entries(items).filter(([,v])=>v==='descartado').map(([txt])=>txt)).filter(d=>!override.includes(d));
-      const descartadosBadges=descartados.map(d=>`<span style="font-size:11px;background:var(--red-l);color:var(--red);border-radius:4px;padding:1px 6px;margin:2px">${esc(d)}</span>`).join('');
-      const descartadosBanner=descartados.length
-        ?`<div class="ib" style="background:#fef3c7;border-color:#d97706;margin-bottom:.8rem"><strong>Itens descartados pelo dono (${descartados.length}):</strong> ${descartadosBadges}<div style="font-size:11px;color:var(--ink3);margin-top:4px">Considere estes pontos ao finalizar o desenho.</div></div>`
-        :'<div class="ib ibg" style="margin-bottom:.8rem">Nenhum item descartado pelo dono. O fluxo validado está pronto para ajustes finais.</div>';
-      return `
-      ${descartadosBanner}
-      <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:.5rem">AS IS — Fluxo validado pelo dono</div>
-      ${bpmnEditorHTML('asis',p.mod?.bpmnAsIs)}
-      <div id="tobe-relatorio-outer" style="margin-top:1rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
-        ${_rTobeRelatorioSecao(p)}
-      </div>
-      <div style="margin-top:.8rem">
-        <button type="button" class="btn" style="width:100%;text-align:left;font-size:12px;justify-content:flex-start" onclick="toggleEl('df-tobe-wrap','df-tobe-chv');if(document.getElementById('df-tobe-wrap').style.display!=='none')setTimeout(()=>initBpmnMod('tobe',curProc),80)"><span id="df-tobe-chv">▶</span> TO BE — Processo futuro (expandir para editar)</button>
-        <div id="df-tobe-wrap" style="display:none;margin-top:.5rem">${bpmnEditorHTML('tobe',p.mod?.bpmnToBe)}</div>
-      </div>
-      <div class="fg" style="margin-top:.8rem"><label class="fl">Observações sobre ajustes finais</label><textarea class="fi" id="a-obs" style="min-height:60px" placeholder="Descreva as alterações feitas em relação ao esboço validado...">${esc(p.form?.obs_final||'')}</textarea></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:.8rem">
-        <button type="button" class="btn" onclick="bpmnExportPNG('asis')">↓ PNG do fluxo AS IS</button>
-        <button type="button" class="btn btn-t" onclick="vincularDesenhoFinalArq()">📎 Vincular imagem à arquitetura</button>
-      </div>
       `;
     }},
 
@@ -5728,7 +5707,7 @@ function rAcaoRetro(){
       <button type="button" class="btn btn-p" onclick="salvarEIrProximo('${etId}')">💾 Salvar e ir para próxima →</button>
     </div>`;
   document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
-  if(etId==='esboco_asis'||etId==='det_valid_asis'||etId==='desenho_final') setTimeout(()=>initBpmnMod('asis',p),120);
+  if(etId==='esboco_asis'||etId==='det_valid_asis') setTimeout(()=>initBpmnMod('asis',p),120);
   if(etId==='esboco_tobe'||etId==='det_valid_tobe') setTimeout(()=>initBpmnMod('tobe',p),120);
 }
 function _publicacaoCard(titulo, descricao, botaoHtml){
@@ -5915,12 +5894,6 @@ function _rsQuestionario(p){
 function _rsAnalise(p){
   p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
 }
-function _rsDesenhoFinal(p){
-  p.form=p.form||{};
-  p.form.link_final=document.getElementById('a-link')?.value||p.form.link_final||'';
-  p.form.ferramenta=document.getElementById('a-ferr')?.value||p.form.ferramenta||'';
-  p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
-}
 function _rsPOP(p){
   p.form=p.form||{};
   const etapas=p.mod?.etapas_proc||[];
@@ -5998,9 +5971,8 @@ const _RESET_MAP={
   esboco_asis:   p=>{ if(p.mod){p.mod.asIs='';p.mod.bpmnAsIs=null;p.mod.etapas_proc=[];} },
   det_valid_asis:p=>{ if(p.ent?.evidencias) p.ent.evidencias.det_valid_asis=[]; },
   melhorias:     p=>{ if(p.ent?.analise) p.ent.analise.feedback_dono={}; },
-  esboco_tobe:   p=>{ if(p.mod){p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];} },
+  esboco_tobe:   p=>{ if(p.mod){p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];p.mod.tobe_relatorio=null;} },
   det_valid_tobe:p=>{ if(p.ent?.evidencias) p.ent.evidencias.det_valid_tobe=[]; },
-  desenho_final: p=>{ if(p.mod){p.mod.desenho_final=null;p.mod.tobe_relatorio=null;} if(p.form){p.form.obs_final='';} },
   indicadores_proc: p=>{ if(p.form) p.form.indicadores_proc=[]; },
   pop:           p=>{ if(p.form){p.form.pop=null;p.form.faq='';p.form.excecoes='';p.form.contatos='';p.form.forms='';p.form.obs_complement='';} },
   apresentacao:  p=>{ if(p.ent?.evidencias) p.ent.evidencias.apresentacao=[]; },
@@ -6027,7 +5999,7 @@ const _RS_MAP={
   esboco_asis:_rsEsbocaAsis, esboco_tobe:_rsEsbocaTobe,
   det_valid_asis:_rsDetValidAsis, det_valid_tobe:_rsDetValidTobe,
   apresentacao:_rsApresentacao, questionario:_rsQuestionario,
-  analise:_rsAnalise, desenho_final:_rsDesenhoFinal,
+  analise:_rsAnalise,
   indicadores_proc:()=>{},
   pop:_rsPOP, publicacao:_rsPublicacao,
   melhorias:_rsMelhorias, acompanha:_rsAcompanha,
@@ -6062,7 +6034,6 @@ const _ADVANCE_MAP={
   esboco_asis:      ()=>salvarEsboco(),
   melhorias:        ()=>salvarMelhorias(),
   esboco_tobe:      ()=>salvarEsbocaTobe(),
-  desenho_final:    ()=>salvarDesenhoFinal(),
   indicadores_proc: ()=>salvarIndicadoresProc(),
   pop:              ()=>salvarPOP(),
   publicacao:       ()=>publicarProcesso(),
@@ -6077,7 +6048,6 @@ const _SAVE_MAP={
   esboco_asis:      ()=>salvarEsboco(false),
   melhorias:        ()=>salvarMelhorias(false),
   esboco_tobe:      ()=>salvarEsbocaTobe(false),
-  desenho_final:    ()=>salvarDesenhoFinal(false),
   indicadores_proc: ()=>salvarIndicadoresProc(false),
   pop:              ()=>salvarPOP(false),
   publicacao:       ()=>salvarDadosPublicacao(),
@@ -6129,7 +6099,6 @@ const _BPMN_INIT = {
   det_valid_tobe: (p) => { setTimeout(()=>initBpmnMod('tobe',p),120); },
   esboco_asis:    (p)    => { setTimeout(()=>initBpmnMod('asis',p),120); },
   esboco_tobe:    (p)    => { setTimeout(()=>initBpmnMod('tobe',p),120); },
-  desenho_final:  (p)    => { setTimeout(()=>{ initBpmnMod('asis',p); },120); },
   pop:            ()     => { setTimeout(injectIaPop,100); },
 };
 function _rAcaoInitBpmn(p, minhaTarefa){
@@ -6174,9 +6143,6 @@ const _CHECKLIST_DEFS={
   det_valid_tobe:(p)=>[
     {lb:'Processo TO BE detalhado',done:!!(p.mod&&((p.mod.etapas_proc_tobe||[]).length||p.mod.toBe))},
     {lb:'Evidências de validação TO BE enviadas',done:!!((p.evidencias||{}).det_valid_tobe?.length)},
-  ],
-  desenho_final:(p)=>[
-    {lb:'Desenho final concluído',done:!!(p.form&&(p.form.pop||p.mod?.desenho_final))},
   ],
   pop:(p)=>[
     {lb:'POP redigido (objetivo e responsabilidades preenchidos)',done:!!(p.form&&p.form.pop&&p.form.pop.obj)},
@@ -9702,6 +9668,31 @@ function _rEntIlpInterpretacao(ilp, issues){
   if(ilp>=40) return issues.length ? '⚠️ Nível de overhead elevado. Priorize: '+issues.slice(0,3).join('; ')+'.' : '⚠️ O processo possui muitos pontos de decisão e/ou atores distintos em relação ao total de atividades.';
   return issues.length ? '🔴 Processo com alto overhead. Ações recomendadas: '+issues.slice(0,3).join('; ')+'.' : '🔴 O processo possui muitos pontos de decisão e/ou atores. Revise o fluxo para simplificar.';
 }
+function _rIlpComparacao(p){
+  const ilpAsis=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null);
+  const ilpTobe=calcILP(p.mod?.etapas_proc_tobe||[], p.mod?.bpmnToBe||null);
+  if(!ilpAsis&&!ilpTobe) return '';
+  const _mini=(ilpData,titulo)=>{
+    if(!ilpData) return `<div class="card" style="flex:1;min-width:140px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:.3rem">${titulo}</div><div style="font-size:12px;color:var(--ink3);font-style:italic">Sem dados suficientes</div></div>`;
+    const {ilp}=ilpData;
+    const {bg,color,label}=_rEntIlpPalette(ilp);
+    return `<div class="card" style="flex:1;min-width:140px;border-left:4px solid ${color}">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:.3rem">${titulo}</div>
+      <div style="font-size:26px;font-weight:800;color:${color};line-height:1.1">${ilp}<span style="font-size:13px;font-weight:500">/100</span></div>
+      <span style="font-size:11px;font-weight:600;color:${color};background:${bg};padding:2px 8px;border-radius:20px">${label}</span>
+    </div>`;
+  };
+  const delta=(ilpAsis&&ilpTobe)?(ilpTobe.ilp-ilpAsis.ilp):null;
+  const deltaHtml=delta!==null?`<div style="font-size:12px;color:${delta>0?'var(--teal)':delta<0?'var(--red)':'var(--ink3)'};font-weight:600;align-self:center;white-space:nowrap">${delta>0?'▲ +':delta<0?'▼ ':'= '}${delta} pts</div>`:'';
+  return `<div style="margin-bottom:.8rem">
+    <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:.5rem">📊 Comparação ILP — Índice Lean Processual</div>
+    <div style="display:flex;gap:.6rem;align-items:stretch;flex-wrap:wrap">
+      ${_mini(ilpAsis,'ILP AS IS')}
+      ${deltaHtml}
+      ${_mini(ilpTobe,'ILP TO BE')}
+    </div>
+  </div>`;
+}
 function _rEntIlpCard(ilpData){
   if(!ilpData) return '';
   const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
@@ -11082,14 +11073,6 @@ function vincularDesenhoFinalArq(){
     img.src=svgUri;
   }).catch(e=>toast('Erro: '+(e.message||e),'var(--red)'));
 }
-function salvarDesenhoFinal(avancar=true){
-  const p=curProc; if(!p) return;
-  p.form=p.form||{};
-  p.form.obs_final=document.getElementById('a-obs')?.value??p.form.obs_final??'';
-  if(avancar) av('desenho_final','EP','Desenho final concluído',null,p.pat);
-  else{fbAutoSave('salvarDesenhoFinal');toast('Dados salvos!','var(--teal)');}
-}
-
 // ─── Sugestão TO BE em texto — gerada por IA ────────────────────────────────
 function _rTobeRelatorioSecao(p){
   const texto=p.mod?.tobe_relatorio||'';
@@ -15467,7 +15450,6 @@ const STATUS_REPORT_ETAPA_LABELS = {
   melhorias:'Melhorias',
   esboco_tobe:'Esboço TO BE',
   det_valid_tobe:'Det. TO BE',
-  desenho_final:'Desenho Final',
   indicadores_proc:'Indicadores',
   pop:'POP',
   apresentacao:'Apresentação',
