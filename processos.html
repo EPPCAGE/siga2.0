@@ -125,7 +125,7 @@ body.drawer-open{overflow:hidden;touch-action:none}
 .logout-btn{margin-top:6px;font-size:10px;color:rgba(255,255,255,.3);background:none;border:none;cursor:pointer;font-family:var(--f);padding:0}
 .logout-btn:hover{color:rgba(255,255,255,.6)}
 /* login */
-.login-screen{position:fixed;inset:0;background:var(--ink);display:flex;align-items:center;justify-content:center;z-index:1000}
+.login-screen{position:fixed;inset:0;background:var(--ink);display:none;align-items:center;justify-content:center;z-index:1000}
 .login-box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:380px}
 .login-logo{font-family:var(--fh);font-size:28px;font-weight:700;color:#fff;margin-bottom:4px}
 .login-sub{font-size:12px;color:rgba(255,255,255,.35);margin-bottom:2rem;letter-spacing:.06em;text-transform:uppercase}
@@ -907,6 +907,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </div>
 </dialog>
 <!-- LOGIN -->
+<div id="boot-overlay" style="position:fixed;inset:0;background:#1C1C2E;z-index:1001;display:flex;align-items:center;justify-content:center"><div style="color:rgba(255,255,255,.3);font-size:13px;font-family:'Syne',system-ui,sans-serif">Carregando…</div></div>
 <div id="login-screen" class="login-screen">
   <div class="login-box">
     <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:1.8rem">
@@ -2408,10 +2409,13 @@ function _aplicarUsuario(user){
   updCounts();
   aplicarPermissoes();
   _startInactivityWatch();
+  const _ov = document.getElementById('boot-overlay');
+  if(_ov) _ov.style.display='none';
   if(user.trocar_senha){
     abrirModalTrocarSenha();
   } else {
     openModuleHub();
+    if(lsGet('siga_module') === 'processos') enterProcessModule();
   }
   setTimeout(verificarPrazosProximos, 1500);
 }
@@ -2488,8 +2492,8 @@ async function doLogout(){
   const hub=document.getElementById('module-hub');if(hub)hub.classList.remove('on');
   const shell=document.getElementById('proc-shell');if(shell)shell.style.display='grid';
   document.getElementById('login-screen').style.display='flex';
-  const _lff=document.getElementById('login-form-fields'); if(_lff)_lff.style.display='';
-  const _lri=document.getElementById('login-restore-indicator'); if(_lri)_lri.style.display='none';
+  const _ov=document.getElementById('boot-overlay'); if(_ov)_ov.style.display='none';
+  lsRemove('siga_module');
 }
 
 // ═══════════════════════════════════════════
@@ -16971,9 +16975,6 @@ function syncLoginModeUI(){
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
-document.getElementById('login-screen').style.display='flex';
-(function(){ try{ if(lsGet('siga_user')){ document.getElementById('login-form-fields').style.display='none'; document.getElementById('login-restore-indicator').style.display='block'; } }catch(e_){} })();
-
 // Boot sequence: load from Firebase (if configured), else fall back to localStorage
 async function bootApp() {
   applyOrgBranding();
@@ -17016,6 +17017,11 @@ function _bootLoadEmailJsLocalFallback(){
     if(ejsConfig.pubkey && typeof emailjs !== 'undefined') emailjs.init({publicKey: ejsConfig.pubkey});
   } catch(e){ console.warn('ejsConfig localStorage parse error:', e.message); }
 }
+function _bootShowLoginScreen(){
+  const ov = document.getElementById('boot-overlay');
+  if(ov) ov.style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+}
 async function _bootRestoreSession(){
   if(fbReady()){
     const {auth, onAuthStateChanged} = fb();
@@ -17026,6 +17032,8 @@ async function _bootRestoreSession(){
         await _bootRestoreFirebaseUser(auth, firebaseUser);
       } else if(usuarioLogado){
         doLogout();
+      } else {
+        _bootShowLoginScreen();
       }
     });
     return;
@@ -17075,13 +17083,11 @@ function _bootRestoreLocalSession(){
   criticosManual = new Set(jsonArrayFromStorage('criticosManual'));
   try {
     const savedEmail = lsGet('siga_user');
-    if(!savedEmail) return;
+    if(!savedEmail){ _bootShowLoginScreen(); return; }
     const user = _findUsuarioByEmail(savedEmail);
     if(user){ _aplicarUsuario(user); return; }
   } catch(error_){ console.warn('localStorage unavailable', error_); }
-  // Stored session could not be restored — show login form
-  const _ff=document.getElementById('login-form-fields'); if(_ff)_ff.style.display='';
-  const _ri=document.getElementById('login-restore-indicator'); if(_ri)_ri.style.display='none';
+  _bootShowLoginScreen();
 }
 window.addEventListener('load', bootApp, {once: true});
 
