@@ -2388,7 +2388,7 @@ function abrirModalUsuarios(){
   document.getElementById('usr-list-modal').style.display='flex';
 }
 
-function _aplicarUsuario(user){
+function _aplicarUsuario(user, fromRestore=false){
   user = _normalizarUsuarioPerfil(user);
   globalThis.usuarioLogado=user;
   document.getElementById('login-err').style.display='none';
@@ -2414,7 +2414,7 @@ function _aplicarUsuario(user){
   if(user.trocar_senha){
     abrirModalTrocarSenha();
   } else {
-    if(lsGet('siga_module') !== 'hub' && hasProcessosAccess()) {
+    if(fromRestore && lsGet('siga_module') !== 'hub' && hasProcessosAccess()) {
       enterProcessModule();
     } else {
       openModuleHub();
@@ -17077,7 +17077,7 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
         if(_snap.exists()&&_snap.data().trocar_senha===false) user.trocar_senha=false;
       }catch(e_){}
     }
-    _aplicarUsuario(user);
+    _aplicarUsuario(user, true);
     if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
     // Define Custom Claim {perfil} no token de forma não-bloqueante.
     // Permite que as regras do Firestore apliquem restrições por perfil.
@@ -17095,7 +17095,7 @@ function _bootRestoreLocalSession(){
     const savedEmail = lsGet('siga_user');
     if(!savedEmail){ _bootShowLoginScreen(); return; }
     const user = _findUsuarioByEmail(savedEmail);
-    if(user){ _aplicarUsuario(user); return; }
+    if(user){ _aplicarUsuario(user, true); return; }
   } catch(error_){ console.warn('localStorage unavailable', error_); }
   _bootShowLoginScreen();
 }
