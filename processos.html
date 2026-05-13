@@ -9307,14 +9307,10 @@ function extrairBpmn(){
 // ABAS SECUNDÁRIAS DO DETALHE
 // ═══════════════════════════════════════════
 // ── Índice Lean Processual ─────────────────
-const ILP_GATEWAY_PENALTY = 5;
-const ILP_ATOR_PENALTY = 3;
-const ILP_AUTO_BONUS_MAX = 20;
-const ILP_EFICIENCIA_MODO = {'Automatica':1.5,'Semi-automatica':1.25};
-
-// ILP = max(0, 100 − GW_P×gxorDiv − ATOR_P×(nAtores−1)) + bônus_auto
-// Penalidades absolutas: cada gateway −5, cada ator extra −3
-// Bônus automação: (nAuto + nSemi×0,5) / total × 20 (máx 20 pontos)
+// ILP = (A×0,50) + (T×0,25) + (G×0,25)
+// A = índice de automação: ((nSemi×50 + nAuto×100) / total)  — 0 manual, 50 semi, 100 auto
+// T = índice de atores:    clamp(0,100, (10−nAtores)/9×100)  — 1 ator=100, 10+ atores=0
+// G = índice de gateways:  max(0, 100 − gwXOR_caminhoMaisLongo)
 function _ilpNormTxt(s){
   return (s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
 }
@@ -9414,17 +9410,17 @@ function calcILPFromEtapas(etapas){
   });
   const nAtores=Math.max(atoresMap.size,1);
   const atoresList=[...atoresMap.values()];
-  const _eficienciaModo=n=>ILP_EFICIENCIA_MODO[n.modo]??1;
   const _byModo=modo=>atividades.filter(n=>n.modo===modo).map(n=>n.nome||'?');
   const nAuto=atividades.filter(n=>n.modo==='Automatica').length;
   const nSemi=atividades.filter(n=>n.modo==='Semi-automatica').length;
   const nManual=total-nAuto-nSemi;
-  const gwDeducao=ILP_GATEWAY_PENALTY*gxorDiv;
-  const atorDeducao=ILP_ATOR_PENALTY*Math.max(0,nAtores-1);
-  const base=Math.max(0,100-gwDeducao-atorDeducao);
-  const autoProporção=(nAuto+nSemi*0.5)/total;
-  const autoBonus=Math.round(autoProporção*ILP_AUTO_BONUS_MAX);
-  const ilp=Math.min(100,base+autoBonus);
+  const _indexA=((nSemi*50)+(nAuto*100))/total;
+  const _indexT=Math.min(100,Math.max(0,((10-nAtores)/9)*100));
+  const _indexG=Math.max(0,100-gxorDiv);
+  const ilp=Math.min(100,Math.round(_indexA*0.50+_indexT*0.25+_indexG*0.25));
+  const indexA=Math.round(_indexA);
+  const indexT=Math.round(_indexT);
+  const indexG=_indexG;
   return {
     ilp,total,
     gxorDiv,nAtores,nAuto,nSemi,nManual,
@@ -9435,7 +9431,7 @@ function calcILPFromEtapas(etapas){
       'Semi-automatica':_byModo('Semi-automatica'),
       Manual:_byModo('Manual'),
     },
-    base,gwDeducao,atorDeducao,autoBonus,
+    indexA,indexT,indexG,
   };
 }
 
@@ -9480,8 +9476,6 @@ function calcILPFromBpmn(bpmnXml, etapas){
   const actIds=pathIds.filter(id=>nodeInfo[id]?.tipo==='Atividade');
   const total=actIds.length; if(!total)return null;
   const _getModo=id=>bpmnIdToModo[id]||nodeInfo[id]?.modo||'Manual';
-  // Eficiência por modo: Automática=1.5, Semi=1.25, Manual=1.0
-  const _ef=id=>ILP_EFICIENCIA_MODO[_getModo(id)]??1;
   const nAuto=actIds.filter(id=>_getModo(id)==='Automatica').length;
   const nSemi=actIds.filter(id=>_getModo(id)==='Semi-automatica').length;
   const nManual=total-nAuto-nSemi;
@@ -9503,12 +9497,13 @@ function calcILPFromBpmn(bpmnXml, etapas){
     const k=_normAtor(raw); if(!atoresMap.has(k))atoresMap.set(k,raw);
   });
   const nAtores=Math.max(atoresMap.size,1);
-  const gwDeducao=ILP_GATEWAY_PENALTY*gxorDiv;
-  const atorDeducao=ILP_ATOR_PENALTY*Math.max(0,nAtores-1);
-  const base=Math.max(0,100-gwDeducao-atorDeducao);
-  const autoProporção=(nAuto+nSemi*0.5)/total;
-  const autoBonus=Math.round(autoProporção*ILP_AUTO_BONUS_MAX);
-  const ilp=Math.min(100,base+autoBonus);
+  const _indexA=((nSemi*50)+(nAuto*100))/total;
+  const _indexT=Math.min(100,Math.max(0,((10-nAtores)/9)*100));
+  const _indexG=Math.max(0,100-gxorDiv);
+  const ilp=Math.min(100,Math.round(_indexA*0.50+_indexT*0.25+_indexG*0.25));
+  const indexA=Math.round(_indexA);
+  const indexT=Math.round(_indexT);
+  const indexG=_indexG;
   const autoNames=id=>nodeInfo[id]?.nome||id;
   return{
     ilp,total,gxorDiv,nAtores,nAuto,nSemi,nManual,
@@ -9519,13 +9514,11 @@ function calcILPFromBpmn(bpmnXml, etapas){
       'Semi-automatica':actIds.filter(id=>_getModo(id)==='Semi-automatica').map(autoNames),
       Manual:actIds.filter(id=>_getModo(id)==='Manual').map(autoNames),
     },
-    base,gwDeducao,atorDeducao,autoBonus,
+    indexA,indexT,indexG,
   };
 }
 
-// ILP = max(0, 100 − GW_P×gxorDiv − ATOR_P×(nAtores−1)) + bônus_auto
-// Penalidades absolutas: cada gateway −5, cada ator extra −3
-// Bônus automação: (nAuto + nSemi×0,5) / total × 20 (máx 20 pontos)
+// ILP = (A×0,50) + (T×0,25) + (G×0,25) — pesos: automação 50%, atores 25%, gateways 25%
 function calcILP(etapas, bpmnXml){
   if(!bpmnXml) return calcILPFromEtapas(etapas);
   try{const r=calcILPFromBpmn(bpmnXml,etapas);if(r)return r;}catch(e){console.warn('calcILPFromBpmn falhou:',e.message);}
@@ -9624,13 +9617,13 @@ function _testCalcILP(){
   const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('ta'),_testCalcIlpEtapa('tb'),_testCalcIlpEtapa('tc')]);
   eq('T7 loop total (A+C=2)',r?.total,2);eq('T7 loop gxorDiv',r?.gxorDiv,1);}
 
-  // T8 — Formula: 100 − GW_P×gxor − ATOR_P×(atores−1) + auto_bonus
+  // T8 — Formula: 3 Manual, 0 GW, 2 atores → A=0, T=round(8/9×100)=89, G=100
+  // ILP = round(0×0.50 + 89×0.25 + 100×0.25) = round(47.25) = 47
   {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'Exec'},{id:'t2',t:'task',n:'Revis'},
     {id:'t3',t:'task',n:'Comu'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'t3'},{f:'t3',t:'e'}]);
   const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('t1','Ator1'),_testCalcIlpEtapa('t2','Ator2'),_testCalcIlpEtapa('t3','Ator1')]);
-  // 3 Manual, 0 GW, 2 atores: base = 100 - 0 - 3×1 = 97, ilp=97
-  eq('T8 formula ilp',r?.ilp,97);eq('T8 formula gwDeducao',r?.gwDeducao,0);eq('T8 formula atorDeducao',r?.atorDeducao,3);}
+  eq('T8 formula ilp',r?.ilp,47);eq('T8 formula indexA',r?.indexA,0);eq('T8 formula indexT',r?.indexT,89);eq('T8 formula indexG',r?.indexG,100);}
 
   // T9 — Fallback manual com caminhos XOR: escolhe o ramo mais longo, sem somar todos
   {const etapas=[
@@ -9672,23 +9665,17 @@ function _rEntMatBadges(e){
   }).join('');
 }
 function _rEntIlpPalette(ilp){
-  if(ilp>=65) return {bg:'#d1fae5',color:'#065f46',label:'Processo enxuto'};
-  if(ilp>=40) return {bg:'#fef3c7',color:'#92400e',label:'Melhorias possíveis'};
-  return {bg:'#fee2e2',color:'#991b1b',label:'Alto nível de controle'};
+  if(ilp>=80) return {bg:'#d1fae5',color:'#065f46',label:'Processo enxuto'};
+  if(ilp>=60) return {bg:'#fef3c7',color:'#92400e',label:'Moderadamente enxuto'};
+  if(ilp>=40) return {bg:'#ffedd5',color:'#9a3412',label:'Complexidade relevante'};
+  return {bg:'#fee2e2',color:'#991b1b',label:'Processo pesado'};
 }
-function _rEntIlpIssues(total, gxorDiv, nAtores, nAuto, nSemi){
-  const issues=[];
-  if(gxorDiv>=3) issues.push(`${gxorDiv} pontos de decisão exclusivos — consolide critérios para reduzir variabilidade`);
-  if(nAtores>=4) issues.push(`${nAtores} atores distintos — avalie concentrar responsabilidades`);
-  if(nAuto+nSemi===0&&total>=5) issues.push('nenhuma atividade automatizada — identifique etapas repetitivas para automação');
-  return issues;
-}
-function _rEntIlpInterpretacao(ilp, issues){
-  if(ilp>=80) return '✅ Processo altamente enxuto. Fluxo direto com poucos pontos de decisão e baixo número de atores. Mantenha o perfil e monitore futuras inclusões de etapas.';
-  if(ilp>=65) return issues.length ? '👍 Processo bem estruturado. Para elevar ainda mais a nota: '+issues.slice(0,2).join('; ')+'.' : '👍 Processo bem estruturado. Nenhuma ação urgente identificada.';
-  if(ilp>=50) return issues.length ? '⚠️ Há oportunidade de melhoria. Foque em: '+issues.slice(0,2).join('; ')+'.' : '⚠️ O processo pode ser simplificado reduzindo pontos de decisão ou o número de atores envolvidos.';
-  if(ilp>=40) return issues.length ? '⚠️ Nível de overhead elevado. Priorize: '+issues.slice(0,3).join('; ')+'.' : '⚠️ O processo possui muitos pontos de decisão e/ou atores distintos em relação ao total de atividades.';
-  return issues.length ? '🔴 Processo com alto overhead. Ações recomendadas: '+issues.slice(0,3).join('; ')+'.' : '🔴 O processo possui muitos pontos de decisão e/ou atores. Revise o fluxo para simplificar.';
+
+function _rEntIlpInterpretacao(ilp){
+  if(ilp>=80) return '✅ O processo apresenta bom nível de enxugamento. Para melhorar ainda mais a nota, avalie oportunidades pontuais de automação, redução de decisões exclusivas e simplificação de passagens entre atores.';
+  if(ilp>=60) return '👍 O processo possui estrutura razoavelmente fluida, mas ainda pode ganhar desempenho com maior automação, redução de handoffs e revisão de decisões que criam caminhos alternativos.';
+  if(ilp>=40) return '⚠️ O processo apresenta sinais de atrito estrutural. Recomenda-se avaliar atividades manuais repetitivas, excesso de atores envolvidos e gateways XOR que possam ser eliminados, combinados ou reposicionados.';
+  return '🔴 O processo tende a estar carregado de esforço manual, muitas passagens de responsabilidade ou decisões exclusivas. Recomenda-se priorizar redesenho, automação de atividades críticas, consolidação de papéis e simplificação dos caminhos do fluxo.';
 }
 function _rIlpComparacao(p){
   const ilpAsis=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null);
@@ -9727,8 +9714,7 @@ function _rEntIlpCard(ilpData){
   const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
   const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
   const modeRow=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
-  const issues=_rEntIlpIssues(total, gxorDiv, nAtores, nAuto, nSemi);
-  const interpretacao=_rEntIlpInterpretacao(ilp, issues);
+  const interpretacao=_rEntIlpInterpretacao(ilp);
   return `<div class="card" style="margin-bottom:1rem;border-left:4px solid ${ilpColor}">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:.6rem">
       <div>
@@ -9764,18 +9750,17 @@ function abrirIlpAuditoria(p, tipo='asis'){
   modal.id='ilp-audit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
   modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
-  const {ilp,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,base,gwDeducao,atorDeducao,autoBonus}=d;
+  const {ilp,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,indexA,indexT,indexG}=d;
   const _sec=(titulo,html)=>`<div style="margin-bottom:1.1rem"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:.4rem">${titulo}</div>${html}</div>`;
   const _tag=(txt,cor)=>`<span style="display:inline-block;background:${cor}22;color:${cor};border:1px solid ${cor}55;border-radius:4px;padding:1px 7px;font-size:11px;margin:2px;line-height:1.6">${esc(txt)}</span>`;
   const _vazia=msg=>`<span style="font-size:12px;color:var(--ink3);font-style:italic">${msg}</span>`;
-  const autoBonusStr=autoBonus>0?` + ${autoBonus} (automação)`:'';
+  const total=nAuto+nSemi+nManual;
   const formulaHtml=`<div style="background:var(--bg2);border-radius:6px;padding:.8rem;font-size:12px;margin-bottom:1.2rem;line-height:1.9">
-    <div style="font-family:monospace;color:var(--ink2)">ILP = max(0, 100 − ${ILP_GATEWAY_PENALTY}×gwXOR − ${ILP_ATOR_PENALTY}×(nAtores−1)) + bônus_auto</div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;penalidade GW &nbsp;&nbsp; = ${ILP_GATEWAY_PENALTY}×${gxorDiv} = ${gwDeducao}</div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;penalidade atores = ${ILP_ATOR_PENALTY}×max(0,${nAtores}−1) = ${atorDeducao}</div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;base = max(0, 100 − ${gwDeducao} − ${atorDeducao}) = ${base}</div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;bônus auto = (${nAuto} auto + ${nSemi}×0,5 semi) / ${nAuto+nSemi+nManual} × ${ILP_AUTO_BONUS_MAX} = ${autoBonus}</div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= ${base}${autoBonusStr}</div>
+    <div style="font-family:monospace;color:var(--ink2)">ILP = (A × 0,50) + (T × 0,25) + (G × 0,25)</div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;A (automação) = ((${nSemi}×50 + ${nAuto}×100) / ${total}) = <strong>${indexA}</strong></div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;T (atores) &nbsp;&nbsp;= ((10 − ${nAtores}) / 9) × 100 = <strong>${indexT}</strong></div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;G (gateways) = max(0, 100 − ${gxorDiv}) = <strong>${indexG}</strong></div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= round(${indexA}×0,50 + ${indexT}×0,25 + ${indexG}×0,25)</div>
     <div style="margin-top:.3rem;font-size:14px;font-weight:700;color:var(--ink)">= ${ilp} / 100</div>
   </div>`;
   // Modo de execução
@@ -9807,7 +9792,7 @@ function abrirIlpAuditoria(p, tipo='asis'){
     ${atoresHtml}
     ${gwHtml}
     <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.6rem;margin-top:.3rem">
-      Eficiência por modo: Manual = 1,0 · Semi-automática = 1,25 · Automática = 1,5
+      Pesos: A (automação) = 50% · T (atores) = 25% · G (gateways XOR) = 25%
     </div>
     <div style="text-align:right;margin-top:.6rem">
       <button type="button" class="btn" onclick="document.getElementById('ilp-audit-modal').remove()">Fechar</button>
