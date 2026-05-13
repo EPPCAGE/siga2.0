@@ -56,6 +56,7 @@
       toast('Seu perfil não tem acesso ao SIGA Processos.','var(--red)');
       return;
     }
+    lsSet('siga_module', 'processos');
     const hub = document.getElementById('module-hub');
     const shell = document.getElementById('proc-shell');
     if(hub) hub.classList.remove('on');
