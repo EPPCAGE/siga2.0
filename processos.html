@@ -17077,7 +17077,9 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
         if(_snap.exists()&&_snap.data().trocar_senha===false) user.trocar_senha=false;
       }catch(e_){}
     }
-    _aplicarUsuario(user, true);
+    const _fromRestore = !globalThis._isManualLogin;
+    globalThis._isManualLogin = false;
+    _aplicarUsuario(user, _fromRestore);
     if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
     // Define Custom Claim {perfil} no token de forma não-bloqueante.
     // Permite que as regras do Firestore apliquem restrições por perfil.
