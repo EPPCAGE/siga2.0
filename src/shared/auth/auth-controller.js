@@ -89,6 +89,10 @@
   globalScope.mostrarErrLogin = function mostrarErrLogin(msg) {
     const e = document.getElementById('login-err');
     if (!e) return;
+    const _ff = document.getElementById('login-form-fields');
+    const _ri = document.getElementById('login-restore-indicator');
+    if (_ff) _ff.style.display = '';
+    if (_ri) _ri.style.display = 'none';
     e.style.color = '#F2A0A0';
     e.textContent = msg;
     e.style.display = 'block';
