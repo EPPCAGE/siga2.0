@@ -9309,11 +9309,12 @@ function extrairBpmn(){
 // ── Índice Lean Processual ─────────────────
 const ILP_GATEWAY_PENALTY = 5;
 const ILP_ATOR_PENALTY = 3;
+const ILP_AUTO_BONUS_MAX = 20;
 const ILP_EFICIENCIA_MODO = {'Automatica':1.5,'Semi-automatica':1.25};
 
-// ILP = max(0, 100 − GW_P×gxorDiv − ATOR_P×(nAtores−1))
+// ILP = max(0, 100 − GW_P×gxorDiv − ATOR_P×(nAtores−1)) + bônus_auto
 // Penalidades absolutas: cada gateway −5, cada ator extra −3
-// β=.5: cada ator extra além do primeiro equivale a .5 unidade de handoff
+// Bônus automação: (nAuto + nSemi×0,5) / total × 20 (máx 20 pontos)
 function _ilpNormTxt(s){
   return (s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
 }
@@ -9421,7 +9422,9 @@ function calcILPFromEtapas(etapas){
   const gwDeducao=ILP_GATEWAY_PENALTY*gxorDiv;
   const atorDeducao=ILP_ATOR_PENALTY*Math.max(0,nAtores-1);
   const base=Math.max(0,100-gwDeducao-atorDeducao);
-  const ilp=Math.min(100,base);
+  const autoProporção=(nAuto+nSemi*0.5)/total;
+  const autoBonus=Math.round(autoProporção*ILP_AUTO_BONUS_MAX);
+  const ilp=Math.min(100,base+autoBonus);
   return {
     ilp,total,
     gxorDiv,nAtores,nAuto,nSemi,nManual,
@@ -9432,7 +9435,7 @@ function calcILPFromEtapas(etapas){
       'Semi-automatica':_byModo('Semi-automatica'),
       Manual:_byModo('Manual'),
     },
-    base,gwDeducao,atorDeducao,
+    base,gwDeducao,atorDeducao,autoBonus,
   };
 }
 
@@ -9503,7 +9506,9 @@ function calcILPFromBpmn(bpmnXml, etapas){
   const gwDeducao=ILP_GATEWAY_PENALTY*gxorDiv;
   const atorDeducao=ILP_ATOR_PENALTY*Math.max(0,nAtores-1);
   const base=Math.max(0,100-gwDeducao-atorDeducao);
-  const ilp=Math.min(100,base);
+  const autoProporção=(nAuto+nSemi*0.5)/total;
+  const autoBonus=Math.round(autoProporção*ILP_AUTO_BONUS_MAX);
+  const ilp=Math.min(100,base+autoBonus);
   const autoNames=id=>nodeInfo[id]?.nome||id;
   return{
     ilp,total,gxorDiv,nAtores,nAuto,nSemi,nManual,
@@ -9514,13 +9519,13 @@ function calcILPFromBpmn(bpmnXml, etapas){
       'Semi-automatica':actIds.filter(id=>_getModo(id)==='Semi-automatica').map(autoNames),
       Manual:actIds.filter(id=>_getModo(id)==='Manual').map(autoNames),
     },
-    base,gwDeducao,atorDeducao,
+    base,gwDeducao,atorDeducao,autoBonus,
   };
 }
 
-// ILP = max(0, 100 − GW_P×gxorDiv − ATOR_P×(nAtores−1))
+// ILP = max(0, 100 − GW_P×gxorDiv − ATOR_P×(nAtores−1)) + bônus_auto
 // Penalidades absolutas: cada gateway −5, cada ator extra −3
-// β=.5: cada ator extra além do primeiro equivale a .5 unidade de handoff
+// Bônus automação: (nAuto + nSemi×0,5) / total × 20 (máx 20 pontos)
 function calcILP(etapas, bpmnXml){
   if(!bpmnXml) return calcILPFromEtapas(etapas);
   try{const r=calcILPFromBpmn(bpmnXml,etapas);if(r)return r;}catch(e){console.warn('calcILPFromBpmn falhou:',e.message);}
@@ -9759,15 +9764,18 @@ function abrirIlpAuditoria(p, tipo='asis'){
   modal.id='ilp-audit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
   modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
-  const {ilp,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,base,gwDeducao,atorDeducao}=d;
+  const {ilp,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,base,gwDeducao,atorDeducao,autoBonus}=d;
   const _sec=(titulo,html)=>`<div style="margin-bottom:1.1rem"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:.4rem">${titulo}</div>${html}</div>`;
   const _tag=(txt,cor)=>`<span style="display:inline-block;background:${cor}22;color:${cor};border:1px solid ${cor}55;border-radius:4px;padding:1px 7px;font-size:11px;margin:2px;line-height:1.6">${esc(txt)}</span>`;
   const _vazia=msg=>`<span style="font-size:12px;color:var(--ink3);font-style:italic">${msg}</span>`;
+  const autoBonusStr=autoBonus>0?` + ${autoBonus} (automação)`:'';
   const formulaHtml=`<div style="background:var(--bg2);border-radius:6px;padding:.8rem;font-size:12px;margin-bottom:1.2rem;line-height:1.9">
-    <div style="font-family:monospace;color:var(--ink2)">ILP = max(0, 100 − ${ILP_GATEWAY_PENALTY}×gwXOR − ${ILP_ATOR_PENALTY}×(nAtores−1))</div>
+    <div style="font-family:monospace;color:var(--ink2)">ILP = max(0, 100 − ${ILP_GATEWAY_PENALTY}×gwXOR − ${ILP_ATOR_PENALTY}×(nAtores−1)) + bônus_auto</div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;penalidade GW &nbsp;&nbsp; = ${ILP_GATEWAY_PENALTY}×${gxorDiv} = ${gwDeducao}</div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;penalidade atores = ${ILP_ATOR_PENALTY}×max(0,${nAtores}−1) = ${atorDeducao}</div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= max(0, 100 − ${gwDeducao} − ${atorDeducao}) = <strong>${base}</strong></div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;base = max(0, 100 − ${gwDeducao} − ${atorDeducao}) = ${base}</div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;bônus auto = (${nAuto} auto + ${nSemi}×0,5 semi) / ${nAuto+nSemi+nManual} × ${ILP_AUTO_BONUS_MAX} = ${autoBonus}</div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= ${base}${autoBonusStr}</div>
     <div style="margin-top:.3rem;font-size:14px;font-weight:700;color:var(--ink)">= ${ilp} / 100</div>
   </div>`;
   // Modo de execução
