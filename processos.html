@@ -2414,7 +2414,7 @@ function _aplicarUsuario(user, fromRestore=false){
   if(user.trocar_senha){
     abrirModalTrocarSenha();
   } else {
-    if(fromRestore && lsGet('siga_module') !== 'hub' && hasProcessosAccess()) {
+    if(fromRestore && lsGet('siga_module') === 'processos' && hasProcessosAccess()) {
       enterProcessModule();
     } else {
       openModuleHub();
