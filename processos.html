@@ -5133,6 +5133,7 @@ const ACOES = {
       <button type="button" class="btn" style="font-size:11px;padding:3px 10px" onclick="exportarEtapasAsIsXlsx()" title="Exportar todas as etapas para planilha Excel">⬇ Exportar Excel</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[])}</div>
+    ${_rRetrabalhosPanel(p,'asis')}
     `},
 
   det_valid_asis:{titulo:'Detalhamento e Validação AS IS',sub:'O dono detalha as etapas do fluxo e valida o desenho AS IS elaborado pelo EP.',role:'Dono do processo',rk:'dono',
@@ -5181,6 +5182,7 @@ const ACOES = {
       <button type="button" class="btn" onclick="addEtapaProc()">+ Adicionar manualmente</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc_tobe||[])}</div>
+    ${_rRetrabalhosPanel(p,'tobe')}
     <div id="tobe-relatorio-outer" style="margin-top:.4rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
       ${_rTobeRelatorioSecao(p)}
     </div>
@@ -9308,10 +9310,14 @@ function extrairBpmn(){
 // ABAS SECUNDÁRIAS DO DETALHE
 // ═══════════════════════════════════════════
 // ── Índice Lean Processual ─────────────────
-// ILP = (A×0,20) + (T×0,40) + (G×0,40)
+// Sem retrabalho: ILP = (A×0,20) + (T×0,40) + (G×0,40)
+// Com retrabalho: ILP = (A×0,20) + (T×0,30) + (G×0,30) + (R×0,20)
 // A = índice de automação: ((nSemi×50 + nAuto×100) / total)  — 0 manual, 50 semi, 100 auto
 // T = índice de atores:    clamp(0,100, (10−nAtores)/9×100)  — 1 ator=100, 10+ atores=0
 // G = índice de gateways:  max(0, 100 − gwXOR_caminhoMaisLongo)
+// R = índice de retrabalho: max(0, 100 − qtdRetrabalhos×10)  — condicional
+const ILP_REWORK_KEYWORDS=['revisar','corrigir','refazer','ajustar','rever','realizar ajuste','realizar revisão','retificar','consertar','sanar','adequar','esclarecer','prestar esclarecimento','complementar','rediagramar','reescrever','redesenhar','novamente','outra vez','mais uma vez','repetir','reanalisar','reapreciar','realizar nova análise','retornar'];
+const ILP_REWORK_PENALTY=10;
 function _ilpNormTxt(s){
   return (s||'').toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
 }
@@ -9394,7 +9400,18 @@ function _ilpTraverseEtapas(nodes, linkedGatewayMap, consumedLinkedIds, allBranc
   return {activities, gwXorNodes};
 }
 
-function calcILPFromEtapas(etapas){
+function _ilpNormRework(s){return(s||'').toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'').trim();}
+function _ilpDetectarRetrabalhos(atividades){
+  const kws=ILP_REWORK_KEYWORDS.map(_ilpNormRework);
+  return(atividades||[]).filter(a=>{const n=_ilpNormRework(a.nome||'');return kws.some(k=>n.includes(k));});
+}
+function _ilpGetAllAtividades(etapas){
+  if(!etapas||!etapas.length)return[];
+  const lm=_ilpBuildLinkedGatewayMap(etapas);
+  const{activities}=_ilpTraverseEtapas(etapas,lm,new Set(),true);
+  return activities;
+}
+function calcILPFromEtapas(etapas,retrabalhosConfirmados=undefined){
   if(!etapas||!etapas.length)return null;
   const linkedGatewayMap=_ilpBuildLinkedGatewayMap(etapas);
   // Longest path: para gateways (G) e propor\u00e7\u00e3o de automa\u00e7\u00e3o (A)
@@ -9421,7 +9438,13 @@ function calcILPFromEtapas(etapas){
   const _indexA=((nSemi*50)+(nAuto*100))/total;
   const _indexT=Math.min(100,Math.max(0,((10-nAtores)/9)*100));
   const _indexG=Math.max(0,100-gxorDiv);
-  const ilp=Math.min(100,Math.round(_indexA*0.20+_indexT*0.40+_indexG*0.40));
+  const hasR=Array.isArray(retrabalhosConfirmados);
+  const qtdR=hasR?retrabalhosConfirmados.length:0;
+  const _indexR=hasR?Math.max(0,100-qtdR*ILP_REWORK_PENALTY):null;
+  const indexR=_indexR;
+  const ilp=hasR
+    ?Math.min(100,Math.round(_indexA*0.20+_indexT*0.30+_indexG*0.30+_indexR*0.20))
+    :Math.min(100,Math.round(_indexA*0.20+_indexT*0.40+_indexG*0.40));
   const indexA=Math.round(_indexA);
   const indexT=Math.round(_indexT);
   const indexG=_indexG;
@@ -9435,12 +9458,12 @@ function calcILPFromEtapas(etapas){
       'Semi-automatica':_byModo('Semi-automatica'),
       Manual:_byModo('Manual'),
     },
-    indexA,indexT,indexG,
+    indexA,indexT,indexG,indexR,qtdR,hasR,
   };
 }
 
 // Calcula ILP diretamente do grafo BPMN XML — caminho mais longo correto (XOR→pior ramo, AND→todos)
-function calcILPFromBpmn(bpmnXml, etapas){
+function calcILPFromBpmn(bpmnXml, etapas, retrabalhosConfirmados=undefined){
   const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
   const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
   const xml=new DOMParser().parseFromString(bpmnXml,'text/xml');
@@ -9514,7 +9537,13 @@ function calcILPFromBpmn(bpmnXml, etapas){
   const _indexA=((nSemi*50)+(nAuto*100))/total;
   const _indexT=Math.min(100,Math.max(0,((10-nAtores)/9)*100));
   const _indexG=Math.max(0,100-gxorDiv);
-  const ilp=Math.min(100,Math.round(_indexA*0.20+_indexT*0.40+_indexG*0.40));
+  const hasR=Array.isArray(retrabalhosConfirmados);
+  const qtdR=hasR?retrabalhosConfirmados.length:0;
+  const _indexR=hasR?Math.max(0,100-qtdR*ILP_REWORK_PENALTY):null;
+  const indexR=_indexR;
+  const ilp=hasR
+    ?Math.min(100,Math.round(_indexA*0.20+_indexT*0.30+_indexG*0.30+_indexR*0.20))
+    :Math.min(100,Math.round(_indexA*0.20+_indexT*0.40+_indexG*0.40));
   const indexA=Math.round(_indexA);
   const indexT=Math.round(_indexT);
   const indexG=_indexG;
@@ -9528,15 +9557,16 @@ function calcILPFromBpmn(bpmnXml, etapas){
       'Semi-automatica':actIds.filter(id=>_getModo(id)==='Semi-automatica').map(autoNames),
       Manual:actIds.filter(id=>_getModo(id)==='Manual').map(autoNames),
     },
-    indexA,indexT,indexG,
+    indexA,indexT,indexG,indexR,qtdR,hasR,
   };
 }
 
-// ILP = (A×0,20) + (T×0,40) + (G×0,40) — pesos: automação 20%, atores 40%, gateways 40%
-function calcILP(etapas, bpmnXml){
-  if(!bpmnXml) return calcILPFromEtapas(etapas);
-  try{const r=calcILPFromBpmn(bpmnXml,etapas);if(r)return r;}catch(e){console.warn('calcILPFromBpmn falhou:',e.message);}
-  return calcILPFromEtapas(etapas);
+// ILP = (A×0,20) + (T×0,40) + (G×0,40) — sem retrabalho confirmado
+// ILP = (A×0,20) + (T×0,30) + (G×0,30) + (R×0,20) — com retrabalho confirmado
+function calcILP(etapas, bpmnXml, retrabalhosConfirmados=undefined){
+  if(!bpmnXml) return calcILPFromEtapas(etapas,retrabalhosConfirmados);
+  try{const r=calcILPFromBpmn(bpmnXml,etapas,retrabalhosConfirmados);if(r)return r;}catch(e){console.warn('calcILPFromBpmn falhou:',e.message);}
+  return calcILPFromEtapas(etapas,retrabalhosConfirmados);
 }
 
 function _testCalcIlpBpmnXml(els,flows){
@@ -9678,6 +9708,39 @@ function _rEntMatBadges(e){
     return `<span class="badge" style="margin-right:4px;background:${matBg};color:${matColor}">${n} ${MATURIDADE_LABELS[n]}</span>`;
   }).join('');
 }
+function _rRetrabalhosPanel(p,which){
+  const etapasKey=which==='asis'?'etapas_proc':'etapas_proc_tobe';
+  const confKey=which==='asis'?'retrabalhos_confirmados':'retrabalhos_confirmados_tobe';
+  const suspeitos=_ilpDetectarRetrabalhos(_ilpGetAllAtividades(p.mod?.[etapasKey]||[]));
+  if(!suspeitos.length)return'';
+  const confirmados=p.mod?.[confKey];
+  const jaConfirmou=Array.isArray(confirmados);
+  const checkboxes=suspeitos.map(a=>{
+    const checked=jaConfirmou&&confirmados.includes(a.id)?'checked':'';
+    return `<label style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;cursor:pointer"><input type="checkbox" id="rework-${which}-${esc(a.id)}" ${checked} style="width:15px;height:15px;flex-shrink:0"><span>${esc(a.nome||'')}</span></label>`;
+  }).join('');
+  const statusHtml=jaConfirmou?`<span style="font-size:11px;color:var(--teal);margin-left:8px">✓ Análise confirmada — ${confirmados.length} retrabalho${confirmados.length!==1?'s':''} identificado${confirmados.length!==1?'s':''}</span>`:'';
+  return `<div class="card" style="margin-top:.8rem;border-left:4px solid #f59e0b">
+    <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:.3rem">⚠ ${suspeitos.length} atividade${suspeitos.length!==1?'s':''} suspeita${suspeitos.length!==1?'s':''} de retrabalho detectada${suspeitos.length!==1?'s':''}</div>
+    <div style="font-size:12px;color:var(--ink2);margin-bottom:.6rem">Confirme quais representam de fato retrabalho no processo. Apenas as marcadas afetarão o ILP.</div>
+    <div style="margin-bottom:.6rem">${checkboxes}</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button type="button" class="btn" onclick="_salvarRetrabalhos('${which}')">Confirmar análise</button>
+      ${statusHtml}
+    </div>
+  </div>`;
+}
+function _salvarRetrabalhos(which){
+  const p=curProc;if(!p.mod)p.mod={};
+  const confKey=which==='asis'?'retrabalhos_confirmados':'retrabalhos_confirmados_tobe';
+  const etapasKey=which==='asis'?'etapas_proc':'etapas_proc_tobe';
+  const suspeitos=_ilpDetectarRetrabalhos(_ilpGetAllAtividades(p.mod?.[etapasKey]||[]));
+  const confirmados=suspeitos.filter(a=>document.getElementById('rework-'+which+'-'+a.id)?.checked).map(a=>a.id);
+  p.mod[confKey]=confirmados;
+  fbAutoSave('salvarRetrabalhos');
+  toast('✓ Análise de retrabalho salva: '+confirmados.length+' confirmado'+(confirmados.length!==1?'s':''));
+  rForm(p);
+}
 function _rEntIlpPalette(ilp){
   if(ilp>=80) return {bg:'#d1fae5',color:'#065f46',label:'Processo enxuto'};
   if(ilp>=60) return {bg:'#fef3c7',color:'#92400e',label:'Moderadamente enxuto'};
@@ -9692,8 +9755,8 @@ function _rEntIlpInterpretacao(ilp){
   return '🔴 O processo tende a estar carregado de esforço manual, muitas passagens de responsabilidade ou decisões exclusivas. Recomenda-se priorizar redesenho, automação de atividades críticas, consolidação de papéis e simplificação dos caminhos do fluxo.';
 }
 function _rIlpComparacao(p){
-  const ilpAsis=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null);
-  const ilpTobe=calcILP(p.mod?.etapas_proc_tobe||[], p.mod?.bpmnToBe||null);
+  const ilpAsis=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados);
+  const ilpTobe=calcILP(p.mod?.etapas_proc_tobe||[], p.mod?.bpmnToBe||null, p.mod?.retrabalhos_confirmados_tobe);
   if(!ilpAsis&&!ilpTobe) return '';
   const _mini=(ilpData,titulo,tipo)=>{
     if(!ilpData) return `<div class="card" style="flex:1;min-width:140px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:.3rem">${titulo}</div><div style="font-size:12px;color:var(--ink3);font-style:italic">Sem dados suficientes</div></div>`;
@@ -9724,7 +9787,7 @@ function _rIlpComparacao(p){
 }
 function _rEntIlpCard(ilpData){
   if(!ilpData) return '';
-  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
+  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0,hasR=false,qtdR=0}=ilpData;
   const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
   const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
   const modeRow=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
@@ -9750,31 +9813,45 @@ function _rEntIlpCard(ilpData){
       ${nSemi?`<span>⚡ Semi: <strong>${nSemi}</strong></span>`:''}
       <span>Gateways: <strong>${gxorDiv}</strong></span>
       <span>Atores: <strong>${nAtores}</strong></span>
+      ${hasR&&qtdR>0?`<span>🔄 Retrabalho: <strong>${qtdR}</strong></span>`:''}
       <button type="button" onclick="abrirIlpAuditoria(curProc)" style="margin-left:auto;font-size:11px;padding:2px 10px;border:1px solid var(--bdr);border-radius:4px;background:var(--bg2);cursor:pointer;color:var(--ink2);white-space:nowrap">🔍 Análise de Aderência</button>
     </div>
   </div>`;
 }
 function abrirIlpAuditoria(p, tipo='asis'){
   const d=tipo==='tobe'
-    ?calcILP(p?.mod?.etapas_proc_tobe||[], p?.mod?.bpmnToBe||null)
-    :calcILP(p?.mod?.etapas_proc||[], p?.mod?.bpmnAsIs||null);
+    ?calcILP(p?.mod?.etapas_proc_tobe||[], p?.mod?.bpmnToBe||null, p?.mod?.retrabalhos_confirmados_tobe)
+    :calcILP(p?.mod?.etapas_proc||[], p?.mod?.bpmnAsIs||null, p?.mod?.retrabalhos_confirmados);
   if(!d){toast('Nenhuma atividade mapeada para calcular o ILP.','var(--amber)');return;}
   document.getElementById('ilp-audit-modal')?.remove();
   const modal=document.createElement('div');
   modal.id='ilp-audit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
   modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
-  const {ilp,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,indexA,indexT,indexG}=d;
+  const {ilp,gxorDiv,nAtores,nAuto,nSemi,nManual,atoresList,gwXorList,autoDetail,indexA,indexT,indexG,indexR,qtdR,hasR}=d;
   const _sec=(titulo,html)=>`<div style="margin-bottom:1.1rem"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:.4rem">${titulo}</div>${html}</div>`;
   const _tag=(txt,cor)=>`<span style="display:inline-block;background:${cor}22;color:${cor};border:1px solid ${cor}55;border-radius:4px;padding:1px 7px;font-size:11px;margin:2px;line-height:1.6">${esc(txt)}</span>`;
   const _vazia=msg=>`<span style="font-size:12px;color:var(--ink3);font-style:italic">${msg}</span>`;
   const total=nAuto+nSemi+nManual;
+  const formulaLine=hasR
+    ?`ILP = (A × 0,20) + (T × 0,30) + (G × 0,30) + (R × 0,20)`
+    :`ILP = (A × 0,20) + (T × 0,40) + (G × 0,40)`;
+  const rLine=hasR
+    ?`<div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;R (retrabalho) = max(0, 100 − ${qtdR}×${ILP_REWORK_PENALTY}) = <strong>${indexR}</strong></div>`
+    :'';
+  const calcLine=hasR
+    ?`<div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= round(${indexA}×0,20 + ${indexT}×0,30 + ${indexG}×0,30 + ${indexR}×0,20)</div>`
+    :`<div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= round(${indexA}×0,20 + ${indexT}×0,40 + ${indexG}×0,40)</div>`;
+  const pesosLine=hasR
+    ?`Pesos: A (automação) = 20% · T (atores) = 30% · G (gateways XOR) = 30% · R (retrabalho) = 20%`
+    :`Pesos: A (automação) = 20% · T (atores) = 40% · G (gateways XOR) = 40%`;
   const formulaHtml=`<div style="background:var(--bg2);border-radius:6px;padding:.8rem;font-size:12px;margin-bottom:1.2rem;line-height:1.9">
-    <div style="font-family:monospace;color:var(--ink2)">ILP = (A × 0,20) + (T × 0,40) + (G × 0,40)</div>
+    <div style="font-family:monospace;color:var(--ink2)">${formulaLine}</div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;A (automação) = ((${nSemi}×50 + ${nAuto}×100) / ${total}) = <strong>${indexA}</strong></div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;T (atores) &nbsp;&nbsp;= ((10 − ${nAtores}) / 9) × 100 = <strong>${indexT}</strong></div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;G (gateways) = max(0, 100 − ${gxorDiv}) = <strong>${indexG}</strong></div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= round(${indexA}×0,20 + ${indexT}×0,40 + ${indexG}×0,40)</div>
+    ${rLine}
+    ${calcLine}
     <div style="margin-top:.3rem;font-size:14px;font-weight:700;color:var(--ink)">= ${ilp} / 100</div>
   </div>`;
   // Modo de execução
@@ -9806,7 +9883,7 @@ function abrirIlpAuditoria(p, tipo='asis'){
     ${atoresHtml}
     ${gwHtml}
     <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.6rem;margin-top:.3rem">
-      Pesos: A (automação) = 20% · T (atores) = 40% · G (gateways XOR) = 40%
+      ${pesosLine}
     </div>
     <div style="text-align:right;margin-top:.6rem">
       <button type="button" class="btn" onclick="document.getElementById('ilp-audit-modal').remove()">Fechar</button>
@@ -9827,7 +9904,7 @@ function rEnt(p){
   const matBadges=_rEntMatBadges(e);
   const comToBe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
   const hasTobe=comToBe&&!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
-  const ilpCard=hasTobe?_rIlpComparacao(p):_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null));
+  const ilpCard=hasTobe?_rIlpComparacao(p):_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados));
       const linkPubHtml = p.form?.link_pub
         ? '<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="'+esc(p.form.link_pub)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(p.form.link_pub)+'</a></div></div>'
         : '';
@@ -10112,7 +10189,7 @@ function _popPdfVolumetriaSection(e, secH, fld){
     </div>`;
 }
 function _popPdfIlpSection(p, secH){
-  const ilpData=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null);
+  const ilpData=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados);
   if(!ilpData) return '';
   const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
   const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
