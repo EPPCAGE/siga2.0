@@ -5181,7 +5181,6 @@ const ACOES = {
       <button type="button" class="btn" onclick="addEtapaProc()">+ Adicionar manualmente</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc_tobe||[])}</div>
-    ${_rIlpComparacao(p)}
     <div id="tobe-relatorio-outer" style="margin-top:.4rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
       ${_rTobeRelatorioSecao(p)}
     </div>
@@ -9693,14 +9692,20 @@ function _rIlpComparacao(p){
   const ilpAsis=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null);
   const ilpTobe=calcILP(p.mod?.etapas_proc_tobe||[], p.mod?.bpmnToBe||null);
   if(!ilpAsis&&!ilpTobe) return '';
-  const _mini=(ilpData,titulo)=>{
+  const _mini=(ilpData,titulo,tipo)=>{
     if(!ilpData) return `<div class="card" style="flex:1;min-width:140px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:.3rem">${titulo}</div><div style="font-size:12px;color:var(--ink3);font-style:italic">Sem dados suficientes</div></div>`;
-    const {ilp}=ilpData;
+    const {ilp,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
     const {bg,color,label}=_rEntIlpPalette(ilp);
     return `<div class="card" style="flex:1;min-width:140px;border-left:4px solid ${color}">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:.3rem">${titulo}</div>
       <div style="font-size:26px;font-weight:800;color:${color};line-height:1.1">${ilp}<span style="font-size:13px;font-weight:500">/100</span></div>
       <span style="font-size:11px;font-weight:600;color:${color};background:${bg};padding:2px 8px;border-radius:20px">${label}</span>
+      <div style="font-size:11px;color:var(--ink3);margin-top:.4rem;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span>Total: <strong>${nManual+nSemi+nAuto}</strong></span>
+        <span>GW: <strong>${gxorDiv}</strong></span>
+        <span>Atores: <strong>${nAtores}</strong></span>
+        <button type="button" onclick="abrirIlpAuditoria(curProc,'${tipo}')" style="margin-left:auto;font-size:11px;padding:2px 8px;border:1px solid var(--bdr);border-radius:4px;background:var(--bg2);cursor:pointer;color:var(--ink2);white-space:nowrap">🔍 Detalhes</button>
+      </div>
     </div>`;
   };
   const delta=(ilpAsis&&ilpTobe)?(ilpTobe.ilp-ilpAsis.ilp):null;
@@ -9708,9 +9713,9 @@ function _rIlpComparacao(p){
   return `<div style="margin-bottom:.8rem">
     <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:.5rem">📊 Comparação ILP — Índice Lean Processual</div>
     <div style="display:flex;gap:.6rem;align-items:stretch;flex-wrap:wrap">
-      ${_mini(ilpAsis,'ILP AS IS')}
+      ${_mini(ilpAsis,'ILP AS IS','asis')}
       ${deltaHtml}
-      ${_mini(ilpTobe,'ILP TO BE')}
+      ${_mini(ilpTobe,'ILP TO BE','tobe')}
     </div>
   </div>`;
 }
@@ -9747,8 +9752,10 @@ function _rEntIlpCard(ilpData){
     </div>
   </div>`;
 }
-function abrirIlpAuditoria(p){
-  const d=calcILP(p?.mod?.etapas_proc||[], p?.mod?.bpmnAsIs||null);
+function abrirIlpAuditoria(p, tipo='asis'){
+  const d=tipo==='tobe'
+    ?calcILP(p?.mod?.etapas_proc_tobe||[], p?.mod?.bpmnToBe||null)
+    :calcILP(p?.mod?.etapas_proc||[], p?.mod?.bpmnAsIs||null);
   if(!d){toast('Nenhuma atividade mapeada para calcular o ILP.','var(--amber)');return;}
   document.getElementById('ilp-audit-modal')?.remove();
   const modal=document.createElement('div');
@@ -9789,7 +9796,7 @@ function abrirIlpAuditoria(p){
   );
   modal.innerHTML=`<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:600px;max-height:88vh;overflow-y:auto;box-shadow:var(--sh2)">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.1rem">
-      <div style="flex:1;font-family:var(--fh);font-size:16px;font-weight:700">Análise de Aderência — Índice Lean Processual</div>
+      <div style="flex:1;font-family:var(--fh);font-size:16px;font-weight:700">Análise de Aderência — ILP ${tipo==='tobe'?'TO BE':'AS IS'}</div>
       <button type="button" onclick="document.getElementById('ilp-audit-modal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink3);line-height:1">✕</button>
     </div>
     ${formulaHtml}
@@ -9816,7 +9823,8 @@ function rEnt(p){
     if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
-  const ilpCard=_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null));
+  const hasTobe=!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
+  const ilpCard=hasTobe?_rIlpComparacao(p):_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null));
       const linkPubHtml = p.form?.link_pub
         ? '<div style="margin-bottom:.4rem"><div class="sec-lbl">Link no repositório</div><div style="font-size:13px;word-break:break-all;overflow-wrap:anywhere"><a href="'+esc(p.form.link_pub)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(p.form.link_pub)+'</a></div></div>'
         : '';
