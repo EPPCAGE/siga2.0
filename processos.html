@@ -9307,7 +9307,7 @@ function extrairBpmn(){
 // ABAS SECUNDÁRIAS DO DETALHE
 // ═══════════════════════════════════════════
 // ── Índice Lean Processual ─────────────────
-// ILP = (A×0,50) + (T×0,25) + (G×0,25)
+// ILP = (A×0,20) + (T×0,40) + (G×0,40)
 // A = índice de automação: ((nSemi×50 + nAuto×100) / total)  — 0 manual, 50 semi, 100 auto
 // T = índice de atores:    clamp(0,100, (10−nAtores)/9×100)  — 1 ator=100, 10+ atores=0
 // G = índice de gateways:  max(0, 100 − gwXOR_caminhoMaisLongo)
@@ -9417,7 +9417,7 @@ function calcILPFromEtapas(etapas){
   const _indexA=((nSemi*50)+(nAuto*100))/total;
   const _indexT=Math.min(100,Math.max(0,((10-nAtores)/9)*100));
   const _indexG=Math.max(0,100-gxorDiv);
-  const ilp=Math.min(100,Math.round(_indexA*0.50+_indexT*0.25+_indexG*0.25));
+  const ilp=Math.min(100,Math.round(_indexA*0.20+_indexT*0.40+_indexG*0.40));
   const indexA=Math.round(_indexA);
   const indexT=Math.round(_indexT);
   const indexG=_indexG;
@@ -9500,7 +9500,7 @@ function calcILPFromBpmn(bpmnXml, etapas){
   const _indexA=((nSemi*50)+(nAuto*100))/total;
   const _indexT=Math.min(100,Math.max(0,((10-nAtores)/9)*100));
   const _indexG=Math.max(0,100-gxorDiv);
-  const ilp=Math.min(100,Math.round(_indexA*0.50+_indexT*0.25+_indexG*0.25));
+  const ilp=Math.min(100,Math.round(_indexA*0.20+_indexT*0.40+_indexG*0.40));
   const indexA=Math.round(_indexA);
   const indexT=Math.round(_indexT);
   const indexG=_indexG;
@@ -9518,7 +9518,7 @@ function calcILPFromBpmn(bpmnXml, etapas){
   };
 }
 
-// ILP = (A×0,50) + (T×0,25) + (G×0,25) — pesos: automação 50%, atores 25%, gateways 25%
+// ILP = (A×0,20) + (T×0,40) + (G×0,40) — pesos: automação 20%, atores 40%, gateways 40%
 function calcILP(etapas, bpmnXml){
   if(!bpmnXml) return calcILPFromEtapas(etapas);
   try{const r=calcILPFromBpmn(bpmnXml,etapas);if(r)return r;}catch(e){console.warn('calcILPFromBpmn falhou:',e.message);}
@@ -9618,12 +9618,12 @@ function _testCalcILP(){
   eq('T7 loop total (A+C=2)',r?.total,2);eq('T7 loop gxorDiv',r?.gxorDiv,1);}
 
   // T8 — Formula: 3 Manual, 0 GW, 2 atores → A=0, T=round(8/9×100)=89, G=100
-  // ILP = round(0×0.50 + 89×0.25 + 100×0.25) = round(47.25) = 47
+  // ILP = round(0×0.20 + 89×0.40 + 100×0.40) = round(75.6) = 76
   {const xml=_testCalcIlpBpmnXml([{id:'s',t:'startEvent'},{id:'t1',t:'task',n:'Exec'},{id:'t2',t:'task',n:'Revis'},
     {id:'t3',t:'task',n:'Comu'},{id:'e',t:'endEvent'}],
     [{f:'s',t:'t1'},{f:'t1',t:'t2'},{f:'t2',t:'t3'},{f:'t3',t:'e'}]);
   const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('t1','Ator1'),_testCalcIlpEtapa('t2','Ator2'),_testCalcIlpEtapa('t3','Ator1')]);
-  eq('T8 formula ilp',r?.ilp,47);eq('T8 formula indexA',r?.indexA,0);eq('T8 formula indexT',r?.indexT,89);eq('T8 formula indexG',r?.indexG,100);}
+  eq('T8 formula ilp',r?.ilp,76);eq('T8 formula indexA',r?.indexA,0);eq('T8 formula indexT',r?.indexT,89);eq('T8 formula indexG',r?.indexG,100);}
 
   // T9 — Fallback manual com caminhos XOR: escolhe o ramo mais longo, sem somar todos
   {const etapas=[
@@ -9756,11 +9756,11 @@ function abrirIlpAuditoria(p, tipo='asis'){
   const _vazia=msg=>`<span style="font-size:12px;color:var(--ink3);font-style:italic">${msg}</span>`;
   const total=nAuto+nSemi+nManual;
   const formulaHtml=`<div style="background:var(--bg2);border-radius:6px;padding:.8rem;font-size:12px;margin-bottom:1.2rem;line-height:1.9">
-    <div style="font-family:monospace;color:var(--ink2)">ILP = (A × 0,50) + (T × 0,25) + (G × 0,25)</div>
+    <div style="font-family:monospace;color:var(--ink2)">ILP = (A × 0,20) + (T × 0,40) + (G × 0,40)</div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;A (automação) = ((${nSemi}×50 + ${nAuto}×100) / ${total}) = <strong>${indexA}</strong></div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;T (atores) &nbsp;&nbsp;= ((10 − ${nAtores}) / 9) × 100 = <strong>${indexT}</strong></div>
     <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;G (gateways) = max(0, 100 − ${gxorDiv}) = <strong>${indexG}</strong></div>
-    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= round(${indexA}×0,50 + ${indexT}×0,25 + ${indexG}×0,25)</div>
+    <div style="font-family:monospace;color:var(--ink2)">&nbsp;&nbsp;&nbsp;= round(${indexA}×0,20 + ${indexT}×0,40 + ${indexG}×0,40)</div>
     <div style="margin-top:.3rem;font-size:14px;font-weight:700;color:var(--ink)">= ${ilp} / 100</div>
   </div>`;
   // Modo de execução
@@ -9792,7 +9792,7 @@ function abrirIlpAuditoria(p, tipo='asis'){
     ${atoresHtml}
     ${gwHtml}
     <div style="font-size:11px;color:var(--ink3);border-top:1px solid var(--bdr);padding-top:.6rem;margin-top:.3rem">
-      Pesos: A (automação) = 50% · T (atores) = 25% · G (gateways XOR) = 25%
+      Pesos: A (automação) = 20% · T (atores) = 40% · G (gateways XOR) = 40%
     </div>
     <div style="text-align:right;margin-top:.6rem">
       <button type="button" class="btn" onclick="document.getElementById('ilp-audit-modal').remove()">Fechar</button>
