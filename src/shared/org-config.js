@@ -4,7 +4,7 @@
     systemBrand: 'EP·CAGE',
     systemFullName: 'SIGA 2.0 — EP·CAGE',
     publicUrl: 'https://sigaepp.web.app/',
-    organizationName: 'EPP/CAGE',
+    organizationName: 'Sistema Integrado de Gestão Estratégica',
     institutionName: 'CAGE/Sefaz-RS',
     officeName: 'Escritório de Processos',
     projectOfficeName: 'Escritório de Projetos da CAGE',

@@ -963,7 +963,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <button type="button" class="btn btn-p" onclick="enterProcessModule()">Entrar →</button>
       </div>
       <div class="module-card" id="hub-card-projetos">
-        <h3>📁 SIGA Projetos</h3>
+        <h3>📋 SIGA Projetos</h3>
         <p>Portfólio de projetos, programas, indicadores e acompanhamento estratégico.</p>
         <button type="button" class="btn btn-t" onclick="openProjectsModule()">Entrar →</button>
       </div>
@@ -1013,7 +1013,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <!-- Modal: trocar senha no primeiro acesso -->
 <div id="trocar-senha-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;align-items:center;justify-content:center;padding:1rem">
   <div style="background:#1e1e2e;border-radius:16px;padding:2rem;width:100%;max-width:420px;box-shadow:0 12px 48px rgba(0,0,0,.6);overflow-y:auto;max-height:90vh">
-    <div style="color:#fff;font-size:17px;font-weight:700;margin-bottom:.35rem">Bem-vindo(a) ao SIGA 2.0!</div>
+    <div style="color:#fff;font-size:17px;font-weight:700;margin-bottom:.35rem">Bem-vindo(a) ao SIGA!</div>
     <div style="color:rgba(255,255,255,.5);font-size:12px;margin-bottom:1.5rem;line-height:1.55">Você está usando uma senha temporária. Defina sua senha definitiva antes de continuar.</div>
 
     <label class="login-label" for="ts-nova">Nova senha <span style="opacity:.45;font-size:10px">(mín. 6 caracteres)</span></label>
@@ -17045,6 +17045,15 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
   }
   if(user){
     _iniciarSessaoUnica(firebaseUser.uid);
+    // Não-EP muda senha mas não pode escrever em config/usuarios;
+    // o override fica em /usuarios/{uid} — aplica antes de mostrar hub.
+    if(user.trocar_senha){
+      try{
+        const {db,doc:_d,getDoc:_g}=fb();
+        const _snap=await _g(_d(db,'usuarios',firebaseUser.uid));
+        if(_snap.exists()&&_snap.data().trocar_senha===false) user.trocar_senha=false;
+      }catch(e_){}
+    }
     _aplicarUsuario(user);
     if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
     // Define Custom Claim {perfil} no token de forma não-bloqueante.
