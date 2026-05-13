@@ -10100,17 +10100,14 @@ function _popPdfIlpSection(p, secH){
   const ilpData=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null);
   if(!ilpData) return '';
   const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
-  let ilpBg,ilpColor,ilpLabel,ilpDesc;
-  if(ilp>=65){
-    ilpBg='#d1fae5';ilpColor='#065f46';ilpLabel='Processo enxuto';
-    ilpDesc='Fluxo direto com poucos pontos de decisão e baixo número de atores. O processo está bem estruturado e com boa eficiência operacional.';
-  }else if(ilp>=40){
-    ilpBg='#fef3c7';ilpColor='#92400e';ilpLabel='Melhorias possíveis';
-    ilpDesc='Há oportunidades de simplificação: reduza pontos de decisão desnecessários, consolide responsabilidades entre atores ou automatize etapas repetitivas.';
-  }else{
-    ilpBg='#fee2e2';ilpColor='#991b1b';ilpLabel='Alto nível de controle';
-    ilpDesc='O processo possui muitos pontos de decisão e/ou atores em relação ao total de atividades, indicando possível fragmentação ou excesso de handoffs. Priorize simplificação do fluxo.';
-  }
+  const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
+  const ilpDesc=ilp>=80
+    ?'O processo apresenta bom nível de enxugamento. Para melhorar ainda mais a nota, avalie oportunidades pontuais de automação, redução de decisões exclusivas e simplificação de passagens entre atores.'
+    :ilp>=60
+    ?'O processo possui estrutura razoavelmente fluida, mas ainda pode ganhar desempenho com maior automação, redução de handoffs e revisão de decisões que criam caminhos alternativos.'
+    :ilp>=40
+    ?'O processo apresenta sinais de atrito estrutural. Recomenda-se avaliar atividades manuais repetitivas, excesso de atores envolvidos e gateways XOR que possam ser eliminados, combinados ou reposicionados.'
+    :'O processo tende a estar carregado de esforço manual, muitas passagens de responsabilidade ou decisões exclusivas. Recomenda-se priorizar redesenho, automação de atividades críticas, consolidação de papéis e simplificação dos caminhos do fluxo.';
   const modoRow=[['Manual',nManual,'#6b7280'],['Semi-automática',nSemi,'#6366f1'],['Automática',nAuto,'#10b981']]
     .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
   return `${secH('7.0','Índice Lean Processual')}
