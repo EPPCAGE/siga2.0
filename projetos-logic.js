@@ -226,72 +226,11 @@ async function projFbSaveCurrentScheduleProject(){
   }), { merge: true });
 }
 
-function projIsDataUrl(value){
-  return typeof value === 'string' && value.startsWith('data:');
-}
-
-function projDataUrlToBlob(dataUrl){
-  const match = String(dataUrl || '').match(/^data:([^;,]+)?(;base64)?,(.*)$/);
-  if(!match) throw new Error('Imagem anexada em formato inválido.');
-  const mime = match[1] || 'application/octet-stream';
-  const isBase64 = !!match[2];
-  const payload = match[3] || '';
-  const binary = isBase64 ? atob(payload) : decodeURIComponent(payload);
-  const bytes = new Uint8Array(binary.length);
-  for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], {type: mime});
-}
-
-function projSafeStorageName(name, fallback){
-  let s = String(name || fallback || 'imagem')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+/, '');
-  let end = s.length;
-  while (end > 0 && s[end - 1] === '-') end--;
-  return s.slice(0, Math.min(end, 90)) || 'imagem';
-}
-
-async function projFbUploadConclusaoImage(storageApi, proj, img, index){
-  if(!img || typeof img !== 'object') return;
-  if(!projIsDataUrl(img.data)) {
-    if(img.data && !img.url) img.url = img.data;
-    return;
-  }
-  const {storage, storageRef, uploadBytes, getDownloadURL} = storageApi;
-  const blob = projDataUrlToBlob(img.data);
-  const nome = projSafeStorageName(img.nome, 'imagem-' + (index + 1));
-  const path = img.path || `projetos/${proj.id || 'sem-id'}/conclusao/${Date.now()}-${index}-${nome}`;
-  const ref = storageRef(storage, path);
-  await uploadBytes(ref, blob, { contentType: blob.type || 'application/octet-stream' });
-  const url = await getDownloadURL(ref);
-  img.path = path;
-  img.url = url;
-  img.data = url;
-}
-
-async function projFbUploadConclusaoImages(){
-  if(!fbReady()) return;
-  const {storage, storageRef, uploadBytes, getDownloadURL} = fb();
-  if(!storage || !storageRef || !uploadBytes || !getDownloadURL) return;
-  const storageApi = {storage, storageRef, uploadBytes, getDownloadURL};
-
-  for(const proj of PROJETOS || []){
-    const imagens = proj?.conclusao?.imagens;
-    if(!Array.isArray(imagens)) continue;
-
-    for(let i = 0; i < imagens.length; i++){
-      await projFbUploadConclusaoImage(storageApi, proj, imagens[i], i);
-    }
-  }
-}
-
 async function projFbSaveAll(options){
   const includeConfig = !options || options.includeConfig !== false;
   if(!fbReady()) throw new Error('Firebase indisponível.');
   _projFbState.saving = true;
   try{
-    await projFbUploadConclusaoImages();
     await projFbSyncCollection(PROJ_FB.colProjetos, PROJETOS||[]);
     await projFbSyncCollection(PROJ_FB.colProgramas, PROGRAMAS||[]);
     if(includeConfig){
@@ -2907,7 +2846,7 @@ function projTabIdeacao(p) {
         <!-- Col 4: Quais resultados trará? -->
         <div class="proj-canvas-col">
           <div class="proj-canvas-col-header" style="background:#f3e8ff;color:#6b21a8">Quais resultados trará?</div>
-          ${projCanvasCell(11,'OBJETIVO ESTRATÉGICO','Com qual objetivo este projeto contribui?','canvas-objetivo_estrategico',ide.objetivo_estrategico||'')}
+          ${projCanvasObjetivoCell(p)}
           ${projCanvasCell(12,'CUSTOS','Qual a estimativa de custo? Há recurso disponível?','canvas-custos',ide.custos||'')}
           ${projCanvasCell(13,'RESULTADOS ESPERADOS','Quais resultados/indicadores serão gerados?','canvas-resultados_esperados',ide.resultados_esperados||'')}
           ${projCanvasCell(14,'AÇÕES IMEDIATAS','O que já pode ser implantado?','canvas-acoes_imediatas',ide.acoes_imediatas||'')}
@@ -2947,19 +2886,54 @@ function projCanvasCell(num, label, sub, fieldId, value) {
   `;
 }
 
+function projCanvasObjetivosSelecionados(p) {
+  projNormalizeStrategyLists();
+  const values = projMultiValues(p?.objetivos_estrategicos, p?.ideacao?.objetivo_estrategico)
+    .map(v => projCanonicalStrategyValue(v, PROJ_OBJETIVOS))
+    .filter(Boolean);
+  return [...new Set(values)];
+}
+
+function projCanvasObjetivoCell(p) {
+  const selected = projCanvasObjetivosSelecionados(p);
+  const options = [...new Set([...(PROJ_OBJETIVOS || []), ...selected])]
+    .filter(Boolean)
+    .map(o => `<option value="${projEsc(o)}" ${selected.includes(o) ? 'selected' : ''}>${projEsc(o)}</option>`)
+    .join('');
+  return `
+    <div class="proj-canvas-cell proj-canvas-cell-oe">
+      <div class="proj-canvas-cell-num">11</div>
+      <div class="proj-canvas-cell-label">OBJETIVO ESTRATÉGICO</div>
+      <div class="proj-canvas-cell-sub">Vincule o projeto a um ou mais objetivos estratégicos</div>
+      <select id="canvas-objetivo_estrategico" class="proj-canvas-oe-select" multiple size="7" onchange="projSalvarIdeacao()">
+        ${options}
+      </select>
+      <div class="proj-canvas-oe-hint">Use Ctrl ou Shift para selecionar mais de um OE.</div>
+    </div>
+  `;
+}
+
 function projSalvarIdeacao() {
   if(!projEnsureWriteAll()) return;
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
   const fields = ['descricao','objetivo_smart','beneficios','requisitos','premissas','restricoes',
-    'entregas_macro','riscos_canvas','equipe','partes_interessadas','objetivo_estrategico',
+    'entregas_macro','riscos_canvas','equipe','partes_interessadas',
     'custos','resultados_esperados','acoes_imediatas'];
   if(!proj.ideacao) proj.ideacao = {};
   fields.forEach(f => {
     const el = document.getElementById('canvas-'+f);
     if(el) proj.ideacao[f] = el.value;
   });
+  const objetivoEl = document.getElementById('canvas-objetivo_estrategico');
+  if(objetivoEl) {
+    const selected = Array.from(objetivoEl.selectedOptions || [])
+      .map(opt => projCanonicalStrategyValue(opt.value, PROJ_OBJETIVOS))
+      .filter(Boolean);
+    proj.objetivos_estrategicos = [...new Set(selected)];
+    proj.ideacao.objetivo_estrategico = proj.objetivos_estrategicos.join('\n');
+  }
   // Save HTML canvas and link
   const htmlCodeEl = document.getElementById('canvas-html-code');
   if(htmlCodeEl) proj.ideacao.canvas_html = htmlCodeEl.value;
@@ -3790,6 +3764,8 @@ function projSalvarConclusao() {
   proj.conclusao.link_termo_aceite = document.getElementById('conc-termo')?.value||'';
   proj.conclusao.historia = document.getElementById('conc-historia')?.value||'';
   proj.conclusao.links_noticias = document.getElementById('conc-links')?.value||'';
+  const imagensUrlsEl = document.getElementById('conc-imagens-urls');
+  if(imagensUrlsEl) proj.conclusao.imagens = projConclusaoUrlsToImagens(imagensUrlsEl.value);
   proj.conclusao.licoes_data = document.getElementById('conc-lic-data')?.value||'';
   proj.conclusao.licoes_participantes = document.getElementById('conc-lic-part')?.value||'';
   proj.conclusao.licoes_certo = document.getElementById('conc-lic-certo')?.value||'';
@@ -3816,6 +3792,46 @@ function projFinalizarProjeto() {
     projToast('Projeto encerrado!', 'var(--teal)');
     projAbrirDetalhe(_projCurrentId, false);
   });
+}
+
+function projConclusaoImagemSrc(img){
+  if(typeof img === 'string') return img.trim();
+  return String(img?.url || img?.data || '').trim();
+}
+function projConclusaoImagemNome(url, index){
+  try {
+    const u = new URL(url);
+    const last = decodeURIComponent((u.pathname.split('/').filter(Boolean).pop() || '').trim());
+    return last || `Imagem ${index + 1}`;
+  } catch(_e) {
+    return `Imagem ${index + 1}`;
+  }
+}
+function projConclusaoImagensToUrls(conc){
+  const seen = new Set();
+  return (conc?.imagens || [])
+    .map(projConclusaoImagemSrc)
+    .filter(Boolean)
+    .filter(url => {
+      const key = url.toLowerCase();
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+function projConclusaoUrlsToImagens(text){
+  const seen = new Set();
+  return String(text || '')
+    .split(/\n+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .filter(url => {
+      const key = url.toLowerCase();
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((url, index) => ({nome: projConclusaoImagemNome(url, index), url, data: url, externo: true}));
 }
 
 // ── AVANÇAR FASE ──────────────────────────────────────────────────
@@ -4502,43 +4518,6 @@ function projImportCronogramaXLSX(inputEl){
   };
   reader.readAsArrayBuffer(file);
 }
-async function projUploadConclusaoImagens(inputEl){
-  const files=Array.from(inputEl.files||[]);
-  if(!files.length)return;
-  projLoad();
-  const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);
-  if(!proj)return;
-  if(!proj.conclusao)proj.conclusao={};
-  if(!proj.conclusao.imagens)proj.conclusao.imagens=[];
-
-  if(fbReady()){
-    const {storage,storageRef,uploadBytes,getDownloadURL}=fb();
-    if(!storage){projToast('Armazenamento não disponível.','#dc2626');return;}
-    try{
-      projToast('Enviando imagem(ns) para a nuvem…','var(--blue)');
-      for(let i=0;i<files.length;i++){
-        const file=files[i];
-        if(!file.type.startsWith('image/')) continue;
-        const nome=projSafeStorageName(file.name,'imagem-'+(i+1));
-        const path=`projetos/${proj.id||'sem-id'}/conclusao/${Date.now()}-${i}-${nome}`;
-        const ref=storageRef(storage,path);
-        await uploadBytes(ref,file,{contentType:file.type||'application/octet-stream'});
-        const url=await getDownloadURL(ref);
-        proj.conclusao.imagens.push({nome:file.name,path,url,data:url});
-      }
-      await projFbSaveAll({includeConfig:false});
-      projToast('Imagem(ns) salva(s) na nuvem!');
-      projDetalheTab('conclusao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(5)'));
-    }catch(e){
-      console.error('projUploadConclusaoImagens:',e);
-      projToast('Erro ao enviar imagem: '+(e.message||e),'#dc2626');
-    }
-    return;
-  }
-
-  let pending=files.length;
-  files.forEach(file=>{if(!file.type.startsWith('image/')){pending--;return;}const reader=new FileReader();reader.onload=e=>{proj.conclusao.imagens.push({nome:file.name,data:e.target.result});pending--;if(pending<=0){projSave();projDetalheTab('conclusao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(5)'));}};reader.readAsDataURL(file);});
-}
 function projRemoveConclusaoImagem(idx){projLoad();const proj=PROJETOS.find(p=>String(p.id)===_projCurrentId);if(!proj?.conclusao?.imagens)return;proj.conclusao.imagens.splice(idx,1);projSave();projDetalheTab('conclusao',document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(5)'));}
 // ── Init ao carregar ──────────────────────────────────────────────
 // ── Ajustes v9.1: indicadores, memorial e report executivo ───────
@@ -4825,11 +4804,20 @@ function projRemoveIndicadorGlobal(projId, idx) {
   projRenderIndicadoresPage();
 }
 
+function projConclusaoImagemEditorHtml(conc) {
+  const urls = projConclusaoImagensToUrls(conc);
+  const urlsText = urls.join('\n');
+  const preview = urls.length
+    ? `<div class="proj-v9-attach-grid">${urls.map((url,i)=>`<div><img src="${projEsc(url)}" alt="${projEsc(projConclusaoImagemNome(url,i))}"><button type="button" class="proj-btn danger" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%" onclick="projRemoveConclusaoImagem(${i})">Remover</button></div>`).join('')}</div>`
+    : '<div style="font-size:11px;color:var(--ink3);margin-top:4px">Nenhuma URL de imagem informada.</div>';
+  return `<div class="proj-form-section" style="background:#fff;margin-top:1rem"><div class="proj-form-section-title">URLs de Imagens do Memorial</div><div class="proj-fg"><label class="proj-fl">URL da imagem <span style="font-size:10px;color:var(--ink3)">(uma por linha)</span></label><textarea class="proj-fi" id="conc-imagens-urls" rows="3" placeholder="https://.../imagem.jpg">${projEsc(urlsText)}</textarea>${preview}</div></div>`;
+}
+
 function projTabConclusao(p) {
   const conc = p.conclusao || {};
   const selectedSuccess = conc.tipo === 'sucesso';
   const selectedCancel = conc.tipo === 'cancelamento';
-  return `<div class="proj-form-section"><div class="proj-form-section-title">Fase 5: Conclusão</div><div class="proj-ib proj-ib-blue">Registre o encerramento oficial, o Memorial do Projeto, as notícias e os aprendizados.</div><div class="proj-fg"><label class="proj-fl">Tipo de Conclusão<span>*</span></label><div class="proj-conclusao-tipo"><div class="proj-conclusao-card ${selectedSuccess?'selected-success':''}" onclick="projSelecionarTipoConclusao('sucesso')"><div class="proj-conclusao-icon">OK</div><div class="proj-conclusao-label">Conclusão com Sucesso</div><div class="proj-conclusao-desc">Projeto entregue conforme planejado</div></div><div class="proj-conclusao-card ${selectedCancel?'selected-cancel':''}" onclick="projSelecionarTipoConclusao('cancelamento')"><div class="proj-conclusao-icon">X</div><div class="proj-conclusao-label">Cancelamento</div><div class="proj-conclusao-desc">Projeto encerrado sem conclusão das entregas</div></div></div></div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data de Conclusão/Cancelamento</label><input type="date" class="proj-fi" id="conc-data" value="${projEsc(conc.dt_conclusao||'')}"></div><div class="proj-fg"><label class="proj-fl">Link para o Termo de Aceite</label><input type="url" class="proj-fi" id="conc-termo" value="${projEsc(conc.link_termo_aceite||'')}" placeholder="https://..."></div></div><div class="proj-fg"><label class="proj-fl">História do Projeto</label><textarea class="proj-fi" id="conc-historia" rows="5" placeholder="Conte a história e trajetória do projeto, principais marcos, aprendizados...">${projEsc(conc.historia||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Links de Notícias / Resultados <span style="font-size:10px;color:var(--ink3)">(um por linha)</span></label><textarea class="proj-fi" id="conc-links" rows="3" placeholder="https://noticia1.gov.br&#10;https://noticia2.gov.br">${projEsc(conc.links_noticias||'')}</textarea></div><div class="proj-form-section" style="background:#fff;margin-top:1rem"><div class="proj-form-section-title">Anexos de Imagens do Memorial</div><div class="proj-fg"><input type="file" class="proj-fi" accept="image/*" multiple onchange="projUploadConclusaoImagens(this)">${(conc.imagens||[]).length ? `<div class="proj-v9-attach-grid">${(conc.imagens||[]).map((img,i)=>`<div><img src="${projEsc(img.data)}" alt="${projEsc(img.nome||'Imagem')}"><button type="button" class="proj-btn danger" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%" onclick="projRemoveConclusaoImagem(${i})">Remover</button></div>`).join('')}</div>` : '<div style="font-size:11px;color:var(--ink3);margin-top:4px">Nenhuma imagem anexada.</div>'}</div></div><div class="proj-form-section" style="background:#f8fbff;margin-top:1rem"><div class="proj-form-section-title">Reunião de Lições Aprendidas</div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data da reunião</label><input type="date" class="proj-fi" id="conc-lic-data" value="${projEsc(conc.licoes_data||'')}"></div><div class="proj-fg"><label class="proj-fl">Participantes</label><input type="text" class="proj-fi" id="conc-lic-part" value="${projEsc(conc.licoes_participantes||'')}" placeholder="Nomes dos participantes"></div></div><div class="proj-g3"><div class="proj-fg"><label class="proj-fl">O que deu certo?</label><textarea class="proj-fi" id="conc-lic-certo" rows="4">${projEsc(conc.licoes_certo||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">O que pode melhorar?</label><textarea class="proj-fi" id="conc-lic-melhorar" rows="4">${projEsc(conc.licoes_melhorar||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Sugestões / ideias</label><textarea class="proj-fi" id="conc-lic-ideias" rows="4">${projEsc(conc.licoes_ideias||'')}</textarea></div></div></div><div class="proj-btn-row"><button type="button" class="proj-btn teal" onclick="projSalvarConclusao()">Salvar</button>${p.status !== 'concluido' && p.status !== 'cancelado' ? `<button type="button" class="proj-btn primary" onclick="projFinalizarProjeto()">Encerrar Projeto</button>` : `<div style="font-size:12.5px;color:var(--teal);font-weight:600;align-self:center">Projeto encerrado</div>`}</div></div>`;
+  return `<div class="proj-form-section"><div class="proj-form-section-title">Fase 5: Conclusão</div><div class="proj-ib proj-ib-blue">Registre o encerramento oficial, o Memorial do Projeto, as notícias e os aprendizados.</div><div class="proj-fg"><label class="proj-fl">Tipo de Conclusão<span>*</span></label><div class="proj-conclusao-tipo"><div class="proj-conclusao-card ${selectedSuccess?'selected-success':''}" onclick="projSelecionarTipoConclusao('sucesso')"><div class="proj-conclusao-icon">OK</div><div class="proj-conclusao-label">Conclusão com Sucesso</div><div class="proj-conclusao-desc">Projeto entregue conforme planejado</div></div><div class="proj-conclusao-card ${selectedCancel?'selected-cancel':''}" onclick="projSelecionarTipoConclusao('cancelamento')"><div class="proj-conclusao-icon">X</div><div class="proj-conclusao-label">Cancelamento</div><div class="proj-conclusao-desc">Projeto encerrado sem conclusão das entregas</div></div></div></div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data de Conclusão/Cancelamento</label><input type="date" class="proj-fi" id="conc-data" value="${projEsc(conc.dt_conclusao||'')}"></div><div class="proj-fg"><label class="proj-fl">Link para o Termo de Aceite</label><input type="url" class="proj-fi" id="conc-termo" value="${projEsc(conc.link_termo_aceite||'')}" placeholder="https://..."></div></div><div class="proj-fg"><label class="proj-fl">História do Projeto</label><textarea class="proj-fi" id="conc-historia" rows="5" placeholder="Conte a história e trajetória do projeto, principais marcos, aprendizados...">${projEsc(conc.historia||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Links de Notícias / Resultados <span style="font-size:10px;color:var(--ink3)">(um por linha)</span></label><textarea class="proj-fi" id="conc-links" rows="3" placeholder="https://noticia1.gov.br&#10;https://noticia2.gov.br">${projEsc(conc.links_noticias||'')}</textarea></div>${projConclusaoImagemEditorHtml(conc)}<div class="proj-form-section" style="background:#f8fbff;margin-top:1rem"><div class="proj-form-section-title">Reunião de Lições Aprendidas</div><div class="proj-g2"><div class="proj-fg"><label class="proj-fl">Data da reunião</label><input type="date" class="proj-fi" id="conc-lic-data" value="${projEsc(conc.licoes_data||'')}"></div><div class="proj-fg"><label class="proj-fl">Participantes</label><input type="text" class="proj-fi" id="conc-lic-part" value="${projEsc(conc.licoes_participantes||'')}" placeholder="Nomes dos participantes"></div></div><div class="proj-g3"><div class="proj-fg"><label class="proj-fl">O que deu certo?</label><textarea class="proj-fi" id="conc-lic-certo" rows="4">${projEsc(conc.licoes_certo||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">O que pode melhorar?</label><textarea class="proj-fi" id="conc-lic-melhorar" rows="4">${projEsc(conc.licoes_melhorar||'')}</textarea></div><div class="proj-fg"><label class="proj-fl">Sugestões / ideias</label><textarea class="proj-fi" id="conc-lic-ideias" rows="4">${projEsc(conc.licoes_ideias||'')}</textarea></div></div></div><div class="proj-btn-row"><button type="button" class="proj-btn teal" onclick="projSalvarConclusao()">Salvar</button>${p.status !== 'concluido' && p.status !== 'cancelado' ? `<button type="button" class="proj-btn primary" onclick="projFinalizarProjeto()">Encerrar Projeto</button>` : `<div style="font-size:12.5px;color:var(--teal);font-weight:600;align-self:center">Projeto encerrado</div>`}</div></div>`;
 }
 
 function projBuildStatusReportHTMLLegacy() {
@@ -5114,9 +5102,10 @@ function projMemorialImagesHtml(conc) {
   if(!imagens.length) return '<div style="font-size:12px;color:var(--ink3)">Nenhuma imagem anexada ao Memorial.</div>';
   if(imagens.length === 1) {
     const img = imagens[0];
-    return `<div class="proj-v12-single-image"><a href="${projEsc(img.data)}" target="_blank"><img src="${projEsc(img.data)}" alt="${projEsc(img.nome||'Imagem do memorial')}"></a></div>`;
+    const src = projConclusaoImagemSrc(img);
+    return `<div class="proj-v12-single-image"><a href="${projEsc(src)}" target="_blank"><img src="${projEsc(src)}" alt="${projEsc(img.nome||'Imagem do memorial')}"></a></div>`;
   }
-  return `<div class="proj-v12-carousel" id="proj-memorial-carousel" data-index="0"><button type="button" class="proj-v12-carousel-btn prev" onclick="projMemorialCarouselStep(-1)" aria-label="Imagem anterior">‹</button><div class="proj-v12-carousel-stage">${imagens.map((img,i) => `<a href="${projEsc(img.data)}" target="_blank" class="proj-v12-carousel-slide ${i===0?'on':''}"><img src="${projEsc(img.data)}" alt="${projEsc(img.nome||'Imagem do memorial')}"></a>`).join('')}</div><button type="button" class="proj-v12-carousel-btn next" onclick="projMemorialCarouselStep(1)" aria-label="Próxima imagem">›</button><div class="proj-v12-carousel-counter">1 / ${imagens.length}</div></div>`;
+  return `<div class="proj-v12-carousel" id="proj-memorial-carousel" data-index="0"><button type="button" class="proj-v12-carousel-btn prev" onclick="projMemorialCarouselStep(-1)" aria-label="Imagem anterior">‹</button><div class="proj-v12-carousel-stage">${imagens.map((img,i) => { const src = projConclusaoImagemSrc(img); return `<a href="${projEsc(src)}" target="_blank" class="proj-v12-carousel-slide ${i===0?'on':''}"><img src="${projEsc(src)}" alt="${projEsc(img.nome||'Imagem do memorial')}"></a>`; }).join('')}</div><button type="button" class="proj-v12-carousel-btn next" onclick="projMemorialCarouselStep(1)" aria-label="Próxima imagem">›</button><div class="proj-v12-carousel-counter">1 / ${imagens.length}</div></div>`;
 }
 
 function projMemorialCarouselStep(delta) {
@@ -5138,5 +5127,5 @@ function projRenderMemorial(p) {
   if(!content) return;
   const licoes = [conc.licoes_data, conc.licoes_participantes, conc.licoes_certo, conc.licoes_melhorar, conc.licoes_ideias].some(Boolean);
   const imgs = projMemorialImagesHtml(conc);
-  content.innerHTML = `<div class="proj-ph"><div><div class="proj-ph-t">Memorial do Projeto</div><div class="proj-ph-s">${projEsc(p.nome||'Projeto')}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="proj-btn primary" style="font-size:12px;padding:5px 11px" onclick="projAbrirDetalhe('${projEsc(String(p.id))}', true)">Ver Workflow</button><button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">Voltar ao Portfólio</button></div></div><div class="proj-form-section"><div class="proj-form-section-title">Informações Gerais</div><div class="proj-g3"><div><div class="proj-fl">Projeto</div><strong>${projEsc(p.nome||'')}</strong></div><div><div class="proj-fl">Patrocinador</div><strong>${projEsc(p.patrocinador||'Não informado')}</strong></div><div><div class="proj-fl">Gerente</div><strong>${projEsc(p.gerente||'Não informado')}</strong></div></div></div><div class="proj-form-section"><div class="proj-form-section-title">História do Projeto</div><div style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia||'História ainda não registrada.')}</div></div>${projMemorialNewsEmbeds(conc)}<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Anexos de Imagens do Memorial</div>${imgs}</div>${licoes ? `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Lições Aprendidas</div><div class="proj-g2"><div><div class="proj-fl">Data da reunião</div><strong>${projFormatDate(conc.licoes_data)||'Não informada'}</strong></div><div><div class="proj-fl">Participantes</div><strong>${projEsc(conc.licoes_participantes||'Não informado')}</strong></div></div><div class="proj-g3" style="margin-top:1rem"><div><div class="proj-fl">O que deu certo?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_certo||'')}</div></div><div><div class="proj-fl">O que pode melhorar?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_melhorar||'')}</div></div><div><div class="proj-fl">Sugestões / ideias</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_ideias||'')}</div></div></div></div>` : ''}`;
+  content.innerHTML = `<div class="proj-ph"><div><div class="proj-ph-t">Memorial do Projeto</div><div class="proj-ph-s">${projEsc(p.nome||'Projeto')}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="proj-btn primary" style="font-size:12px;padding:5px 11px" onclick="projAbrirDetalhe('${projEsc(String(p.id))}', true)">Ver Workflow</button><button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">Voltar ao Portfólio</button></div></div><div class="proj-form-section"><div class="proj-form-section-title">Informações Gerais</div><div class="proj-g3"><div><div class="proj-fl">Projeto</div><strong>${projEsc(p.nome||'')}</strong></div><div><div class="proj-fl">Patrocinador</div><strong>${projEsc(p.patrocinador||'Não informado')}</strong></div><div><div class="proj-fl">Gerente</div><strong>${projEsc(p.gerente||'Não informado')}</strong></div></div></div><div class="proj-form-section"><div class="proj-form-section-title">História do Projeto</div><div style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia||'História ainda não registrada.')}</div></div>${projMemorialNewsEmbeds(conc)}<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Imagens do Memorial</div>${imgs}</div>${licoes ? `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Lições Aprendidas</div><div class="proj-g2"><div><div class="proj-fl">Data da reunião</div><strong>${projFormatDate(conc.licoes_data)||'Não informada'}</strong></div><div><div class="proj-fl">Participantes</div><strong>${projEsc(conc.licoes_participantes||'Não informado')}</strong></div></div><div class="proj-g3" style="margin-top:1rem"><div><div class="proj-fl">O que deu certo?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_certo||'')}</div></div><div><div class="proj-fl">O que pode melhorar?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_melhorar||'')}</div></div><div><div class="proj-fl">Sugestões / ideias</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_ideias||'')}</div></div></div></div>` : ''}`;
 }
