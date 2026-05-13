@@ -4848,6 +4848,17 @@ function aprovarDetValidAsis(){
   if(dt||part||ata){p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};}
   avDono('det_valid_asis','Dono do processo','Detalhamento e validação AS IS concluídos pelo dono',null);
 }
+function epAprovarDetValidAsis(){
+  const p=curProc;
+  const jr=jaFoiRespondido(p.etapa);
+  if(jr){toast('⚠ Tarefa já respondida por '+jr.nome+'. Não é possível enviar novamente.');return;}
+  if(!p.ent.analise)p.ent.analise={};
+  const dt=document.getElementById('va-dt')?.value||'';
+  const part=document.getElementById('va-part')?.value||'';
+  const ata=document.getElementById('va-ata')?.value||'';
+  if(dt||part||ata){p.ent.analise.reuniao_valid_asis={data:dt,participantes:part,ata};}
+  av('det_valid_asis','EP','Detalhamento e validação AS IS aprovados pelo EP',null);
+}
 function salvarMelhorias(avancar=true){
   const p=curProc;
   if(!p.ent.analise)p.ent.analise={};
@@ -4870,6 +4881,17 @@ function aprovarDetValidTobe(){
   const ata=document.getElementById('vtb-ata')?.value||'';
   p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
   avDono('det_valid_tobe','Dono do processo','Detalhamento e validação TO BE concluídos pelo dono',null);
+}
+function epAprovarDetValidTobe(){
+  const p=curProc;
+  const jr=jaFoiRespondido(p.etapa);
+  if(jr){toast('⚠ Tarefa já respondida por '+jr.nome+'. Não é possível enviar novamente.');return;}
+  if(!p.mod)p.mod={};
+  const dt=document.getElementById('vtb-dt')?.value||'';
+  const part=document.getElementById('vtb-part')?.value||'';
+  const ata=document.getElementById('vtb-ata')?.value||'';
+  p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
+  av('det_valid_tobe','EP','Detalhamento e validação TO BE aprovados pelo EP',null);
 }
 function renderFeedbackEP(analise){
   const fb=analise.feedback_dono||{};
@@ -6268,6 +6290,8 @@ function _rAcaoAppendEPBars(el, p, isPulada){
       `<button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="_ADVANCE_MAP[curProc?.etapa]?.()">${advanceLabel}</button>`
     );
   }
+  if(p.etapa==='det_valid_asis') btns.push(`<button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="epAprovarDetValidAsis()">✓ Aprovar AS IS</button>`);
+  if(p.etapa==='det_valid_tobe') btns.push(`<button type="button" class="btn btn-p" style="font-size:12px;padding:4px 12px" onclick="epAprovarDetValidTobe()">✓ Aprovar TO BE</button>`);
   bar.innerHTML=leftHtml+`<div style="display:flex;gap:6px;flex-wrap:wrap">${btns.join('')}</div>`;
   el.appendChild(bar);
 }
