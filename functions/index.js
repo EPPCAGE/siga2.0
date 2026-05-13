@@ -5,6 +5,8 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 const ALLOWED_ORIGINS = [
+  "https://eppcage.com.br",
+  "https://www.eppcage.com.br",
   "https://eppcage.github.io",
   "https://sigaepp.web.app",
   "https://sigaepp.firebaseapp.com",
