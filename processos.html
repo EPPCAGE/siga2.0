@@ -9758,11 +9758,14 @@ function _rEntIlpPalette(ilp){
   return {bg:'#fee2e2',color:'#991b1b',label:'Processo pesado'};
 }
 
-function _rEntIlpInterpretacao(ilp){
-  if(ilp>=80) return '✅ O processo apresenta bom nível de enxugamento. Para melhorar ainda mais a nota, avalie oportunidades pontuais de automação, redução de decisões exclusivas e simplificação de passagens entre atores.';
-  if(ilp>=60) return '👍 O processo possui estrutura razoavelmente fluida, mas ainda pode ganhar desempenho com maior automação, redução de handoffs e revisão de decisões que criam caminhos alternativos.';
-  if(ilp>=40) return '⚠️ O processo apresenta sinais de atrito estrutural. Recomenda-se avaliar atividades manuais repetitivas, excesso de atores envolvidos e gateways XOR que possam ser eliminados, combinados ou reposicionados.';
-  return '🔴 O processo tende a estar carregado de esforço manual, muitas passagens de responsabilidade ou decisões exclusivas. Recomenda-se priorizar redesenho, automação de atividades críticas, consolidação de papéis e simplificação dos caminhos do fluxo.';
+function _rEntIlpInterpretacao(ilp, hasR=false, qtdR=0){
+  const rTrecho=hasR&&qtdR>0
+    ?` O retrabalho confirmado (${qtdR} ${qtdR===1?'etapa':'etapas'}) penaliza o índice — eliminar suas causas raiz é o caminho mais direto para ganho de pontuação.`
+    :(hasR?' Nenhum retrabalho foi confirmado, o que contribui positivamente para o índice.':'');
+  if(ilp>=80) return `✅ O processo apresenta bom nível de enxugamento, com automação, handoffs e decisões bem equilibrados.${rTrecho} Para avançar, avalie oportunidades pontuais de automação adicional e simplificação de gateways exclusivos.`;
+  if(ilp>=60) return `👍 O processo possui estrutura razoavelmente fluida, mas ainda pode ganhar desempenho.${rTrecho} Revise passagens entre atores, gateways exclusivos e oportunidades de automação.`;
+  if(ilp>=40) return `⚠️ O processo apresenta sinais de atrito estrutural.${rTrecho} Recomenda-se avaliar atividades manuais repetitivas, excesso de atores envolvidos e gateways XOR que possam ser eliminados, combinados ou reposicionados.`;
+  return `🔴 O processo está em nível crítico de complexidade estrutural.${rTrecho} Priorize redesenho do fluxo, automação de atividades críticas, consolidação de papéis e simplificação dos caminhos de decisão.`;
 }
 function _rIlpComparacao(p){
   const ilpAsis=calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados);
@@ -9801,7 +9804,7 @@ function _rEntIlpCard(ilpData){
   const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
   const bar=w=>`<div style="height:8px;border-radius:4px;background:${ilpBg};overflow:hidden"><div style="height:100%;width:${w}%;background:${ilpColor};border-radius:4px;transition:width .5s"></div></div>`;
   const modeRow=(lbl,c,color)=>c?`<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;color:var(--ink2)">${lbl}</span><span style="font-weight:600">${c}</span></div>`:'';
-  const interpretacao=_rEntIlpInterpretacao(ilp);
+  const interpretacao=_rEntIlpInterpretacao(ilp,hasR,qtdR);
   return `<div class="card" style="margin-bottom:1rem;border-left:4px solid ${ilpColor}">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:.6rem">
       <div>
@@ -10145,6 +10148,9 @@ async function _bpmnGetSvg(which,p){
   if(m&&bpmnProcIds[which]===p?.id){
     try{const {svg}=await m.saveSVG();if(svg)return svg;}catch(e){console.warn('_bpmnGetSvg active modeler failed',e);}
   }
+  // SVG salvo junto com o XML no último bpmnSave — evita re-renderização offscreen
+  const svgKey=which==='asis'?'bpmnAsIsSvg':'bpmnToBeSvg';
+  if(p.mod?.[svgKey]) return p.mod[svgKey];
   const xml=which==='asis'?p.mod?.bpmnAsIs:p.mod?.bpmnToBe;
   if(!xml||typeof BpmnJS==='undefined')return null;
   return new Promise(resolve=>{
@@ -10205,15 +10211,9 @@ function _popPdfIlpSection(p, secH){
     ?calcILP(p.mod?.etapas_proc_tobe||[], p.mod?.bpmnToBe||null, p.mod?.retrabalhos_confirmados_tobe)
     :calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados);
   if(!ilpData) return '';
-  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0}=ilpData;
+  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0,hasR=false,qtdR=0}=ilpData;
   const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
-  const ilpDesc=ilp>=80
-    ?'O processo apresenta bom nível de enxugamento. Para melhorar ainda mais a nota, avalie oportunidades pontuais de automação, redução de decisões exclusivas e simplificação de passagens entre atores.'
-    :ilp>=60
-    ?'O processo possui estrutura razoavelmente fluida, mas ainda pode ganhar desempenho com maior automação, redução de handoffs e revisão de decisões que criam caminhos alternativos.'
-    :ilp>=40
-    ?'O processo apresenta sinais de atrito estrutural. Recomenda-se avaliar atividades manuais repetitivas, excesso de atores envolvidos e gateways XOR que possam ser eliminados, combinados ou reposicionados.'
-    :'O processo tende a estar carregado de esforço manual, muitas passagens de responsabilidade ou decisões exclusivas. Recomenda-se priorizar redesenho, automação de atividades críticas, consolidação de papéis e simplificação dos caminhos do fluxo.';
+  const ilpDesc=_rEntIlpInterpretacao(ilp,hasR,qtdR).replace(/^[✅👍⚠️🔴]+\s*/,'');
   const modoRow=[['Manual',nManual,'#6b7280'],['Semi-automática',nSemi,'#6366f1'],['Automática',nAuto,'#10b981']]
     .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
   return `${secH('7.0','Índice Lean Processual')}
@@ -11000,10 +11000,12 @@ function initBpmnMod(which, p){
 function bpmnSave(which){
   const mod=bpmnModelers[which];
   if(!mod||!curProc)return;
-  mod.saveXML({format:true}).then(({xml})=>{
-    const key=which==='asis'?'bpmnAsIs':'bpmnToBe';
-    if(!curProc.mod)curProc.mod={asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,etapas_proc:[],obs:''};
-    curProc.mod[key]=xml;
+  const xmlKey=which==='asis'?'bpmnAsIs':'bpmnToBe';
+  const svgKey=which==='asis'?'bpmnAsIsSvg':'bpmnToBeSvg';
+  if(!curProc.mod)curProc.mod={asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,etapas_proc:[],obs:''};
+  Promise.all([mod.saveXML({format:true}),mod.saveSVG()]).then(([{xml},{svg}])=>{
+    curProc.mod[xmlKey]=xml;
+    if(svg) curProc.mod[svgKey]=svg;
     bpmnDirty[which]=false;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
     if(lbl)lbl.style.display='none';
