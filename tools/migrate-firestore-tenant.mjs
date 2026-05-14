@@ -51,7 +51,8 @@ function tenantPath(tenantId, collectionName, docId){
 
 function printPlan({tenantId, collections, configDocs, execute, validateOnly}){
   console.log(`Tenant alvo: ${tenantId}`);
-  const mode = validateOnly ? 'VALIDACAO' : (execute ? 'EXECUCAO' : 'DRY-RUN');
+  const modeIfRun = execute ? 'EXECUCAO' : 'DRY-RUN';
+  const mode = validateOnly ? 'VALIDACAO' : modeIfRun;
   console.log(`Modo: ${mode}`);
   console.log('\nColecoes que serao copiadas:');
   collections.forEach(collectionName => {
@@ -233,7 +234,9 @@ async function main(){
   await executeMigration({tenantId, collections, configDocs, validateOnly});
 }
 
-main().catch(error_ => {
+try {
+  await main();
+} catch (error_) {
   console.error(error_.message);
   process.exitCode = 1;
-});
+}

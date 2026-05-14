@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const fs = require('fs');
+const fs = require('node:fs');
 (async () => {
   fs.mkdirSync('tests/e2e/artifacts', { recursive: true });
   const screenshotPath = 'tests/e2e/artifacts/meus-processos-align.png';

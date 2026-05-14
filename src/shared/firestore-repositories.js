@@ -42,30 +42,30 @@
     return {collectionName, ref, colRef, list, get, set, remove};
   }
 
-  function configRepository(){
-    function ref(key){
-      const {db} = requireFirebase();
-      return fbConfigDocRef(db, key);
-    }
+  function _configRef(key){
+    const {db} = requireFirebase();
+    return fbConfigDocRef(db, key);
+  }
 
+  function configRepository(){
     async function get(key, options={}){
       const api = requireFirebase();
       const getter = options.fromServer && api.getDocFromServer ? api.getDocFromServer : api.getDoc;
-      return getter(ref(key));
+      return getter(_configRef(key));
     }
 
     async function set(key, data, options){
       const {setDoc} = requireFirebase();
-      if(options) return setDoc(ref(key), data, options);
-      return setDoc(ref(key), data);
+      if(options) return setDoc(_configRef(key), data, options);
+      return setDoc(_configRef(key), data);
     }
 
     async function remove(key){
       const {deleteDoc} = requireFirebase();
-      return deleteDoc(ref(key));
+      return deleteDoc(_configRef(key));
     }
 
-    return {ref, get, set, remove};
+    return {ref: _configRef, get, set, remove};
   }
 
   async function batchCommit(ops, chunkSize=450){
