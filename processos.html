@@ -8600,89 +8600,107 @@ function exportarAuditoriaRelPdf(){
   };
   const _achadoBg={'Não conformidade':'#dc2626','Observação':'#d97706','Conformidade':'#16a34a','Ponto de melhoria':'#2563eb'};
   const _confCor={Conforme:'#166534','Conforme com ressalvas':'#78350f','Não conforme':'#991b1b'};
+  const _confBg={Conforme:'#dcfce7','Conforme com ressalvas':'#fef3c7','Não conforme':'#fee2e2'};
 
-  // ── Achados detalhados ─────────────────────────────────────────────────────
+  // -- Achados detalhados
   const achados=aud.achados_list||[];
   const achadosHtml=achados.length
-    ? achados.map((a,i)=>`
-      <div class="achado-card" style="margin-bottom:14px;page-break-inside:avoid;border:1px solid #ddd;border-radius:6px;overflow:hidden">
-        <div style="background:${_achadoBg[a.tipo]||'#1E3A5F'};color:#fff;padding:7px 12px;font-weight:700;font-size:12px">
-          NC${i+1}: ${_e(a.titulo)}
-          <span style="font-weight:400;font-style:italic;margin-left:8px">${_e(a.tipo)}</span>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:11px">
-          <tr><td style="width:130px;background:#f5f7fa;padding:5px 9px;border-bottom:1px solid #eee;font-weight:600">Descrição / Causa</td>
-              <td style="padding:5px 9px;border-bottom:1px solid #eee">${_e(a.descricao)||'—'}</td></tr>
-          <tr><td style="background:#f5f7fa;padding:5px 9px;border-bottom:1px solid #eee;font-weight:600">Evidência</td>
-              <td style="padding:5px 9px;border-bottom:1px solid #eee">${_e(a.evidencia)||'—'}</td></tr>
-          <tr><td style="background:#f5f7fa;padding:5px 9px;border-bottom:1px solid #eee;font-weight:600">Critério / Recomendação</td>
-              <td style="padding:5px 9px;border-bottom:1px solid #eee">${_e(a.criterio)||'—'}</td></tr>
-          <tr><td style="background:#f5f7fa;padding:5px 9px;font-weight:600">Documentos</td>
-              <td style="padding:5px 9px">${_e((a.anexos||[]).map(x=>x.nome||x.url).join('; '))||'—'}</td></tr>
-        </table>
-      </div>`).join('')
-    : '<p style="color:#888;font-style:italic">Nenhum achado registrado.</p>';
+    ? achados.map((a,i)=>{
+        const bg=_achadoBg[a.tipo]||'#1E3A5F';
+        const docs=_e((a.anexos||[]).map(x=>x.nome||x.url).join('; '))||'—';
+        return '<div style="margin-bottom:16px;page-break-inside:avoid;border:1px solid #ddd;border-radius:6px;overflow:hidden">'
+          +'<div style="background:'+bg+';color:#fff;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">'
+          +'<span>NC'+(i+1)+': '+_e(a.titulo)+'</span>'
+          +'<span style="font-size:10px;font-weight:400;opacity:.85">'+_e(a.tipo)+'</span>'
+          +'</div>'
+          +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
+          +'<tr><td style="width:140px;background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Descrição / Causa</td>'
+          +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.descricao)||'—')+'</td></tr>'
+          +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Evidência</td>'
+          +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.evidencia)||'—')+'</td></tr>'
+          +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Critério / Recomendação</td>'
+          +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.criterio)||'—')+'</td></tr>'
+          +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600;vertical-align:top">Documentos</td>'
+          +'<td style="padding:6px 10px">'+docs+'</td></tr>'
+          +'</table></div>';
+      }).join('')
+    : '<p style="color:#888;font-style:italic;font-size:12px">Nenhum achado registrado.</p>';
 
-  // ── HTML completo ──────────────────────────────────────────────────────────
-  const fullHtml=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-<title>Relatório — ${_e(p.nome)}</title>
-<style>
+  // -- HTML completo
+  const confCor=_confCor[aud.conformidade]||'#444';
+  const confBg=_confBg[aud.conformidade]||'#f5f5f5';
+  const orgName=_e(ORG_CONFIG&&ORG_CONFIG.name||'');
+  const dtStr=new Date().toLocaleDateString('pt-BR')+' às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+  const css=`
   :root{
-    --teal:#0d9488;--teal-b:#ccfbf1;--blue:#2563eb;--blue-b:#dbeafe;
-    --red:#dc2626;--red-b:#fee2e2;--amber:#d97706;--amber-b:#fef3c7;
-    --green:#16a34a;--green-b:#dcfce7;--ink:#1a1a2e;--ink2:#4a4a6a;
-    --ink3:#6b7280;--bg2:#f4f5f8;--bdr:#e0e0f0;
+    --blue:#2563eb;--teal:#0d9488;--red:#dc2626;--amber:#d97706;--green:#16a34a;
+    --ink:#1a1a2e;--ink2:#374151;--ink3:#6b7280;
+    --surf:#ffffff;--surf2:#f8f9fc;--bdr:#e5e7eb;--r:6px;
   }
   *{box-sizing:border-box}
-  body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;margin:0;padding:28px 32px;color:#1a1a2e;font-size:12px;line-height:1.6}
-  h1{font-size:20px;color:#1E3A5F;margin:0 0 4px}
-  h2{font-size:14px;color:#1E3A5F;border-bottom:2px solid #1E3A5F;padding-bottom:4px;margin:24px 0 10px;page-break-after:avoid}
-  h3{font-size:12px;color:#1E3A5F;margin:16px 0 6px;page-break-after:avoid}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;margin:0;padding:24px 32px;color:#1a1a2e;font-size:12px;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   p{margin:4px 0}
-  table{width:100%;border-collapse:collapse;margin:8px 0}
-  th{background:#1E3A5F;color:#fff;padding:5px 8px;text-align:left;font-size:11px}
-  td{border:1px solid #ddd;padding:4px 8px;vertical-align:top}
-  .badge{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700}
-  @page{size:A4 portrait;margin:20mm 20mm 22mm}
-  @media print{body{padding:0}.no-print{display:none!important}}
-</style>
-</head><body>
+  ul{margin:4px 0;padding-left:18px}
+  li{margin-bottom:2px}
+  .aud-report{background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:24px}
+  .aud-rep-header{background:linear-gradient(135deg,#1e40af,#6d28d9);padding:18px 22px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .aud-rep-title{font-size:16px;font-weight:700;color:#fff;margin-bottom:3px}
+  .aud-rep-sub{font-size:12px;color:rgba(255,255,255,.85)}
+  .aud-conf-badge{font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;white-space:nowrap;display:inline-block}
+  .aud-rep-stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #e5e7eb;background:#fff}
+  .aud-stat{text-align:center;padding:12px 8px;border-right:1px solid #e5e7eb}
+  .aud-stat:last-child{border-right:none}
+  .aud-stat-n{font-size:22px;font-weight:700;color:#1a1a2e;line-height:1}
+  .aud-stat-l{font-size:10px;color:#6b7280;margin-top:3px;text-transform:uppercase;letter-spacing:.03em}
+  .aud-rep-section{padding:14px 22px;border-bottom:1px solid #e5e7eb}
+  .aud-rep-section:last-child{border-bottom:none}
+  .aud-rep-stitle{font-size:10.5px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+  .aud-rep-p{font-size:12.5px;color:#374151;line-height:1.75;margin:0 0 6px}
+  .aud-rep-list{font-size:12px;color:#374151;line-height:1.9;padding-left:18px;margin:0}
+  .achados-section-title{font-size:13px;font-weight:700;color:#1E3A5F;border-bottom:2px solid #1E3A5F;padding-bottom:5px;margin:28px 0 14px;page-break-after:avoid}
+  @page{size:A4 portrait;margin:20mm 18mm 22mm}
+  @media print{body{padding:0}.no-print{display:none!important}}`;
 
-<div style="border-left:4px solid #1E3A5F;padding-left:14px;margin-bottom:18px">
-  <h1>Relatório de Análise de Aderência</h1>
-  <p style="color:#555;font-size:11px">${_e(ORG_CONFIG?.name||'')} · Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
-</div>
+  const fullHtml='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
+    +'<title>Relatório — '+_e(p.nome)+'</title>'
+    +'<style>'+css+'</style></head><body>'
 
-<table style="font-size:11px;margin-bottom:16px">
-  <tr>
-    <td style="padding:4px 8px;width:50%;border:none"><strong>Processo:</strong> ${_e(p.nome)}</td>
-    <td style="padding:4px 8px;border:none"><strong>Macroprocesso:</strong> ${_e(p.macro)}</td>
-  </tr>
-  <tr style="background:#f0f3f8">
-    <td style="padding:4px 8px;border:none"><strong>Dono:</strong> ${_e(p.dono)}</td>
-    <td style="padding:4px 8px;border:none"><strong>EP Responsável:</strong> ${_e(p.resp_ep)}</td>
-  </tr>
-  <tr>
-    <td style="padding:4px 8px;border:none"><strong>Período:</strong> ${_d(aud.data_inicio)} – ${_d(aud.data_fim)}</td>
-    <td style="padding:4px 8px;border:none"><strong>Conformidade:</strong>
-      <strong style="color:${_confCor[aud.conformidade]||'#444'}">${_e(aud.conformidade||'Não definida')}</strong>
-    </td>
-  </tr>
-</table>
+    +'<div class="no-print" style="background:#f0f3f8;padding:10px 14px;margin-bottom:16px;border-radius:6px;font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center">'
+    +'<span>Use <strong>Ctrl+P</strong> (ou <strong>⌘P</strong> no Mac) → Salvar como PDF.</span>'
+    +'<button onclick="window.print()" style="padding:5px 14px;background:#1E3A5F;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px">🖨 Imprimir / Salvar PDF</button>'
+    +'</div>'
 
-<h2>Análise — Relatório Executivo</h2>
-<div style="font-size:12px;line-height:1.7">${aud.relatorio_html}</div>
+    +'<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:20px;background:#f8f9fc;border-radius:6px">'
+    +'<tr>'
+    +'<td style="padding:6px 10px;width:50%;border:none"><strong>Processo:</strong> '+_e(p.nome)+'</td>'
+    +'<td style="padding:6px 10px;border:none"><strong>Macroprocesso:</strong> '+_e(p.macro)+'</td>'
+    +'</tr>'
+    +'<tr style="background:#eef1f7">'
+    +'<td style="padding:6px 10px;border:none"><strong>Dono:</strong> '+_e(p.dono)+'</td>'
+    +'<td style="padding:6px 10px;border:none"><strong>EP Responsável:</strong> '+_e(p.resp_ep)+'</td>'
+    +'</tr>'
+    +'<tr>'
+    +'<td style="padding:6px 10px;border:none"><strong>Período:</strong> '+_d(aud.data_inicio)+' – '+_d(aud.data_fim)+'</td>'
+    +'<td style="padding:6px 10px;border:none"><strong>Conformidade:</strong> '
+    +'<span style="background:'+confBg+';color:'+confCor+';font-weight:700;padding:2px 9px;border-radius:20px;font-size:10.5px;margin-left:4px">'+_e(aud.conformidade||'Não definida')+'</span>'
+    +'</td></tr></table>'
 
-<h2 style="margin-top:28px">Achados Detalhados</h2>
-${achadosHtml}
+    +aud.relatorio_html
 
-</body></html>`;
+    +'<div class="achados-section-title">Achados — Detalhamento Completo</div>'
+    +achadosHtml
+
+    +'<div style="font-size:9px;color:#9ca3af;text-align:right;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:8px">'
+    +orgName+' · Gerado em '+dtStr
+    +'</div>'
+    +'</body></html>';
 
   const w=globalThis.open('','_blank');
   if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
   w.document.write(fullHtml);
   w.document.close();
-  setTimeout(()=>w.print(),600);
+  setTimeout(()=>w.print(),700);
 }
 function visPopPreview(){
   const p=curProc;
