@@ -8686,7 +8686,13 @@ function exportarAuditoriaRelPdf(){
     +'<span style="background:'+confBg+';color:'+confCor+';font-weight:700;padding:2px 9px;border-radius:20px;font-size:10.5px;margin-left:4px">'+_e(aud.conformidade||'Não definida')+'</span>'
     +'</td></tr></table>'
 
-    +aud.relatorio_html
+    +(()=>{
+        const doc=new DOMParser().parseFromString(aud.relatorio_html,'text/html');
+        doc.querySelectorAll('.aud-rep-section').forEach(sec=>{
+          if(sec.querySelector('.aud-rep-stitle')?.textContent.trim()==='Achados Detalhados') sec.remove();
+        });
+        return doc.body.innerHTML;
+      })()
 
     +'<div class="achados-section-title">Achados — Detalhamento Completo</div>'
     +achadosHtml
