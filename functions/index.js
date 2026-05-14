@@ -4,13 +4,13 @@ const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-const ALLOWED_ORIGINS = [
+const ALLOWED_ORIGINS = new Set([
   "https://eppcage.com.br",
   "https://www.eppcage.com.br",
   "https://eppcage.github.io",
   "https://sigaepp.web.app",
   "https://sigaepp.firebaseapp.com",
-];
+]);
 
 const AZURE_KEY      = defineSecret("AZURE_OPENAI_KEY");
 const AZURE_ENDPOINT = defineSecret("AZURE_OPENAI_ENDPOINT");
@@ -20,7 +20,7 @@ const MAX_PAYLOAD_BYTES = 20 * 1024; // 20 KB
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || "";
-  if (ALLOWED_ORIGINS.includes(origin)) {
+  if (ALLOWED_ORIGINS.has(origin)) {
     res.set("Access-Control-Allow-Origin", origin);
   }
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -35,7 +35,7 @@ async function verifyToken(req, res) {
   // Se não veio no body, tentar pegar do header Authorization
   if (!idToken) {
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    if (authHeader?.startsWith('Bearer ')) {
       idToken = authHeader.substring(7); // Remove "Bearer "
     }
   }
@@ -243,7 +243,7 @@ exports.migrateAllUserClaims = onCall(async (request) => {
       ? usuarios.find(u => u?.email === request.auth.token.email)
       : null;
 
-    if (!caller || caller.perfil !== 'ep') {
+    if (caller?.perfil !== 'ep') {
       throw new HttpsError(
         'permission-denied',
         'Apenas usuários EP podem executar migração'

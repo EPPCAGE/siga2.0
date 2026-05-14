@@ -2412,12 +2412,10 @@ function _aplicarUsuario(user, fromRestore=false){
   if(_ov) _ov.style.display='none';
   if(user.trocar_senha){
     abrirModalTrocarSenha();
+  } else if(fromRestore && lsGet('siga_module') === 'processos' && hasProcessosAccess()) {
+    enterProcessModule();
   } else {
-    if(fromRestore && lsGet('siga_module') === 'processos' && hasProcessosAccess()) {
-      enterProcessModule();
-    } else {
-      openModuleHub();
-    }
+    openModuleHub();
   }
   setTimeout(verificarPrazosProximos, 1500);
 }
@@ -3363,7 +3361,8 @@ function abrirInfoMeusProc(arqId){
   const u = getMinhasUnidades().find(x=>x.arq_id===arqId);
   const proc = u?.proc || null;
   const tipo = u?.isSub ? 'Subprocesso' : 'Processo';
-  const breadcrumb = u ? esc(u.macro)+(u.parentNome?' › '+esc(u.parentNome):'') : '';
+  const parentSuffix = u?.parentNome ? ' › '+esc(u.parentNome) : '';
+  const breadcrumb = u ? esc(u.macro)+parentSuffix : '';
   document.getElementById('info-proc-modal')?.remove();
   const modal = document.createElement('div');
   modal.id = 'info-proc-modal';
@@ -9060,7 +9059,12 @@ function renderEtapasProc(etapas, reworkData=null){
   return etapas.map((e)=>{
     const isSuspeito=suspeitos.has(e.id);
     const isConfirmado=confirmados.has(e.id);
-    const reworkBadge=isSuspeito?`<button type="button" onclick="_toggleRetrabalho('${esc(e.id)}','${which}')" title="${isConfirmado?'Retrabalho confirmado — clique para remover':'Possível retrabalho — clique para confirmar'}" style="border:none;cursor:pointer;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;flex-shrink:0;background:${isConfirmado?'#fde68a':'#fef9c3'};color:${isConfirmado?'#92400e':'#a16207'};border:1px solid ${isConfirmado?'#f59e0b':'#fde047'}" id="rework-badge-${which}-${esc(e.id)}">↺ ${isConfirmado?'Retrabalho':'Retrabalho?'}</button>`:'';
+    const reworkTitle=isConfirmado?'Retrabalho confirmado — clique para remover':'Possível retrabalho — clique para confirmar';
+    const reworkBg=isConfirmado?'#fde68a':'#fef9c3';
+    const reworkColor=isConfirmado?'#92400e':'#a16207';
+    const reworkBorder=isConfirmado?'#f59e0b':'#fde047';
+    const reworkLabel=isConfirmado?'Retrabalho':'Retrabalho?';
+    const reworkBadge=isSuspeito?`<button type="button" onclick="_toggleRetrabalho('${esc(e.id)}','${which}')" title="${reworkTitle}" style="border:none;cursor:pointer;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;flex-shrink:0;background:${reworkBg};color:${reworkColor};border:1px solid ${reworkBorder}" id="rework-badge-${which}-${esc(e.id)}">↺ ${reworkLabel}</button>`:'';
     return `
     <div class="etapa-proc" id="ep-${e.id}" draggable="true"
       onmouseenter="bpmnHoverEtapa(event,'${e.id}')"
@@ -9831,9 +9835,15 @@ function _rEntIlpPalette(ilp){
 }
 
 function _rEntIlpInterpretacao(ilp, hasR=false, qtdR=0){
-  const rTrecho=hasR&&qtdR>0
-    ?` O retrabalho confirmado (${qtdR} ${qtdR===1?'etapa':'etapas'}) penaliza o índice — eliminar suas causas raiz é o caminho mais direto para ganho de pontuação.`
-    :(hasR?' Nenhum retrabalho foi confirmado, o que contribui positivamente para o índice.':'');
+  const unidadeR=qtdR===1?'etapa':'etapas';
+  let rTrecho;
+  if(hasR&&qtdR>0){
+    rTrecho=` O retrabalho confirmado (${qtdR} ${unidadeR}) penaliza o índice — eliminar suas causas raiz é o caminho mais direto para ganho de pontuação.`;
+  } else if(hasR){
+    rTrecho=' Nenhum retrabalho foi confirmado, o que contribui positivamente para o índice.';
+  } else {
+    rTrecho='';
+  }
   if(ilp>=80) return `✅ O processo apresenta bom nível de enxugamento, com automação, handoffs e decisões bem equilibrados.${rTrecho} Para avançar, avalie oportunidades pontuais de automação adicional e simplificação de gateways exclusivos.`;
   if(ilp>=60) return `👍 O processo possui estrutura razoavelmente fluida, mas ainda pode ganhar desempenho.${rTrecho} Revise passagens entre atores, gateways exclusivos e oportunidades de automação.`;
   if(ilp>=40) return `⚠️ O processo apresenta sinais de atrito estrutural.${rTrecho} Recomenda-se avaliar atividades manuais repetitivas, excesso de atores envolvidos e gateways XOR que possam ser eliminados, combinados ou reposicionados.`;
@@ -9860,7 +9870,11 @@ function _rIlpComparacao(p){
     </div>`;
   };
   const delta=(ilpAsis&&ilpTobe)?(ilpTobe.ilp-ilpAsis.ilp):null;
-  const deltaHtml=delta!==null?`<div style="font-size:12px;color:${delta>0?'var(--teal)':delta<0?'var(--red)':'var(--ink3)'};font-weight:600;align-self:center;white-space:nowrap">${delta>0?'▲ +':delta<0?'▼ ':'= '}${delta} pts</div>`:'';
+  let deltaColor,deltaPrefix;
+  if(delta>0){deltaColor='var(--teal)';deltaPrefix='▲ +';}
+  else if(delta<0){deltaColor='var(--red)';deltaPrefix='▼ ';}
+  else{deltaColor='var(--ink3)';deltaPrefix='= ';}
+  const deltaHtml=delta!==null?`<div style="font-size:12px;color:${deltaColor};font-weight:600;align-self:center;white-space:nowrap">${deltaPrefix}${delta} pts</div>`:'';
   return `<div style="margin-bottom:.8rem">
     <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:.5rem">📊 Comparação ILP — Índice Lean Processual</div>
     <div style="display:flex;gap:.6rem;align-items:stretch;flex-wrap:wrap">
