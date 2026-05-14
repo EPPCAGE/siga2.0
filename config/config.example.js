@@ -1,7 +1,7 @@
 // Copie este arquivo para config.local.js em desenvolvimento
 // ou para config.deploy.js no ambiente publicado.
 // Nao versionar chaves reais em repositorios publicos.
-window.CONFIG = {
+globalThis.CONFIG = {
   FIREBASE_API_KEY: '',
   AI_FUNCTION_URL: '',
   // URL da Cloud Function checkEmail (público, sem auth).
