@@ -10212,7 +10212,7 @@ function _popPdfIlpSection(p, secH){
   if(!ilpData) return '';
   const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0,hasR=false,qtdR=0}=ilpData;
   const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
-  const ilpDesc=_rEntIlpInterpretacao(ilp,hasR,qtdR).replace(/^[✅👍⚠️🔴]+\s*/u,'');
+  const ilpDesc=_rEntIlpInterpretacao(ilp,hasR,qtdR).replace(/^(?:✅|👍|⚠️|🔴)+\s*/u,'');
   const modoRow=[['Manual',nManual,'#6b7280'],['Semi-automática',nSemi,'#6366f1'],['Automática',nAuto,'#10b981']]
     .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
   return `${secH('7.0','Índice Lean Processual')}
@@ -10323,17 +10323,15 @@ async function _popPdfAnexo(p){
   // Se TO BE existe em qualquer forma (etapas ou BPMN), o AS IS não deve ser exibido
   const hasTobeAny=hasBpmnT||!!(p.mod?.etapas_proc_tobe||[]).length;
   if(hasFluxoA||hasBpmnT){
-    const _svgToImg=(svg,alt)=>{
-      const uri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
-      return `<img src="${uri}" alt="${alt}" style="max-width:100%;height:auto;display:block">`;
-    };
+    // SVG inline evita problemas de data URI longa em document.write e canvas taint
+    const _svgToImg=(svg)=>svg.replace(/<svg /,'<svg style="max-width:100%;height:auto;display:block" ');
     let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">12.0 Desenho do Processo</div>`;
     let hasDiagramContent=false;
     if(hasBpmnT){
       // TO BE tem prioridade — não incluir o AS IS quando TO BE existe
       const svg=await _bpmnGetSvg('tobe',p);
       if(svg){
-        bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma do processo')}</div>`;
+        bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg)}</div>`;
         hasDiagramContent=true;
       }else{
         const png=await _getFluxogramaToBePng(p);
@@ -10345,7 +10343,7 @@ async function _popPdfAnexo(p){
     }else if(hasFluxoA&&!hasTobeAny){
       const svg=await _bpmnGetSvg('asis',p);
       if(svg){
-        bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma do processo')}</div>`;
+        bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg)}</div>`;
         hasDiagramContent=true;
       }else{
         const png=await _getFluxogramaAsIsPng(p);
@@ -11002,15 +11000,18 @@ function bpmnSave(which){
   const xmlKey=which==='asis'?'bpmnAsIs':'bpmnToBe';
   const svgKey=which==='asis'?'bpmnAsIsSvg':'bpmnToBeSvg';
   if(!curProc.mod)curProc.mod={asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,etapas_proc:[],obs:''};
-  Promise.all([mod.saveXML({format:true}),mod.saveSVG()]).then(([{xml},{svg}])=>{
+  mod.saveXML({format:true}).then(({xml})=>{
     curProc.mod[xmlKey]=xml;
-    if(svg) curProc.mod[svgKey]=svg;
     bpmnDirty[which]=false;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
     if(lbl)lbl.style.display='none';
     push(curProc,curProc.etapa,'EP','Fluxo BPMN '+which.toUpperCase()+' salvo');
     fbAutoSave('bpmnSave');
     toast('✓ Fluxo '+which.toUpperCase()+' salvo no servidor');
+    // SVG salvo opcionalmente após o XML — não bloqueia nem falha o save principal
+    mod.saveSVG().then(({svg})=>{
+      if(svg&&curProc?.mod){curProc.mod[svgKey]=svg;fbAutoSave('bpmnSaveSvg');}
+    }).catch(()=>{});
   }).catch(err=>toast('Erro ao salvar: '+(err.message||err),'var(--red)'));
 }
 function bpmnTogglePalette(which){
