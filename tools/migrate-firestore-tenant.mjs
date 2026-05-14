@@ -69,7 +69,8 @@ async function loadAdmin(){
     return await import('firebase-admin');
   } catch(error_) {
     throw new Error(
-      'firebase-admin nao esta instalado. Para executar a migracao real, instale em um ambiente controlado: npm install --save-dev firebase-admin'
+      'firebase-admin nao esta instalado. Para executar a migracao real, instale em um ambiente controlado: npm install --save-dev firebase-admin',
+      { cause: error_ }
     );
   }
 }

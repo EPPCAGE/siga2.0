@@ -42,17 +42,13 @@
     return tenantScopedCollectionPath(collectionName, config)+'/'+String(docId);
   }
 
-  function legacyCollectionPath(collectionName){
-    return String(collectionName);
-  }
-
   function legacyDocPath(collectionName, docId){
-    return legacyCollectionPath(collectionName)+'/'+String(docId);
+    return collectionName+'/'+String(docId);
   }
 
   function tenantCollectionPath(collectionName){
     const cfg = globalScope.TENANT_CONFIG || defaultConfig;
-    if(!cfg.enabled) return legacyCollectionPath(collectionName);
+    if(!cfg.enabled) return collectionName;
     return tenantScopedCollectionPath(collectionName, cfg);
   }
 
@@ -65,7 +61,7 @@
     return {
       enabled: cfg.enabled === true,
       tenantId: cfg.tenantId,
-      legacy: docId == null ? legacyCollectionPath(collectionName) : legacyDocPath(collectionName, docId),
+      legacy: docId == null ? collectionName : legacyDocPath(collectionName, docId),
       tenant: docId == null ? tenantScopedCollectionPath(collectionName, cfg) : tenantScopedDocPath(collectionName, docId, cfg),
       active: docId == null ? tenantCollectionPath(collectionName) : tenantDocPath(collectionName, docId),
     };
