@@ -8592,115 +8592,158 @@ function exportarAuditoriaWord(){
   const p=curProc;if(!p){toast('Processo não encontrado.','var(--red)');return;}
   const aud=p.auditoria||{};
   const _e=s=>(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-  const _d=d=>{
-    if(!d) return '—';
-    return d.includes('-') ? d.split('-').reverse().join('/') : d;
-  };
-  const _confCor={Conforme:'#16a34a','Conforme com ressalvas':'#d97706','Não conforme':'#dc2626'};
-  const _achadoCor={'Não conformidade':'#dc2626','Observação':'#d97706','Conformidade':'#16a34a','Ponto de melhoria':'#2563eb'};
-  const _statusCor={Pendente:'#d97706','Em andamento':'#2563eb','Concluída':'#16a34a'};
+  const _d=d=>{if(!d)return '—';return d.includes('-')?d.split('-').reverse().join('/'):d;};
+  const _confCor={Conforme:'#166534','Conforme com ressalvas':'#78350f','Não conforme':'#991b1b'};
+  const _achadoBg={'Não conformidade':'#dc2626','Observação':'#d97706','Conformidade':'#16a34a','Ponto de melhoria':'#2563eb'};
+  const _statusCor={Pendente:'#92400e','Em andamento':'#1e40af','Concluída':'#166534'};
 
-  const sec=(titulo,conteudo)=>`
-    <h2 style="font-size:13pt;color:#1E3A5F;border-bottom:2px solid #1E3A5F;padding-bottom:4px;margin-top:24px">${titulo}</h2>
-    ${conteudo}`;
+  const preHtml=`<html xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:w="urn:schemas-microsoft-com:office:word"
+    xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8">
+<xml><w:WordDocument>
+  <w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/>
+</w:WordDocument></xml>
+<style>
+  @page { margin:2.5cm 2.5cm 2.5cm 3cm; mso-page-orientation:portrait; }
+  body { font-family:Calibri,Arial,sans-serif; font-size:11pt; color:#1a1a1a; line-height:1.5; }
+  h1 { font-size:18pt; color:#1E3A5F; margin-bottom:2pt; }
+  h2 { font-size:13pt; color:#1E3A5F; border-bottom:2pt solid #1E3A5F; padding-bottom:3pt;
+       margin-top:18pt; margin-bottom:8pt; page-break-after:avoid; }
+  p { margin:3pt 0; }
+  table { border-collapse:collapse; width:100%; margin:8pt 0; font-size:10pt; }
+  th { background:#1E3A5F; color:#ffffff; padding:5pt 7pt; text-align:left;
+       border:1pt solid #1E3A5F; font-weight:bold; }
+  td { border:1pt solid #cccccc; padding:4pt 7pt; vertical-align:top; }
+  .alt td { background:#f0f3f8; }
+  .lbl { background:#f0f3f8; font-weight:bold; width:110pt; }
+</style>
+</head><body>`;
+
+  const campo=(label,valor)=>
+    `<p style="margin:4pt 0"><strong>${label}:</strong> ${valor||'<em style="color:#888">Não informado</em>'}</p>`;
+
+  const sec=(titulo,conteudo)=>`<h2>${titulo}</h2>${conteudo}`;
 
   const tabela=(colunas,linhas)=>{
     if(!linhas.length) return '<p style="color:#888;font-style:italic">Nenhum registro.</p>';
-    const _ths=colunas.map(c=>'<th style="background:#1E3A5F;color:#fff;padding:6px 8px;text-align:left;border:1px solid #1E3A5F">'+c+'</th>').join('');
-    const _trs=linhas.map((row,i)=>'<tr style="background:'+(i%2?'#f5f7fa':'#fff')+'">'+row.map(c=>'<td style="border:1px solid #ddd;padding:5px 8px;vertical-align:top">'+c+'</td>').join('')+'</tr>').join('');
-    return '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt"><tr>'+_ths+'</tr>'+_trs+'</table>';
+    const ths=colunas.map(c=>`<th>${c}</th>`).join('');
+    const trs=linhas.map((row,i)=>
+      `<tr${i%2?' class="alt"':''}>${row.map(c=>`<td>${c||'—'}</td>`).join('')}</tr>`
+    ).join('');
+    return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
   };
 
-  // 1. CABEÇALHO
-  let html=`<html><head><meta charset="utf-8">
-  <style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:2.5cm;color:#1a1a1a}
-  h1{font-size:18pt;color:#1E3A5F;margin-bottom:4px}
-  p{margin:3px 0}table{page-break-inside:avoid}</style></head><body>
-  <h1>Relatório de Análise de Aderência</h1>
-  <p style="font-size:10pt;color:#666;margin-bottom:16px">Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
-  <table style="width:100%;border-collapse:collapse;font-size:10.5pt;margin-bottom:8px">
-    <tr><td style="padding:4px 8px;width:50%"><strong>Processo:</strong> ${_e(p.nome)}</td>
-        <td style="padding:4px 8px"><strong>Macroprocesso:</strong> ${_e(p.macro)}</td></tr>
-    <tr style="background:#f5f7fa"><td style="padding:4px 8px"><strong>Dono do processo:</strong> ${_e(p.dono)}</td>
-        <td style="padding:4px 8px"><strong>EP Responsável:</strong> ${_e(p.resp_ep)}</td></tr>
-    <tr><td style="padding:4px 8px"><strong>Início da análise de aderência:</strong> ${_d(aud.data_inicio)}</td>
-        <td style="padding:4px 8px"><strong>Conclusão prevista:</strong> ${_d(aud.data_fim)}</td></tr>
-    <tr style="background:#f5f7fa"><td style="padding:4px 8px"><strong>Conformidade geral:</strong>
-        <span style="color:${_confCor[aud.conformidade]||'#444'};font-weight:bold"> ${_e(aud.conformidade||'Não definida')}</span></td>
-        <td style="padding:4px 8px"><strong>Equipe:</strong> ${_e(aud.equipe)}</td></tr>
+  // ── CABEÇALHO ──────────────────────────────────────────────────────────────
+  let html=`
+  <div style="border-left:5pt solid #1E3A5F;padding-left:14pt;margin-bottom:20pt">
+    <h1>Relatório de Análise de Aderência</h1>
+    <p style="color:#555;font-size:10pt">${_e(ORG_CONFIG?.name||'')} · Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+  </div>
+
+  <table style="font-size:10.5pt;margin-bottom:12pt">
+    <tr>
+      <td style="padding:4pt 8pt;width:50%;border:none"><strong>Processo:</strong> ${_e(p.nome)}</td>
+      <td style="padding:4pt 8pt;border:none"><strong>Macroprocesso:</strong> ${_e(p.macro)}</td>
+    </tr>
+    <tr class="alt">
+      <td style="padding:4pt 8pt;border:none"><strong>Dono do processo:</strong> ${_e(p.dono)}</td>
+      <td style="padding:4pt 8pt;border:none"><strong>EP Responsável:</strong> ${_e(p.resp_ep)}</td>
+    </tr>
+    <tr>
+      <td style="padding:4pt 8pt;border:none"><strong>Início:</strong> ${_d(aud.data_inicio)}</td>
+      <td style="padding:4pt 8pt;border:none"><strong>Conclusão prevista:</strong> ${_d(aud.data_fim)}</td>
+    </tr>
+    <tr class="alt">
+      <td style="padding:4pt 8pt;border:none"><strong>Conformidade geral:</strong>
+        <strong style="color:${_confCor[aud.conformidade]||'#444'}"> ${_e(aud.conformidade||'Não definida')}</strong>
+      </td>
+      <td style="padding:4pt 8pt;border:none"><strong>Equipe:</strong> ${_e(aud.equipe)}</td>
+    </tr>
+    <tr>
+      <td style="padding:4pt 8pt;border:none"><strong>Metodologia:</strong> ${_e(aud.metodologia)}</td>
+      <td style="padding:4pt 8pt;border:none"><strong>Total de questões:</strong> ${(aud.questoes||[]).length}</td>
+    </tr>
   </table>`;
 
-  // 2. PLANEJAMENTO
+  // ── 1. PLANEJAMENTO ────────────────────────────────────────────────────────
   html+=sec('1. Planejamento',`
-    <p><strong>Objetivo:</strong> ${_e(aud.objetivo)}</p>
-    <p><strong>Escopo:</strong> ${_e(aud.escopo)}</p>
-    <p><strong>Critérios:</strong> ${_e(aud.criterios)}</p>
-    <p><strong>Metodologia:</strong> ${_e(aud.metodologia)}</p>`);
+    ${campo('Objetivo',_e(aud.objetivo))}
+    ${campo('Escopo',_e(aud.escopo))}
+    ${campo('Critérios de análise',_e(aud.criterios))}
+    ${campo('Metodologia',_e(aud.metodologia))}`);
 
-  // 3. QUESTÕES
+  // ── 2. QUESTÕES ────────────────────────────────────────────────────────────
   const questoes=aud.questoes||[];
   html+=sec('2. Questões de Análise de Aderência',tabela(
-    ['#','Questão','Critério','Responsável','Resposta','Evidências'],
+    ['#','Questão','Critério','Responsável','Resposta','Documentos'],
     questoes.map((q,i)=>[
       i+1,
       _e(q.questao),
-      _e(q.criterio),
-      _e(q.responsavel),
-      _e(q.resposta)||'<span style="color:#aaa">Pendente</span>',
-      _e((q.anexos||[]).map(a=>a.nome||a.url).join('; '))||'<span style="color:#aaa">Sem anexos</span>'
+      _e(q.criterio)||'—',
+      _e(q.responsavel)||'—',
+      _e(q.resposta)||'<em style="color:#888">Pendente</em>',
+      _e((q.anexos||[]).map(a=>a.nome||a.url).join('; '))||'—'
     ])
   ));
 
-  // 4. TRILHA DE PROCEDIMENTOS
+  // ── 3. TRILHA DE PROCEDIMENTOS ─────────────────────────────────────────────
   const trilha=aud.trilha||[];
-  html+=sec('3. Trilha de Análise de Aderência',tabela(
-    ['Tipo','Data','Auditor','Descrição','Evidências','Documentos anexados','Conclusões'],
+  html+=sec('3. Trilha de Procedimentos',tabela(
+    ['Tipo','Data','Responsável','Descrição','Objetivo','Evidências','Conclusões'],
     trilha.map(t=>[
-      _e(t.tipo),
-      _d(t.data),
-      _e(t.responsavel),
-      _e(t.descricao),
-      _e(t.evidencias),
-      _e((t.anexos||[]).map(a=>a.nome||a.url).join('; '))||'<span style="color:#aaa">Sem anexos</span>',
-      _e(t.conclusoes)
+      _e(t.tipo),_d(t.data),_e(t.responsavel),
+      _e(t.descricao),_e(t.objetivo),
+      _e(t.evidencias)||'—',_e(t.conclusoes)||'—'
     ])
   ));
 
-  // 5. ACHADOS
+  // ── 4. ACHADOS ─────────────────────────────────────────────────────────────
   const achados=aud.achados_list||[];
-  html+=sec('4. Achados e Não Conformidades',tabela(
-    ['Título','Tipo','Descrição','Evidência','Critério violado','Data'],
-    achados.map(a=>[
-      _e(a.titulo),
-      `<span style="color:${_achadoCor[a.tipo]||'#444'};font-weight:bold">${_e(a.tipo)}</span>`,
-      _e(a.descricao),_e(a.evidencia),_e(a.criterio),_d(a.data)
-    ])
-  ));
+  html+=sec('4. Achados e Não Conformidades', achados.length
+    ? achados.map((a,i)=>`
+      <table style="margin-bottom:10pt;page-break-inside:avoid">
+        <tr><th colspan="2" style="background:${_achadoBg[a.tipo]||'#1E3A5F'};font-size:10.5pt">
+          NC${i+1}: ${_e(a.titulo)}
+          <span style="font-weight:normal;font-style:italic"> — ${_e(a.tipo)}</span>
+        </th></tr>
+        <tr><td class="lbl">Descrição / Causa</td><td>${_e(a.descricao)||'—'}</td></tr>
+        <tr class="alt"><td class="lbl">Evidência</td><td>${_e(a.evidencia)||'—'}</td></tr>
+        <tr><td class="lbl">Critério / Recomendação</td><td>${_e(a.criterio)||'—'}</td></tr>
+        <tr class="alt"><td class="lbl">Documentos</td><td>${_e((a.anexos||[]).map(x=>x.nome||x.url).join('; '))||'—'}</td></tr>
+        <tr><td class="lbl">Data</td><td>${_d(a.data)}</td></tr>
+      </table>`).join('')
+    : '<p style="color:#888;font-style:italic">Nenhum achado registrado.</p>'
+  );
 
-  // 6. AÇÕES CORRETIVAS
+  // ── 5. AÇÕES CORRETIVAS ────────────────────────────────────────────────────
   const acoes=aud.acoes_list||[];
-  html+=sec('5. Ações Corretivas',tabela(
+  html+=sec('5. Plano de Ação Corretiva',tabela(
     ['Ação','Responsável','Prazo','Status','Achado relacionado'],
     acoes.map(a=>[
-      _e(a.acao),_e(a.responsavel),_d(a.prazo),
-      `<span style="color:${_statusCor[a.status]||'#444'};font-weight:bold">${_e(a.status)}</span>`,
-      _e(a.achado)
+      _e(a.acao),
+      _e(a.responsavel)||'—',
+      _d(a.prazo),
+      `<strong style="color:${_statusCor[a.status]||'#444'}">${_e(a.status)}</strong>`,
+      _e(a.achado)||'—'
     ])
   ));
 
-  // 7. RELATÓRIO EXECUTIVO (HTML gerado pela IA)
+  // ── 6. RELATÓRIO EXECUTIVO (IA) ────────────────────────────────────────────
   if(aud.relatorio_html){
-    html+=sec('6. Relatório Executivo',`<div style="font-size:10.5pt;line-height:1.5">${aud.relatorio_html}</div>`);
+    // Remove CSS vars e classes de UI que Word não entende
+    const relHtml=aud.relatorio_html
+      .replaceAll(/class="[^"]*"/g,'')
+      .replaceAll(/style="[^"]*var\(--[^)]+\)[^"]*"/g,'');
+    html+=sec('6. Relatório Executivo',`<div style="font-size:10.5pt;line-height:1.6">${relHtml}</div>`);
   }
 
-  html+=`</body></html>`;
-
-  const blob=new Blob(['﻿'+html],{type:'application/vnd.ms-word;charset=utf-8'});
+  const blob=new Blob(['﻿'+preHtml+html+'</body></html>'],{type:'application/msword;charset=utf-8'});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download='Analise_aderencia_'+(p.nome||'processo').replaceAll(/[^a-zA-Z0-9]/g,'_').slice(0,50)+'.doc';
-  document.body.appendChild(a);a.click();a.remove();
+  const anc=document.createElement('a');
+  anc.href=url;
+  anc.download='Analise_aderencia_'+(p.nome||'processo').replaceAll(/[^a-zA-Z0-9]/g,'_').slice(0,50)+'.doc';
+  document.body.appendChild(anc);anc.click();anc.remove();
   URL.revokeObjectURL(url);
   toast('Relatório Word exportado!','var(--teal)');
 }
