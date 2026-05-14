@@ -8592,7 +8592,10 @@ function exportarAuditoriaWord(){
   const p=curProc;if(!p){toast('Processo não encontrado.','var(--red)');return;}
   const aud=p.auditoria||{};
   const _e=s=>(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-  const _d=d=>{if(!d)return '—';return d.includes('-')?d.split('-').reverse().join('/'):d;};
+  const _d=d=>{
+    if(!d){ return '—'; }
+    return d.includes('-') ? d.split('-').reverse().join('/') : d;
+  };
   const _confCor={Conforme:'#166534','Conforme com ressalvas':'#78350f','Não conforme':'#991b1b'};
   const _achadoBg={'Não conformidade':'#dc2626','Observação':'#d97706','Conformidade':'#16a34a','Ponto de melhoria':'#2563eb'};
   const _statusCor={Pendente:'#92400e','Em andamento':'#1e40af','Concluída':'#166534'};
@@ -8628,9 +8631,11 @@ function exportarAuditoriaWord(){
   const tabela=(colunas,linhas)=>{
     if(!linhas.length) return '<p style="color:#888;font-style:italic">Nenhum registro.</p>';
     const ths=colunas.map(c=>`<th>${c}</th>`).join('');
-    const trs=linhas.map((row,i)=>
-      `<tr${i%2?' class="alt"':''}>${row.map(c=>`<td>${c||'—'}</td>`).join('')}</tr>`
-    ).join('');
+    const trs=linhas.map((row,i)=>{
+      const cls=i%2?' class="alt"':'';
+      const cells=row.map(c=>'<td>'+(c||'—')+'</td>').join('');
+      return '<tr'+cls+'>'+cells+'</tr>';
+    }).join('');
     return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
   };
 
