@@ -10213,7 +10213,7 @@ function _popPdfIlpSection(p, secH){
   if(!ilpData) return '';
   const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0,hasR=false,qtdR=0}=ilpData;
   const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
-  const ilpDesc=_rEntIlpInterpretacao(ilp,hasR,qtdR).replace(/^[✅👍⚠️🔴]+\s*/,'');
+  const ilpDesc=_rEntIlpInterpretacao(ilp,hasR,qtdR).replace(/^[✅👍⚠️🔴]+\s*/u,'');
   const modoRow=[['Manual',nManual,'#6b7280'],['Semi-automática',nSemi,'#6366f1'],['Automática',nAuto,'#10b981']]
     .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
   return `${secH('7.0','Índice Lean Processual')}
