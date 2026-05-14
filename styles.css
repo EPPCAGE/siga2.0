@@ -687,9 +687,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   box-shadow: 6px 0 14px currentColor;
 }
 
-.proj-rocket-status-flag.ok { background: #16a34a; color: rgba(22,163,74,.35); }
-.proj-rocket-status-flag.warn { background: #f59e0b; color: rgba(245,158,11,.35); }
-.proj-rocket-status-flag.danger { background: #dc2626; color: rgba(220,38,38,.35); }
+.proj-rocket-status-flag.ok { background: #16a34a; color: #fff; box-shadow: 6px 0 14px rgba(22,163,74,.35); }
+.proj-rocket-status-flag.warn { background: #f59e0b; color: #451a03; box-shadow: 6px 0 14px rgba(245,158,11,.35); }
+.proj-rocket-status-flag.danger { background: #dc2626; color: #fff; box-shadow: 6px 0 14px rgba(220,38,38,.35); }
 
 .proj-rocket-name {
   font-family: var(--fb);
@@ -1103,6 +1103,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   align-items:center;
   gap:4px;
   min-width:0;
+  cursor:grab;
   margin-top:4px;
   padding:3px 5px;
   border-radius:5px;
@@ -1277,7 +1278,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   font-weight:700;text-align:center;white-space:nowrap;
 }
 .risk-critico { background:#fde8e8;color:#b91c1c; }
-.risk-alto { background:#fff3e0;color:#d97706; }
+.risk-alto { background:#fff3e0;color:#92400e; }
 .risk-medio { background:#fef9e0;color:#b45309; }
 .risk-baixo { background:#e6f9f0;color:#065f46; }
 
@@ -1297,7 +1298,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 .heat-1 { background:#d1fae5;color:#065f46; }
 .heat-2 { background:#a7f3d0;color:#065f46; }
 .heat-3 { background:#fef3c7;color:#92400e; }
-.heat-4 { background:#fed7aa;color:#c2410c; }
+.heat-4 { background:#fed7aa;color:#9a3412; }
 .heat-5 { background:#fee2e2;color:#991b1b; }
 
 /* Botões projetos */
@@ -1386,7 +1387,7 @@ select.proj-fi { cursor:pointer; }
 .proj-task-flag.ppe.on {
   border-color:#f59e0b;
   background:#f59e0b;
-  color:#fff;
+  color:#451a03;
 }
 .proj-g2 { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
 .proj-g3 { display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px; }
@@ -1893,9 +1894,6 @@ select.proj-fi { cursor:pointer; }
   font-weight:800;
   z-index:2;
 }
-.proj-meeting-cal-item {
-  cursor:grab;
-}
 .proj-meeting-cal-item:active {
   cursor:grabbing;
 }
@@ -1969,7 +1967,7 @@ select.proj-fi { cursor:pointer; }
 }
 .proj-strategy-band-head {
   background:#58beb8;
-  color:#fff;
+  color:#042f2e;
   font-family:var(--fh);
   font-size:14px;
   font-weight:800;

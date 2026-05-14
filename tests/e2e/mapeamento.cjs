@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const fs = require('fs');
+const fs = require('node:fs');
 
 const URL = 'http://localhost:8000/processos.html';
 const ARTIFACTS_DIR = 'tests/e2e/artifacts';

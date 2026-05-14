@@ -42,7 +42,7 @@
   ];
 
   async function _pollOnce(){
-    if(!globalScope.fbReady || !globalScope.fbReady()) return;
+    if(!globalScope.fbReady?.()) return;
     if(!globalScope._fbDataReady) return;
     if(_fbState.saving) return;
     try {
@@ -84,7 +84,7 @@
 
   // ── Listeners em tempo real (mesmo padrão de projFbStartRealtime) ─────────
   function _fbWatchExternalChanges(){
-    if(!globalScope.fbReady || !globalScope.fbReady()) return;
+    if(!globalScope.fbReady?.()) return;
     if(_fbState.listenersStarted) return;
 
     _fbState.listenersStarted = true;
