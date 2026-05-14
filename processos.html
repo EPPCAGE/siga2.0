@@ -7800,6 +7800,25 @@ async function iaGerarRelatorioAuditoria(){
   if(btn) btn.disabled = false;
 }
 
+function _fixTermoAnalise(s){
+  return (s||'')
+    .replace(/\bAuditoria de aderência\b/g,'Análise de aderência')
+    .replace(/\bAuditoria\b/g,'Análise de aderência')
+    .replace(/\bauditoria de aderência\b/g,'análise de aderência')
+    .replace(/\bauditoria\b/g,'análise de aderência')
+    .replace(/\bAuditados\b/g,'Analisados')
+    .replace(/\bAuditadas\b/g,'Analisadas')
+    .replace(/\bAuditado\b/g,'Analisado')
+    .replace(/\bAuditada\b/g,'Analisada')
+    .replace(/\bauditados\b/g,'analisados')
+    .replace(/\bauditadas\b/g,'analisadas')
+    .replace(/\bauditado\b/g,'analisado')
+    .replace(/\bauditada\b/g,'analisada')
+    .replace(/\bAuditores\b/g,'Responsáveis pela análise')
+    .replace(/\bAuditor\b/g,'Responsável pela análise')
+    .replace(/\bauditores\b/g,'responsáveis pela análise')
+    .replace(/\bauditor\b/g,'responsável pela análise');
+}
 function renderRelatorioAuditoria(json, conf, p, aud){
   const nc  = (aud.achados_list||[]).filter(a=>a.tipo==='Não conformidade').length;
   const obs = (aud.achados_list||[]).filter(a=>a.tipo==='Observação'||a.tipo==='Ponto de melhoria').length;
@@ -7856,9 +7875,9 @@ function renderRelatorioAuditoria(json, conf, p, aud){
 
   // ── Sumário
   const sumSec = sec('Sumário Executivo');
-  sumSec.append(mk('p','aud-rep-p', json.sumario||''));
+  sumSec.append(mk('p','aud-rep-p', _fixTermoAnalise(json.sumario)));
   if(json.conformidade_justificativa){
-    sumSec.append(mk('p','aud-rep-p', json.conformidade_justificativa, 'color:var(--ink3);font-style:italic'));
+    sumSec.append(mk('p','aud-rep-p', _fixTermoAnalise(json.conformidade_justificativa), 'color:var(--ink3);font-style:italic'));
   }
 
   // ── Principais Achados
@@ -7866,7 +7885,7 @@ function renderRelatorioAuditoria(json, conf, p, aud){
   if(json.achados_resumo?.length){
     prAchSec = sec('Principais Achados');
     const ul = mk('ul','aud-rep-list');
-    for(const a of json.achados_resumo) ul.append(mk('li',null,a));
+    for(const a of json.achados_resumo) ul.append(mk('li',null,_fixTermoAnalise(a)));
     prAchSec.append(ul);
   }
 
@@ -7897,7 +7916,7 @@ function renderRelatorioAuditoria(json, conf, p, aud){
   if(json.recomendacoes?.length){
     recSec = sec('Recomendações');
     const ul = mk('ul','aud-rep-list');
-    for(const r of json.recomendacoes) ul.append(mk('li',null,r));
+    for(const r of json.recomendacoes) ul.append(mk('li',null,_fixTermoAnalise(r)));
     recSec.append(ul);
   }
 
@@ -7925,7 +7944,7 @@ function renderRelatorioAuditoria(json, conf, p, aud){
 
   // ── Conclusão
   const conclSec = sec('Conclusão');
-  conclSec.append(mk('p','aud-rep-p', json.conclusao||''));
+  conclSec.append(mk('p','aud-rep-p', _fixTermoAnalise(json.conclusao)));
 
   root.append(hdr, stats, sumSec);
   if(prAchSec) root.append(prAchSec);
@@ -8613,13 +8632,13 @@ function exportarAuditoriaRelPdf(){
           +'</div>'
           +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
           +'<tr><td style="width:140px;background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Descrição / Causa</td>'
-          +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.descricao)||'—')+'</td></tr>'
+          +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(_e(a.descricao)||'—')+'</td></tr>'
           +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Evidência</td>'
-          +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.evidencia)||'—')+'</td></tr>'
+          +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(_e(a.evidencia)||'—')+'</td></tr>'
           +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Critério / Recomendação</td>'
-          +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.criterio)||'—')+'</td></tr>'
+          +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(_e(a.criterio)||'—')+'</td></tr>'
           +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600;vertical-align:top">Documentos</td>'
-          +'<td style="padding:6px 10px">'+docs+'</td></tr>'
+          +'<td style="padding:6px 10px" contenteditable="true">'+docs+'</td></tr>'
           +'</table></div>';
       }).join('')
     : '<p style="color:#888;font-style:italic;font-size:12px">Nenhum achado registrado.</p>';
@@ -8655,16 +8674,18 @@ function exportarAuditoriaRelPdf(){
   .aud-rep-p{font-size:12.5px;color:#374151;line-height:1.75;margin:0 0 6px}
   .aud-rep-list{font-size:12px;color:#374151;line-height:1.9;padding-left:18px;margin:0}
   .achados-section-title{font-size:13px;font-weight:700;color:#1E3A5F;border-bottom:2px solid #1E3A5F;padding-bottom:5px;margin:28px 0 14px;page-break-after:avoid}
+  [contenteditable]:hover{outline:2px dashed #93c5fd;border-radius:3px}
+  [contenteditable]:focus{outline:2px solid #2563eb;border-radius:3px}
   @page{size:A4 portrait;margin:20mm 18mm 22mm}
-  @media print{body{padding:0}.no-print{display:none!important}}`;
+  @media print{body{padding:0}.no-print{display:none!important}[contenteditable]{outline:none!important}}`;
 
   const fullHtml='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
     +'<title>Relatório — '+_e(p.nome)+'</title>'
     +'<style>'+css+'</style></head><body>'
 
-    +'<div class="no-print" style="background:#f0f3f8;padding:10px 14px;margin-bottom:16px;border-radius:6px;font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center">'
-    +'<span>Use <strong>Ctrl+P</strong> (ou <strong>⌘P</strong> no Mac) → Salvar como PDF.</span>'
-    +'<button onclick="window.print()" style="padding:5px 14px;background:#1E3A5F;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px">🖨 Imprimir / Salvar PDF</button>'
+    +'<div class="no-print" style="background:#f0f3f8;padding:10px 14px;margin-bottom:16px;border-radius:6px;font-size:11px;color:#374151;display:flex;justify-content:space-between;align-items:center;gap:12px">'
+    +'<span>✏️ Clique em qualquer parágrafo para editar o texto antes de imprimir.</span>'
+    +'<button onclick="window.print()" style="padding:5px 14px;background:#1E3A5F;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;flex-shrink:0">🖨 Imprimir / Salvar PDF</button>'
     +'</div>'
 
     +(()=>{
@@ -8672,7 +8693,8 @@ function exportarAuditoriaRelPdf(){
         doc.querySelectorAll('.aud-rep-section').forEach(sec=>{
           if(sec.querySelector('.aud-rep-stitle')?.textContent.trim()==='Achados Detalhados') sec.remove();
         });
-        return doc.body.innerHTML;
+        doc.querySelectorAll('.aud-rep-p,.aud-rep-list li').forEach(el=>el.setAttribute('contenteditable','true'));
+        return _fixTermoAnalise(doc.body.innerHTML);
       })()
 
     +'<div class="achados-section-title">Achados — Detalhamento Completo</div>'
