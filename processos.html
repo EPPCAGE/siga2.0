@@ -5483,7 +5483,11 @@ const ACOES = {
             <button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="adicionarLinkAchado(${i})">+ Link</button>
             <label class="btn" style="font-size:11px;padding:2px 8px;cursor:pointer">↑ Arquivo<input type="file" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="uploadArquivoAchado(${i},this)"></label>
           </div>
-          <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-top:.4rem;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoForm(${i})">📎 Anexar</button>
+          <div style="display:flex;gap:6px;margin-top:.4rem;flex-wrap:wrap">
+            <button type="button" class="btn" style="font-size:11px;padding:2px 8px;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoForm(${i})">📎 Anexar</button>
+            <button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="editarAchado(${i})">✏️ Editar</button>
+            <button type="button" class="btn" style="font-size:11px;padding:2px 8px;color:var(--red);border-color:var(--red)" onclick="excluirAchado(${i})">🗑 Excluir</button>
+          </div>
         </div>`;
       }).join(''):'';
       const acoesHtml=acoes.length?acoes.map((a,i)=>`
@@ -5602,6 +5606,8 @@ const ACOES = {
         </div>
         <!-- Formulário -->
         <div id="aud-form">
+          <input type="hidden" id="aud-a-idx" value="">
+          <div id="aud-form-title" style="font-weight:600;font-size:13px;margin-bottom:.6rem">Registrar achado / não-conformidade</div>
           <div class="g2">
             <div class="fg"><label class="fl">Título</label><input class="fi" id="aud-a-titulo" placeholder="Título do achado"></div>
             <div class="fg"><label class="fl">Tipo</label>
@@ -5616,7 +5622,10 @@ const ACOES = {
           <div class="fg"><label class="fl">Descrição / possível causa</label><textarea class="fi" id="aud-a-desc" style="min-height:60px" placeholder="Descreva o achado ou a possível causa..."></textarea></div>
           <div class="fg"><label class="fl">Evidência</label><input class="fi" id="aud-a-evid" placeholder="Documento, observação, entrevista..."></div>
           <div class="fg"><label class="fl">Recomendação / critério infringido</label><input class="fi" id="aud-a-crit" placeholder="Recomendação de melhoria ou critério não atendido"></div>
-          <button type="button" class="btn" onclick="adicionarAchadoAuditoria()">＋ Registrar achado</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn" id="aud-a-save-btn" onclick="adicionarAchadoAuditoria()">＋ Registrar achado</button>
+            <button type="button" class="btn" id="aud-a-cancel-btn" onclick="_limparFormularioAchado()" style="display:none">Cancelar</button>
+          </div>
         </div>
       </div>
       <div id="aud5" class="tab-p" style="display:none">
@@ -8162,12 +8171,39 @@ function toggleAudPicker(){
   }
   form.style.display='';
 }
+function _limparFormularioAchado(){
+  ['aud-a-titulo','aud-a-desc','aud-a-evid','aud-a-crit'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const tipoEl=document.getElementById('aud-a-tipo');if(tipoEl)tipoEl.value='Não conformidade';
+  const idxEl=document.getElementById('aud-a-idx');if(idxEl)idxEl.value='';
+  const titleEl=document.getElementById('aud-form-title');if(titleEl)titleEl.textContent='Registrar achado / não-conformidade';
+  const saveEl=document.getElementById('aud-a-save-btn');if(saveEl)saveEl.textContent='＋ Registrar achado';
+  const cancelEl=document.getElementById('aud-a-cancel-btn');if(cancelEl)cancelEl.style.display='none';
+}
 function adicionarAchadoAuditoria(){
   const p=curProc;if(!p)return;
   if(!p.auditoria)p.auditoria={};
   if(!p.auditoria.achados_list)p.auditoria.achados_list=[];
+  const titulo=document.getElementById('aud-a-titulo')?.value||'';
+  if(!titulo){toast('Informe o título','var(--red)');return;}
+  const idxStr=document.getElementById('aud-a-idx')?.value||'';
+  if(idxStr!==''){
+    const idx=Number.parseInt(idxStr,10);
+    const existente=p.auditoria.achados_list[idx];if(!existente)return;
+    existente.titulo=titulo;
+    existente.tipo=document.getElementById('aud-a-tipo')?.value||existente.tipo;
+    existente.descricao=document.getElementById('aud-a-desc')?.value||'';
+    existente.evidencia=document.getElementById('aud-a-evid')?.value||'';
+    existente.criterio=document.getElementById('aud-a-crit')?.value||'';
+    _limparFormularioAchado();
+    push(p,'auditoria','EP','Achado editado: '+titulo);
+    fbAutoSave('salvar');toast('Achado atualizado!','var(--teal)');
+    rDetalhe();
+    const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
+    if(aud4Tab) sstab('aud4',aud4Tab);
+    return;
+  }
   const a={
-    titulo:document.getElementById('aud-a-titulo')?.value||'',
+    titulo,
     tipo:document.getElementById('aud-a-tipo')?.value||'Não conformidade',
     descricao:document.getElementById('aud-a-desc')?.value||'',
     evidencia:document.getElementById('aud-a-evid')?.value||'',
@@ -8175,13 +8211,49 @@ function adicionarAchadoAuditoria(){
     data:now(),
     anexos:[]
   };
-  if(!a.titulo){toast('Informe o título','var(--red)');return;}
   p.auditoria.achados_list.push(a);
   push(p,'auditoria','EP','Achado registrado: '+a.titulo+' ('+a.tipo+')');
   fbAutoSave('salvar');toast('Achado registrado!','var(--teal)');
   rDetalhe();
   const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
   if(aud4Tab) sstab('aud4',aud4Tab);
+}
+function editarAchado(idx){
+  const p=curProc;if(!p)return;
+  const a=p.auditoria?.achados_list?.[idx];if(!a)return;
+  document.getElementById('aud-a-idx').value=String(idx);
+  document.getElementById('aud-a-titulo').value=a.titulo||'';
+  document.getElementById('aud-a-tipo').value=a.tipo||'Não conformidade';
+  document.getElementById('aud-a-desc').value=a.descricao||'';
+  document.getElementById('aud-a-evid').value=a.evidencia||'';
+  document.getElementById('aud-a-crit').value=a.criterio||'';
+  const titleEl=document.getElementById('aud-form-title');if(titleEl)titleEl.textContent='Editar achado';
+  const saveEl=document.getElementById('aud-a-save-btn');if(saveEl)saveEl.textContent='Salvar alterações';
+  const cancelEl=document.getElementById('aud-a-cancel-btn');if(cancelEl)cancelEl.style.display='';
+  const formEl=document.getElementById('aud-form');if(formEl)formEl.scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function excluirAchado(idx){
+  const p=curProc;if(!p)return;
+  confirmar('Excluir este achado?', async () => {
+    if(!p.auditoria?.achados_list) return;
+    const achado=p.auditoria.achados_list[idx];
+    if(achado?.anexos){
+      const {storage,storageRef,deleteObject}=globalThis._fb||{};
+      if(storage){
+        for(const anexo of achado.anexos){
+          if(anexo?.tipo==='arquivo'&&anexo.path){
+            try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete storage err',e);}
+          }
+        }
+      }
+    }
+    p.auditoria.achados_list.splice(idx,1);
+    toast('Achado excluído','var(--amber)');
+    rDetalhe();
+    const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
+    if(aud4Tab) sstab('aud4',aud4Tab);
+    await fbSaveAll();
+  });
 }
 function adicionarAcaoAuditoria(){
   const p=curProc;if(!p)return;
