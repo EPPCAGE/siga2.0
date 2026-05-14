@@ -8599,8 +8599,6 @@ function exportarAuditoriaRelPdf(){
     return d.includes('-') ? d.split('-').reverse().join('/') : d;
   };
   const _achadoBg={'Não conformidade':'#dc2626','Observação':'#d97706','Conformidade':'#16a34a','Ponto de melhoria':'#2563eb'};
-  const _confCor={Conforme:'#166534','Conforme com ressalvas':'#78350f','Não conforme':'#991b1b'};
-  const _confBg={Conforme:'#dcfce7','Conforme com ressalvas':'#fef3c7','Não conforme':'#fee2e2'};
 
   // -- Achados detalhados
   const achados=aud.achados_list||[];
@@ -8627,8 +8625,6 @@ function exportarAuditoriaRelPdf(){
     : '<p style="color:#888;font-style:italic;font-size:12px">Nenhum achado registrado.</p>';
 
   // -- HTML completo
-  const confCor=_confCor[aud.conformidade]||'#444';
-  const confBg=_confBg[aud.conformidade]||'#f5f5f5';
   const orgName=_e(ORG_CONFIG&&ORG_CONFIG.name||'');
   const dtStr=new Date().toLocaleDateString('pt-BR')+' às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 
@@ -8670,21 +8666,6 @@ function exportarAuditoriaRelPdf(){
     +'<span>Use <strong>Ctrl+P</strong> (ou <strong>⌘P</strong> no Mac) → Salvar como PDF.</span>'
     +'<button onclick="window.print()" style="padding:5px 14px;background:#1E3A5F;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px">🖨 Imprimir / Salvar PDF</button>'
     +'</div>'
-
-    +'<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:20px;background:#f8f9fc;border-radius:6px">'
-    +'<tr>'
-    +'<td style="padding:6px 10px;width:50%;border:none"><strong>Processo:</strong> '+_e(p.nome)+'</td>'
-    +'<td style="padding:6px 10px;border:none"><strong>Macroprocesso:</strong> '+_e(p.macro)+'</td>'
-    +'</tr>'
-    +'<tr style="background:#eef1f7">'
-    +'<td style="padding:6px 10px;border:none"><strong>Dono:</strong> '+_e(p.dono)+'</td>'
-    +'<td style="padding:6px 10px;border:none"><strong>EP Responsável:</strong> '+_e(p.resp_ep)+'</td>'
-    +'</tr>'
-    +'<tr>'
-    +'<td style="padding:6px 10px;border:none"><strong>Período:</strong> '+_d(aud.data_inicio)+' – '+_d(aud.data_fim)+'</td>'
-    +'<td style="padding:6px 10px;border:none"><strong>Conformidade:</strong> '
-    +'<span style="background:'+confBg+';color:'+confCor+';font-weight:700;padding:2px 9px;border-radius:20px;font-size:10.5px;margin-left:4px">'+_e(aud.conformidade||'Não definida')+'</span>'
-    +'</td></tr></table>'
 
     +(()=>{
         const doc=new DOMParser().parseFromString(aud.relatorio_html,'text/html');
