@@ -9530,8 +9530,8 @@ function calcILPFromEtapas(etapas,retrabalhosConfirmados=undefined){
   const _indexR=hasR?Math.max(0,100-qtdR*ILP_REWORK_PENALTY):null;
   const indexR=_indexR;
   const ilp=hasR
-    ?Math.min(100,Math.round(_indexA*0.20+_indexT*0.30+_indexG*0.30+_indexR*0.20))
-    :Math.min(100,Math.round(_indexA*0.20+_indexT*0.40+_indexG*0.40));
+    ?Math.min(100,Math.round(_indexA*0.2+_indexT*0.3+_indexG*0.3+_indexR*0.2))
+    :Math.min(100,Math.round(_indexA*0.2+_indexT*0.4+_indexG*0.4));
   const indexA=Math.round(_indexA);
   const indexT=Math.round(_indexT);
   const indexG=_indexG;
@@ -9629,8 +9629,8 @@ function calcILPFromBpmn(bpmnXml, etapas, retrabalhosConfirmados=undefined){
   const _indexR=hasR?Math.max(0,100-qtdR*ILP_REWORK_PENALTY):null;
   const indexR=_indexR;
   const ilp=hasR
-    ?Math.min(100,Math.round(_indexA*0.20+_indexT*0.30+_indexG*0.30+_indexR*0.20))
-    :Math.min(100,Math.round(_indexA*0.20+_indexT*0.40+_indexG*0.40));
+    ?Math.min(100,Math.round(_indexA*0.2+_indexT*0.3+_indexG*0.3+_indexR*0.2))
+    :Math.min(100,Math.round(_indexA*0.2+_indexT*0.4+_indexG*0.4));
   const indexA=Math.round(_indexA);
   const indexT=Math.round(_indexT);
   const indexG=_indexG;
@@ -9874,7 +9874,7 @@ function _rIlpComparacao(p){
   if(delta>0){deltaColor='var(--teal)';deltaPrefix='▲ +';}
   else if(delta<0){deltaColor='var(--red)';deltaPrefix='▼ ';}
   else{deltaColor='var(--ink3)';deltaPrefix='= ';}
-  const deltaHtml=delta!==null?`<div style="font-size:12px;color:${deltaColor};font-weight:600;align-self:center;white-space:nowrap">${deltaPrefix}${delta} pts</div>`:'';
+  const deltaHtml=delta===null?'':`<div style="font-size:12px;color:${deltaColor};font-weight:600;align-self:center;white-space:nowrap">${deltaPrefix}${delta} pts</div>`;
   return `<div style="margin-bottom:.8rem">
     <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:.5rem">📊 Comparação ILP — Índice Lean Processual</div>
     <div style="display:flex;gap:.6rem;align-items:stretch;flex-wrap:wrap">
@@ -17293,7 +17293,7 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
         const {db,doc:_d,getDoc:_g}=fb();
         const _snap=await _g(_d(db,'usuarios',firebaseUser.uid));
         if(_snap.exists()&&_snap.data().trocar_senha===false) user.trocar_senha=false;
-      }catch(e_){}
+      }catch(e_){console.warn('Leitura opcional de override trocar_senha falhou:',e_);}
     }
     const _fromRestore = !globalThis._isManualLogin;
     globalThis._isManualLogin = false;
