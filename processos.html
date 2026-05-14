@@ -10040,7 +10040,8 @@ function _rFormHtml(p){
       <div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">1.2 Entradas</div><div style="font-size:12.5px">${pd.ent||'—'}</div></div>
       <div style="margin-bottom:1rem"><div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:1px solid var(--bdr);padding-bottom:5px;margin-bottom:.7rem">1.3 Saídas</div><div style="font-size:12.5px">${pd.sai||'—'}</div></div>
       ${(()=>{
-        const etapas=curProc?.mod?.etapas_proc||[];
+        const _tobeEt2=curProc?.mod?.etapas_proc_tobe||[];
+        const etapas=_tobeEt2.length?_tobeEt2:(curProc?.mod?.etapas_proc||[]);
         const det=pd.ativ_detalhes||{};
         const normTipo=t=>{if(!t){return '';}if(t==='Decisao'||t==='Decisão'){return 'Decisão';}if(t==='Comentario'||t==='Observação'){return 'Observação';}return t;};
         const normModo=m=>{if(m==='Automatica'){return 'Automática';}if(m==='Semi-automatica'){return 'Semi-automática';}return m||'Manual';};
@@ -10320,6 +10321,8 @@ async function _popPdfAnexo(p){
   const hasTobeModeler=!!(bpmnModelers['tobe']&&bpmnProcIds['tobe']===p?.id);
   const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs||p.mod?.hasFluxoImg||p.mod?.fluxoImgBase64||hasAsIsModeler);
   const hasBpmnT=!!(p.mod?.bpmnToBe||hasTobeModeler);
+  // Se TO BE existe em qualquer forma (etapas ou BPMN), o AS IS não deve ser exibido
+  const hasTobeAny=hasBpmnT||!!(p.mod?.etapas_proc_tobe||[]).length;
   if(hasFluxoA||hasBpmnT){
     const _svgToImg=(svg,alt)=>{
       const uri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
@@ -10340,7 +10343,7 @@ async function _popPdfAnexo(p){
           hasDiagramContent=true;
         }
       }
-    }else if(hasFluxoA){
+    }else if(hasFluxoA&&!hasTobeAny){
       const svg=await _bpmnGetSvg('asis',p);
       if(svg){
         bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg,'Fluxograma do processo')}</div>`;
@@ -11168,28 +11171,30 @@ function bpmnCloseFullscreen(which){
   overlay.remove();
 }
 
-function vincularDesenhoFinalArq(){
-  const m=bpmnModelers['asis'];
-  if(!m||!curProc){toast('Editor BPMN não carregado.','var(--amber)');return;}
-  if(!curProc.arq_id){toast('Este processo não está vinculado a um item da arquitetura. Vincule na tela de arquitetura.','var(--amber)');return;}
-  m.saveSVG().then(({svg})=>{
-    const svgUri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
-    const img=new Image();
-    img.onload=async()=>{
-      const scale=2;
-      const canvas=document.createElement('canvas');
-      canvas.width=Math.max(img.width,1)*scale;
-      canvas.height=Math.max(img.height,1)*scale;
-      const ctx=canvas.getContext('2d');
-      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.scale(scale,scale); ctx.drawImage(img,0,0);
-      const png=canvas.toDataURL('image/png');
-      await saveFluxoImg(curProc.arq_id, png);
-      toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
-    };
-    img.onerror=()=>toast('Erro ao gerar imagem.','var(--red)');
-    img.src=svgUri;
-  }).catch(e=>toast('Erro: '+(e.message||e),'var(--red)'));
+async function vincularDesenhoFinalArq(){
+  if(!curProc){toast('Nenhum processo selecionado.','var(--amber)');return;}
+  if(!curProc.arq_id){toast('Este processo não está vinculado a um item da arquitetura.','var(--amber)');return;}
+  const btn=document.querySelector('[onclick="vincularDesenhoFinalArq()"]');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Gerando...';}
+  const done=(ok)=>{
+    if(btn){btn.disabled=false;btn.textContent='📎 Vincular imagem à arquitetura';}
+    if(ok) toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
+    else toast('Erro ao gerar imagem. Tente salvar o BPMN primeiro.','var(--red)');
+  };
+  try{
+    // Tenta pelo modeler ativo primeiro; cai para XML salvo se necessário
+    const m=bpmnModelers['asis'];
+    let xml=null;
+    if(m&&bpmnProcIds['asis']===curProc.id){
+      try{const r=await m.saveXML({format:true});xml=r.xml;}catch{}
+    }
+    if(!xml) xml=curProc.mod?.bpmnAsIs||null;
+    if(!xml){toast('Salve o diagrama BPMN AS IS antes de vincular.','var(--amber)');if(btn){btn.disabled=false;btn.textContent='📎 Vincular imagem à arquitetura';}return;}
+    const png=await renderBpmnToPng(xml);
+    if(!png){done(false);return;}
+    await saveFluxoImg(curProc.arq_id, png);
+    done(true);
+  }catch(e){done(false);}
 }
 
 // ─── Sugestão TO BE em texto — gerada por IA ────────────────────────────────
