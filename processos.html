@@ -11170,28 +11170,30 @@ function bpmnCloseFullscreen(which){
   overlay.remove();
 }
 
-function vincularDesenhoFinalArq(){
-  const m=bpmnModelers['asis'];
-  if(!m||!curProc){toast('Editor BPMN não carregado.','var(--amber)');return;}
-  if(!curProc.arq_id){toast('Este processo não está vinculado a um item da arquitetura. Vincule na tela de arquitetura.','var(--amber)');return;}
-  m.saveSVG().then(({svg})=>{
-    const svgUri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
-    const img=new Image();
-    img.onload=async()=>{
-      const scale=2;
-      const canvas=document.createElement('canvas');
-      canvas.width=Math.max(img.width,1)*scale;
-      canvas.height=Math.max(img.height,1)*scale;
-      const ctx=canvas.getContext('2d');
-      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-      ctx.scale(scale,scale); ctx.drawImage(img,0,0);
-      const png=canvas.toDataURL('image/png');
-      await saveFluxoImg(curProc.arq_id, png);
-      toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
-    };
-    img.onerror=()=>toast('Erro ao gerar imagem.','var(--red)');
-    img.src=svgUri;
-  }).catch(e=>toast('Erro: '+(e.message||e),'var(--red)'));
+async function vincularDesenhoFinalArq(){
+  if(!curProc){toast('Nenhum processo selecionado.','var(--amber)');return;}
+  if(!curProc.arq_id){toast('Este processo não está vinculado a um item da arquitetura.','var(--amber)');return;}
+  const btn=document.querySelector('[onclick="vincularDesenhoFinalArq()"]');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Gerando...';}
+  const done=(ok)=>{
+    if(btn){btn.disabled=false;btn.textContent='📎 Vincular imagem à arquitetura';}
+    if(ok) toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
+    else toast('Erro ao gerar imagem. Tente salvar o BPMN primeiro.','var(--red)');
+  };
+  try{
+    // Tenta pelo modeler ativo primeiro; cai para XML salvo se necessário
+    const m=bpmnModelers['asis'];
+    let xml=null;
+    if(m&&bpmnProcIds['asis']===curProc.id){
+      try{const r=await m.saveXML({format:true});xml=r.xml;}catch{}
+    }
+    if(!xml) xml=curProc.mod?.bpmnAsIs||null;
+    if(!xml){toast('Salve o diagrama BPMN AS IS antes de vincular.','var(--amber)');if(btn){btn.disabled=false;btn.textContent='📎 Vincular imagem à arquitetura';}return;}
+    const png=await renderBpmnToPng(xml);
+    if(!png){done(false);return;}
+    await saveFluxoImg(curProc.arq_id, png);
+    done(true);
+  }catch(e){done(false);}
 }
 
 // ─── Sugestão TO BE em texto — gerada por IA ────────────────────────────────
