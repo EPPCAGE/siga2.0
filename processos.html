@@ -11176,25 +11176,22 @@ async function vincularDesenhoFinalArq(){
   if(!curProc.arq_id){toast('Este processo não está vinculado a um item da arquitetura.','var(--amber)');return;}
   const btn=document.querySelector('[onclick="vincularDesenhoFinalArq()"]');
   if(btn){btn.disabled=true;btn.textContent='⏳ Gerando...';}
-  const done=(ok)=>{
-    if(btn){btn.disabled=false;btn.textContent='📎 Vincular imagem à arquitetura';}
-    if(ok) toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
-    else toast('Erro ao gerar imagem. Tente salvar o BPMN primeiro.','var(--red)');
-  };
+  const restore=()=>{if(btn){btn.disabled=false;btn.textContent='📎 Vincular imagem à arquitetura';}};
   try{
-    // Tenta pelo modeler ativo primeiro; cai para XML salvo se necessário
+    // Obtém SVG — pelo modeler ativo ou pelo XML já salvo via renderer offscreen
+    let svg=null;
     const m=bpmnModelers['asis'];
-    let xml=null;
     if(m&&bpmnProcIds['asis']===curProc.id){
-      try{const r=await m.saveXML({format:true});xml=r.xml;}catch{}
+      try{const r=await m.saveSVG();svg=r.svg||null;}catch{}
     }
-    if(!xml) xml=curProc.mod?.bpmnAsIs||null;
-    if(!xml){toast('Salve o diagrama BPMN AS IS antes de vincular.','var(--amber)');if(btn){btn.disabled=false;btn.textContent='📎 Vincular imagem à arquitetura';}return;}
-    const png=await renderBpmnToPng(xml);
-    if(!png){done(false);return;}
-    await saveFluxoImg(curProc.arq_id, png);
-    done(true);
-  }catch(e){done(false);}
+    if(!svg) svg=await _bpmnGetSvg('asis',curProc);
+    if(!svg){restore();toast('Salve o diagrama BPMN AS IS antes de vincular.','var(--amber)');return;}
+    // Armazena o SVG diretamente como data URI — evita canvas taint por fontes externas
+    const svgUri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+    await saveFluxoImg(curProc.arq_id, svgUri);
+    restore();
+    toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
+  }catch(e){restore();toast('Erro: '+(e.message||e),'var(--red)');}
 }
 
 // ─── Sugestão TO BE em texto — gerada por IA ────────────────────────────────
