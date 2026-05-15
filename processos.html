@@ -5394,7 +5394,6 @@ const ACOES = {
       const aud=p.auditoria||{};
       const questoes=aud.questoes||[];
       const achados=aud.achados_list||[];
-      const acoes=aud.acoes_list||[];
       const trilha=aud.trilha||[];
       const trilhaOrdenada=trilha
         .map((t,i)=>({t,i,ord:t?.data||'9999-12-31'}))
@@ -5490,25 +5489,46 @@ const ACOES = {
           </div>
         </div>`;
       }).join(''):'';
-      const acoesHtml=acoes.length?acoes.map((a,i)=>`
-        <div class="card" style="margin-bottom:.4rem;padding:.6rem .8rem;font-size:13px">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <strong>${a.acao}</strong>
-            <div style="display:flex;align-items:center;gap:6px">
-              <span style="font-size:11px;color:var(--ink3)">${a.responsavel} · ${a.prazo}</span>
-              <button type="button" onclick="excluirAcaoAuditoria(${i})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:12px;padding:0 3px" title="Excluir ação" aria-label="Excluir ação">✕</button>
+      const posOpts=['','Concorda','Concorda parcialmente','Discorda'];
+      const stOpts=['Pendente','Em andamento','Concluída'];
+      const acoesHtml=achados.length?achados.map((a,i)=>{
+        let badgeClsAc;
+        if(a.tipo==='Não conformidade'){badgeClsAc='br';}
+        else if(a.tipo==='Observação'){badgeClsAc='ba';}
+        else{badgeClsAc='bt';}
+        const posSelectOpts=posOpts.map(v=>`<option value="${v}"${(a.posicao_auditado||'')===v?' selected':''}>${v===''?'— Selecione —':v}</option>`).join('');
+        const stSelectOpts=stOpts.map(v=>`<option${(a.status_acao||'Pendente')===v?' selected':''}>${v}</option>`).join('');
+        return `
+        <div class="card" style="margin-bottom:1rem;padding:0;overflow:hidden">
+          <div style="padding:.6rem .8rem;background:var(--surf2);border-bottom:1px solid var(--bdr)">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <strong style="font-size:13px">NC${i+1}: ${esc(a.titulo)}</strong>
+              <span class="badge ${badgeClsAc}" style="flex-shrink:0">${esc(a.tipo)}</span>
             </div>
+            ${a.descricao?`<div style="font-size:12px;color:var(--ink3);margin-top:.2rem">${esc(a.descricao)}</div>`:''}
+            ${a.criterio?`<div style="font-size:11px;color:var(--ink4);margin-top:.15rem"><em>Recomendação:</em> ${esc(a.criterio)}</div>`:''}
           </div>
-          <span class="badge ${_acaoBadgeCls(a.status)}">${a.status}</span>
-          ${_renderAnexosAcao(a.anexos||[], i)}
-          <div id="ac-anexo-form-${i}" style="margin-top:.5rem;display:none;gap:6px;flex-wrap:wrap;align-items:center">
-            <input class="fi" id="ac-link-nome-${i}" placeholder="Nome do documento" style="width:140px;font-size:11px;padding:3px 6px">
-            <input class="fi" id="ac-link-url-${i}" placeholder="https://..." style="flex:1;min-width:160px;font-size:11px;padding:3px 6px">
-            <button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="adicionarLinkAcao(${i})">+ Link</button>
-            <label class="btn" style="font-size:11px;padding:2px 8px;cursor:pointer">↑ Arquivo<input type="file" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="uploadArquivoAcao(${i},this)"></label>
+          <div style="padding:.7rem .8rem">
+            <div class="fg" style="margin-bottom:.5rem">
+              <label class="fl">Posição do auditado</label>
+              <select class="fi" id="aud-pa-pos-${i}">${posSelectOpts}</select>
+            </div>
+            <div class="fg" style="margin-bottom:.5rem">
+              <label class="fl">Ação corretiva</label>
+              <textarea class="fi" id="aud-pa-acao-${i}" style="min-height:60px" placeholder="Descreva a ação que será tomada...">${esc(a.acao_corretiva||'')}</textarea>
+            </div>
+            <div class="g2" style="margin-bottom:.5rem">
+              <div class="fg"><label class="fl">Responsável</label><input class="fi" id="aud-pa-resp-${i}" placeholder="Nome do responsável" value="${esc(a.responsavel_acao||'')}"></div>
+              <div class="fg"><label class="fl">Prazo</label><input class="fi" id="aud-pa-prazo-${i}" type="date" value="${esc(a.prazo_acao||'')}"></div>
+            </div>
+            <div class="fg" style="margin-bottom:.6rem">
+              <label class="fl">Status</label>
+              <select class="fi" id="aud-pa-status-${i}">${stSelectOpts}</select>
+            </div>
+            <button type="button" class="btn btn-p" style="font-size:12px" onclick="salvarRespostaAchado(${i})">Salvar resposta</button>
           </div>
-          <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-top:.4rem;color:var(--teal);border-color:var(--teal)" onclick="toggleAnexoFormAcao(${i})">📎 Anexar</button>
-        </div>`).join(''):'';
+        </div>`;
+      }).join(''):'<div style="font-size:12px;color:var(--ink3)">Nenhum achado registrado. Acesse a aba <strong>Achados</strong> para registrar as não conformidades antes de criar o plano de ação.</div>';
       return `<div class="tabs" style="margin-bottom:1rem">
         <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud1',this)">Planejamento</div>
         <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="sstab('aud2',this)">Questões</div>
@@ -5629,22 +5649,8 @@ const ACOES = {
         </div>
       </div>
       <div id="aud5" class="tab-p" style="display:none">
-        <div style="margin-bottom:1rem">${acoesHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhuma ação corretiva registrada.</div>'}</div>
-        <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)">Incluir ação corretiva</div>
-        <div class="fg"><label class="fl">Ação</label><textarea class="fi" id="aud-ac-acao" style="min-height:60px" placeholder="Descreva a ação corretiva..."></textarea></div>
-        <div class="g2">
-          <div class="fg"><label class="fl">Responsável</label><input class="fi" id="aud-ac-resp" placeholder="Nome do responsável"></div>
-          <div class="fg"><label class="fl">Prazo</label><input class="fi" id="aud-ac-prazo" type="date"></div>
-        </div>
-        <div class="fg"><label class="fl">Status</label>
-          <select class="fi" id="aud-ac-status">
-            <option>Pendente</option>
-            <option>Em andamento</option>
-            <option>Concluída</option>
-          </select>
-        </div>
-        <div class="fg"><label class="fl">Achado relacionado</label><input class="fi" id="aud-ac-achado" placeholder="NC ou achado ao qual essa ação se refere"></div>
-        <button type="button" class="btn" onclick="adicionarAcaoAuditoria()">＋ Incluir ação</button>
+        <div style="font-size:13px;color:var(--ink3);margin-bottom:.9rem">Registre abaixo a posição do auditado e a ação corretiva prevista para cada achado.</div>
+        ${acoesHtml}
       </div>
       <div id="aud6" class="tab-p" style="display:none">
         <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
@@ -7777,8 +7783,8 @@ async function iaGerarRelatorioAuditoria(){
       conclusoes:t.conclusoes,
       anexos:(t.anexos||[]).map(x=>x.nome||x.url).join('; ')
     })),
-    achados: (aud.achados_list||[]).map(a=>({tipo:a.tipo,titulo:a.titulo,desc:a.desc,evidencia:a.evidencia,criterio:a.criterio})),
-    acoes: (aud.acoes_list||[]).map(a=>({acao:a.acao,responsavel:a.responsavel,prazo:a.prazo,status:a.status})),
+    achados: (aud.achados_list||[]).map(a=>({tipo:a.tipo,titulo:a.titulo,desc:a.descricao,evidencia:a.evidencia,criterio:a.criterio})),
+    acoes: (aud.achados_list||[]).filter(a=>a.acao_corretiva).map(a=>({achado:a.titulo,posicao:a.posicao_auditado,acao:a.acao_corretiva,responsavel:a.responsavel_acao,prazo:a.prazo_acao,status:a.status_acao})),
   });
 
   const result = await chamarIA('relatorio_auditoria', payload, el);
@@ -7865,7 +7871,7 @@ function renderRelatorioAuditoria(json, conf, p, aud){
     [(aud.questoes||[]).length,'Questões',null],
     [nc,'Não conformidades','#dc2626'],
     [obs,'Observações','#d97706'],
-    [(aud.acoes_list||[]).length,'Ações corretivas',null]
+    [(aud.achados_list||[]).filter(a=>a.acao_corretiva).length,'Ações corretivas',null]
   ]){
     const sd = mk('div','aud-stat');
     const sn = mk('div','aud-stat-n',String(n));
@@ -7923,21 +7929,25 @@ function renderRelatorioAuditoria(json, conf, p, aud){
 
   // ── Ações Corretivas
   let acSec = null;
-  if((aud.acoes_list||[]).length){
+  const acoesDeAchados=(aud.achados_list||[]).filter(a=>a.acao_corretiva);
+  if(acoesDeAchados.length){
     acSec = sec('Ações Corretivas');
-    for(const a of aud.acoes_list){
+    for(const a of acoesDeAchados){
       let sc;
-      if(a.status==='Concluída') sc='#16a34a';
-      else if(a.status==='Em andamento') sc='#d97706';
+      if(a.status_acao==='Concluída') sc='#16a34a';
+      else if(a.status_acao==='Em andamento') sc='#d97706';
       else sc='#6b7280';
       const row = mk('div',null,null,'display:flex;gap:8px;align-items:flex-start;padding:.4rem 0;border-bottom:1px solid var(--bdr)');
-      const sp = mk('span',null,a.status,
+      const sp = mk('span',null,a.status_acao||'Pendente',
         'font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+sc+'22;color:'+sc+';flex-shrink:0;margin-top:1px');
       const info = mk('div',null,null,'flex:1');
-      info.append(
-        mk('div',null,a.acao,'font-size:12px'),
-        mk('div',null,a.responsavel+' · '+a.prazo,'font-size:10px;color:var(--ink3)')
-      );
+      const lbl = mk('div',null,'['+a.titulo+']: '+a.acao_corretiva,'font-size:12px');
+      const sub = mk('div',null,(a.responsavel_acao||'—')+' · '+(a.prazo_acao||'—'),'font-size:10px;color:var(--ink3)');
+      info.append(lbl, sub);
+      if(a.posicao_auditado){
+        const posColor = a.posicao_auditado==='Discorda'?'#dc2626':a.posicao_auditado==='Concorda parcialmente'?'#d97706':'#16a34a';
+        info.append(mk('div',null,'Posição do auditado: '+a.posicao_auditado,'font-size:10px;color:'+posColor+';font-style:italic'));
+      }
       row.append(sp, info);
       acSec.append(row);
     }
@@ -8292,6 +8302,18 @@ function adicionarAcaoAuditoria(){
   fbAutoSave('salvar');toast('Ação incluída!','var(--teal)');
   rDetalhe();
 }
+function salvarRespostaAchado(idx){
+  const p=curProc;if(!p)return;
+  if(!p.auditoria?.achados_list){toast('Nenhum achado encontrado.','var(--red)');return;}
+  const achado=p.auditoria.achados_list[idx];if(!achado)return;
+  achado.posicao_auditado=document.getElementById('aud-pa-pos-'+idx)?.value||'';
+  achado.acao_corretiva=document.getElementById('aud-pa-acao-'+idx)?.value||'';
+  achado.responsavel_acao=document.getElementById('aud-pa-resp-'+idx)?.value||'';
+  achado.prazo_acao=document.getElementById('aud-pa-prazo-'+idx)?.value||'';
+  achado.status_acao=document.getElementById('aud-pa-status-'+idx)?.value||'Pendente';
+  fbAutoSave('salvar');
+  toast('Resposta salva!','var(--teal)');
+}
 function _reabrirAbaAcoesAuditoria(){
   const aud3Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud3"]');
   if(aud3Tab) sstab('aud3',aud3Tab);
@@ -8626,6 +8648,22 @@ function exportarAuditoriaRelPdf(){
     ? achados.map((a,i)=>{
         const bg=_achadoBg[a.tipo]||'#1E3A5F';
         const docs=_e((a.anexos||[]).map(x=>x.nome||x.url).join('; '))||'—';
+        let posicaoRow='';
+        if(a.posicao_auditado){
+          const posColor=a.posicao_auditado==='Discorda'?'#dc2626':a.posicao_auditado==='Concorda parcialmente'?'#d97706':'#16a34a';
+          posicaoRow='<tr><td style="background:#f5f7fa;padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Posição do auditado</td>'
+            +'<td style="padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;color:'+posColor+';font-weight:600">'+_e(a.posicao_auditado)+'</td></tr>';
+        }
+        const acaoRows=a.acao_corretiva
+          ? '<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Ação corretiva</td>'
+            +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_e(a.acao_corretiva)+'</td></tr>'
+            +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Responsável</td>'
+            +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.responsavel_acao)||'—')+'</td></tr>'
+            +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Prazo</td>'
+            +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_d(a.prazo_acao)||'—')+'</td></tr>'
+            +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600">Status</td>'
+            +'<td style="padding:6px 10px">'+(_e(a.status_acao)||'Pendente')+'</td></tr>'
+          : (posicaoRow?'<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Ação corretiva não preenchida.</td></tr>':'');
         return '<div style="margin-bottom:16px;page-break-inside:avoid;border:1px solid #ddd;border-radius:6px;overflow:hidden">'
           +'<div style="background:'+bg+';color:#fff;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">'
           +'<span>NC'+(i+1)+': '+_e(a.titulo)+'</span>'
@@ -8638,8 +8676,9 @@ function exportarAuditoriaRelPdf(){
           +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(_e(a.evidencia)||'—')+'</td></tr>'
           +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Critério / Recomendação</td>'
           +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(_e(a.criterio)||'—')+'</td></tr>'
-          +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600;vertical-align:top">Documentos</td>'
-          +'<td style="padding:6px 10px" contenteditable="true">'+docs+'</td></tr>'
+          +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Documentos</td>'
+          +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+docs+'</td></tr>'
+          +posicaoRow+acaoRows
           +'</table></div>';
       }).join('')
     : '<p style="color:#888;font-style:italic;font-size:12px">Nenhum achado registrado.</p>';
@@ -16005,7 +16044,7 @@ function gerarStatusReportPDF(){
     audConclMes.map(p=>{
       const aud=p.auditoria||{};
       const corConf={'Conforme':'#16a34a','Conforme com ressalvas':'#d97706','Não conforme':'#dc2626'};
-      return[_e(p.nome),_e(p.macro),badge(aud.conformidade,corConf[aud.conformidade]||'#888'),_d(aud.data),(aud.achados_list||[]).length,(aud.acoes_list||[]).length];
+      return[_e(p.nome),_e(p.macro),badge(aud.conformidade,corConf[aud.conformidade]||'#888'),_d(aud.data),(aud.achados_list||[]).length,(aud.achados_list||[]).filter(a=>a.acao_corretiva).length];
     })
   )}
 
