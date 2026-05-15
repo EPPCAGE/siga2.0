@@ -8474,7 +8474,7 @@ function adicionarLinkAchado(idx){
   if(!url){toast('Informe a URL do documento','var(--red)');return;}
   if(!url.startsWith('http')){toast('URL inválida','var(--red)');return;}
   const achado=p.auditoria?.achados_list?.[idx];
-  if(!achado)return;
+  if(!achado){toast('Achado não encontrado. Recarregue a página.','var(--red)');return;}
   if(!achado.anexos)achado.anexos=[];
   achado.anexos.push({tipo:'link',nome:nome||url,url});
   fbAutoSave('salvar');toast('Link adicionado!','var(--teal)');
@@ -8485,13 +8485,14 @@ function adicionarLinkAchado(idx){
 async function uploadArquivoAchado(idx,input){
   const p=curProc;if(!p)return;
   const file=input?.files?.[0];if(!file)return;
-  const achado=p.auditoria?.achados_list?.[idx];if(!achado)return;
+  const achado=p.auditoria?.achados_list?.[idx];
+  if(!achado){toast('Achado não encontrado. Recarregue a página.','var(--red)');return;}
   if(!achado.anexos)achado.anexos=[];
   const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
   if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
-  const path=`auditoria/${p.id||'sem-id'}/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
-  const ref=storageRef(storage,path);
+  const path=`auditoria/${p.id||'sem-id'}/achados/${idx}/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
   try{
+    const ref=storageRef(storage,path);
     toast('Enviando arquivo…','var(--blue)');
     await uploadBytes(ref,file);
     const url=await getDownloadURL(ref);
@@ -8502,8 +8503,10 @@ async function uploadArquivoAchado(idx,input){
     const aud4Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud4"]');
     if(aud4Tab) sstab('aud4',aud4Tab);
   }catch(e){
-    console.error('upload erro',e);
-    toast('Erro ao enviar arquivo: '+e.message,'var(--red)');
+    console.error('upload achado erro',e);
+    toast('Erro ao enviar arquivo: '+(e?.message||String(e)),'var(--red)');
+  }finally{
+    if(input) input.value='';
   }
 }
 async function removerAnexoAchado(achadoIdx,anexoIdx){
