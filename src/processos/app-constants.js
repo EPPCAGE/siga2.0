@@ -47,6 +47,8 @@
     reuniao_entendimento: 'Reunião de entendimento',
     reuniao_valid_asis: 'Validação AS IS',
     reuniao_valid_tobe: 'Validação TO BE',
+    elaboracao_asis: 'Elaboração AS IS',
+    elaboracao_tobe: 'Elaboração TO BE',
     reuniao_complement: 'Complementação',
     reuniao_apresentacao: 'Aprovação pelo Gestor',
     acompanhamento: 'Acompanhamento',
