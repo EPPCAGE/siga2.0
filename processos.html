@@ -2154,6 +2154,7 @@ function getEtapas(p){
 }
 const FASES = ['Entendimento','Modelagem','Formalizacao','Operacao','Auditoria'];
 const FASE_COR = {Entendimento:'bt',Modelagem:'bp',Formalizacao:'ba',Operacao:'bb',Auditoria:'br'};
+const FASE_LABEL = {Entendimento:'Entendimento',Modelagem:'Modelagem',Formalizacao:'Formalização',Operacao:'Operação',Auditoria:'Análise de Aderência'};
 const EBADGE = {abertura:'bt',reuniao:'bt',questionario:'bt',esboco_asis:'bp',det_valid_asis:'bp',riscos:'bp',analise:'bp',melhorias:'bp',esboco_tobe:'bp',det_valid_tobe:'bp',pop:'ba',apresentacao:'ba',publicacao:'ba',acompanha:'bb',auditoria:'br'};
 
 function etIdx(id,p){return getEtapas(p||curProc).findIndex(e=>e.id===id);}
@@ -2161,7 +2162,7 @@ function etFase(id){return ETAPAS.find(e=>e.id===id)?.fase||'';}
 function etLb(id){return ETAPAS.find(e=>e.id===id)?.lb||id;}
 function nextEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.id===id);return i>=0&&i<et.length-1?et[i+1].id:null;}
 function prevEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.id===id);return i>0?et[i-1].id:null;}
-function fBadge(etId){const f=etFase(etId);return '<span class="badge '+(FASE_COR[f]||'bgr')+'">'+f+'</span>';}
+function fBadge(etId){const f=etFase(etId);return '<span class="badge '+(FASE_COR[f]||'bgr')+'">'+(FASE_LABEL[f]||f)+'</span>';}
 function eBadge(etId){return '<span class="badge '+(EBADGE[etId]||'bgr')+'">'+etLb(etId)+'</span>';}
 function _eBadgeAcomp(p){
   if(p.etapa!=='acompanha') return eBadge(p.etapa);
@@ -12261,7 +12262,7 @@ function _metaFieldsMapeamentoHTML(item, proc){
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem;flex-wrap:wrap">
       <span style="font-size:11px;font-weight:600;color:var(--ink2)">Mapeamento vinculado</span>
       <span class="badge ${EBADGE[proc.etapa]||'bgr'}" style="font-size:10px">${etLb(proc.etapa)}</span>
-      <span class="badge ${FASE_COR[etFase(proc.etapa)]||'bgr'}" style="font-size:10px">${etFase(proc.etapa)}</span>
+      <span class="badge ${FASE_COR[etFase(proc.etapa)]||'bgr'}" style="font-size:10px">${FASE_LABEL[etFase(proc.etapa)]||etFase(proc.etapa)}</span>
       ${(isEP()||usuarioLogado?.perfil==='gestor')
         ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="abrirProc(${proc.id})">Abrir mapeamento →</button>`
         : mapeandoBadge
