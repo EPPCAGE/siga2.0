@@ -3573,6 +3573,105 @@ async function salvarComentarioEP(ideiaId){
     toast('Erro ao salvar comentário.','var(--red)');
   }
 }
+// ── IA: SUGESTÃO DE ACHADOS E DESCRIÇÃO ─────────────────────────────────────
+async function iaSugerirAchados(){
+  const p=curProc; if(!p?.auditoria) return;
+  const aud=p.auditoria;
+  const comResposta=(aud.questoes||[]).filter(q=>q.resposta?.trim());
+  if(!comResposta.length){ toast('Preencha as respostas às questões antes de sugerir achados.','var(--amber)'); return; }
+  const targetEl=document.getElementById('aud-ia-sugestoes');
+  const payload={
+    processo:p.nome, area:p.area||'',
+    auditoria_objetivo:aud.objetivo||'',
+    auditoria_criterios:aud.criterios||'',
+    questoes:comResposta.map(q=>({questao:q.questao, criterio:q.criterio||'', resposta:q.resposta}))
+  };
+  const result=await chamarIA('sugerir_achados', payload, targetEl);
+  if(!result) return;
+  try {
+    const lista=JSON.parse(result.replace(/```json|```/g,'').trim());
+    if(!Array.isArray(lista)) throw new Error('Formato inválido');
+    window._achSugestoes=lista;
+    if(!lista.length){ targetEl.innerHTML='<div class="ib ibg" style="margin-bottom:.5rem">A IA não identificou achados relevantes com base nas respostas fornecidas.</div>'; return; }
+    const TC={'Não conformidade':'var(--red)','Observação':'#d97706','Ponto de melhoria':'var(--blue)','Conformidade':'var(--teal)'};
+    targetEl.innerHTML=`<div style="background:var(--bg3);border-radius:var(--r);padding:.75rem;margin-bottom:.75rem">
+      <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:.6rem">✦ ${lista.length} achado(s) sugerido(s) pela IA — confirme os que se aplicam</div>
+      <div id="aud-ia-sug-lista">
+        ${lista.map((s,i)=>`<div id="aud-sug-${i}" style="border:1px solid var(--bdr);border-left:3px solid ${TC[s.tipo]||'var(--ink3)'};border-radius:var(--r);padding:.65rem;margin-bottom:.4rem;background:var(--surf)">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:3px">
+            <div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(s.titulo)}</div>
+            <span style="font-size:10px;padding:1px 7px;border-radius:99px;background:var(--bg3);color:${TC[s.tipo]||'var(--ink3)'};font-weight:600;flex-shrink:0">${esc(s.tipo)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(s.descricao)}</div>
+          <div style="font-size:11px;color:var(--ink3)">Evidência: ${esc(s.evidencia||'—')} · Critério: ${esc(s.criterio||'—')}</div>
+          <div class="btn-row" style="margin-top:.45rem">
+            <button type="button" class="btn btn-p" style="font-size:11px" onclick="_confirmarAchadoSugerido(${i})">✓ Confirmar</button>
+            <button type="button" class="btn" style="font-size:11px" onclick="document.getElementById('aud-sug-${i}').remove()">Descartar</button>
+          </div>
+        </div>`).join('')}
+      </div>
+      <button type="button" class="btn" style="font-size:11px;margin-top:.25rem" onclick="_confirmarTodosAchadosSugeridos()">✓ Confirmar todos</button>
+    </div>`;
+  } catch(e){
+    if(targetEl) targetEl.innerHTML=`<div class="ai-result"><div class="ai-result-lbl">⚠ Erro</div>${esc(e.message)}</div>`;
+  }
+}
+
+function _confirmarAchadoSugerido(idx){
+  const s=(window._achSugestoes||[])[idx]; if(!s) return;
+  const p=curProc; if(!p?.auditoria) return;
+  if(!p.auditoria.achados_list) p.auditoria.achados_list=[];
+  p.auditoria.achados_list.push({titulo:s.titulo,tipo:s.tipo||'Observação',descricao:s.descricao||'',evidencia:s.evidencia||'',criterio:s.criterio||'',data:now(),anexos:[]});
+  fbAutoSave('salvar');
+  document.getElementById('aud-sug-'+idx)?.remove();
+  toast(`Achado "${s.titulo}" adicionado.`,'var(--teal)');
+  rDetalhe();
+}
+
+function _confirmarTodosAchadosSugeridos(){
+  const lista=window._achSugestoes||[]; const p=curProc; if(!p?.auditoria) return;
+  if(!p.auditoria.achados_list) p.auditoria.achados_list=[];
+  let count=0;
+  lista.forEach((s,i)=>{
+    if(!document.getElementById('aud-sug-'+i)) return;
+    p.auditoria.achados_list.push({titulo:s.titulo,tipo:s.tipo||'Observação',descricao:s.descricao||'',evidencia:s.evidencia||'',criterio:s.criterio||'',data:now(),anexos:[]});
+    count++;
+  });
+  if(!count){ toast('Nenhum achado pendente para confirmar.','var(--amber)'); return; }
+  fbAutoSave('salvar');
+  toast(`${count} achado(s) confirmado(s).`,'var(--teal)');
+  rDetalhe();
+}
+
+async function iaDescreverAchado(){
+  const titulo=document.getElementById('aud-a-titulo')?.value.trim();
+  const tipo=document.getElementById('aud-a-tipo')?.value||'Observação';
+  if(!titulo){ toast('Preencha o título do achado antes de gerar a descrição.','var(--amber)'); return; }
+  const btn=document.getElementById('aud-ia-desc-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳'; }
+  const p=curProc;
+  const result=await chamarIA('descrever_achado',{processo:p?.nome||'',area:p?.area||'',titulo,tipo,criterios:p?.auditoria?.criterios||''},null);
+  if(btn){ btn.disabled=false; btn.textContent='✦ Sugerir com IA'; }
+  if(!result) return;
+  try {
+    const data=JSON.parse(result.replace(/```json|```/g,'').trim());
+    const descEl=document.getElementById('aud-a-desc');
+    const evidEl=document.getElementById('aud-a-evid');
+    const critEl=document.getElementById('aud-a-crit');
+    const temConteudo=descEl?.value.trim();
+    const preencher=()=>{
+      if(data.descricao&&descEl) descEl.value=data.descricao;
+      if(data.evidencia&&evidEl) evidEl.value=data.evidencia;
+      if(data.criterio&&critEl) critEl.value=data.criterio;
+      toast('Campos preenchidos com sugestão da IA.','var(--teal)');
+    };
+    temConteudo ? confirmar('Substituir o conteúdo atual pela sugestão da IA?',preencher,'Substituir',false) : preencher();
+  } catch(e){
+    toast('Erro ao processar resposta da IA: '+e.message,'var(--red)');
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── FOLLOW-UP DE AUDITORIA ───────────────────────────────────────────────────
 function rAbaFollowup(p, aud){
   const hoje = new Date().toISOString().slice(0,10);
@@ -5942,11 +6041,15 @@ const ACOES = {
         <button type="button" class="btn" onclick="salvarPlanejamentoAuditoria()">Salvar planejamento</button>
       </div>
       <div id="aud2" class="tab-p" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
           <span style="font-size:13px;color:var(--ink3)">${questoes.length} questão(ões) cadastrada(s)</span>
-          <button type="button" class="btn btn-p" style="font-size:12px" onclick="iaGerarQuestoesAuditoria()">✦ Gerar com IA</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button type="button" class="btn btn-p" style="font-size:12px" onclick="iaGerarQuestoesAuditoria()">✦ Gerar questões com IA</button>
+            ${questoes.filter(q=>q.resposta?.trim()).length?`<button type="button" class="btn btn-t" style="font-size:12px" onclick="iaSugerirAchados()">✦ Sugerir achados com IA</button>`:''}
+          </div>
         </div>
         <div id="aud-ia-questoes"></div>
+        <div id="aud-ia-sugestoes"></div>
         <div style="margin-bottom:1rem">${questoesHtml||'<div style="font-size:12px;color:var(--ink3)">Nenhuma questão cadastrada.</div>'}</div>
         <div style="font-weight:600;font-size:13px;margin-bottom:.8rem;padding-top:.8rem;border-top:1px solid var(--bdr)" id="aud-q-form-title">Adicionar questão de análise de aderência</div>
         <input type="hidden" id="aud-q-idx" value="">
@@ -6024,7 +6127,13 @@ const ACOES = {
               </select>
             </div>
           </div>
-          <div class="fg"><label class="fl">Descrição / possível causa</label><textarea class="fi" id="aud-a-desc" style="min-height:60px" placeholder="Descreva o achado ou a possível causa..."></textarea></div>
+          <div class="fg">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+              <label class="fl" style="margin-bottom:0">Descrição / possível causa</label>
+              <button type="button" class="btn btn-t" id="aud-ia-desc-btn" style="font-size:11px;padding:1px 9px" onclick="iaDescreverAchado()" title="Gerar descrição, evidência e critério com IA a partir do título">✦ Sugerir com IA</button>
+            </div>
+            <textarea class="fi" id="aud-a-desc" style="min-height:60px" placeholder="Descreva o achado ou a possível causa..."></textarea>
+          </div>
           <div class="fg"><label class="fl">Evidência</label><input class="fi" id="aud-a-evid" placeholder="Documento, observação, entrevista..."></div>
           <div class="fg"><label class="fl">Recomendação / critério infringido</label><input class="fi" id="aud-a-crit" placeholder="Recomendação de melhoria ou critério não atendido"></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
