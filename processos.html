@@ -3348,20 +3348,45 @@ function rMeusProc(){
         _fuPendDono.push({pr,a,i,vencido:a.prazo_acao&&a.prazo_acao<_hoje});
     });
   });
-  if(_fuPendDono.length && subEl){
-    const fuHtml = _fuPendDono.map(({pr,a,i,vencido})=>`
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:.6rem .75rem;background:var(--bg3);border-radius:var(--r);margin-bottom:.4rem;flex-wrap:wrap">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:12px;font-weight:600;color:var(--ink)">${esc(a.titulo)}</div>
-          <div style="font-size:11px;color:var(--ink3)">${esc(pr.nome)} · Prazo: ${a.prazo_acao?a.prazo_acao.split('-').reverse().join('/'):'—'}
-            ${vencido?'<span style="color:var(--red);font-weight:600"> · Em atraso</span>':''}</div>
-        </div>
-        <button type="button" class="btn btn-p" style="font-size:11px;padding:2px 10px;flex-shrink:0" onclick="abrirRegistrarEvidencia(${pr.id},${i})">📎 Registrar evidência</button>
-      </div>`).join('');
-    subEl.insertAdjacentHTML('afterend', `<div class="card" style="border-left:4px solid var(--amber,#d97706);margin-bottom:1rem">
-      <div class="card-t" style="margin-bottom:.5rem;color:var(--amber,#d97706)">⚠ Ações de follow-up pendentes</div>
-      ${fuHtml}
-    </div>`);
+  // Audit tab tasks: processes where dono has specific audit tabs assigned
+  const _audTabsDono = processos.filter(pr=>
+    pr.etapa==='auditoria' && (pr.auditoria?.tabs_dono||[]).length>0 && pr.dono===usuarioLogado?.nome
+  );
+  if((_fuPendDono.length||_audTabsDono.length) && subEl){
+    let tasksHtml='';
+    if(_audTabsDono.length){
+      const _TL={aud2:'Questões',aud4:'Achados',aud5:'Plano de Ação',aud7:'Follow-up'};
+      const audHtml=_audTabsDono.map(pr=>{
+        const tLabels=(pr.auditoria.tabs_dono||[]).map(id=>_TL[id]).filter(Boolean).join(', ');
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:.6rem .75rem;background:var(--bg3);border-radius:var(--r);margin-bottom:.4rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:var(--ink)">${esc(pr.nome)}</div>
+            <div style="font-size:11px;color:var(--ink3)">Abas: ${esc(tLabels)}</div>
+          </div>
+          <button type="button" class="btn btn-p" style="font-size:11px;padding:2px 10px;flex-shrink:0" onclick="abrirProc(${pr.id})">Acessar →</button>
+        </div>`;
+      }).join('');
+      tasksHtml+=`<div class="card" style="border-left:4px solid var(--blue);margin-bottom:1rem">
+        <div class="card-t" style="margin-bottom:.5rem;color:var(--blue)">📋 Análise de aderência pendente</div>
+        ${audHtml}
+      </div>`;
+    }
+    if(_fuPendDono.length){
+      const fuHtml = _fuPendDono.map(({pr,a,i,vencido})=>`
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:.6rem .75rem;background:var(--bg3);border-radius:var(--r);margin-bottom:.4rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:var(--ink)">${esc(a.titulo)}</div>
+            <div style="font-size:11px;color:var(--ink3)">${esc(pr.nome)} · Prazo: ${a.prazo_acao?a.prazo_acao.split('-').reverse().join('/'):'—'}
+              ${vencido?'<span style="color:var(--red);font-weight:600"> · Em atraso</span>':''}</div>
+          </div>
+          <button type="button" class="btn btn-p" style="font-size:11px;padding:2px 10px;flex-shrink:0" onclick="abrirRegistrarEvidencia(${pr.id},${i})">📎 Registrar evidência</button>
+        </div>`).join('');
+      tasksHtml+=`<div class="card" style="border-left:4px solid var(--amber,#d97706);margin-bottom:1rem">
+        <div class="card-t" style="margin-bottom:.5rem;color:var(--amber,#d97706)">⚠ Ações de follow-up pendentes</div>
+        ${fuHtml}
+      </div>`;
+    }
+    subEl.insertAdjacentHTML('afterend', tasksHtml);
   }
 
   listEl.innerHTML = minhas.map(u=>{
@@ -4446,7 +4471,8 @@ function rDetalhe(){
   document.getElementById('det-prog').innerHTML=renderDetalheWorkflow(p,_etapasEfetivas,idx,epUser);
   if(usuarioLogado?.perfil==='dono'){
     const etObj=_etapasEfetivas.find(e=>e.id===p.etapa);
-    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
+    const _tabsDono=p.etapa==='auditoria'?(p.auditoria?.tabs_dono||[]):[];
+    const minhaTarefa=(etObj?.resp==='dono'&&p.dono===usuarioLogado.nome)||(_tabsDono.length>0&&p.dono===usuarioLogado.nome);
     document.getElementById('det-tabs').innerHTML=
       `<div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('acao',this)">${minhaTarefa?'Minha tarefa':'Sobre o processo'}</div>`+
       `<div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('hist',this)">Histórico</div>`;
@@ -6046,6 +6072,18 @@ const ACOES = {
           </select>
         </div>
         <button type="button" class="btn" onclick="salvarPlanejamentoAuditoria()">Salvar planejamento</button>
+        <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--bdr)">
+          <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.4rem">📋 Participação do dono</div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:.7rem">Defina quais abas o dono poderá acessar nesta análise de aderência.</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.7rem">
+            ${['aud2','aud4','aud5','aud7'].map(id=>{
+              const labels={aud2:'Questões',aud4:'Achados',aud5:'Plano de Ação',aud7:'Follow-up'};
+              const active=(aud.tabs_dono||[]).includes(id);
+              return `<button type="button" class="btn${active?' btn-p':''}" style="font-size:12px" onclick="atribuirTabAuditoriaDono('${id}',${!active})">${active?'✓ ':''}${labels[id]}</button>`;
+            }).join('')}
+          </div>
+          ${(aud.tabs_dono||[]).length>0?`<button type="button" class="btn" style="font-size:12px" onclick="notificarDonoSobreAuditoria()">📩 Notificar dono</button>`:''}
+        </div>
       </div>
       <div id="aud2" class="tab-p" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
@@ -6695,6 +6733,15 @@ function _renderChecklist(p){
   return `<div class="card" style="margin-bottom:1rem;border-left:3px solid ${cor}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem"><div class="card-t" style="margin-bottom:0">✔ Checklist da etapa</div><span style="font-size:12px;font-weight:700;color:${cor}">${done}/${total} concluído${done===1?'':'s'}</span></div>${rows}</div>`;
 }
 function _rAcaoHandleDono(el, ac, p){
+  // Audit tab assignment: dono has access to specific audit tabs only
+  if(p.etapa==='auditoria' && (p.auditoria?.tabs_dono||[]).length>0 && p.dono===usuarioLogado?.nome){
+    const _tabsDono=p.auditoria.tabs_dono;
+    const _TL={aud2:'Questões',aud4:'Achados',aud5:'Plano de Ação',aud7:'Follow-up'};
+    const _tLabels=_tabsDono.map(id=>_TL[id]).filter(Boolean).join(', ');
+    el.innerHTML=`<div class="ib ibt" style="margin-bottom:1rem">O EP atribuiu a você participação na <strong>Análise de Aderência</strong>. Abas disponíveis: <strong>${esc(_tLabels)}</strong>.</div>`+ACOES.auditoria.form(p);
+    _filtrarTabsAuditoriaDono(_tabsDono);
+    return;
+  }
   const atrib=(p.atribuicoes||{})[p.etapa];
   const etObj=ETAPAS.find(e=>e.id===p.etapa);
   const isDonoProc=p.dono===usuarioLogado.nome;
@@ -6717,6 +6764,29 @@ function _rAcaoHandleDono(el, ac, p){
     el.appendChild(bar);
   }
   _rAcaoInitBpmn(p, minhaTarefa);
+}
+function _filtrarTabsAuditoriaDono(tabsDono){
+  const ALL=['aud1','aud2','aud3','aud4','aud5','aud6','aud7'];
+  ALL.forEach(id=>{
+    const pane=document.getElementById(id);
+    if(pane){ pane.style.display=tabsDono.includes(id)?'':'none'; pane.classList.toggle('on',false); }
+  });
+  document.querySelectorAll('.tabs .tab').forEach(btn=>{
+    const m=(btn.getAttribute('onclick')||'').match(/sstab\('(aud\d)',this\)/);
+    if(!m) return;
+    const show=tabsDono.includes(m[1]);
+    btn.style.display=show?'':'none';
+    btn.classList.toggle('on',false);
+  });
+  const first=tabsDono[0];
+  if(first){
+    const pane=document.getElementById(first);
+    if(pane){pane.classList.add('on');pane.style.display='block';}
+    document.querySelectorAll('.tabs .tab').forEach(btn=>{
+      const m=(btn.getAttribute('onclick')||'').match(/sstab\('(aud\d)',this\)/);
+      if(m&&m[1]===first) btn.classList.add('on');
+    });
+  }
 }
 function _concluirDonoAtribuido(){
   const etapa=curProc?.etapa;
@@ -8482,6 +8552,25 @@ function salvarPlanejamentoAuditoria(){
     metodologia:document.getElementById('aud-metod')?.value||''
   });
   fbAutoSave('salvar');toast('Planejamento salvo!','var(--teal)');
+}
+function atribuirTabAuditoriaDono(tabId, add){
+  const p=curProc; if(!p?.auditoria) return;
+  if(!p.auditoria.tabs_dono) p.auditoria.tabs_dono=[];
+  if(add){ if(!p.auditoria.tabs_dono.includes(tabId)) p.auditoria.tabs_dono.push(tabId); }
+  else { p.auditoria.tabs_dono=p.auditoria.tabs_dono.filter(id=>id!==tabId); }
+  fbAutoSave('salvar');
+  rDetalhe();
+}
+function notificarDonoSobreAuditoria(){
+  const p=curProc; if(!p) return;
+  const tabsDono=p.auditoria?.tabs_dono||[];
+  if(!tabsDono.length){ toast('Nenhuma aba atribuída ao dono.','var(--amber)'); return; }
+  const _TL={aud2:'Questões',aud4:'Achados',aud5:'Plano de Ação',aud7:'Follow-up'};
+  const tLabels=tabsDono.map(id=>_TL[id]).filter(Boolean).join(', ');
+  const donoEmail=p.dono_email||_solDonoEmail(p.dono);
+  if(!donoEmail){ toast('E-mail do dono não encontrado.','var(--amber)'); return; }
+  enviarNotif(donoEmail,p.dono,'Você tem tarefas na Análise de Aderência do processo "'+p.nome+'". Abas: '+tLabels,p.nome,'',usuarioLogado?.nome||'EP');
+  toast('Dono notificado com sucesso!','var(--teal)');
 }
 async function salvarQuestaoAuditoria(){
   const p=curProc;if(!p)return;
