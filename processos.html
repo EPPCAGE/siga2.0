@@ -8355,6 +8355,24 @@ async function iaGerarRelatorioAuditoria(){
       const conf = document.getElementById('aud-conf')?.value || aud.conformidade || '';
       const _node = renderRelatorioAuditoria(json, conf, p, aud);
       el.replaceChildren(_node);
+      // Anexa fluxograma AS IS ao final do relatório (assíncrono)
+      _getFluxogramaAsIsPng(p).then(pngUrl => {
+        if(!pngUrl) return;
+        const report = el.querySelector('.aud-report');
+        if(!report) return;
+        const fluxSec = document.createElement('div');
+        fluxSec.className = 'aud-rep-section';
+        const title = document.createElement('div');
+        title.className = 'aud-rep-stitle';
+        title.textContent = 'Fluxograma do Processo';
+        const img = document.createElement('img');
+        img.src = pngUrl;
+        img.alt = 'Fluxograma AS IS';
+        img.style.cssText = 'width:100%;max-width:100%;border-radius:6px;margin-top:.5rem;border:1px solid var(--bdr)';
+        fluxSec.append(title, img);
+        report.append(fluxSec);
+        p.auditoria.relatorio_html = report.outerHTML;
+      }).catch(()=>{});
       p.auditoria.relatorio_html = el.querySelector('.aud-report')?.outerHTML || '';
     } catch {
       const _wrap=document.createElement('div'); _wrap.className='ai-result';
@@ -8496,35 +8514,6 @@ function renderRelatorioAuditoria(json, conf, p, aud){
     recSec.append(ul);
   }
 
-  // ── Ações Corretivas
-  let acSec = null;
-  const acoesDeAchados=(aud.achados_list||[]).filter(a=>a.acao_corretiva);
-  if(acoesDeAchados.length){
-    acSec = sec('Ações Corretivas');
-    for(const a of acoesDeAchados){
-      let sc;
-      if(a.status_acao==='Concluída') sc='#16a34a';
-      else if(a.status_acao==='Em andamento') sc='#d97706';
-      else sc='#6b7280';
-      const row = mk('div',null,null,'display:flex;gap:8px;align-items:flex-start;padding:.4rem 0;border-bottom:1px solid var(--bdr)');
-      const sp = mk('span',null,a.status_acao||'Pendente',
-        'font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+sc+'22;color:'+sc+';flex-shrink:0;margin-top:1px');
-      const info = mk('div',null,null,'flex:1');
-      const lbl = mk('div',null,'['+a.titulo+']: '+a.acao_corretiva,'font-size:12px');
-      const sub = mk('div',null,(a.responsavel_acao||'—')+' · '+(a.prazo_acao||'—'),'font-size:10px;color:var(--ink3)');
-      info.append(lbl, sub);
-      if(a.posicao_auditado){
-        let posColor;
-        if(a.posicao_auditado==='Discorda') posColor='#dc2626';
-        else if(a.posicao_auditado==='Concorda parcialmente') posColor='#d97706';
-        else posColor='#16a34a';
-        info.append(mk('div',null,'Posição do auditado: '+a.posicao_auditado,'font-size:10px;color:'+posColor+';font-style:italic'));
-      }
-      row.append(sp, info);
-      acSec.append(row);
-    }
-  }
-
   // ── Conclusão
   const conclSec = sec('Conclusão');
   conclSec.append(mk('p','aud-rep-p', _fixTermoAnalise(json.conclusao)));
@@ -8533,7 +8522,6 @@ function renderRelatorioAuditoria(json, conf, p, aud){
   if(prAchSec) root.append(prAchSec);
   if(achSec)   root.append(achSec);
   if(recSec)   root.append(recSec);
-  if(acSec)    root.append(acSec);
   root.append(conclSec);
   return root;
 }
