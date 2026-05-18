@@ -2049,6 +2049,7 @@ async function _iniciarSessaoUnica(uid) {
     await sessoesRepository.set(uid, { sid, ts: new Date().toISOString() });
     _sessionUnsub = onSnapshot(sessoesRepository.ref(uid), snap => {
       if (!snap.exists()) return;
+      if (snap.metadata.fromCache) return; // ignorar cache local — só reagir a dados do servidor
       const localSid = lsGet('siga_sid');
       if (!localSid) return; // localStorage indisponível — não deslogar
       if (snap.data().sid !== localSid) {
@@ -17852,24 +17853,16 @@ async function _bootRestoreSession(){
       if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
       if(firebaseUser){
         clearTimeout(_authNullTimer);
-        sessionStorage.removeItem('_auth_null_reloaded');
         await _bootRestoreFirebaseUser(auth, firebaseUser);
       } else if(usuarioLogado){
         // onAuthStateChanged(null) durante sessão ativa: pode ser suspensão do PC,
-        // flap de rede ou refresh lento do token. Estratégia:
-        // 1ª vez → recarrega a página (Firebase restaura sessão do cache IndexedDB).
-        // 2ª vez (após reload) → de fato deslogar.
+        // flap de rede, ou refresh lento do token Firebase (normal a cada hora).
+        // Aguarda 2 min antes de deslogar — Firebase geralmente restaura o token
+        // sozinho sem necessitar reload (que criaria novo sid e causaria falso "outro dispositivo").
         clearTimeout(_authNullTimer);
         _authNullTimer = setTimeout(() => {
-          if(!usuarioLogado) return;
-          if(!sessionStorage.getItem('_auth_null_reloaded')){
-            sessionStorage.setItem('_auth_null_reloaded', '1');
-            window.location.reload();
-          } else {
-            sessionStorage.removeItem('_auth_null_reloaded');
-            doLogout();
-          }
-        }, 10000);
+          if(usuarioLogado) doLogout();
+        }, 120000);
       } else {
         _bootShowLoginScreen();
       }
