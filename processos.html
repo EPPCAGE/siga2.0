@@ -8318,33 +8318,35 @@ async function iaGerarRelatorioAuditoria(){
   const el  = document.getElementById('aud-rel-result');
   if(btn) btn.disabled = true;
 
-  const payload = JSON.stringify({
+  const _trunc = (s, n=1500) => s && s.length > n ? s.slice(0, n)+'…' : (s||'');
+
+  const payload = {
     processo: p.nome, area: p.area,
-    objetivo: aud.objetivo||'', escopo: aud.escopo||'',
+    objetivo: _trunc(aud.objetivo||''), escopo: _trunc(aud.escopo||''),
     equipe: aud.equipe||'', metodologia: aud.metodologia||'',
-    criterios: aud.criterios||'',
+    criterios: _trunc(aud.criterios||''),
     data_inicio: aud.data_inicio||'', data_fim: aud.data_fim||'',
     conformidade: document.getElementById('aud-conf')?.value || aud.conformidade || '',
     questoes: (aud.questoes||[]).map(q=>({
-      questao:q.questao,
-      criterio:q.criterio,
-      responsavel:q.responsavel,
-      resposta:q.resposta,
-      evidencias:(q.anexos||[]).map(x=>x.nome||x.url).join('; ')
+      questao: _trunc(q.questao, 300),
+      criterio: _trunc(q.criterio, 200),
+      responsavel: q.responsavel,
+      resposta: _trunc(q.resposta, 800),
+      evidencias: (q.anexos||[]).map(x=>x.nome||x.url).join('; ')
     })),
     trilha: (aud.trilha||[]).map(t=>({
-      tipo:t.tipo,
-      data:t.data,
-      responsavel:t.responsavel,
-      descricao:t.descricao,
-      objetivo:t.objetivo,
-      evidencias:t.evidencias,
-      conclusoes:t.conclusoes,
-      anexos:(t.anexos||[]).map(x=>x.nome||x.url).join('; ')
+      tipo: t.tipo,
+      data: t.data,
+      responsavel: t.responsavel,
+      descricao: _trunc(t.descricao, 400),
+      objetivo: _trunc(t.objetivo, 300),
+      evidencias: _trunc(t.evidencias, 400),
+      conclusoes: _trunc(t.conclusoes, 400),
+      anexos: (t.anexos||[]).map(x=>x.nome||x.url).join('; ')
     })),
-    achados: (aud.achados_list||[]).map(a=>({tipo:a.tipo,titulo:a.titulo,desc:a.descricao,evidencia:a.evidencia,criterio:a.criterio})),
-    acoes: (aud.achados_list||[]).filter(a=>a.acao_corretiva).map(a=>({achado:a.titulo,posicao:a.posicao_auditado,acao:a.acao_corretiva,responsavel:a.responsavel_acao,prazo:a.prazo_acao,status:a.status_acao})),
-  });
+    achados: (aud.achados_list||[]).map(a=>({tipo:a.tipo, titulo:a.titulo, desc:_trunc(a.descricao,500), evidencia:_trunc(a.evidencia,300), criterio:_trunc(a.criterio,200)})),
+    acoes: (aud.achados_list||[]).filter(a=>a.acao_corretiva).map(a=>({achado:a.titulo, posicao:a.posicao_auditado, acao:_trunc(a.acao_corretiva,300), responsavel:a.responsavel_acao, prazo:a.prazo_acao, status:a.status_acao})),
+  };
 
   const result = await chamarIA('relatorio_auditoria', payload, el);
   if(result){
