@@ -9222,6 +9222,9 @@ function exportarAuditoriaRelPdf(){
           posicaoRow='<tr><td style="background:#f5f7fa;padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Posição do auditado</td>'
             +'<td style="padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;color:'+posColor+';font-weight:600">'+_e(a.posicao_auditado)+'</td></tr>';
         }
+        const semAcaoRow = posicaoRow
+          ? '<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Ação corretiva não preenchida.</td></tr>'
+          : '';
         const acaoRows=a.acao_corretiva
           ? '<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Ação corretiva</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_e(a.acao_corretiva)+'</td></tr>'
@@ -9231,7 +9234,7 @@ function exportarAuditoriaRelPdf(){
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_d(a.prazo_acao)||'—')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600">Status</td>'
             +'<td style="padding:6px 10px">'+(_e(a.status_acao)||'Pendente')+'</td></tr>'
-          : posicaoRow ? '<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Ação corretiva não preenchida.</td></tr>' : '';
+          : semAcaoRow;
         return '<div style="margin-bottom:16px;page-break-inside:avoid;border:1px solid #ddd;border-radius:6px;overflow:hidden">'
           +'<div style="background:'+bg+';color:#fff;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">'
           +'<span>NC'+(i+1)+': '+_e(a.titulo)+'</span>'
