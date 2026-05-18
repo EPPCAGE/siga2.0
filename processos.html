@@ -8427,8 +8427,10 @@ async function iaGerarRelatorioAuditoria(){
         fluxSec.append(title, img);
         report.append(fluxSec);
         p.auditoria.relatorio_html = report.outerHTML;
+        fbAutoSave('salvar');
       }).catch(()=>{});
       p.auditoria.relatorio_html = el.querySelector('.aud-report')?.outerHTML || '';
+      fbAutoSave('salvar');
     } catch {
       const _wrap=document.createElement('div'); _wrap.className='ai-result';
       const _lbl=document.createElement('div'); _lbl.className='ai-result-lbl'; _lbl.textContent='✦ Relatório';
@@ -8436,6 +8438,7 @@ async function iaGerarRelatorioAuditoria(){
       _wrap.append(_lbl,_body);
       el.replaceChildren(_wrap);
       p.auditoria.relatorio_html=_wrap.outerHTML;
+      fbAutoSave('salvar');
     }
   }
   if(btn) btn.disabled = false;
