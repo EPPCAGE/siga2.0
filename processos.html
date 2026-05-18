@@ -17854,10 +17854,18 @@ async function _bootRestoreSession(){
         clearTimeout(_authNullTimer);
         await _bootRestoreFirebaseUser(auth, firebaseUser);
       } else if(usuarioLogado){
-        // Aguarda 4s antes de efetivar o logout por null no auth state.
-        // Evita deslogar em caso de flap momentâneo de rede ou re-auth interno do Firebase.
+        // Aguarda antes de efetivar o logout por null no auth state.
+        // Cobre: suspensão do computador, flap de rede, renovação de token com custom claims.
         clearTimeout(_authNullTimer);
-        _authNullTimer = setTimeout(() => { if(usuarioLogado) doLogout(); }, 4000);
+        _authNullTimer = setTimeout(async () => {
+          if(!usuarioLogado) return;
+          // Última verificação: tenta renovar o token antes de deslogar.
+          try {
+            const u = fb().auth.currentUser;
+            if(u){ await u.getIdToken(false); return; } // sessão ainda válida
+          } catch(e_){}
+          doLogout();
+        }, 30000);
       } else {
         _bootShowLoginScreen();
       }
