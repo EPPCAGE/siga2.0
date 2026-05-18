@@ -3724,6 +3724,36 @@ function _rAudRiscos(p){
   return `<div style="font-size:13px;color:var(--ink3);margin-bottom:.9rem">Registre abaixo o tratamento adotado para cada risco identificado no processo.</div>${cards}`;
 }
 
+function _rAudRestoreRelatorio(p){
+  const el = document.getElementById('aud-rel-result');
+  if(!el) return;
+  const aud = p.auditoria;
+  if(!aud?.relatorio_json) return;
+  try {
+    const conf = aud.conformidade || '';
+    const node = renderRelatorioAuditoria(aud.relatorio_json, conf, p, aud);
+    el.replaceChildren(node);
+    _getFluxogramaAsIsPng(p).then(pngUrl => {
+      if(!pngUrl) return;
+      const report = el.querySelector('.aud-report');
+      if(!report) return;
+      const fluxSec = document.createElement('div');
+      fluxSec.className = 'aud-rep-section';
+      const title = document.createElement('div');
+      title.className = 'aud-rep-stitle';
+      title.textContent = 'Fluxograma do Processo';
+      const img = document.createElement('img');
+      img.src = pngUrl;
+      img.alt = 'Fluxograma AS IS';
+      img.style.cssText = 'width:100%;max-width:100%;border-radius:6px;margin-top:.5rem;border:1px solid var(--bdr)';
+      fluxSec.append(title, img);
+      report.append(fluxSec);
+    }).catch(()=>{});
+  } catch(e) {
+    console.warn('_rAudRestoreRelatorio:', e.message);
+  }
+}
+
 function salvarTratamentoRisco(idx){
   const p=curProc; if(!p) return;
   const r=(p.ent?.riscos||[])[idx]; if(!r) return;
@@ -4527,12 +4557,14 @@ function rDetalhe(){
     document.getElementById('tab-acao').classList.add('on');
     document.getElementById('tab-hist').classList.remove('on');
     rAcao(p);
+    if(p.etapa==='auditoria') _rAudRestoreRelatorio(p);
     setTimeout(injectIaAssistente, 100);
     return;
   }
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===0));
   document.querySelectorAll('.tab-p').forEach((p,i)=>p.classList.toggle('on',i===0));
   rAcao(p);
+  if(p.etapa==='auditoria') _rAudRestoreRelatorio(p);
   setTimeout(injectIaAssistente, 100);
 }
 
@@ -6267,7 +6299,7 @@ const ACOES = {
             <textarea class="fi" id="aud-conclusao" style="min-height:92px" placeholder="Conclusão do EPP, encaminhamentos e observações finais.">${esc(aud.conclusao_manual||'')}</textarea>
           </div>
         </div>
-        <div id="aud-rel-result">${aud.relatorio_html||'<div class="ib ibsl">Clique em "Gerar relatório com IA" para criar o relatório executivo automaticamente a partir das abas anteriores.</div>'}</div>
+        <div id="aud-rel-result">${aud.relatorio_html && !aud.relatorio_json ? aud.relatorio_html : '<div class="ib ibsl">Clique em "Gerar relatório com IA" para criar o relatório executivo automaticamente a partir das abas anteriores.</div>'}</div>
         <div class="btn-row" style="margin-top:1rem">
           <button type="button" class="btn btn-a" onclick="exportarAuditoriaRelPdf()">⬇ Exportar PDF</button>
           <button type="button" class="btn" onclick="salvarRelatorioAuditoria(false)">Salvar</button>
@@ -8428,18 +8460,17 @@ async function iaGerarRelatorioAuditoria(){
         fluxSec.append(title, img);
         report.append(fluxSec);
       }).catch(()=>{});
-      const _rawHtml = el.querySelector('.aud-report')?.outerHTML || '';
-      // Remove data URLs de imagens antes de salvar para não estourar o limite de 1 MB do Firestore
-      p.auditoria.relatorio_html = _rawHtml.replace(/(<img\b[^>]*)\bsrc="data:[^"]*"/gi, '$1src=""');
+      // Salva o JSON da IA (pequeno) em vez do HTML completo — evita estourar o limite de 1 MB do Firestore
+      p.auditoria.relatorio_json = json;
+      delete p.auditoria.relatorio_html;
       fbAutoSave('salvar');
-    } catch {
+    } catch(e) {
+      console.warn('iaGerarRelatorioAuditoria: erro ao parsear JSON da IA', e.message);
       const _wrap=document.createElement('div'); _wrap.className='ai-result';
       const _lbl=document.createElement('div'); _lbl.className='ai-result-lbl'; _lbl.textContent='✦ Relatório';
       const _body=document.createElement('div'); _body.style.cssText='white-space:pre-wrap;font-size:12px'; _body.textContent=result;
       _wrap.append(_lbl,_body);
       el.replaceChildren(_wrap);
-      p.auditoria.relatorio_html=_wrap.outerHTML;
-      fbAutoSave('salvar');
     }
   }
   if(btn) btn.disabled = false;
@@ -9293,7 +9324,7 @@ function salvarRelatorioAuditoria(concluir){
 function exportarAuditoriaRelPdf(){
   const p=curProc;if(!p){toast('Processo não encontrado.','var(--red)');return;}
   const aud=p.auditoria||{};
-  if(!aud.relatorio_html){toast('Gere o relatório com IA antes de exportar.','var(--amber)');return;}
+  if(!aud.relatorio_json && !aud.relatorio_html){toast('Gere o relatório com IA antes de exportar.','var(--amber)');return;}
 
   const _e=s=>(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
   const _d=d=>{
@@ -9395,7 +9426,12 @@ function exportarAuditoriaRelPdf(){
     +'</div>'
 
     +(()=>{
-        const doc=new DOMParser().parseFromString(aud.relatorio_html,'text/html');
+        const _relEl = document.getElementById('aud-rel-result');
+        const _relNode = _relEl?.querySelector('.aud-report');
+        const _htmlSrc = _relNode
+          ? _relNode.outerHTML
+          : (aud.relatorio_html || '');
+        const doc=new DOMParser().parseFromString(_htmlSrc,'text/html');
         doc.querySelectorAll('.aud-rep-section').forEach(sec=>{
           if(sec.querySelector('.aud-rep-stitle')?.textContent.trim()==='Achados Detalhados') sec.remove();
         });
