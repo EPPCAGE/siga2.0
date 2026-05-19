@@ -4563,14 +4563,12 @@ function rDetalhe(){
     document.getElementById('tab-acao').classList.add('on');
     document.getElementById('tab-hist').classList.remove('on');
     rAcao(p);
-    if(p.etapa==='auditoria') _rAudRestoreRelatorio(p);
     setTimeout(injectIaAssistente, 100);
     return;
   }
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===0));
   document.querySelectorAll('.tab-p').forEach((p,i)=>p.classList.toggle('on',i===0));
   rAcao(p);
-  if(p.etapa==='auditoria') _rAudRestoreRelatorio(p);
   setTimeout(injectIaAssistente, 100);
 }
 
