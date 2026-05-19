@@ -8652,11 +8652,12 @@ function renderRelatorioAuditoria(json, conf, p, aud){
       card.append(mk('div',null,'Prob: '+r.prob+' · Impacto: '+r.imp,'font-size:10px;color:var(--ink3)'));
       if(r.tratamento){
         const trat = mk('div',null,null,'font-size:11px;margin-top:3px');
-        trat.append(mk('strong',null,'Tratamento: '));
-        trat.append(document.createTextNode(r.tratamento+(r.acao_tratamento?' — '+r.acao_tratamento:'')));
+        trat.append(mk('strong',null,'Tratamento Recebido: '));
+        const acaoTxt = r.acao_nenhuma ? 'nenhuma ação realizada' : (r.acao_tratamento||'');
+        trat.append(document.createTextNode(r.tratamento+(acaoTxt?' — '+acaoTxt:'')));
         card.append(trat);
       } else {
-        card.append(mk('div',null,'Tratamento não definido','font-size:10px;color:var(--ink3);font-style:italic;margin-top:2px'));
+        card.append(mk('div',null,'Tratamento não registrado','font-size:10px;color:var(--ink3);font-style:italic;margin-top:2px'));
       }
       riscosSec.append(card);
     }
