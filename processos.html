@@ -11061,7 +11061,8 @@ function _popPdfVolumetriaSection(e, secH, fld){
     </div>`;
 }
 function _popPdfIlpSection(p, secH){
-  const _ilpTobe=(p.mod?.etapas_proc_tobe||[]).length||p.mod?.bpmnToBe;
+  const _comTobe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
+  const _ilpTobe=_comTobe&&((p.mod?.etapas_proc_tobe||[]).length||p.mod?.bpmnToBe);
   const ilpData=_ilpTobe
     ?calcILP(p.mod?.etapas_proc_tobe||[], p.mod?.bpmnToBe||null, p.mod?.retrabalhos_confirmados_tobe)
     :calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados);
@@ -11207,7 +11208,10 @@ async function _popPdfAnexo(p){
         }
       }
     }
-    if(hasDiagramContent) bpmnLandscape=`<div class="bpmn-landscape">${bpInner}</div>`;
+    if(!hasDiagramContent){
+      bpInner+=`<div style="border:1px solid #e0e0f0;border-radius:4px;padding:24px;text-align:center;color:#888;font-size:12px;background:#f9f9fd">Fluxograma não disponível nesta exportação. Acesse o módulo de mapeamento para visualizar o desenho do processo.</div>`;
+    }
+    bpmnLandscape=`<div class="bpmn-landscape">${bpInner}</div>`;
   }
 
   if(!sections.length&&!bpmnLandscape)return '';
