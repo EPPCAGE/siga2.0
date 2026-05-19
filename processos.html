@@ -11241,6 +11241,8 @@ async function gerarPopPdf(){
     th{background:#f4f5f8;font-size:10px}
     img{max-width:100%}
     svg{max-width:100%;display:block}
+    tr{page-break-inside:avoid}
+    thead{display:table-header-group}
     @page{size:A4 portrait;margin:22mm 20mm}
     @page landscape-page{size:A4 landscape;margin:15mm 18mm}
     .bpmn-landscape{page:landscape-page;page-break-before:always}
@@ -11279,6 +11281,8 @@ async function gerarPopPdfDireto(){
     th{background:#f4f5f8;font-size:10px}
     img{max-width:100%}
     svg{max-width:100%;display:block}
+    tr{page-break-inside:avoid}
+    thead{display:table-header-group}
     @page{size:A4 portrait;margin:22mm 20mm}
     @page landscape-page{size:A4 landscape;margin:15mm 18mm}
     .bpmn-landscape{page:landscape-page;page-break-before:always}
