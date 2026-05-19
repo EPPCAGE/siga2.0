@@ -11219,7 +11219,7 @@ async function gerarPopPdf(){
   try{anexo=await _popPdfAnexo(p);}catch(ex){console.warn('_popPdfAnexo:',ex);}
   if(btn){btn.disabled=false;btn.textContent='⬇ Gerar POP em PDF';}
   const cageLogo=await _fetchCageLogoBase64();
-  const _pgHdr=`@page{size:A4 portrait;margin:22mm 20mm;@top-left{content:"POP — Procedimento Operacional Padrão";font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:700;color:#1a1a2e;vertical-align:bottom;padding-bottom:3px;border-bottom:1px solid #e0e0f0}${cageLogo?'@top-right{content:url("'+cageLogo+'");vertical-align:bottom;padding-bottom:3px}':''}}`;
+  const _pgHdr='@page{size:A4 portrait;margin:22mm 20mm;@top-left{content:"POP — Procedimento Operacional Padrão";font-family:\'Segoe UI\',Arial,sans-serif;font-size:11px;font-weight:700;color:#1a1a2e;vertical-align:bottom;padding-bottom:3px;border-bottom:1px solid #e0e0f0}}';
   const logoFixed='';
   const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
   <style>
@@ -11254,7 +11254,7 @@ async function gerarPopPdfDireto(){
   let anexo='';
   try{anexo=await _popPdfAnexo(p);}catch(ex){console.warn('_popPdfAnexo:',ex);}
   const cageLogo=await _fetchCageLogoBase64();
-  const _pgHdr=`@page{size:A4 portrait;margin:22mm 20mm;@top-left{content:"POP — Procedimento Operacional Padrão";font-family:'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:700;color:#1a1a2e;vertical-align:bottom;padding-bottom:3px;border-bottom:1px solid #e0e0f0}${cageLogo?'@top-right{content:url("'+cageLogo+'");vertical-align:bottom;padding-bottom:3px}':''}}`;
+  const _pgHdr='@page{size:A4 portrait;margin:22mm 20mm;@top-left{content:"POP — Procedimento Operacional Padrão";font-family:\'Segoe UI\',Arial,sans-serif;font-size:11px;font-weight:700;color:#1a1a2e;vertical-align:bottom;padding-bottom:3px;border-bottom:1px solid #e0e0f0}}';
   const logoFixed='';
   const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
   <style>
