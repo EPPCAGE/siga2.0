@@ -11235,22 +11235,34 @@ async function gerarPopPdf(){
     th{background:#f4f5f8;font-size:10px}
     img{max-width:100%}
     svg{max-width:100%;display:block}
-    tr{page-break-inside:avoid}
-    thead{display:table-header-group}
     @page{size:A4 portrait;margin:22mm 20mm}
     @page landscape-page{size:A4 landscape;margin:15mm 18mm}
     .bpmn-landscape{page:landscape-page;page-break-before:always}
     .cage-logo-all-pages{position:fixed;top:0;left:0;right:0;height:44px;background:#fff;border-bottom:1px solid #e0e0f0;display:flex;align-items:center;justify-content:space-between;padding:0 12px;z-index:9999}
     .cage-hdr-title{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:700;color:#1a1a2e;letter-spacing:.3px}
     @media screen{.cage-logo-all-pages{display:none}}
-    @media print{body{padding:50px 28px 24px}.pop-pdf-bar{display:none!important}*{overflow:visible!important}tr{page-break-inside:avoid;break-inside:avoid}td,th{page-break-inside:avoid;break-inside:avoid}}
+    @media print{body{padding:50px 28px 24px}.pop-pdf-bar{display:none!important}}
   </style>
-  </head><body>${logoFixed}${inner}${anexo}</body></html>`;
+  </head><body>${logoFixed}${inner}${anexo}<script>
+  window.addEventListener('load',function(){
+    var PAGE_H=820,HDR=50;
+    document.querySelectorAll('tbody').forEach(function(tb){
+      var rows=Array.from(tb.querySelectorAll('tr'));
+      if(!rows.length)return;
+      var pagePos=tb.getBoundingClientRect().top%PAGE_H;
+      rows.forEach(function(r){
+        var h=r.offsetHeight||30;
+        if(pagePos+h>PAGE_H){r.style.pageBreakBefore='always';r.style.breakBefore='page';r.style.paddingTop=HDR+'px';pagePos=h+HDR;}
+        else{pagePos+=h;}
+      });
+    });
+    setTimeout(function(){window.print();},200);
+  });
+  <\/script></body></html>`;
   const w=globalThis.open('','_blank');
   if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
   w.document.write(fullHtml);
   w.document.close();
-  setTimeout(()=>w.print(),800);
 }
 // Gera o PDF do POP a partir dos dados salvos — pode ser chamada de qualquer etapa
 async function gerarPopPdfDireto(){
@@ -11275,22 +11287,34 @@ async function gerarPopPdfDireto(){
     th{background:#f4f5f8;font-size:10px}
     img{max-width:100%}
     svg{max-width:100%;display:block}
-    tr{page-break-inside:avoid}
-    thead{display:table-header-group}
     @page{size:A4 portrait;margin:22mm 20mm}
     @page landscape-page{size:A4 landscape;margin:15mm 18mm}
     .bpmn-landscape{page:landscape-page;page-break-before:always}
     .cage-logo-all-pages{position:fixed;top:0;left:0;right:0;height:44px;background:#fff;border-bottom:1px solid #e0e0f0;display:flex;align-items:center;justify-content:space-between;padding:0 12px;z-index:9999}
     .cage-hdr-title{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;font-weight:700;color:#1a1a2e;letter-spacing:.3px}
     @media screen{.cage-logo-all-pages{display:none}}
-    @media print{body{padding:50px 28px 24px}.pop-pdf-bar{display:none!important}*{overflow:visible!important}tr{page-break-inside:avoid;break-inside:avoid}td,th{page-break-inside:avoid;break-inside:avoid}}
+    @media print{body{padding:50px 28px 24px}.pop-pdf-bar{display:none!important}}
   </style>
-  </head><body>${logoFixed}${inner}${anexo}</body></html>`;
+  </head><body>${logoFixed}${inner}${anexo}<script>
+  window.addEventListener('load',function(){
+    var PAGE_H=820,HDR=50;
+    document.querySelectorAll('tbody').forEach(function(tb){
+      var rows=Array.from(tb.querySelectorAll('tr'));
+      if(!rows.length)return;
+      var pagePos=tb.getBoundingClientRect().top%PAGE_H;
+      rows.forEach(function(r){
+        var h=r.offsetHeight||30;
+        if(pagePos+h>PAGE_H){r.style.pageBreakBefore='always';r.style.breakBefore='page';r.style.paddingTop=HDR+'px';pagePos=h+HDR;}
+        else{pagePos+=h;}
+      });
+    });
+    setTimeout(function(){window.print();},200);
+  });
+  <\/script></body></html>`;
   const w=globalThis.open('','_blank');
   if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
   w.document.write(fullHtml);
   w.document.close();
-  setTimeout(()=>w.print(),800);
 }
 async function baixarFluxogramas(btn){
   const p=curProc;
