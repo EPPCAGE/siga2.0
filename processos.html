@@ -1320,14 +1320,16 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <div class="user-role" id="aside-role">-</div>
       </div>
     </div>
-    <div id="ep-toggle-wrap" style="display:none">
-      <button type="button" onclick="togglePerfilEP()" title="Modo simulação: alternar para Executor de Processo" style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0;opacity:.55;transition:opacity .15s;background:none;border:none;width:100%;text-align:left" onmouseenter="this.style.opacity='.9'" onmouseleave="this.style.opacity=document.getElementById('ep-toggle-track').classList.contains('on')?'.9':'.55'">
-        <svg viewBox="0 0 16 16" fill="none" style="width:13px;height:13px;flex-shrink:0;color:var(--ink3)"><path d="M10.5 1.5a3 3 0 110 6 3 3 0 010-6zM7.72 6.28A4.5 4.5 0 1014.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M1 10.5h7M4.5 8v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-        <span style="font-size:10.5px;color:var(--ink3);flex:1;line-height:1">Modo simulação</span>
-        <div id="ep-toggle-track" style="width:28px;height:15px;border-radius:8px;background:var(--bdr2);position:relative;transition:background .2s;flex-shrink:0">
-          <div id="ep-toggle-thumb" style="width:11px;height:11px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.25)"></div>
-        </div>
-      </button>
+    <div id="ep-toggle-wrap" style="display:none;padding:2px 0 0">
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+        <svg viewBox="0 0 16 16" fill="none" style="width:11px;height:11px;flex-shrink:0;color:var(--ink3)"><path d="M8 1a3 3 0 110 6A3 3 0 018 1zM2 13c0-2.21 2.686-4 6-4s6 1.79 6 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M13 6l1.5 1.5L16 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font-size:10px;color:var(--ink3)">Simular perfil</span>
+      </div>
+      <select id="ep-perfil-select" onchange="simularPerfil(this.value)" style="width:100%;font-size:11px;padding:3px 6px;border:1px solid var(--bdr);border-radius:var(--r);background:var(--bg2);color:var(--ink);cursor:pointer;font-family:var(--f)">
+        <option value="ep">EP CAGE (real)</option>
+        <option value="gestor">Gestor</option>
+        <option value="dono">Executor de Processo</option>
+      </select>
     </div>
   </div>
 </aside>
@@ -2455,45 +2457,32 @@ function _aplicarToggleEP(user){
   const perfilOriginal=user._perfil_original||user.perfil;
   if(perfilOriginal!=='ep'){ wrap.style.display='none'; return; }
   wrap.style.display='block';
-  const simulando=user.perfil==='dono';
-  const track=document.getElementById('ep-toggle-track');
-  const thumb=document.getElementById('ep-toggle-thumb');
-  const row=wrap.querySelector('div[onclick]');
-  if(simulando){
-    track.style.background='var(--teal)';
-    thumb.style.left='15px';
-    if(row) row.style.opacity='.9';
-  } else {
-    track.style.background='var(--bdr2)';
-    thumb.style.left='2px';
-    if(row) row.style.opacity='.55';
-  }
+  const sel=document.getElementById('ep-perfil-select');
+  if(sel) sel.value=user.perfil;
 }
-function togglePerfilEP(){
+function simularPerfil(perfil){
   if(!usuarioLogado) return;
   const perfilOriginal=usuarioLogado._perfil_original||usuarioLogado.perfil;
   if(perfilOriginal!=='ep') return;
-  const simulando=usuarioLogado.perfil==='dono';
-  if(simulando){
+  if(perfil==='ep'){
     usuarioLogado.perfil='ep';
     delete usuarioLogado._perfil_original;
   } else {
     usuarioLogado._perfil_original='ep';
-    usuarioLogado.perfil='dono';
+    usuarioLogado.perfil=perfil;
   }
   document.getElementById('aside-role').textContent=PERFIL_LABELS[usuarioLogado.perfil]||usuarioLogado.perfil;
   _aplicarToggleEP(usuarioLogado);
   aplicarPermissoes();
   updCounts();
-  // Re-renderiza a view atual
   const pAtivo=document.querySelector('.page.on');
   if(pAtivo){
-    const id=pAtivo.id.replaceAll('page-','');
-    const nb=document.getElementById('nb-'+id);
-    go(id,nb||null);
+    const id=pAtivo.id.replace('page-','');
+    go(id,document.getElementById('nb-'+id)||null);
   }
-  const msg=usuarioLogado.perfil==='dono'?'Simulando perfil Executor de Processo':'Voltou ao perfil '+ORG_CONFIG.supportTeamLabel;
-  toast(msg, usuarioLogado.perfil==='dono'?'var(--amber)':'var(--teal)');
+  const labels={ep:ORG_CONFIG.supportTeamLabel+' (real)',gestor:'Gestor',dono:'Executor de Processo'};
+  const cores={ep:'var(--teal)',gestor:'var(--blue)',dono:'var(--amber)'};
+  toast('Perfil: '+labels[perfil], cores[perfil]||'var(--teal)');
 }
 
 // ⭐ FASE 0: Funções movidas para src/shared/auth/auth-controller.js
