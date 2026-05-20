@@ -3553,7 +3553,7 @@ function abrirInfoMeusProc(arqId){
     })()}
     <div class="btn-row" style="margin-top:1rem">
       <button type="button" class="btn" onclick="document.getElementById('info-proc-modal').remove()">Fechar</button>
-      ${proc ? `<button type="button" class="btn btn-p" onclick="document.getElementById('info-proc-modal').remove();abrirProc(${proc.id})">Abrir mapeamento</button>` : ''}
+      ${proc && isEP() ? `<button type="button" class="btn btn-p" onclick="document.getElementById('info-proc-modal').remove();abrirProc(${proc.id})">Abrir mapeamento</button>` : ''}
     </div>
   </div>`;
   document.body.appendChild(modal);
