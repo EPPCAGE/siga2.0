@@ -3524,6 +3524,7 @@ function rMeusProc(){
       ?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">⚠ Revisão em breve</span>`:'';
     const revBtn=(revSt==='vencida'||revSt==='pendente')
       ?`<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 9px" onclick="event.stopPropagation();abrirRevisaoPeriodica(${proc.id})">✔ Revisar</button>`:'';
+    const hasFaq = !!(proc?.form?.faq?.trim());
     return `<div style="background:${bgCard};border:1px solid var(--bdr);border-left:4px solid ${borderL};border-radius:var(--rl);padding:1.2rem 1.3rem;box-shadow:var(--sh);cursor:pointer;transition:box-shadow .13s,transform .13s;display:flex;flex-direction:column" onmouseenter="this.style.boxShadow='var(--sh2)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''" onclick="${cardClick}" title="Ver informações do processo">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
         <div style="font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3">${esc(u.nome)}</div>
@@ -3537,7 +3538,8 @@ function rMeusProc(){
       ` : `<div style="font-size:11px;color:#0d9488;font-weight:500">Ver informações →</div>`}
       ${popBadges ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${popBadges}</div>` : ''}
       ${revBadge?`<div style="display:flex;align-items:center;gap:6px;margin-top:8px">${revBadge}${revBtn}</div>`:''}
-      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
+        ${hasFaq?`<button type="button" class="btn" style="font-size:10px;padding:2px 9px" title="Ver perguntas frequentes" onclick="event.stopPropagation();abrirFaqProc('${u.arq_id}')">❓ FAQ</button>`:''}
         <button type="button" class="btn" style="font-size:10px;padding:2px 9px" onclick="event.stopPropagation();abrirIdeiasProc('${u.arq_id}')">💡 Ideias</button>
       </div>
       </div>
@@ -3608,6 +3610,31 @@ function abrirInfoMeusProc(arqId){
 const _IDEIA_STATUS_LABELS = {nova:'Nova',em_analise:'Em análise',implementada:'Implementada',descartada:'Descartada'};
 const _IDEIA_STATUS_COLORS = {nova:'var(--blue)',em_analise:'var(--amber)',implementada:'var(--teal)',descartada:'var(--ink3)'};
 
+function abrirFaqProc(arqId){
+  const u=getMinhasUnidades().find(x=>x.arq_id===arqId);
+  const proc=u?.proc;
+  const pares=_parseFaq(proc?.form?.faq||'');
+  document.getElementById('faq-proc-modal')?.remove();
+  const modal=document.createElement('div');
+  modal.id='faq-proc-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem';
+  modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
+  const itensHtml=pares.length
+    ?pares.map(({p,r})=>`<div style="padding:.75rem 0;border-bottom:1px solid var(--bdr)">
+        <div style="font-weight:600;font-size:13px;color:var(--ink);margin-bottom:.3rem">❓ ${esc(p)}</div>
+        ${r?`<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;padding-left:1.1rem">${esc(r)}</div>`:''}
+      </div>`).join('')
+    :'<div style="font-size:13px;color:var(--ink3);padding:1rem 0">Nenhuma pergunta cadastrada para este processo.</div>';
+  modal.innerHTML=`<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem 1.6rem;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;box-shadow:var(--sh2)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.25rem">❓ Perguntas Frequentes</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:1rem">${esc(u?.nome||arqId)}</div>
+    <div style="overflow-y:auto;flex:1">${itensHtml}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:1rem">
+      <button type="button" class="btn" onclick="document.getElementById('faq-proc-modal').remove()">Fechar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
 async function abrirIdeiasProc(arqId){
   document.getElementById('ideias-proc-modal')?.remove();
   const item = findArqItemById(arqId);
