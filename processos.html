@@ -14628,7 +14628,9 @@ function _kpiArquiteturaOptions(){
   const opts = [];
   ARQUITETURA.forEach(m=>{
     (m.processos||[]).forEach(p=>{
-      opts.push({id:p.id, procId:p.proc_id ?? null, macro:m.nome, nome:p.nome, area:p.area||p.gerente||'', tipo:(p.subprocessos||[]).length?'Processo agrupador':'Processo'});
+      if(!(p.subprocessos||[]).length){
+        opts.push({id:p.id, procId:p.proc_id ?? null, macro:m.nome, nome:p.nome, area:p.area||p.gerente||'', tipo:'Processo'});
+      }
       (p.subprocessos||[]).forEach(s=>{
         opts.push({id:s.id, procId:s.proc_id ?? null, macro:m.nome, nome:s.nome, area:s.area||s.gerente||'', tipo:'Subprocesso'});
       });
