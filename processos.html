@@ -194,8 +194,8 @@ body.drawer-open{overflow:hidden;touch-action:none}
 .fi:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,93,200,.08)}
 textarea.fi{min-height:76px;resize:vertical;line-height:1.5}
 select.fi{cursor:pointer}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 #sol-servicos{align-items:stretch}
 #sol-servicos>.card{height:100%}
 #sol-servicos>.card+.card{margin-top:0}
