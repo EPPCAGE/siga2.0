@@ -2610,10 +2610,11 @@ function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'b
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.filter(isProcessoEmAndamento).length;
   document.getElementById('nb-pend').textContent=getPendenciasDashboard().length;
-  document.getElementById('nb-fila-cnt').textContent=getTarefasUsr().length;
+  const _filaCnt=getTarefasUsr().length+(!isEP()?processos.filter(p=>['vencida','pendente'].includes(_revStatus(p))&&['acompanha','auditoria'].includes(p.etapa)&&(p.dono===usuarioLogado?.nome||p.dono_email===usuarioLogado?.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id))).length:0);
+  document.getElementById('nb-fila-cnt').textContent=_filaCnt;
   const meusProcCnt=document.getElementById('nb-meusproc-cnt');
   if(meusProcCnt) meusProcCnt.textContent=getMinhasUnidades().length;
-  const mobFilaCnt=document.getElementById('mob-fila-cnt');if(mobFilaCnt){const c=getTarefasUsr().length;mobFilaCnt.textContent=c;mobFilaCnt.style.display=c>0?'inline-flex':'none';}
+  const mobFilaCnt=document.getElementById('mob-fila-cnt');if(mobFilaCnt){mobFilaCnt.textContent=_filaCnt;mobFilaCnt.style.display=_filaCnt>0?'inline-flex':'none';}
   document.getElementById('nb-notif-cnt').textContent=notifs.filter(n=>!n.lida).length;
   const solEl=document.getElementById('nb-sol-cnt');
   if(solEl){
@@ -2894,13 +2895,56 @@ function rAuditoria(){
     </div>`;
   }).join('');
 }
+function _htmlRevPendFila(procs){
+  const vencidas=procs.filter(p=>_revStatus(p)==='vencida');
+  const pendentes=procs.filter(p=>_revStatus(p)==='pendente');
+  let h='';
+  if(vencidas.length){
+    h+=`<div class="sec-lbl" style="margin-bottom:.5rem;color:var(--red)">🔴 Revisão periódica vencida (${vencidas.length})</div>`;
+    h+=vencidas.map(p=>{
+      const prox=(p.revisao_periodica||_revPeriodica_init(p)||{}).proxima_revisao||'';
+      const proxFmt=prox?prox.split('-').reverse().join('/'):'—';
+      return`<div class="prc" style="margin-bottom:8px">
+        <div style="flex:1;min-width:0"><div class="prc-t">${esc(p.nome)}</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px">Venceu em ${proxFmt} — confirme se o processo continua válido</div></div>
+        <button type="button" class="btn btn-p" style="font-size:11px;padding:3px 10px;flex-shrink:0" onclick="abrirRevisaoPeriodica(${p.id})">✔ Revisar</button>
+      </div>`;
+    }).join('');
+  }
+  if(pendentes.length){
+    if(vencidas.length) h+='<hr>';
+    h+=`<div class="sec-lbl" style="margin-bottom:.5rem;color:var(--amber,#d97706)">⚠ Revisão periódica em breve (${pendentes.length})</div>`;
+    h+=pendentes.map(p=>{
+      const prox=(p.revisao_periodica||_revPeriodica_init(p)||{}).proxima_revisao||'';
+      const proxFmt=prox?prox.split('-').reverse().join('/'):'—';
+      return`<div class="prc" style="margin-bottom:8px">
+        <div style="flex:1;min-width:0"><div class="prc-t">${esc(p.nome)}</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px">Vence em ${proxFmt}</div></div>
+        <button type="button" class="btn" style="font-size:11px;padding:3px 10px;flex-shrink:0" onclick="abrirRevisaoPeriodica(${p.id})">✔ Revisar</button>
+      </div>`;
+    }).join('');
+  }
+  return h;
+}
 function rFila(){
   if(!usuarioLogado)return;
   const tarefas=getTarefasUsr();
+  // Revisões periódicas pendentes do dono (processos em acompanha/auditoria)
+  const _revPendDono = !isEP() ? processos.filter(p=>{
+    if(p.status_ciclo==='suspenso'||p.status_ciclo==='cancelado') return false;
+    if(!['acompanha','auditoria'].includes(p.etapa)) return false;
+    const st=_revStatus(p);
+    if(st!=='vencida'&&st!=='pendente') return false;
+    return p.dono===usuarioLogado.nome||p.dono_email===usuarioLogado.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id);
+  }) : [];
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
   const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',det_valid_asis:'Detalhar etapas e validar AS IS',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir análise de aderência do processo'};
   const el=document.getElementById('fila-content');
-  if(!tarefas.length){el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>';rMeusProc();return;}
+  if(!tarefas.length&&!_revPendDono.length){el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>';rMeusProc();return;}
+  if(!tarefas.length&&_revPendDono.length){
+    let h=_htmlRevPendFila(_revPendDono);
+    el.innerHTML=h;rMeusProc();return;
+  }
   // Q010: separar vencidos, críticos, normais
   const venc=tarefas.filter(t=>isVencido(t));
   const crit=tarefas.filter(t=>t.prio==='Critica'&&!isVencido(t));
@@ -2948,6 +2992,7 @@ function rFila(){
       }).join('');
     }
   }
+  if(_revPendDono.length) html+=(_revPendDono.length&&(venc.length||crit.length||norm.length||aguard.length)?'<hr>':'')+_htmlRevPendFila(_revPendDono);
   el.innerHTML=html;
   rMeusProc();
 }
