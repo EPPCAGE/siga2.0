@@ -10990,6 +10990,26 @@ function rEnt(p){
         <span style="flex:1;color:var(--ink2)">${dim}</span>
         <span style="font-weight:600;color:var(--blue)">${d.cnt>0?(d.sum/d.cnt).toFixed(1):'-'}</span>
       </div>`).join('')}
+      ${(e.quest_hist||[]).length>0?`<hr><div class="sec-lbl" style="margin-bottom:.4rem">Histórico de aplicações</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr>
+          <th style="text-align:left;padding:4px 6px;border-bottom:2px solid var(--bdr);color:var(--ink3);font-weight:600">Aplicação</th>
+          <th style="text-align:left;padding:4px 6px;border-bottom:2px solid var(--bdr);color:var(--ink3);font-weight:600">Data</th>
+          <th style="text-align:center;padding:4px 6px;border-bottom:2px solid var(--bdr);color:var(--ink3);font-weight:600">Nível</th>
+          <th style="text-align:center;padding:4px 6px;border-bottom:2px solid var(--bdr);color:var(--ink3);font-weight:600">Média</th>
+        </tr></thead>
+        <tbody>${(e.quest_hist||[]).map((h,i)=>{
+          const ord=['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª'][i]||(i+1)+'ª';
+          const dt=h.dt?(new Date(h.dt).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})||'—'):'—';
+          const isLast=i===(e.quest_hist.length-1);
+          const rowStyle=isLast?'background:var(--bg2)':'';
+          return`<tr style="${rowStyle}">
+            <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${ord}${isLast?' <span style="font-size:10px;color:var(--teal);font-weight:600">atual</span>':''}</td>
+            <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${dt}</td>
+            <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr);font-weight:700;color:var(--blue)">${h.nivel||'—'}/5</td>
+            <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr)">${h.media!=null?Number(h.media).toFixed(1):'—'}</td>
+          </tr>`;}).join('')}</tbody>
+      </table>`:''}
     </div>
   </div>
   <div class="g2" style="gap:12px;margin-bottom:1rem">
