@@ -13527,7 +13527,7 @@ function novoSubArq(mid,pid){
 function remSubArq(mid,pid,sid){
   confirmar('Remover subprocesso?', () => {
     const m=ARQUITETURA.find(x=>x.id===mid);const p=m?.processos.find(x=>x.id===pid);if(!p)return;
-    p.subprocessos=p.subprocessos.filter(x=>x.id!==sid);rArq();
+    p.subprocessos=p.subprocessos.filter(x=>x.id!==sid);rArq();fbAutoSave('remSubArq');
   });
 }
 
