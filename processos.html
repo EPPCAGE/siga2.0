@@ -2432,6 +2432,7 @@ function _aplicarUsuario(user, fromRestore=false){
     openModuleHub();
   }
   setTimeout(verificarPrazosProximos, 1500);
+  setTimeout(verificarLembretesRevisao, 2500);
 }
 function _aplicarToggleEP(user){
   const wrap=document.getElementById('ep-toggle-wrap');
@@ -2932,10 +2933,87 @@ function rFila(){
       <div class="prc-r">${eBadge(p.etapa)}</div>
     </div>`).join('');
   }
+  if(isEP()){
+    const revVenc=processos.filter(p=>_revStatus(p)==='vencida');
+    if(revVenc.length){
+      html+=`<hr><div class="sec-lbl" style="margin-bottom:.5rem;color:var(--red)">🔴 Revisão periódica vencida (${revVenc.length})</div>`;
+      html+=revVenc.map(p=>{
+        const prox=(p.revisao_periodica||_revPeriodica_init(p)||{}).proxima_revisao||'';
+        const proxFmt=prox?prox.split('-').reverse().join('/'):'—';
+        return`<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:8px">
+          <div><div class="prc-t">${esc(p.nome)}</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:3px">Dono: ${esc(p.dono||'—')} · Venceu em ${proxFmt}</div></div>
+          <div class="prc-r"><span class="badge br" style="font-size:10px">Revisão vencida</span></div>
+        </div>`;
+      }).join('');
+    }
+  }
   el.innerHTML=html;
   rMeusProc();
 }
 
+function abrirRevisaoPeriodica(procId){
+  const p=processos.find(x=>x.id===procId);
+  if(!p) return;
+  document.getElementById('rev-periodica-modal')?.remove();
+  const modal=document.createElement('div');
+  modal.id='rev-periodica-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem';
+  modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
+  const rp=p.revisao_periodica||_revPeriodica_init(p)||{};
+  const proxFmt=(rp.proxima_revisao||'').split('-').reverse().join('/');
+  modal.innerHTML=`<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem 1.6rem;width:100%;max-width:480px;box-shadow:var(--sh2)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.3rem">📋 Revisão Periódica</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:1.1rem">${esc(p.nome)}${proxFmt?' · Vencimento: '+proxFmt:''}</div>
+    <div style="font-size:13px;color:var(--ink2);margin-bottom:1rem">O mapeamento deste processo ainda reflete a realidade operacional atual?</div>
+    <div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1rem">
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:.6rem;border:1.5px solid var(--bdr);border-radius:var(--r);transition:border-color .15s" id="rev-opt-confirmado-wrap">
+        <input type="radio" name="rev-status" value="confirmado" id="rev-opt-confirmado" onchange="document.getElementById('rev-mudancas-wrap').style.display='none'" style="margin-top:2px;flex-shrink:0">
+        <div><div style="font-size:13px;font-weight:600;color:var(--ink)">✅ Continua válido e atualizado</div>
+          <div style="font-size:11.5px;color:var(--ink3);margin-top:2px">O processo segue conforme mapeado. Nenhuma atualização necessária.</div></div>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:.6rem;border:1.5px solid var(--bdr);border-radius:var(--r);transition:border-color .15s" id="rev-opt-mudancas-wrap">
+        <input type="radio" name="rev-status" value="mudancas" id="rev-opt-mudancas" onchange="document.getElementById('rev-mudancas-wrap').style.display=''" style="margin-top:2px;flex-shrink:0">
+        <div><div style="font-size:13px;font-weight:600;color:var(--ink)">⚠ Há mudanças a incorporar</div>
+          <div style="font-size:11.5px;color:var(--ink3);margin-top:2px">O fluxo, atividades, atores ou documentação precisam ser atualizados. O EP será notificado.</div></div>
+      </label>
+    </div>
+    <div id="rev-mudancas-wrap" style="display:none;margin-bottom:1rem">
+      <label style="font-size:12px;font-weight:600;color:var(--ink2);display:block;margin-bottom:.3rem">Descreva as mudanças</label>
+      <textarea id="rev-obs" rows="3" placeholder="Ex: mudou o responsável pela etapa X, o sistema Y foi substituído…" style="width:100%;font-size:12px;padding:.5rem;border:1px solid var(--bdr);border-radius:var(--r);resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div style="display:flex;gap:.6rem;justify-content:flex-end">
+      <button type="button" class="btn" onclick="document.getElementById('rev-periodica-modal').remove()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="_confirmarRevisaoPeriodica(${procId})">Confirmar revisão</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+async function _confirmarRevisaoPeriodica(procId){
+  const p=processos.find(x=>x.id===procId);
+  if(!p) return;
+  const status=document.querySelector('input[name="rev-status"]:checked')?.value;
+  if(!status){toast('Selecione uma opção antes de confirmar.','var(--amber)');return;}
+  const obs=document.getElementById('rev-obs')?.value.trim()||'';
+  if(status==='mudancas'&&!obs){toast('Descreva as mudanças antes de confirmar.','var(--amber)');return;}
+  if(!p.revisao_periodica) p.revisao_periodica=_revPeriodica_init(p)||{historico:[]};
+  const hoje=new Date().toISOString().slice(0,10);
+  if(!p.revisao_periodica.historico) p.revisao_periodica.historico=[];
+  p.revisao_periodica.historico.push({data:hoje,por:usuarioLogado?.nome||'',email:usuarioLogado?.email||'',status,obs});
+  p.revisao_periodica.ultima_revisao=hoje;
+  p.revisao_periodica.proxima_revisao=_addDias(hoje,365);
+  p.revisao_periodica.lembretes_enviados={pre7:false,venc:false,pos:[]};
+  if(status==='mudancas'){
+    const epEmail=USUARIOS.find(u=>u.perfil==='ep'||u.perfis?.includes('ep'))?.email||'';
+    if(epEmail) enviarNotif(epEmail,'EP',
+      `Revisão periódica: ${esc(usuarioLogado?.nome||'dono')} sinalizou mudanças no processo "${p.nome}". Descrição: ${obs}`,
+      p.nome,'',usuarioLogado?.nome||'');
+  }
+  document.getElementById('rev-periodica-modal')?.remove();
+  await fbSaveNow('rev_periodica');
+  toast(status==='confirmado'?'✅ Revisão registrada. Próxima revisão em 12 meses.':'⚠ Mudanças sinalizadas. O EP será notificado.','var(--teal)');
+  rMeusProc();
+}
 const SOL_SERVICOS = {
   mapeamento: {
     titulo: 'Mapeamento de processo',
@@ -3391,6 +3469,13 @@ function rMeusProc(){
     const tipo = u.isSub ? 'Subprocesso' : 'Processo';
     const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && p.url);
     const popBadges = popsVinc.map(p=>`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">📄 ${esc(p.titulo)}</a>`).join('');
+    const revSt=(mapeado&&proc)?_revStatus(proc):null;
+    const revBadge=revSt==='vencida'
+      ?`<span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Revisão vencida</span>`
+      :revSt==='pendente'
+      ?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">⚠ Revisão em breve</span>`:'';
+    const revBtn=(revSt==='vencida'||revSt==='pendente')
+      ?`<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 9px" onclick="event.stopPropagation();abrirRevisaoPeriodica(${proc.id})">✔ Revisar</button>`:'';
     return `<div style="background:${bgCard};border:1px solid var(--bdr);border-left:4px solid ${borderL};border-radius:var(--rl);padding:1.2rem 1.3rem;box-shadow:var(--sh);cursor:pointer;transition:box-shadow .13s,transform .13s;display:flex;flex-direction:column" onmouseenter="this.style.boxShadow='var(--sh2)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''" onclick="${cardClick}" title="Ver informações do processo">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px">
         <div style="font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3">${esc(u.nome)}</div>
@@ -3403,6 +3488,7 @@ function rMeusProc(){
         <div style="font-size:11px;color:var(--ink3)">${matText}</div>
       ` : `<div style="font-size:11px;color:#0d9488;font-weight:500">Ver informações →</div>`}
       ${popBadges ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${popBadges}</div>` : ''}
+      ${revBadge?`<div style="display:flex;align-items:center;gap:6px;margin-top:8px">${revBadge}${revBtn}</div>`:''}
       <div style="display:flex;justify-content:flex-end;margin-top:8px">
         <button type="button" class="btn" style="font-size:10px;padding:2px 9px" onclick="event.stopPropagation();abrirIdeiasProc('${u.arq_id}')">💡 Ideias</button>
       </div>
@@ -5043,6 +5129,12 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
       const _baseCalc = curProc.ent?.dt_efetiva || curProc.dt_etapas?.publicacao || _hoje;
       curProc.dt_proximo_acompanhamento = _addDias(_baseCalc, 180);
     }
+    if(nx==='acompanha' && !curProc.revisao_periodica){
+      const _hoje=new Date().toISOString().slice(0,10);
+      const _base=curProc.ent?.dt_efetiva||curProc.dt_etapas?.publicacao||_hoje;
+      curProc.revisao_periodica={proxima_revisao:_addDias(_base,180+365),ultima_revisao:null,
+        lembretes_enviados:{pre7:false,venc:false,pos:[]},historico:[]};
+    }
   } else if(etAtu==='auditoria'){
     // processo concluído (publicacao → acompanha → auditoria)
     curProc.status_workflow='concluido';
@@ -5404,6 +5496,50 @@ function retomarEtapaEP(){
 // ═══════════════════════════════════════════
 // LEMBRETE DE PRAZO (48h — dispara ao login do admin)
 // ═══════════════════════════════════════════
+function verificarLembretesRevisao(){
+  const hoje=new Date().toISOString().slice(0,10);
+  const em7=_addDias(hoje,7);
+  let salvou=false;
+  processos.forEach(proc=>{
+    if(proc.status_ciclo==='suspenso'||proc.status_ciclo==='cancelado') return;
+    if(!['acompanha','auditoria'].includes(proc.etapa)) return;
+    const email=getDonoEmail(proc);
+    if(!email) return;
+    let rp=proc.revisao_periodica;
+    if(!rp){rp=_revPeriodica_init(proc);if(!rp)return;proc.revisao_periodica=rp;}
+    const prox=rp.proxima_revisao;
+    if(!prox) return;
+    if(!rp.lembretes_enviados) rp.lembretes_enviados={pre7:false,venc:false,pos:[]};
+    const lem=rp.lembretes_enviados;
+    const prazoFmt=prox.split('-').reverse().join('/');
+    // 1) Pré-aviso: 7 dias antes
+    if(!lem.pre7 && prox>hoje && em7>=prox){
+      enviarNotif(email,proc.dono||'',
+        `O mapeamento do processo "${proc.nome}" está com revisão periódica agendada para ${prazoFmt}. Como responsável pelo processo, pedimos que acesse o SIGA e informe se o mapeamento continua válido e atualizado — ou sinalize mudanças para que o EP possa incorporá-las.\n\nComo fazer: acesse o SIGA → Meus Processos → clique em "✔ Revisar" no card do processo.\n\nManter o POP e o fluxograma atualizados garante que a equipe trabalhe sempre com a versão correta do processo.`,
+        proc.nome,prazoFmt,ORG_CONFIG.notificationFromName);
+      lem.pre7=true; salvou=true;
+    }
+    // 2) Dia do vencimento
+    if(!lem.venc && prox<=hoje){
+      enviarNotif(email,proc.dono||'',
+        `O mapeamento do processo "${proc.nome}" venceu em ${prazoFmt}. Por favor acesse o SIGA e informe se o mapeamento continua válido e atualizado — ou sinalize mudanças para que o EP possa incorporá-las.\n\nComo fazer: acesse o SIGA → Meus Processos → clique em "✔ Revisar" no card do processo.`,
+        proc.nome,prazoFmt,ORG_CONFIG.notificationFromName);
+      lem.venc=true; salvou=true;
+    }
+    // 3) A cada 30 dias após o vencimento (enquanto não revisado)
+    if(lem.venc && prox<hoje){
+      const ultimo=(lem.pos||[]).at(-1)||prox;
+      if(_addDias(ultimo,30)<=hoje){
+        enviarNotif(email,proc.dono||'',
+          `O mapeamento do processo "${proc.nome}" venceu em ${prazoFmt}. Por favor acesse o SIGA e informe se o mapeamento continua válido e atualizado — ou sinalize mudanças para que o EP possa incorporá-las.\n\nComo fazer: acesse o SIGA → Meus Processos → clique em "✔ Revisar" no card do processo.`,
+          proc.nome,prazoFmt,ORG_CONFIG.notificationFromName);
+        if(!lem.pos) lem.pos=[];
+        lem.pos.push(hoje); salvou=true;
+      }
+    }
+  });
+  if(salvou) fbAutoSave('verificarRevisoes');
+}
 function verificarPrazosProximos(){
   if(!isEP()) return;
   const agora=Date.now();
@@ -7515,6 +7651,25 @@ function _calcVig(efet){
   const d=new Date(efet);
   d.setFullYear(d.getFullYear()+2);
   return d.toISOString().slice(0,10);
+}
+// ── Revisão periódica de mapeamentos ─────────────────────────────────────────
+function _revPeriodica_init(p){
+  if(p.revisao_periodica?.proxima_revisao) return p.revisao_periodica;
+  if(!['acompanha','auditoria'].includes(p.etapa)) return null;
+  const hoje=new Date().toISOString().slice(0,10);
+  const base=p.dt_proximo_acompanhamento||p.ent?.dt_efetiva||hoje;
+  return{proxima_revisao:_addDias(base,365),ultima_revisao:null,
+    lembretes_enviados:{pre7:false,venc:false,pos:[]},historico:[]};
+}
+// 'vencida' | 'pendente' (≤30 dias) | 'em_dia' | null
+function _revStatus(p){
+  if(p.status_ciclo==='suspenso'||p.status_ciclo==='cancelado') return null;
+  const rp=p.revisao_periodica||_revPeriodica_init(p);
+  if(!rp?.proxima_revisao) return null;
+  const hoje=new Date().toISOString().slice(0,10);
+  if(rp.proxima_revisao<=hoje) return 'vencida';
+  if(_addDias(hoje,30)>=rp.proxima_revisao) return 'pendente';
+  return 'em_dia';
 }
 function _onEfetChange(v){
   const vigEl=document.getElementById('a-vig');
@@ -12930,6 +13085,9 @@ function _procIntelSnapshot(proc){
   if(temAnalise === false) sinais.push({txt:'Análise inteligente pendente', cls:'bp'});
   if(temPop === false) sinais.push({txt:'POP/publicação pendente', cls:'bb'});
   if(atividadesAbertas.length) sinais.push({txt:atividadesAbertas.length+' ação(ões) aberta(s) no PAT', cls:'ba'});
+  const _revSt=_revStatus(proc);
+  if(_revSt==='vencida') sinais.push({txt:'Revisão periódica vencida', cls:'br'});
+  else if(_revSt==='pendente') sinais.push({txt:'Revisão periódica próxima', cls:'ba'});
 
   const recomendacoes = [];
   if(semRiscos) recomendacoes.push('Registrar riscos operacionais antes de avançar para melhoria ou publicação.');
@@ -12937,6 +13095,7 @@ function _procIntelSnapshot(proc){
   if(semPublicacao && temPop) recomendacoes.push('Cadastrar a publicação correspondente em Metodologias e Publicações.');
   if(vencido) recomendacoes.push('Revisar prazo global ou justificar suspensão/cancelamento do mapeamento.');
   if(atividadesAbertas.length) recomendacoes.push('Atualizar as ações abertas do PAT relacionadas a este processo.');
+  if(_revSt==='vencida') recomendacoes.push('Contatar o dono "'+esc(proc.dono||'—')+'" para realizar a revisão periódica vencida.');
   return {riscos, indicadores, pubs, trilhasProc, atividadesPlano, atividadesAbertas, analise, vencido, sinais, recomendacoes};
 }
 
