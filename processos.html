@@ -3467,8 +3467,11 @@ function rMeusProc(){
       return `<span style="flex:1;height:3px;border-radius:2px;background:${bg}"></span>`;
     }).join('') : '';
     const tipo = u.isSub ? 'Subprocesso' : 'Processo';
-    const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && p.url);
-    const popBadges = popsVinc.map(p=>`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">📄 ${esc(p.titulo)}</a>`).join('');
+    const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && (p.url||p.bpmn_url));
+    const popBadges = popsVinc.flatMap(p=>[
+      p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">📄 ${esc(p.titulo)}</a>`:'',
+      p.bpmn_url&&p.categoria==='POPs'?`<a href="${esc(safeUrl(p.bpmn_url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 BPMN</a>`:''
+    ]).filter(Boolean).join('');
     const revSt=(mapeado&&proc)?_revStatus(proc):null;
     const revBadge=revSt==='vencida'
       ?`<span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Revisão vencida</span>`
@@ -3537,9 +3540,12 @@ function abrirInfoMeusProc(arqId){
       ${row('Documentações e regulamentações',item.docs)}
     </div>
     ${(()=>{
-      const pops = publicacoes.filter(p=>(p.arq_ids||[]).includes(arqId) && p.url);
+      const pops = publicacoes.filter(p=>(p.arq_ids||[]).includes(arqId) && (p.url||p.bpmn_url));
       if(!pops.length) return '';
-      const links = pops.map(p=>`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':''}</a>`).join('');
+      const links = pops.flatMap(p=>[
+        p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':''}</a>`:'',
+        p.bpmn_url&&p.categoria==='POPs'?`<a href="${esc(safeUrl(p.bpmn_url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN — ${esc(p.titulo)}</a>`:''
+      ]).filter(Boolean).join('');
       return `<div style="border-top:1px solid var(--bdr);padding-top:.75rem;margin-top:.5rem">
         <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">POPs / Documentos vinculados</div>
         <div style="display:flex;flex-direction:column;gap:6px">${links}</div>
