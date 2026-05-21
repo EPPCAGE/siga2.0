@@ -5030,6 +5030,7 @@ function abrirProc(id){
 }
 function rDetalhe(){
   const p=curProc;
+  _migrarQuestHist(p);
   document.getElementById('det-titulo').textContent=p.nome;
   document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+_eBadgeAcomp(p)+_statusBadge(p);
   document.getElementById('det-prio').innerHTML=pBadge(p.prio)
@@ -7583,6 +7584,18 @@ function _calcNivelMaturidade(media){
   if(media<=3.5) return 3;
   if(media<=4.5) return 4;
   return 5;
+}
+function _migrarQuestHist(p){
+  const e=p.ent;
+  if(!e) return;
+  if(e.quest_hist?.length) return;
+  const resp=e.quest_resp||{};
+  const respondidas=Object.keys(resp).length;
+  if(!respondidas||!e.mat) return;
+  const total=Object.values(resp).reduce((a,b)=>a+b,0);
+  const media=(total/respondidas).toFixed(1);
+  e.quest_hist=[{dt:'(retroativo)',nivel:e.mat,media,respondidas,nota:e.quest_nota||''}];
+  fbAutoSave('salvar');
 }
 function salvarQuestionario(){
   const p=curProc;
@@ -11432,11 +11445,12 @@ function rEnt(p){
         </tr></thead>
         <tbody>${(e.quest_hist||[]).map((h,i)=>{
           const ord=['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª'][i]||(i+1)+'ª';
-          const dt=h.dt?(new Date(h.dt).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})||'—'):'—';
+          const isRetro=h.dt==='(retroativo)';
+          const dt=isRetro?'<span style="font-size:10px;color:var(--ink3);font-style:italic">data não registrada</span>':(h.dt?(new Date(h.dt).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})||'—'):'—');
           const isLast=i===(e.quest_hist.length-1);
           const rowStyle=isLast?'background:var(--bg2)':'';
           return`<tr style="${rowStyle}">
-            <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${ord}${isLast?' <span style="font-size:10px;color:var(--teal);font-weight:600">atual</span>':''}</td>
+            <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${ord}${isLast&&!isRetro?' <span style="font-size:10px;color:var(--teal);font-weight:600">atual</span>':''}${isRetro?' <span style="font-size:10px;color:var(--ink3);font-weight:600" title="Registro reconstruído automaticamente a partir dos dados existentes">retroativo</span>':''}</td>
             <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${dt}</td>
             <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr);font-weight:700;color:var(--blue)">${h.nivel||'—'}/5</td>
             <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr)">${h.media!=null?Number(h.media).toFixed(1):'—'}</td>
