@@ -11353,6 +11353,21 @@ function rEnt(p){
     if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
+  const _matDesc=[
+    '',
+    {atual:'Processo executado de forma ad hoc, sem padronização documentada. Resultados dependem do conhecimento individual dos executores.',proxLevel:'Nível 2 — Gerenciado',prox:'Documentar rotinas básicas, definir responsabilidades e garantir que o processo seja executado de forma consistente e reconhecível pela equipe.'},
+    {atual:'O processo possui rotinas reconhecidas e é gerenciado localmente, mas a padronização ainda é informal ou parcial.',proxLevel:'Nível 3 — Padronizado',prox:'Formalizar a documentação (POP), definir critérios de qualidade e garantir que o processo seja ensinável e replicável por qualquer executor.'},
+    {atual:'O processo está formalmente documentado, com responsabilidades, fluxo e critérios de qualidade claros. É estável e ensinável.',proxLevel:'Nível 4 — Quantitativo',prox:'Implantar coleta sistemática de métricas e indicadores de desempenho (KPIs) para monitorar e controlar os resultados do processo.'},
+    {atual:'O processo é monitorado com métricas quantitativas. Há controle sistemático de resultados com base em indicadores definidos.',proxLevel:'Nível 5 — Otimizado',prox:'Usar os dados coletados para promover inovação e melhoria contínua; incorporar benchmarks externos e disseminar boas práticas.'},
+    {atual:'O processo é continuamente aprimorado com base em dados, benchmarks e inovação. Representa o nível máximo de excelência processual.',proxLevel:null,prox:null},
+  ];
+  const _mdn=e.mat||0;
+  const _mdInfo=_matDesc[_mdn];
+  const matDescHtml=_mdInfo?`<div style="background:var(--bg2);border-left:3px solid var(--blue);border-radius:0 var(--r) var(--r) 0;padding:.6rem .85rem;margin-bottom:.7rem">
+    <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">Nível ${_mdn}: ${MATURIDADE_LABELS[_mdn]}</div>
+    <div style="font-size:12px;color:var(--ink2);line-height:1.55;margin-bottom:${_mdInfo.prox?'.5rem':'0'}">${_mdInfo.atual}</div>
+    ${_mdInfo.prox?`<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:.2rem">▲ Para evoluir ao ${_mdInfo.proxLevel}:</div><div style="font-size:12px;color:var(--ink2);line-height:1.55">${_mdInfo.prox}</div>`:'<div style="font-size:11.5px;font-weight:600;color:var(--teal)">✓ Nível máximo de maturidade atingido.</div>'}
+  </div>`:'';
   const comToBe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
   const hasTobe=comToBe&&!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
   const ilpCard=hasTobe?_rIlpComparacao(p):_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados));
@@ -11401,6 +11416,7 @@ function rEnt(p){
     <div class="card">
       <div class="card-t">Maturidade — Nível ${e.mat||0}/5: ${MATURIDADE_LABELS[e.mat||0]}</div>
       <div style="margin-bottom:.7rem">${matBadges}</div>
+      ${matDescHtml}
       <div class="sec-lbl">Respostas por dimensão (${respondidas}/15)</div>
       ${Object.entries(dims).map(([dim,d])=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px">
         <span style="flex:1;color:var(--ink2)">${dim}</span>
