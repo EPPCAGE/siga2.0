@@ -5011,6 +5011,7 @@ function abrirProc(id){
 }
 function rDetalhe(){
   const p=curProc;
+  _migrarMatMin(p);
   _migrarQuestHist(p);
   document.getElementById('det-titulo').textContent=p.nome;
   document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+_eBadgeAcomp(p)+_statusBadge(p);
@@ -7562,6 +7563,16 @@ function _calcNivelMaturidadeMin(resp){
   });
   const niveis=Object.values(dims).filter(d=>d.cnt>0).map(d=>_calcNivelMaturidade(d.sum/d.cnt));
   return niveis.length?Math.min(...niveis):1;
+}
+function _migrarMatMin(p){
+  const e=p.ent;
+  if(!e) return;
+  const resp=e.quest_resp||{};
+  if(!Object.keys(resp).length) return;
+  const nivelCorreto=_calcNivelMaturidadeMin(resp);
+  if(e.mat===nivelCorreto) return;
+  e.mat=nivelCorreto;
+  fbAutoSave('salvar');
 }
 function _migrarQuestHist(p){
   const e=p.ent;
@@ -11348,9 +11359,9 @@ function rEnt(p){
     if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
-  // Nível por eixo e eixo(s) limitante(s)
+  // Nível por eixo e eixo(s) limitante(s) — recomputado direto de resp para garantir consistência
   const dimNiveis=Object.fromEntries(Object.entries(dims).map(([dim,d])=>[dim,d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):0]));
-  const nivelMin=e.mat||0;
+  const nivelMin=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
   const eixosLimitantes=Object.entries(dimNiveis).filter(([,n])=>n===nivelMin&&n>0).map(([d])=>d);
   // Média geral como indicador complementar
   const _valsAll=Object.values(resp);
@@ -11743,7 +11754,7 @@ async function _popPdfAnexo(p){
   if(ilpHtml) sections.push(ilpHtml);
 
   // ── 8.0 Maturidade ────────────────────────────────────────────────────────
-  const matNivel=e.mat||0;
+  const matNivel=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
   if(matNivel>0){
     const matDescs=['',
       'O processo é executado de forma ad hoc, sem padronização documentada. Os resultados dependem do esforço individual e do conhecimento tácito dos executores.',
