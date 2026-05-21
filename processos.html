@@ -3005,25 +3005,6 @@ function rPainelGestor(){
       <tbody>${andRows}</tbody>
     </table>
   </div>`:'';
-  const _parseDMY=s=>{if(!s)return null;const[d,m,a]=s.split('/');return new Date(a,m-1,d);};
-  const procPubl=processos.filter(p=>p.dt_etapas?.abertura&&p.dt_etapas?.publicacao);
-  const diasMap=procPubl.map(p=>{const ini=_parseDMY(p.dt_etapas.abertura);const fim=_parseDMY(p.dt_etapas.publicacao);if(!ini||!fim)return null;const d=Math.round((fim-ini)/86400000);return(d>0&&d<730)?d:null;}).filter(Boolean);
-  const mediaMap=diasMap.length?Math.round(diasMap.reduce((a,b)=>a+b,0)/diasMap.length):null;
-  const procRedes=processos.filter(p=>(p.produto==='TO BE'||p.produto==='AS IS + TO BE')&&p.dt_etapas?.abertura&&p.dt_etapas?.publicacao);
-  const diasRedes=procRedes.map(p=>{const ini=_parseDMY(p.dt_etapas.abertura);const fim=_parseDMY(p.dt_etapas.publicacao);if(!ini||!fim)return null;const d=Math.round((fim-ini)/86400000);return(d>0&&d<730)?d:null;}).filter(Boolean);
-  const mediaRedes=diasRedes.length?Math.round(diasRedes.reduce((a,b)=>a+b,0)/diasRedes.length):null;
-  const prazosHtml=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.5rem">
-    <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.85rem 1rem;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--blue)">${mediaMap!=null?mediaMap+'d':'—'}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Prazo médio de mapeamento</div>
-      <div style="font-size:10px;color:var(--ink3)">${diasMap.length} processos considerados</div>
-    </div>
-    <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.85rem 1rem;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--blue)">${mediaRedes!=null?mediaRedes+'d':'—'}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Prazo médio de redesenho (TO BE)</div>
-      <div style="font-size:10px;color:var(--ink3)">${diasRedes.length} processos considerados</div>
-    </div>
-  </div>`;
 
   // Relatórios oficiais de indicadores
   const relIndRows=(RELATORIOS_IND||[]).map(r=>`<tr style="border-bottom:1px solid var(--bdr)">
@@ -3126,7 +3107,7 @@ function rPainelGestor(){
     </table></div>
   </div>`:'';
 
-  el.innerHTML=statsHtml+pieHtml+macroHtml+andHtml+prazosHtml+relIndHtml+matHtml+semIndHtml+desatualHtml+relHtml;
+  el.innerHTML=statsHtml+pieHtml+macroHtml+andHtml+relIndHtml+matHtml+semIndHtml+desatualHtml+relHtml;
 
   setTimeout(()=>{
     if(typeof Chart==='undefined') return;
