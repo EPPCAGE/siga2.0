@@ -6664,16 +6664,24 @@ const ACOES = {
           </div>
           <div style="padding:.7rem .8rem">
             <div class="fg" style="margin-bottom:.5rem">
-              <label class="fl">Posição do auditado</label>
+              <label class="fl">Posição do dono do processo</label>
               <select class="fi" id="aud-pa-pos-${i}">${posSelectOpts}</select>
             </div>
             <div class="fg" style="margin-bottom:.5rem">
-              <label class="fl">Ação corretiva</label>
-              <textarea class="fi" id="aud-pa-acao-${i}" style="min-height:60px" placeholder="Descreva a ação que será tomada...">${esc(a.acao_corretiva||'')}</textarea>
+              <label class="fl">Proposta de ação corretiva</label>
+              <textarea class="fi" id="aud-pa-acao-${i}" style="min-height:60px" placeholder="Descreva a proposta de ação corretiva...">${esc(a.acao_corretiva||'')}</textarea>
             </div>
-            <div class="g2" style="margin-bottom:.5rem">
-              <div class="fg"><label class="fl">Responsável</label><input class="fi" id="aud-pa-resp-${i}" placeholder="Nome do responsável" value="${esc(a.responsavel_acao||'')}"></div>
-              <div class="fg"><label class="fl">Prazo</label><input class="fi" id="aud-pa-prazo-${i}" type="date" value="${esc(a.prazo_acao||'')}"></div>
+            <div class="fg" style="margin-bottom:.5rem">
+              <label class="fl">Responsável</label>
+              <input class="fi" id="aud-pa-resp-${i}" placeholder="Nome do responsável" value="${esc(a.responsavel_acao||'')}">
+            </div>
+            <div class="fg" style="margin-bottom:.5rem">
+              <label class="fl">Ação corretiva definida</label>
+              <textarea class="fi" id="aud-pa-acaodef-${i}" style="min-height:60px" placeholder="Descreva a ação corretiva definida...">${esc(a.acao_corretiva_definida||'')}</textarea>
+            </div>
+            <div class="fg" style="margin-bottom:.5rem">
+              <label class="fl">Prazo</label>
+              <input class="fi" id="aud-pa-prazo-${i}" type="date" value="${esc(a.prazo_acao||'')}">
             </div>
             <div class="fg" style="margin-bottom:.6rem">
               <label class="fl">Status</label>
@@ -9012,7 +9020,7 @@ async function iaGerarRelatorioAuditoria(){
       anexos: (t.anexos||[]).map(x=>x.nome||x.url).join('; ')
     })),
     achados: (aud.achados_list||[]).map(a=>({tipo:a.tipo, titulo:a.titulo, desc:_trunc(a.descricao,500), evidencia:_trunc(a.evidencia,300), criterio:_trunc(a.criterio,200)})),
-    acoes: (aud.achados_list||[]).filter(a=>a.acao_corretiva).map(a=>({achado:a.titulo, posicao:a.posicao_auditado, acao:_trunc(a.acao_corretiva,300), responsavel:a.responsavel_acao, prazo:a.prazo_acao, status:a.status_acao})),
+    acoes: (aud.achados_list||[]).filter(a=>a.acao_corretiva).map(a=>({achado:a.titulo, posicao:a.posicao_auditado, proposta_acao:_trunc(a.acao_corretiva,300), responsavel:a.responsavel_acao, acao_definida:_trunc(a.acao_corretiva_definida||'',300), prazo:a.prazo_acao, status:a.status_acao})),
     riscos: (p.ent?.riscos||[]).map(r=>({desc:r.desc, prob:r.prob, imp:r.imp, tratamento:r.tratamento||'', acao_tratamento:_trunc(r.acao_tratamento||'',300)})),
   };
 
@@ -9581,6 +9589,7 @@ function salvarRespostaAchado(idx){
   achado.posicao_auditado=document.getElementById('aud-pa-pos-'+idx)?.value||'';
   achado.acao_corretiva=document.getElementById('aud-pa-acao-'+idx)?.value||'';
   achado.responsavel_acao=document.getElementById('aud-pa-resp-'+idx)?.value||'';
+  achado.acao_corretiva_definida=document.getElementById('aud-pa-acaodef-'+idx)?.value||'';
   achado.prazo_acao=document.getElementById('aud-pa-prazo-'+idx)?.value||'';
   achado.status_acao=document.getElementById('aud-pa-status-'+idx)?.value||'Pendente';
   fbAutoSave('salvar');
@@ -9931,17 +9940,19 @@ function exportarAuditoriaRelPdf(){
           if(a.posicao_auditado==='Discorda') posColor='#dc2626';
           else if(a.posicao_auditado==='Concorda parcialmente') posColor='#d97706';
           else posColor='#16a34a';
-          posicaoRow='<tr><td style="background:#f5f7fa;padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Posição do auditado</td>'
+          posicaoRow='<tr><td style="background:#f5f7fa;padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Posição do dono do processo</td>'
             +'<td style="padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;color:'+posColor+';font-weight:600">'+_e(a.posicao_auditado)+'</td></tr>';
         }
         const semAcaoRow = posicaoRow
-          ? '<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Ação corretiva não preenchida.</td></tr>'
+          ? '<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Proposta de ação corretiva não preenchida.</td></tr>'
           : '';
         const acaoRows=a.acao_corretiva
-          ? '<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Ação corretiva</td>'
+          ? '<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Proposta de ação corretiva</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_e(a.acao_corretiva)+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Responsável</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.responsavel_acao)||'—')+'</td></tr>'
+            +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Ação corretiva definida</td>'
+            +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(a.acao_corretiva_definida?_e(a.acao_corretiva_definida):'<span style="color:#9ca3af;font-style:italic">Não preenchida</span>')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Prazo</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_d(a.prazo_acao)||'—')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600">Status</td>'
