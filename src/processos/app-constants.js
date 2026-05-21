@@ -37,9 +37,9 @@
   globalScope.MATURIDADE_LABELS = Object.freeze([
     '',
     'Inicial',
-    'Repetível',
-    'Definido',
     'Gerenciado',
+    'Padronizado',
+    'Quantitativo',
     'Otimizado',
   ]);
 
