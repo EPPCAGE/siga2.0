@@ -13737,7 +13737,6 @@ function _metaFieldsMapeamentoHTML(item, proc){
       <div><span style="font-weight:600;color:var(--ink2)">Maturidade:</span> <span style="color:var(--ink3)">${matNivel?matNivel+'/5 — '+MATURIDADE_LABELS[matNivel]:'Não avaliada'}</span></div>
       ${proc.ent?.dt_inicio?`<div><span style="font-weight:600;color:var(--ink2)">Início:</span> <span style="color:var(--ink3)">${proc.ent.dt_inicio}</span></div>`:''}
       ${proc.ent?.dt_prev?`<div><span style="font-weight:600;color:var(--ink2)">Previsão:</span> <span style="color:var(--ink3)">${proc.ent.dt_prev}</span></div>`:''}
-      ${proc.produto?`<div><span style="font-weight:600;color:var(--ink2)">Produto:</span> <span style="color:var(--ink3)">${proc.produto}</span></div>`:''}
     </div>
     ${_procCentralInteligenciaHTML(proc)}
   </div>`;
