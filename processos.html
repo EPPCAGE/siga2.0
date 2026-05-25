@@ -1379,6 +1379,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div><div class="card-t" style="margin-bottom:.6rem;color:var(--red)">⚠ Prazo vencido</div><div id="dash-vencidos"></div></div>
   </div>
   <div id="dash-analytics"></div>
+  <div id="dash-prazos"></div>
   <div id="dash-mapchart"></div>
 </div></div>
 
@@ -4610,8 +4611,9 @@ function rDash(){
   document.getElementById('dash-vencidos').innerHTML=buildVencidosHTML(vencidos);
   // Q036: analytics gerenciais
   document.getElementById('dash-analytics').innerHTML=buildAnalyticsHTML();
+  document.getElementById('dash-prazos').innerHTML=buildPrazosCardHTML();
   document.getElementById('dash-mapchart').innerHTML=buildMapChartHTML();
-  setTimeout(initMapChart,0);
+  setTimeout(()=>{initPrazosChart();initMapChart();},0);
 }
 function filtEtapaGo(etId){filtFaseAtual='';document.querySelectorAll('#fase-chips .chip').forEach((c,i)=>c.classList.toggle('on',i===0));go('processos',document.getElementById('nb-proc'));}
 
@@ -4741,6 +4743,56 @@ function buildAnalyticsHTML(){
     ${topTempo.length?`<div><div class="sec-lbl" style="margin-bottom:.4rem">Etapas com maior tempo médio</div>
       ${topTempoRows}</div>`:''}
   </div>`;
+}
+function buildPrazosCardHTML(){
+  const concluidos=processos.filter(p=>p.ent?.dt_inicio&&p.ent?.dt_efetiva);
+  if(!concluidos.length) return '';
+  const duracoes=concluidos.map(p=>{
+    const d=Math.round((new Date(p.ent.dt_efetiva)-new Date(p.ent.dt_inicio))/(1000*60*60*24));
+    return d>=0?d:null;
+  }).filter(d=>d!==null);
+  const tMedio=duracoes.length?Math.round(duracoes.reduce((a,b)=>a+b,0)/duracoes.length):null;
+  const comPrazo=concluidos.filter(p=>p.ent?.dt_prev);
+  const noPrazo=comPrazo.filter(p=>p.ent.dt_efetiva<=p.ent.dt_prev).length;
+  const foraPrazo=comPrazo.length-noPrazo;
+  const pctNo=comPrazo.length?Math.round(noPrazo/comPrazo.length*100):null;
+  const pctFora=pctNo!==null?100-pctNo:null;
+  if(tMedio===null&&pctNo===null) return '';
+  const statBase='background:var(--bg2);border-radius:var(--r);padding:.8rem;text-align:center';
+  return `<div class="card" style="margin-bottom:1rem">
+    <div class="card-t">Prazos e duração dos mapeamentos</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:${comPrazo.length?'1rem':'0'}">
+      ${tMedio!==null?`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--blue)">${tMedio}d</div><div style="font-size:11px;color:var(--ink3)">Tempo médio (início → entrega)</div></div>`:''}
+      ${pctNo!==null?`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--teal)">${pctNo}%</div><div style="font-size:11px;color:var(--ink3)">Entregues no prazo</div></div>`:''}
+      ${pctFora!==null?`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--red)">${pctFora}%</div><div style="font-size:11px;color:var(--ink3)">Entregues fora do prazo</div></div>`:''}
+      <div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--ink2)">${concluidos.length}</div><div style="font-size:11px;color:var(--ink3)">Mapeamentos concluídos</div></div>
+    </div>
+    ${comPrazo.length?`<div style="display:flex;justify-content:center"><div style="position:relative;height:180px;width:240px"><canvas id="dash-prazos-canvas"></canvas></div></div>`:''}
+  </div>`;
+}
+function initPrazosChart(){
+  if(typeof Chart==='undefined') return;
+  const canvas=document.getElementById('dash-prazos-canvas');
+  if(!canvas) return;
+  const comPrazo=processos.filter(p=>p.ent?.dt_prev&&p.ent?.dt_efetiva);
+  if(!comPrazo.length) return;
+  const noPrazo=comPrazo.filter(p=>p.ent.dt_efetiva<=p.ent.dt_prev).length;
+  const foraPrazo=comPrazo.length-noPrazo;
+  new Chart(canvas,{
+    type:'doughnut',
+    data:{
+      labels:['No prazo','Fora do prazo'],
+      datasets:[{data:[noPrazo,foraPrazo],backgroundColor:['#0d9488','#ef4444'],borderWidth:0}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:12},padding:16}},
+        tooltip:{callbacks:{label:ctx=>' '+ctx.label+': '+ctx.raw+' ('+Math.round(ctx.raw/comPrazo.length*100)+'%)'}}
+      },
+      cutout:'60%'
+    }
+  });
 }
 function buildMapChartHTML(){
   const MESES_PT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
