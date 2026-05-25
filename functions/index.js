@@ -200,6 +200,9 @@ exports.ai = onRequest(
               { role: "user",   content: userMessage  },
             ],
             max_completion_tokens: 1500,
+            ...( ["extrair_pop","analisar_bpmn","gerar_ppt","gerar_questoes","sugerir_achados","descrever_achado","relatorio_auditoria"].includes(mode)
+              ? { response_format: { type: "json_object" } }
+              : {} ),
           }),
           signal: controller.signal,
         });

@@ -19956,8 +19956,11 @@ Inclua TODOS os elementos do fluxo, inclusive os gateways/condicionais e eventos
 POP:\n${texto}`;
     const rawText = await chamarIA('extrair_pop', prompt, loadEl);
     if(!rawText) throw new Error('Sem resposta da IA.');
-    const jsonStr=rawText.trim().replaceAll(/```json?/g,'').replaceAll('```','').trim();
-    const extracted=JSON.parse(jsonStr);
+    let jsonStr=rawText.trim().replaceAll(/```json?/g,'').replaceAll('```','').trim();
+    if(!jsonStr.startsWith('{')){const m=jsonStr.match(/\{[\s\S]*\}/);if(m)jsonStr=m[0];}
+    let extracted;
+    try{ extracted=JSON.parse(jsonStr); }
+    catch(e){ throw new Error('A IA não retornou um JSON válido. Tente novamente ou verifique se o arquivo contém texto extraível (não apenas imagens).'); }
     document.getElementById('pop-nome').value=extracted.nome||'';
     document.getElementById('pop-area').value=extracted.area||'';
     document.getElementById('pop-objetivo').value=extracted.objetivo||'';
