@@ -275,7 +275,7 @@ select.fi{cursor:pointer}
 .chip:hover{border-color:var(--blue-b);color:var(--blue)}.chip.on{background:var(--blue-l);border-color:var(--blue-b);color:var(--blue)}
 .pub-card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--bdr);gap:8px;flex-wrap:wrap}
 .pub-card-meta{font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pub-card-actions{display:flex;gap:5px;flex-shrink:0}
+.pub-card-actions{display:flex;gap:5px;flex-wrap:wrap}
 .pub-action-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
 .srch{padding:5px 9px;border-radius:6px;border:1px solid var(--bdr2);font-size:12px;color:var(--ink);background:var(--surf);font-family:var(--f);min-width:150px}
 .srch:focus{outline:none;border-color:var(--blue)}
@@ -1379,6 +1379,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div><div class="card-t" style="margin-bottom:.6rem;color:var(--red)">⚠ Prazo vencido</div><div id="dash-vencidos"></div></div>
   </div>
   <div id="dash-analytics"></div>
+  <div id="dash-prazos"></div>
+  <div id="dash-mapchart"></div>
 </div></div>
 
 <div id="page-processos" class="page"><div style="padding:2rem">
@@ -1545,9 +1547,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <option value="">Todas</option>
         <option value="0">Não avaliada</option>
         <option value="1">1 — Inicial</option>
-        <option value="2">2 — Repetível</option>
-        <option value="3">3 — Definido</option>
-        <option value="4">4 — Gerenciado</option>
+        <option value="2">2 — Gerenciado</option>
+        <option value="3">3 — Padronizado</option>
+        <option value="4">4 — Quantitativo</option>
         <option value="5">5 — Otimizado</option>
       </select>
     </div>
@@ -1937,6 +1939,7 @@ Não responda este e-mail.</pre>
       <button type="button" class="chip" onclick="filtPub('Drop',this)">Drop</button>
       <button type="button" class="chip" onclick="filtPub('Metodologia',this)">Metodologia</button>
       <button type="button" class="chip" onclick="filtPub('Formulário',this)">Formulário</button>
+      <button type="button" class="chip" onclick="filtPub('Relatórios',this)">Relatórios</button>
       <button type="button" class="chip" onclick="filtPub('Outro',this)">Outro</button>
     </div>
   </div>
@@ -1957,6 +1960,7 @@ Não responda este e-mail.</pre>
             <option>Drop</option>
             <option>Metodologia</option>
             <option>Formulário</option>
+            <option>Relatórios</option>
             <option>Outro</option>
           </select>
         </div>
@@ -1975,8 +1979,9 @@ Não responda este e-mail.</pre>
         <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">Segure Ctrl (Windows) ou ⌘ (Mac) para selecionar múltiplos processos</div>
       </div>
       <div class="fg" id="pub-bpmn-wrap">
-        <label class="fl" for="pub-bpmn-url">Link da imagem do BPMN</label>
-        <input class="fi" id="pub-bpmn-url" placeholder="https://... link para a imagem do fluxograma BPMN">
+        <label class="fl">Imagens do BPMN</label>
+        <div id="pub-bpmn-list"></div>
+        <button type="button" class="btn" style="font-size:11px;padding:3px 10px;margin-top:4px" onclick="_pubBpmnAdd()">+ Adicionar imagem BPMN</button>
       </div>
       <div class="fg">
         <label class="fl" for="pub-thumb">Capa / Thumbnail</label>
@@ -2319,6 +2324,7 @@ let _trilhaIdC = 1;
 
 let publicacoes = [];
 let _pubIdC = 1;
+let _pubBpmnUrls = [];
 
 let plano = [];
 let _planoIdC = 1;
@@ -3005,25 +3011,6 @@ function rPainelGestor(){
       <tbody>${andRows}</tbody>
     </table>
   </div>`:'';
-  const _parseDMY=s=>{if(!s)return null;const[d,m,a]=s.split('/');return new Date(a,m-1,d);};
-  const procPubl=processos.filter(p=>p.dt_etapas?.abertura&&p.dt_etapas?.publicacao);
-  const diasMap=procPubl.map(p=>{const ini=_parseDMY(p.dt_etapas.abertura);const fim=_parseDMY(p.dt_etapas.publicacao);if(!ini||!fim)return null;const d=Math.round((fim-ini)/86400000);return(d>0&&d<730)?d:null;}).filter(Boolean);
-  const mediaMap=diasMap.length?Math.round(diasMap.reduce((a,b)=>a+b,0)/diasMap.length):null;
-  const procRedes=processos.filter(p=>(p.produto==='TO BE'||p.produto==='AS IS + TO BE')&&p.dt_etapas?.abertura&&p.dt_etapas?.publicacao);
-  const diasRedes=procRedes.map(p=>{const ini=_parseDMY(p.dt_etapas.abertura);const fim=_parseDMY(p.dt_etapas.publicacao);if(!ini||!fim)return null;const d=Math.round((fim-ini)/86400000);return(d>0&&d<730)?d:null;}).filter(Boolean);
-  const mediaRedes=diasRedes.length?Math.round(diasRedes.reduce((a,b)=>a+b,0)/diasRedes.length):null;
-  const prazosHtml=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.5rem">
-    <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.85rem 1rem;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--blue)">${mediaMap!=null?mediaMap+'d':'—'}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Prazo médio de mapeamento</div>
-      <div style="font-size:10px;color:var(--ink3)">${diasMap.length} processos considerados</div>
-    </div>
-    <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.85rem 1rem;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--blue)">${mediaRedes!=null?mediaRedes+'d':'—'}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Prazo médio de redesenho (TO BE)</div>
-      <div style="font-size:10px;color:var(--ink3)">${diasRedes.length} processos considerados</div>
-    </div>
-  </div>`;
 
   // Relatórios oficiais de indicadores
   const relIndRows=(RELATORIOS_IND||[]).map(r=>`<tr style="border-bottom:1px solid var(--bdr)">
@@ -3049,7 +3036,12 @@ function rPainelGestor(){
 
   // Maturidade
   const matGrps={0:[],1:[],2:[],3:[],4:[],5:[]};
-  mapeados.forEach(u=>{const m=u.proc?.ent?.mat||0;(matGrps[m]||matGrps[0]).push(u);});
+  todas.filter(u=>u.proc).forEach(u=>{
+    const ent=u.proc?.ent||{};
+    const resp=ent.quest_resp||{};
+    const m=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(ent.mat||0);
+    (matGrps[m]||matGrps[0]).push(u);
+  });
   const matLabels={0:'Não avaliada',1:'Inicial',2:'Gerenciado',3:'Padronizado',4:'Quantitativo',5:'Otimizado'};
   const matColors=['var(--ink3)','var(--red)','var(--amber)','var(--blue)','var(--teal)','var(--green)'];
   const matHtml=`<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1.5rem">
@@ -3126,7 +3118,7 @@ function rPainelGestor(){
     </table></div>
   </div>`:'';
 
-  el.innerHTML=statsHtml+pieHtml+macroHtml+andHtml+prazosHtml+relIndHtml+matHtml+semIndHtml+desatualHtml+relHtml;
+  el.innerHTML=statsHtml+pieHtml+macroHtml+andHtml+relIndHtml+matHtml+semIndHtml+desatualHtml+relHtml;
 
   setTimeout(()=>{
     if(typeof Chart==='undefined') return;
@@ -3784,10 +3776,10 @@ function rMeusProc(){
       return `<span style="flex:1;height:3px;border-radius:2px;background:${bg}"></span>`;
     }).join('') : '';
     const tipo = u.isSub ? 'Subprocesso' : 'Processo';
-    const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && (p.url||p.bpmn_url));
+    const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && (p.url||_pubGetBpmnUrls(p).length));
     const popBadges = popsVinc.flatMap(p=>[
       p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">📄 ${esc(p.titulo)}</a>`:'',
-      p.bpmn_url&&p.categoria==='POPs'?`<a href="${esc(safeUrl(p.bpmn_url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 BPMN</a>`:''
+      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>safeUrl(url)?`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 ${label?esc(label):'BPMN'}</a>`:''):[])
     ]).filter(Boolean).join('');
     const revSt=(mapeado&&proc&&!isGestorUser)?_revStatus(proc):null;
     const revBadge=revSt==='vencida'
@@ -3880,11 +3872,11 @@ function abrirInfoMeusProc(arqId){
       ${row('Documentações e regulamentações',item.docs)}
     </div>
     ${(()=>{
-      const pops = publicacoes.filter(p=>(p.arq_ids||[]).includes(arqId) && (p.url||p.bpmn_url));
+      const pops = publicacoes.filter(p=>(p.arq_ids||[]).includes(arqId) && (p.url||_pubGetBpmnUrls(p).length));
       if(!pops.length) return '';
       const links = pops.flatMap(p=>[
         p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':''}</a>`:'',
-        p.bpmn_url&&p.categoria==='POPs'?`<a href="${esc(safeUrl(p.bpmn_url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN — ${esc(p.titulo)}</a>`:''
+        ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>safeUrl(url)?`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN${label?' — '+esc(label):' — '+esc(p.titulo)}</a>`:''):[])
       ]).filter(Boolean).join('');
       return `<div style="border-top:1px solid var(--bdr);padding-top:.75rem;margin-top:.5rem">
         <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">POPs / Documentos vinculados</div>
@@ -4621,6 +4613,9 @@ function rDash(){
   document.getElementById('dash-vencidos').innerHTML=buildVencidosHTML(vencidos);
   // Q036: analytics gerenciais
   document.getElementById('dash-analytics').innerHTML=buildAnalyticsHTML();
+  document.getElementById('dash-prazos').innerHTML=buildPrazosCardHTML();
+  document.getElementById('dash-mapchart').innerHTML=buildMapChartHTML();
+  setTimeout(()=>{initPrazosChart();initMapChart();},0);
 }
 function filtEtapaGo(etId){filtFaseAtual='';document.querySelectorAll('#fase-chips .chip').forEach((c,i)=>c.classList.toggle('on',i===0));go('processos',document.getElementById('nb-proc'));}
 
@@ -4750,6 +4745,118 @@ function buildAnalyticsHTML(){
     ${topTempo.length?`<div><div class="sec-lbl" style="margin-bottom:.4rem">Etapas com maior tempo médio</div>
       ${topTempoRows}</div>`:''}
   </div>`;
+}
+function buildPrazosCardHTML(){
+  const concluidos=processos.filter(p=>p.ent?.dt_inicio&&p.ent?.dt_efetiva);
+  if(!concluidos.length) return '';
+  const duracoes=concluidos.map(p=>{
+    const d=Math.round((new Date(p.ent.dt_efetiva)-new Date(p.ent.dt_inicio))/(1000*60*60*24));
+    return d>=0?d:null;
+  }).filter(d=>d!==null);
+  const tMedio=duracoes.length?Math.round(duracoes.reduce((a,b)=>a+b,0)/duracoes.length):null;
+  const comPrazo=concluidos.filter(p=>p.ent?.dt_prev);
+  const noPrazo=comPrazo.filter(p=>p.ent.dt_efetiva<=p.ent.dt_prev).length;
+  const pctNo=comPrazo.length?Math.round(noPrazo/comPrazo.length*100):null;
+  const pctFora=pctNo!==null?100-pctNo:null;
+  if(tMedio===null&&pctNo===null) return '';
+  const statBase='background:var(--bg2);border-radius:var(--r);padding:.8rem;text-align:center';
+  return `<div class="card" style="margin-bottom:1rem">
+    <div class="card-t">Prazos e duração dos mapeamentos</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:${comPrazo.length?'1rem':'0'}">
+      ${tMedio!==null?`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--blue)">${tMedio}d</div><div style="font-size:11px;color:var(--ink3)">Tempo médio (início → entrega)</div></div>`:''}
+      ${pctNo!==null?`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--teal)">${pctNo}%</div><div style="font-size:11px;color:var(--ink3)">Entregues no prazo</div></div>`:''}
+      ${pctFora!==null?`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--red)">${pctFora}%</div><div style="font-size:11px;color:var(--ink3)">Entregues fora do prazo</div></div>`:''}
+      <div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--ink2)">${concluidos.length}</div><div style="font-size:11px;color:var(--ink3)">Mapeamentos concluídos</div></div>
+    </div>
+    ${comPrazo.length?`<div style="display:flex;justify-content:center"><div style="position:relative;height:180px;width:240px"><canvas id="dash-prazos-canvas"></canvas></div></div>`:''}
+  </div>`;
+}
+function initPrazosChart(){
+  if(typeof Chart==='undefined') return;
+  const canvas=document.getElementById('dash-prazos-canvas');
+  if(!canvas) return;
+  const comPrazo=processos.filter(p=>p.ent?.dt_prev&&p.ent?.dt_efetiva);
+  if(!comPrazo.length) return;
+  const noPrazo=comPrazo.filter(p=>p.ent.dt_efetiva<=p.ent.dt_prev).length;
+  const foraPrazo=comPrazo.length-noPrazo;
+  new Chart(canvas,{
+    type:'doughnut',
+    data:{
+      labels:['No prazo','Fora do prazo'],
+      datasets:[{data:[noPrazo,foraPrazo],backgroundColor:['#0d9488','#ef4444'],borderWidth:0}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:12},padding:16}},
+        tooltip:{callbacks:{label:ctx=>' '+ctx.label+': '+ctx.raw+' ('+Math.round(ctx.raw/comPrazo.length*100)+'%)'}}
+      },
+      cutout:'60%'
+    }
+  });
+}
+function buildMapChartHTML(){
+  const MESES_PT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const hoje=new Date();
+  const meses=[];
+  for(let i=17;i>=0;i--){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    meses.push({key:d.toISOString().slice(0,7),label:MESES_PT[d.getMonth()]+'/'+String(d.getFullYear()).slice(2)});
+  }
+  const contagem={};
+  processos.forEach(p=>{
+    const ef=p.ent?.dt_efetiva||'';
+    if(!ef) return;
+    const ym=ef.slice(0,7);
+    contagem[ym]=(contagem[ym]||0)+1;
+  });
+  const temDados=meses.some(m=>contagem[m.key]);
+  if(!temDados) return '';
+  return `<div class="card" style="margin-bottom:1rem">
+    <div class="card-t">Mapeamentos concluídos por mês</div>
+    <div style="position:relative;height:220px"><canvas id="dash-mapchart-canvas"></canvas></div>
+  </div>`;
+}
+function initMapChart(){
+  if(typeof Chart==='undefined') return;
+  const canvas=document.getElementById('dash-mapchart-canvas');
+  if(!canvas) return;
+  const MESES_PT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const hoje=new Date();
+  const meses=[];
+  for(let i=17;i>=0;i--){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    meses.push({key:d.toISOString().slice(0,7),label:MESES_PT[d.getMonth()]+'/'+String(d.getFullYear()).slice(2)});
+  }
+  const contagem={};
+  processos.forEach(p=>{
+    const ef=p.ent?.dt_efetiva||'';
+    if(!ef) return;
+    const ym=ef.slice(0,7);
+    contagem[ym]=(contagem[ym]||0)+1;
+  });
+  new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels:meses.map(m=>m.label),
+      datasets:[{
+        label:'Concluídos',
+        data:meses.map(m=>contagem[m.key]||0),
+        backgroundColor:'#0d9488',
+        borderRadius:4,
+        borderSkipped:false,
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y+' mapeamento'+(ctx.parsed.y===1?'':'s')}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{beginAtZero:true,ticks:{stepSize:1,precision:0,font:{size:11}},grid:{color:'rgba(0,0,0,.06)'}}
+      }
+    }
+  });
 }
 // ═══════════════════════════════════════════
 // Q024: UPLOAD DE EVIDÊNCIAS (reutilizável)
@@ -5030,6 +5137,9 @@ function abrirProc(id){
 }
 function rDetalhe(){
   const p=curProc;
+  _migrarMatMin(p);
+  _migrarQuestHist(p);
+  _migrarQuestHistNivel(p);
   document.getElementById('det-titulo').textContent=p.nome;
   document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+_eBadgeAcomp(p)+_statusBadge(p);
   document.getElementById('det-prio').innerHTML=pBadge(p.prio)
@@ -5633,10 +5743,7 @@ function jaFoiRespondido(etapa){
 function _salvarDonoQuestionario(p){
   const resp=p.ent.quest_resp||{};
   const vals=Object.values(resp);
-  if(vals.length>0){
-    const media=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
-    p.ent.mat=_calcNivelMaturidade(Number.parseFloat(media));
-  }
+  if(vals.length>0) p.ent.mat=_calcNivelMaturidadeMin(resp);
   p.ent.quest_nota=document.getElementById('quest-nota')?.value??p.ent.quest_nota??'';
 }
 function _salvarDonoValidAsIs(p){
@@ -6664,16 +6771,24 @@ const ACOES = {
           </div>
           <div style="padding:.7rem .8rem">
             <div class="fg" style="margin-bottom:.5rem">
-              <label class="fl">Posição do auditado</label>
+              <label class="fl">Posição do dono do processo</label>
               <select class="fi" id="aud-pa-pos-${i}">${posSelectOpts}</select>
             </div>
             <div class="fg" style="margin-bottom:.5rem">
-              <label class="fl">Ação corretiva</label>
-              <textarea class="fi" id="aud-pa-acao-${i}" style="min-height:60px" placeholder="Descreva a ação que será tomada...">${esc(a.acao_corretiva||'')}</textarea>
+              <label class="fl">Proposta de ação corretiva</label>
+              <textarea class="fi" id="aud-pa-acao-${i}" style="min-height:60px" placeholder="Descreva a proposta de ação corretiva...">${esc(a.acao_corretiva||'')}</textarea>
             </div>
-            <div class="g2" style="margin-bottom:.5rem">
-              <div class="fg"><label class="fl">Responsável</label><input class="fi" id="aud-pa-resp-${i}" placeholder="Nome do responsável" value="${esc(a.responsavel_acao||'')}"></div>
-              <div class="fg"><label class="fl">Prazo</label><input class="fi" id="aud-pa-prazo-${i}" type="date" value="${esc(a.prazo_acao||'')}"></div>
+            <div class="fg" style="margin-bottom:.5rem">
+              <label class="fl">Responsável</label>
+              <input class="fi" id="aud-pa-resp-${i}" placeholder="Nome do responsável" value="${esc(a.responsavel_acao||'')}">
+            </div>
+            <div class="fg" style="margin-bottom:.5rem">
+              <label class="fl">Ação corretiva definida</label>
+              <textarea class="fi" id="aud-pa-acaodef-${i}" style="min-height:60px" placeholder="Descreva a ação corretiva definida...">${esc(a.acao_corretiva_definida||'')}</textarea>
+            </div>
+            <div class="fg" style="margin-bottom:.5rem">
+              <label class="fl">Prazo</label>
+              <input class="fi" id="aud-pa-prazo-${i}" type="date" value="${esc(a.prazo_acao||'')}">
             </div>
             <div class="fg" style="margin-bottom:.6rem">
               <label class="fl">Status</label>
@@ -6788,7 +6903,7 @@ const ACOES = {
         <div id="aud-form">
           <input type="hidden" id="aud-a-idx" value="">
           <div id="aud-form-title" style="font-weight:600;font-size:13px;margin-bottom:.6rem">Registrar achado / não-conformidade</div>
-          <div class="g3">
+          <div class="g2">
             <div class="fg"><label class="fl">Título</label><input class="fi" id="aud-a-titulo" placeholder="Título do achado"></div>
             <div class="fg"><label class="fl">Tipo</label>
               <select class="fi" id="aud-a-tipo">
@@ -6798,16 +6913,8 @@ const ACOES = {
                 <option>Conformidade</option>
               </select>
             </div>
-            <div class="fg"><label class="fl">Risco do Achado</label>
-              <select class="fi" id="aud-a-risco">
-                <option value="">— selecione —</option>
-                <option>Baixo</option>
-                <option>Médio</option>
-                <option>Alto</option>
-                <option>Crítico</option>
-              </select>
-            </div>
           </div>
+          <div class="fg"><label class="fl">Risco do Achado</label><textarea class="fi" id="aud-a-risco" style="min-height:58px;resize:vertical" placeholder="Descreva o risco que este achado gera para o processo..."></textarea></div>
           <div class="fg">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
               <label class="fl" style="margin-bottom:0">Descrição / possível causa</label>
@@ -7076,16 +7183,7 @@ function _rsApresentacao(p){
 }
 function _rsQuestionario(p){
   const resp=p.ent.quest_resp||{};
-  const vals=Object.values(resp);
-  const total=vals.reduce((a,b)=>a+b,0);
-  const media=vals.length>0?(total/vals.length).toFixed(1):0;
-  let mat;
-  if(media<=1.5) mat=1;
-  else if(media<=2.5) mat=2;
-  else if(media<=3.5) mat=3;
-  else if(media<=4.5) mat=4;
-  else mat=5;
-  p.ent.mat=mat;
+  if(Object.keys(resp).length>0) p.ent.mat=_calcNivelMaturidadeMin(resp);
 }
 function _rsAnalise(p){
   p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
@@ -7584,6 +7682,54 @@ function _calcNivelMaturidade(media){
   if(media<=4.5) return 4;
   return 5;
 }
+function _calcNivelMaturidadeMin(resp){
+  const dims={};
+  QUESTOES.forEach(q=>{
+    if(!dims[q.dim])dims[q.dim]={sum:0,cnt:0};
+    if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
+  });
+  const niveis=Object.values(dims).filter(d=>d.cnt>0).map(d=>_calcNivelMaturidade(d.sum/d.cnt));
+  return niveis.length?Math.min(...niveis):1;
+}
+function _migrarQuestHistNivel(p){
+  const e=p.ent;
+  if(!e?.quest_hist?.length) return;
+  const resp=e.quest_resp||{};
+  if(!Object.keys(resp).length) return;
+  const nivelCorreto=_calcNivelMaturidadeMin(resp);
+  let mudou=false;
+  e.quest_hist.forEach((h,i)=>{
+    const isLast=i===e.quest_hist.length-1;
+    if((h.dt==='(retroativo)'||isLast)&&h.nivel!==nivelCorreto){
+      h.nivel=nivelCorreto;
+      mudou=true;
+    }
+  });
+  if(mudou) fbAutoSave('salvar');
+}
+function _migrarMatMin(p){
+  const e=p.ent;
+  if(!e) return;
+  const resp=e.quest_resp||{};
+  if(!Object.keys(resp).length) return;
+  const nivelCorreto=_calcNivelMaturidadeMin(resp);
+  if(e.mat===nivelCorreto) return;
+  e.mat=nivelCorreto;
+  fbAutoSave('salvar');
+}
+function _migrarQuestHist(p){
+  const e=p.ent;
+  if(!e) return;
+  if(e.quest_hist?.length) return;
+  const resp=e.quest_resp||{};
+  const respondidas=Object.keys(resp).length;
+  if(!respondidas||!e.mat) return;
+  const total=Object.values(resp).reduce((a,b)=>a+b,0);
+  const media=(total/respondidas).toFixed(1);
+  const nivel=_calcNivelMaturidadeMin(resp);
+  e.quest_hist=[{dt:'(retroativo)',nivel,media,respondidas,nota:e.quest_nota||''}];
+  fbAutoSave('salvar');
+}
 function salvarQuestionario(){
   const p=curProc;
   const jr=jaFoiRespondido(p.etapa);
@@ -7593,7 +7739,7 @@ function salvarQuestionario(){
   const _enviarQuestionario = () => {
     const total=Object.values(resp).reduce((a,b)=>a+b,0);
     const media=respondidas>0?(total/respondidas).toFixed(1):0;
-    const nivel=_calcNivelMaturidade(Number.parseFloat(media));
+    const nivel=_calcNivelMaturidadeMin(resp);
     p.ent.mat=nivel;
     const nota=document.getElementById('quest-nota')?.value||'';
     p.ent.quest_nota=nota;
@@ -7608,12 +7754,15 @@ function salvarQuestionario(){
 }
 function mostrarResultadoMaturidade(p,nivel,media){
   const resp=p.ent.quest_resp||{};
-  // Calcula nota por dimensão
   const dims={};
   QUESTOES.forEach(q=>{if(!dims[q.dim]){dims[q.dim]={sum:0,cnt:0};} if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
   const corNivel=['','var(--red)','var(--amber)','var(--amber)','var(--teal)','var(--green)'][nivel]||'var(--blue)';
+  const dimNiveis=Object.fromEntries(Object.entries(dims).map(([dim,d])=>[dim,d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):1]));
+  const nivelMin=Math.min(...Object.values(dimNiveis));
   const dimRows=Object.entries(dims).map(([dim,d])=>{
     const nota=d.cnt>0?(d.sum/d.cnt):0;
+    const nivelDim=dimNiveis[dim];
+    const isLimitante=nivelDim===nivelMin;
     const pct=Math.round(nota/5*100);
     let cor;
     if(nota<2) cor='#ef4444';
@@ -7621,10 +7770,10 @@ function mostrarResultadoMaturidade(p,nivel,media){
     else if(nota<4) cor='#eab308';
     else if(nota<4.5) cor='#22c55e';
     else cor='#16a34a';
-    return `<div style="margin-bottom:.55rem">
+    return `<div style="margin-bottom:.55rem;${isLimitante?'background:#fff7ed;border-left:3px solid #f97316;padding:.35rem .5rem;border-radius:0 6px 6px 0;margin-left:-2px':''}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
-        <span style="font-size:12px;color:var(--ink2)">${dim}</span>
-        <span style="font-size:12px;font-weight:700;color:${cor}">${nota.toFixed(1)}/5</span>
+        <span style="font-size:12px;color:var(--ink2);font-weight:${isLimitante?'700':'400'}">${dim}${isLimitante?' <span style="font-size:10px;background:#f97316;color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle">eixo limitante</span>':''}</span>
+        <span style="font-size:12px;font-weight:700;color:${cor}">${nota.toFixed(1)}/5 · Nível ${nivelDim}</span>
       </div>
       <div style="height:7px;background:var(--bg3);border-radius:4px;overflow:hidden">
         <div style="height:100%;width:${pct}%;background:${cor};border-radius:4px;transition:width .4s"></div>
@@ -7637,11 +7786,12 @@ function mostrarResultadoMaturidade(p,nivel,media){
     <div style="text-align:center;margin-bottom:1.4rem">
       <div style="font-size:13px;color:var(--ink3);margin-bottom:.3rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Resultado do Questionário de Maturidade</div>
       <div style="font-size:48px;font-weight:900;color:${corNivel};line-height:1">${nivel}</div>
-      <div style="font-size:22px;font-weight:700;color:${corNivel};margin-bottom:.2rem">${MATURIDADE_LABELS[nivel]||''}</div>
-      <div style="font-size:13px;color:var(--ink3)">Média geral: <strong>${media}</strong> · Nível <strong>${nivel}/5</strong></div>
+      <div style="font-size:22px;font-weight:700;color:${corNivel};margin-bottom:.3rem">${MATURIDADE_LABELS[nivel]||''}</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:.15rem">Determinado pelo eixo com menor nível de maturidade</div>
+      <div style="font-size:11px;color:var(--ink3);background:var(--bg2);display:inline-block;padding:2px 10px;border-radius:20px">Média geral (indicador complementar): <strong>${media}</strong></div>
     </div>
     <div style="border-top:1px solid var(--bdr);padding-top:1.2rem;margin-bottom:1.4rem">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:.8rem">Nota por eixo</div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:.8rem">Nível por eixo</div>
       ${dimRows}
     </div>
     <div style="font-size:12px;color:var(--ink3);background:var(--bg2);border-radius:8px;padding:.8rem;margin-bottom:1.2rem;line-height:1.6">
@@ -9020,7 +9170,7 @@ async function iaGerarRelatorioAuditoria(){
       anexos: (t.anexos||[]).map(x=>x.nome||x.url).join('; ')
     })),
     achados: (aud.achados_list||[]).map(a=>({tipo:a.tipo, titulo:a.titulo, desc:_trunc(a.descricao,500), evidencia:_trunc(a.evidencia,300), criterio:_trunc(a.criterio,200)})),
-    acoes: (aud.achados_list||[]).filter(a=>a.acao_corretiva).map(a=>({achado:a.titulo, posicao:a.posicao_auditado, acao:_trunc(a.acao_corretiva,300), responsavel:a.responsavel_acao, prazo:a.prazo_acao, status:a.status_acao})),
+    acoes: (aud.achados_list||[]).filter(a=>a.acao_corretiva).map(a=>({achado:a.titulo, posicao:a.posicao_auditado, proposta_acao:_trunc(a.acao_corretiva,300), responsavel:a.responsavel_acao, acao_definida:_trunc(a.acao_corretiva_definida||'',300), prazo:a.prazo_acao, status:a.status_acao})),
     riscos: (p.ent?.riscos||[]).map(r=>({desc:r.desc, prob:r.prob, imp:r.imp, tratamento:r.tratamento||'', acao_tratamento:_trunc(r.acao_tratamento||'',300)})),
   };
 
@@ -9589,6 +9739,7 @@ function salvarRespostaAchado(idx){
   achado.posicao_auditado=document.getElementById('aud-pa-pos-'+idx)?.value||'';
   achado.acao_corretiva=document.getElementById('aud-pa-acao-'+idx)?.value||'';
   achado.responsavel_acao=document.getElementById('aud-pa-resp-'+idx)?.value||'';
+  achado.acao_corretiva_definida=document.getElementById('aud-pa-acaodef-'+idx)?.value||'';
   achado.prazo_acao=document.getElementById('aud-pa-prazo-'+idx)?.value||'';
   achado.status_acao=document.getElementById('aud-pa-status-'+idx)?.value||'Pendente';
   fbAutoSave('salvar');
@@ -9939,29 +10090,29 @@ function exportarAuditoriaRelPdf(){
           if(a.posicao_auditado==='Discorda') posColor='#dc2626';
           else if(a.posicao_auditado==='Concorda parcialmente') posColor='#d97706';
           else posColor='#16a34a';
-          posicaoRow='<tr><td style="background:#f5f7fa;padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Posição do auditado</td>'
+          posicaoRow='<tr><td style="background:#f5f7fa;padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Posição do dono do processo</td>'
             +'<td style="padding:6px 10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eee;color:'+posColor+';font-weight:600">'+_e(a.posicao_auditado)+'</td></tr>';
         }
         const semAcaoRow = posicaoRow
-          ? '<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Ação corretiva não preenchida.</td></tr>'
+          ? '<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Proposta de ação corretiva não preenchida.</td></tr>'
           : '';
         const acaoRows=a.acao_corretiva
-          ? '<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Ação corretiva</td>'
+          ? '<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Proposta de ação corretiva</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_e(a.acao_corretiva)+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Responsável</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.responsavel_acao)||'—')+'</td></tr>'
+            +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Ação corretiva definida</td>'
+            +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(a.acao_corretiva_definida?_e(a.acao_corretiva_definida):'<span style="color:#9ca3af;font-style:italic">Não preenchida</span>')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Prazo</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_d(a.prazo_acao)||'—')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600">Status</td>'
             +'<td style="padding:6px 10px">'+(_e(a.status_acao)||'Pendente')+'</td></tr>'
           : semAcaoRow;
-        const _riscoColorPdf={'Baixo':'#16a34a','Médio':'#d97706','Alto':'#ea580c','Crítico':'#dc2626'};
-        const riscoColor=a.risco?(_riscoColorPdf[a.risco]||'#374151'):'#9ca3af';
-        const riscoRow=a.risco
-          ?'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Risco do Achado</td>'
-            +'<td style="padding:6px 10px;border-bottom:1px solid #eee"><span style="font-weight:700;color:'+riscoColor+'">'+_e(a.risco)+'</span></td></tr>'
-          :'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Risco do Achado</td>'
-            +'<td style="padding:6px 10px;border-bottom:1px solid #eee;color:#9ca3af;font-style:italic">Não informado</td></tr>';
+        const riscoRow='<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Risco do Achado</td>'
+          +(a.risco
+            ?'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_e(a.risco)+'</td>'
+            :'<td style="padding:6px 10px;border-bottom:1px solid #eee;color:#9ca3af;font-style:italic">Não informado</td>')
+          +'</tr>';
         return '<div style="margin-bottom:16px;page-break-inside:avoid;border:1px solid #ddd;border-radius:6px;overflow:hidden">'
           +'<div style="background:'+bg+';color:#fff;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">'
           +'<span>NC'+(i+1)+': '+_e(a.titulo)+'</span>'
@@ -10597,20 +10748,28 @@ function _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap){
   const tags=[
     'startEvent','endEvent','intermediateThrowEvent','intermediateCatchEvent',
     'task','userTask','serviceTask','sendTask','receiveTask','manualTask','scriptTask',
-    'exclusiveGateway','inclusiveGateway','parallelGateway','complexGateway'
+    'exclusiveGateway','inclusiveGateway','parallelGateway','complexGateway',
+    'subProcess'
   ];
   _bpmnFindAll(xml, tags).forEach(e=>{
     const tag=e.localName.toLowerCase();
-    const typeInfo = _bpmnNodeType(tag, GW_TAGS, TASK_TAGS);
-    if(!typeInfo) return;
-    const gatewayDir = GW_TAGS.has(tag) ? (e.getAttribute('gatewayDirection')||'') : '';
-    nodeInfo[e.id]={xmlId:e.id, nome:e.getAttribute('name')||'', executor:laneMap[e.id]||'', gatewayDir, ...typeInfo};
+    // Elementos dentro de subprocessos são tratados separadamente
+    if(e.parentElement?.localName?.toLowerCase()==='subprocess') return;
+    if(tag==='subprocess'){
+      nodeInfo[e.id]={xmlId:e.id, nome:e.getAttribute('name')||'Subprocesso', executor:laneMap[e.id]||'', tipo:'Atividade', subtipo:null, natureza:'Execucao', modo:'Manual', desc:'', isSubProcess:true};
+    } else {
+      const typeInfo=_bpmnNodeType(tag, GW_TAGS, TASK_TAGS);
+      if(!typeInfo) return;
+      const gatewayDir=GW_TAGS.has(tag)?(e.getAttribute('gatewayDirection')||''):'';
+      nodeInfo[e.id]={xmlId:e.id, nome:e.getAttribute('name')||'', executor:laneMap[e.id]||'', gatewayDir, ...typeInfo};
+    }
   });
   return nodeInfo;
 }
 function _bpmnBuildOutgoing(xml){
   const outgoing={};
   _bpmnFindAll(xml,['sequenceFlow']).forEach(sf=>{
+    if(sf.parentElement?.localName?.toLowerCase()==='subprocess') return;
     const src=sf.getAttribute('sourceRef'), tgt=sf.getAttribute('targetRef');
     if(src&&tgt){ if(!outgoing[src]){ outgoing[src]=[]; } outgoing[src].push(tgt); }
   });
@@ -10619,6 +10778,7 @@ function _bpmnBuildOutgoing(xml){
 function _bpmnBuildFlowLabels(xml){
   const labels={};
   _bpmnFindAll(xml,['sequenceFlow']).forEach(sf=>{
+    if(sf.parentElement?.localName?.toLowerCase()==='subprocess') return;
     const src=sf.getAttribute('sourceRef'), tgt=sf.getAttribute('targetRef');
     const name=sf.getAttribute('name')||'';
     if(src&&tgt) labels[src+'→'+tgt]=name;
@@ -10661,12 +10821,14 @@ function _bpmnAddDisconnectedNodes(ordered, visited, nodeInfo){
     ordered.push(_bpmnNodeToEtapa(nodeInfo[id], id, null));
   });
 }
-function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
+function _bpmnBuildFlatGwAware(outgoing, nodeInfo, flowLabels){
   const incoming={};
   Object.entries(outgoing).forEach(([src,tgts])=>{
     tgts.forEach(tgt=>{ incoming[tgt]=(incoming[tgt]||0)+1; });
   });
-  const startIds=_bpmnFindAll(xml,['startEvent']).map(e=>e.id);
+  const startIds=Object.entries(nodeInfo)
+    .filter(([,n])=>n.tipo==='Evento'&&n.subtipo==='Início')
+    .map(([id])=>id);
   const visited=new Set();
   const ordered=[];
   const queue=startIds.map(id=>({id,gwCtx:null}));
@@ -10692,6 +10854,50 @@ function _bpmnBuildFlatGwAware(xml, outgoing, nodeInfo, flowLabels){
   _bpmnAddDisconnectedNodes(ordered, visited, nodeInfo);
   return ordered;
 }
+function _bpmnGetSubprocessChildren(subEl, GW_TAGS, TASK_TAGS, laneMap){
+  const tagSet=new Set([
+    'startevent','endevent','intermediatethrowevent','intermediatecatchevent',
+    'task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask',
+    'exclusivegateway','inclusivegateway','parallelgateway','complexgateway',
+  ]);
+  const nodeInfo={};
+  Array.from(subEl.children).forEach(e=>{
+    const tag=e.localName.toLowerCase();
+    if(!tagSet.has(tag)) return;
+    const id=e.getAttribute('id'); if(!id) return;
+    const typeInfo=_bpmnNodeType(tag, GW_TAGS, TASK_TAGS);
+    if(!typeInfo) return;
+    const gatewayDir=GW_TAGS.has(tag)?(e.getAttribute('gatewayDirection')||''):'';
+    nodeInfo[id]={xmlId:id, nome:e.getAttribute('name')||'', executor:laneMap[id]||'', gatewayDir, ...typeInfo};
+  });
+  if(!Object.keys(nodeInfo).length) return [];
+  const outgoing={};
+  const flowLabels={};
+  Array.from(subEl.children).forEach(sf=>{
+    if(sf.localName.toLowerCase()!=='sequenceflow') return;
+    const src=sf.getAttribute('sourceRef'), tgt=sf.getAttribute('targetRef');
+    if(!src||!tgt) return;
+    if(!outgoing[src]) outgoing[src]=[];
+    outgoing[src].push(tgt);
+    const name=sf.getAttribute('name')||'';
+    if(name) flowLabels[src+'→'+tgt]=name;
+  });
+  return _bpmnBuildFlatGwAware(outgoing, nodeInfo, flowLabels);
+}
+function _bpmnExpandSubprocesses(elems, xml, GW_TAGS, TASK_TAGS, laneMap){
+  const result=[];
+  elems.forEach(elem=>{
+    if(!elem.isSubProcess){ result.push(elem); return; }
+    const subEls=Array.from(xml.getElementsByTagName('*')).filter(
+      e=>e.localName.toLowerCase()==='subprocess'&&e.getAttribute('id')===elem.bpmn_id
+    );
+    if(!subEls.length){ result.push(elem); return; }
+    const children=_bpmnGetSubprocessChildren(subEls[0], GW_TAGS, TASK_TAGS, laneMap);
+    if(!children.length){ result.push(elem); return; }
+    children.forEach(c=>result.push(c));
+  });
+  return result;
+}
 function extrairBpmn(){
   const p=curProc;
   const etapaAtiva=epRetroEtapa||p.etapa;
@@ -10709,7 +10915,8 @@ function extrairBpmn(){
   const outgoing  = _bpmnBuildOutgoing(xml);
   const flowLabels= _bpmnBuildFlowLabels(xml);
   if(!Object.keys(nodeInfo).length){toast('Nenhum elemento encontrado no BPMN. Desenhe o fluxo primeiro.','var(--amber)');return;}
-  const elems=_bpmnBuildFlatGwAware(xml,outgoing,nodeInfo,flowLabels);
+  const elems0=_bpmnBuildFlatGwAware(outgoing,nodeInfo,flowLabels);
+  const elems=_bpmnExpandSubprocesses(elems0,xml,GW_TAGS,TASK_TAGS,laneMap);
   if(!elems.length){toast('Nenhum elemento encontrado no BPMN.','var(--amber)');return;}
   const key=isTobe?'etapas_proc_tobe':'etapas_proc';
   if(!p.mod[key]) p.mod[key]=[];
@@ -11352,6 +11559,28 @@ function rEnt(p){
     if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
+  // Nível por eixo e eixo(s) limitante(s) — recomputado direto de resp para garantir consistência
+  const dimNiveis=Object.fromEntries(Object.entries(dims).map(([dim,d])=>[dim,d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):0]));
+  const nivelMin=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
+  const eixosLimitantes=Object.entries(dimNiveis).filter(([,n])=>n===nivelMin&&n>0).map(([d])=>d);
+  // Média geral como indicador complementar
+  const _valsAll=Object.values(resp);
+  const _mediaGeral=_valsAll.length?(_valsAll.reduce((a,b)=>a+b,0)/_valsAll.length).toFixed(1):null;
+  const _matDesc=[
+    '',
+    {atual:'Processo executado de forma ad hoc, sem padronização documentada. Resultados dependem do conhecimento individual dos executores.',proxLevel:'Nível 2 — Gerenciado',prox:'Documentar rotinas básicas, definir responsabilidades e garantir que o processo seja executado de forma consistente e reconhecível pela equipe.'},
+    {atual:'O processo possui rotinas reconhecidas e é gerenciado localmente, mas a padronização ainda é informal ou parcial.',proxLevel:'Nível 3 — Padronizado',prox:'Formalizar a documentação (POP), definir critérios de qualidade e garantir que o processo seja ensinável e replicável por qualquer executor.'},
+    {atual:'O processo está formalmente documentado, com responsabilidades, fluxo e critérios de qualidade claros. É estável e ensinável.',proxLevel:'Nível 4 — Quantitativo',prox:'Implantar coleta sistemática de métricas e indicadores de desempenho (KPIs) para monitorar e controlar os resultados do processo.'},
+    {atual:'O processo é monitorado com métricas quantitativas. Há controle sistemático de resultados com base em indicadores definidos.',proxLevel:'Nível 5 — Otimizado',prox:'Usar os dados coletados para promover inovação e melhoria contínua; incorporar benchmarks externos e disseminar boas práticas.'},
+    {atual:'O processo é continuamente aprimorado com base em dados, benchmarks e inovação. Representa o nível máximo de excelência processual.',proxLevel:null,prox:null},
+  ];
+  const _mdn=e.mat||0;
+  const _mdInfo=_matDesc[_mdn];
+  const matDescHtml=_mdInfo?`<div style="background:var(--bg2);border-left:3px solid var(--blue);border-radius:0 var(--r) var(--r) 0;padding:.6rem .85rem;margin-bottom:.7rem">
+    <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">Nível ${_mdn}: ${MATURIDADE_LABELS[_mdn]}</div>
+    <div style="font-size:12px;color:var(--ink2);line-height:1.55;margin-bottom:${_mdInfo.prox?'.5rem':'0'}">${_mdInfo.atual}</div>
+    ${_mdInfo.prox?`<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:.2rem">▲ Para evoluir ao ${_mdInfo.proxLevel}:</div><div style="font-size:12px;color:var(--ink2);line-height:1.55">${_mdInfo.prox}</div>`:'<div style="font-size:11.5px;font-weight:600;color:var(--teal)">✓ Nível máximo de maturidade atingido.</div>'}
+  </div>`:'';
   const comToBe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
   const hasTobe=comToBe&&!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
   const ilpCard=hasTobe?_rIlpComparacao(p):_rEntIlpCard(calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados));
@@ -11400,11 +11629,17 @@ function rEnt(p){
     <div class="card">
       <div class="card-t">Maturidade — Nível ${e.mat||0}/5: ${MATURIDADE_LABELS[e.mat||0]}</div>
       <div style="margin-bottom:.7rem">${matBadges}</div>
-      <div class="sec-lbl">Respostas por dimensão (${respondidas}/15)</div>
-      ${Object.entries(dims).map(([dim,d])=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px">
-        <span style="flex:1;color:var(--ink2)">${dim}</span>
-        <span style="font-weight:600;color:var(--blue)">${d.cnt>0?(d.sum/d.cnt).toFixed(1):'-'}</span>
-      </div>`).join('')}
+      ${matDescHtml}
+      <div class="sec-lbl">Nível por eixo (${respondidas}/15 respostas)${_mediaGeral?` · <span style="font-weight:400;font-style:italic">Média geral: ${_mediaGeral}</span>`:''}</div>
+      ${Object.entries(dims).map(([dim,d])=>{
+        const nota=d.cnt>0?(d.sum/d.cnt).toFixed(1):'-';
+        const nivelDim=dimNiveis[dim]||0;
+        const isLim=eixosLimitantes.includes(dim);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px ${isLim?'6px':'0'};font-size:12px;${isLim?'background:#fff7ed;border-left:2px solid #f97316;padding-left:6px;border-radius:0 4px 4px 0;margin-left:-2px':''}">
+          <span style="flex:1;color:var(--ink2);font-weight:${isLim?'600':'400'}">${dim}${isLim?' <span style="font-size:10px;background:#f97316;color:#fff;padding:1px 5px;border-radius:3px;margin-left:3px">limitante</span>':''}</span>
+          <span style="font-weight:600;color:var(--blue)">Nível ${nivelDim} · ${nota}</span>
+        </div>`;
+      }).join('')}
       ${(e.quest_hist||[]).length>0?`<hr><div class="sec-lbl" style="margin-bottom:.4rem">Histórico de aplicações</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr>
@@ -11415,11 +11650,14 @@ function rEnt(p){
         </tr></thead>
         <tbody>${(e.quest_hist||[]).map((h,i)=>{
           const ord=['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª'][i]||(i+1)+'ª';
-          const dt=h.dt?(new Date(h.dt).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})||'—'):'—';
+          const isRetro=h.dt==='(retroativo)';
+          const _parseHistDt=s=>{if(!s)return null;if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const[d,m,y]=s.split('/');return new Date(y,m-1,d);}return new Date(s);};
+          const _dtObj=isRetro?null:_parseHistDt(h.dt);
+          const dt=isRetro?'<span style="font-size:10px;color:var(--ink3);font-style:italic">data não registrada</span>':(_dtObj&&!isNaN(_dtObj)?_dtObj.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}):'—');
           const isLast=i===(e.quest_hist.length-1);
           const rowStyle=isLast?'background:var(--bg2)':'';
           return`<tr style="${rowStyle}">
-            <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${ord}${isLast?' <span style="font-size:10px;color:var(--teal);font-weight:600">atual</span>':''}</td>
+            <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${ord}${isLast&&!isRetro?' <span style="font-size:10px;color:var(--teal);font-weight:600">atual</span>':''}${isRetro?' <span style="font-size:10px;color:var(--ink3);font-weight:600" title="Registro reconstruído automaticamente a partir dos dados existentes">retroativo</span>':''}</td>
             <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${dt}</td>
             <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr);font-weight:700;color:var(--blue)">${h.nivel||'—'}/5</td>
             <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr)">${h.media!=null?Number(h.media).toFixed(1):'—'}</td>
@@ -11718,11 +11956,11 @@ async function _popPdfAnexo(p){
   if(ilpHtml) sections.push(ilpHtml);
 
   // ── 8.0 Maturidade ────────────────────────────────────────────────────────
-  const matNivel=e.mat||0;
+  const matNivel=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
   if(matNivel>0){
     const matDescs=['',
       'O processo é executado de forma ad hoc, sem padronização documentada. Os resultados dependem do esforço individual e do conhecimento tácito dos executores.',
-      'O processo possui rotinas estabelecidas e é repetido com alguma regularidade, mas a padronização ainda é informal ou parcial.',
+      'O processo possui rotinas reconhecidas e é gerenciado localmente, mas a padronização ainda é informal ou parcial.',
       'O processo está formalmente documentado, com responsabilidades, fluxo e critérios de qualidade claros. É um processo estável e ensinável.',
       'O processo é monitorado com métricas quantitativas. Há coleta sistemática de dados e controle dos resultados com base em indicadores.',
       'O processo é continuamente aprimorado com base em dados, benchmarks e inovação. Representa o nível máximo de excelência processual.'
@@ -11734,10 +11972,35 @@ async function _popPdfAnexo(p){
       else{bg='#f4f5f8';c='#8888aa';}
       return `<span style="background:${bg};color:${c};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px">${n} ${MATURIDADE_LABELS[n]}</span>`;
     }).join('');
+    // Nível por eixo e eixo(s) limitante(s)
+    const _pdfDims={};
+    QUESTOES.forEach(q=>{if(!_pdfDims[q.dim])_pdfDims[q.dim]={sum:0,cnt:0};if(resp[q.id]){_pdfDims[q.dim].sum+=resp[q.id];_pdfDims[q.dim].cnt++;}});
+    const _pdfValsAll=Object.values(resp);
+    const _pdfMedia=_pdfValsAll.length?(_pdfValsAll.reduce((a,b)=>a+b,0)/_pdfValsAll.length).toFixed(1):null;
+    const _pdfDimRows=Object.entries(_pdfDims).map(([dim,d])=>{
+      const nota=d.cnt>0?(d.sum/d.cnt).toFixed(1):'-';
+      const nivelDim=d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):0;
+      const isLim=nivelDim===matNivel&&matNivel>0;
+      return `<tr style="${isLim?'background:#fff7ed':''}">
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;font-weight:${isLim?'700':'400'};color:${isLim?'#c2410c':'#374151'}">${dim}${isLim?' ★':''}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;text-align:center;font-weight:700;color:#1e6bfa">Nível ${nivelDim}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;text-align:center;color:#374151">${nota}</td>
+      </tr>`;
+    }).join('');
     const matTitle=`Maturidade — Nível ${matNivel}/5: ${MATURIDADE_LABELS[matNivel]}`;
     sections.push(`${secH('8.0',matTitle)}
-    <div style="margin-bottom:.5rem">${badges}</div>
-    <div style="font-size:12px;color:#4a4a6a;line-height:1.55">${matDescs[matNivel]}</div>`);
+    <div style="margin-bottom:.6rem">${badges}</div>
+    <div style="font-size:12px;color:#4a4a6a;line-height:1.55;margin-bottom:.8rem">${matDescs[matNivel]}</div>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:.4rem">Nível por eixo${_pdfMedia?` · <span style="font-weight:400;font-style:normal">Média geral (indicador complementar): ${_pdfMedia}</span>`:''}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden">
+      <thead><tr style="background:#f8f9fc">
+        <th style="text-align:left;padding:5px 8px;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #e5e7eb">Eixo</th>
+        <th style="text-align:center;padding:5px 8px;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #e5e7eb">Nível</th>
+        <th style="text-align:center;padding:5px 8px;font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #e5e7eb">Média</th>
+      </tr></thead>
+      <tbody>${_pdfDimRows}</tbody>
+    </table>
+    <div style="font-size:10px;color:#9ca3af;margin-top:.4rem">★ Eixo(s) limitante(s): determinam o nível geral de maturidade do processo.</div>`);
   }
 
   // ── 9.0 SIPOC ────────────────────────────────────────────────────────────
@@ -13745,11 +14008,11 @@ function metaFieldsReadonly(item){
   const metaHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">
     ${fields.map(([l,v])=>v?`<div style="font-size:11px"><span style="font-weight:600;color:var(--ink2)">${l}:</span> <span style="color:var(--ink3)">${v}</span></div>`:'').join('')}
   </div>`;
-  const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(item.id)&&(p.url||p.bpmn_url));
+  const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(item.id)&&(p.url||_pubGetBpmnUrls(p).length));
   const pubHTML = popsVinc.length ? `<div style="margin-top:.6rem;display:flex;flex-wrap:wrap;gap:6px">
     ${popsVinc.flatMap(p=>[
       p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:3px 9px;border-radius:4px;text-decoration:none">📄 ${esc(p.titulo)}</a>`:'',
-      p.bpmn_url&&p.categoria==='POPs'?`<a href="${esc(safeUrl(p.bpmn_url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:3px 9px;border-radius:4px;text-decoration:none">🔷 BPMN — ${esc(p.titulo)}</a>`:''
+      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>safeUrl(url)?`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:3px 9px;border-radius:4px;text-decoration:none">🔷 ${label?esc(label)+' — ':' '}${esc(p.titulo)}</a>`:''):[])
     ]).filter(Boolean).join('')}
   </div>` : '';
   const proc = processos.find(pr=>pr.arq_id===item.id);
@@ -15537,7 +15800,8 @@ function rPub(){
           <div class="pub-card-meta">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div class="pub-card-actions">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
-            ${p.categoria==='POPs'&&safeUrl(p.bpmn_url)?`<a href="${esc(safeUrl(p.bpmn_url))}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">Ver BPMN</a>`:''}
+            ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>safeUrl(url)?`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${label?esc(label):'BPMN'}</a>`:'').join(''):''}
+
             ${isEP()?`<button type="button" class="btn pub-action-edit" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">Editar</button>
             <button type="button" class="btn pub-action-delete" style="font-size:10px;padding:2px 8px" onclick="deletarPub(${p.id})">Excluir</button>`:''}
           </div>
@@ -15552,6 +15816,32 @@ function _pubPopularSelectProcs(selectedArqIds){
   if(!sel) return;
   const unidades = getUnidadesMapeaveis().sort((a,b)=>a.label.localeCompare(b.label));
   sel.innerHTML = unidades.map(u=>`<option value="${esc(u.arq_id)}"${(selectedArqIds||[]).includes(u.arq_id)?' selected':''}>${esc(u.label)}</option>`).join('');
+}
+function _pubGetBpmnUrls(p){
+  if(p.bpmn_urls?.length) return p.bpmn_urls;
+  if(p.bpmn_url) return [{url:p.bpmn_url,label:''}];
+  return [];
+}
+function _renderBpmnUrlList(){
+  const c=document.getElementById('pub-bpmn-list');
+  if(!c) return;
+  if(!_pubBpmnUrls.length){
+    c.innerHTML='<div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Nenhuma imagem adicionada.</div>';
+    return;
+  }
+  c.innerHTML=_pubBpmnUrls.map((item,i)=>`<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+    <input class="fi" placeholder="Rótulo (ex: AS IS)" style="width:120px;flex-shrink:0" value="${esc(item.label)}" oninput="_pubBpmnUrls[${i}].label=this.value">
+    <input class="fi" placeholder="https://... link da imagem" style="flex:1" value="${esc(item.url)}" oninput="_pubBpmnUrls[${i}].url=this.value">
+    <button type="button" class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);flex-shrink:0" onclick="_pubBpmnRemove(${i})">✕</button>
+  </div>`).join('');
+}
+function _pubBpmnAdd(){
+  _pubBpmnUrls.push({url:'',label:''});
+  _renderBpmnUrlList();
+}
+function _pubBpmnRemove(i){
+  _pubBpmnUrls.splice(i,1);
+  _renderBpmnUrlList();
 }
 function _pubCatChange(cat){
   const isPop = cat==='POPs';
@@ -15575,9 +15865,10 @@ function abrirModalPub(){
   document.getElementById('pub-tags').value    = '';
   document.getElementById('pub-thumb').value   = '';
   document.getElementById('pub-thumb-preview').style.display = 'none';
-  document.getElementById('pub-bpmn-url').value = '';
+  _pubBpmnUrls=[];
   _pubPopularSelectProcs([]);
   _pubCatChange('Manual');
+  _renderBpmnUrlList();
   document.getElementById('pub-modal').style.display = 'flex';
 }
 
@@ -15599,9 +15890,10 @@ function editarPub(id){
   const prev = document.getElementById('pub-thumb-preview');
   const img  = document.getElementById('pub-thumb-img');
   if(p.thumb_url){ img.src=p.thumb_url; prev.style.display='block'; } else { prev.style.display='none'; }
-  document.getElementById('pub-bpmn-url').value = p.bpmn_url||'';
+  _pubBpmnUrls=_pubGetBpmnUrls(p).map(x=>({url:x.url||'',label:x.label||''}));
   _pubPopularSelectProcs(p.arq_ids||[]);
   _pubCatChange(p.categoria||'Manual');
+  _renderBpmnUrlList();
   document.getElementById('pub-modal').style.display = 'flex';
 }
 
@@ -15621,7 +15913,8 @@ function salvarPub(){
     responsavel: document.getElementById('pub-resp').value.trim(),
     tags:        document.getElementById('pub-tags').value.trim(),
     thumb_url:   document.getElementById('pub-thumb').value.trim(),
-    bpmn_url:    document.getElementById('pub-bpmn-url').value.trim(),
+    bpmn_urls:   _pubBpmnUrls.filter(x=>x.url.trim()).map(x=>({url:x.url.trim(),label:x.label.trim()})),
+    bpmn_url:    _pubBpmnUrls.find(x=>x.url.trim())?.url.trim()||'',
     arq_ids:     arqIds,
   };
   const editId = document.getElementById('pub-edit-id').value;
@@ -19641,26 +19934,32 @@ async function processarArquivoPOP(input){
     const prompt=`Analise o POP abaixo e retorne APENAS um JSON válido (sem markdown) com a estrutura:
 {"nome":"...","area":"...","objetivo":"...","atores":["..."],"etapas":[{"nome":"...","tipo":"Atividade|Decisao|Evento","executor":"..."}]}
 
-REGRAS para classificar cada elemento do fluxo:
-- "Atividade": tarefas, execuções, verificações, comunicações, registros (a maioria)
-- "Decisao": gateways, bifurcações, condicionais — frases numeradas como "2.3.1", "Qual é o risco?", "O processo está no escopo?", "Caso sim/não"
-- "Evento": início do processo, fim/encerramento ("Processo devolvido", "fim do processo")
+COMO CLASSIFICAR CADA LINHA:
+- "Atividade": linhas com verbos de ação (Receber, Verificar, Inserir, Analisar, Enviar, Examinar, Diligenciar, Preencher, Enquadrar, Atender, Avaliar, Informar, Cancelar, Criar, Validar, Registrar etc.)
+- "Decisao": linhas que TERMINAM COM "?" — independente de serem numeradas ou não (ex: "Primeira liquidação?", "Contém Erro?", "Cabe retenção?", "Quem está analisando, Auditor ou Analista?")
+- "Evento": linha de início do processo E linhas que contenham "fim do processo" ou descrevam o estado final (ex: "Processo devolvido (fim do processo)", "INSS Retido (fim do processo)")
 
-REGRAS CRÍTICAS para o campo "executor" (ator por etapa):
-- Neste tipo de documento, o ator aparece como uma LINHA ISOLADA antes de um grupo de atividades (ex: "Auxiliar Administrativo", "Servidor", "Analista", "Auditor")
-- Esse ator se aplica a TODAS as atividades listadas abaixo dele, até que apareça outro nome de ator isolado
-- Quando uma seção diz "Se o analista analisou: ..." → executor é "Analista"; "Se o auditor analisou: ..." → executor é "Auditor"
-- Quando o texto cita explicitamente "O Auditor então deverá:" ou "Auditor" em negrito/isolado → o executor muda para "Auditor"
-- Use o nome do papel exatamente como aparece no documento (ex: "Auxiliar Administrativo", "Analista", "Auditor", "Servidor")
-- Se genuinamente não for possível identificar, use ""
+NÃO INCLUIR como etapa (ignorar completamente):
+- Cabeçalhos e títulos de seção numéricos sem "?" e sem verbo de ação (ex: "2.3.2 INSS", "2.3 Execução do processo", "2.3.1 Identificação da Regra de Retenção aplicável")
+- Linhas de condição/ramificação que começam com "Caso" (ex: "Caso seja a primeira liquidação:", "Caso não exija:", "Caso caiba retenção")
+- Linhas de remissão interna (ex: "Encaminhar para o Item 2.3.2.2", "Processo segue no Item 2.3.2.2", "Encaminhar para o Item...")
+- Observações e notas que começam com "OBS:"
+- Linhas isoladas de ator sem verbo de ação (ex: "Auditor", "Analista", "Seccional (Analista ou Auditor)", "Tesouraria própria do órgão")
 
-Inclua TODOS os elementos do fluxo, inclusive os gateways/condicionais e eventos de fim.
+EXECUTOR por etapa:
+- Linhas isoladas de papel/cargo (ex: "Auditor", "Analista", "Seccional (Analista ou Auditor)", "Tesouraria própria do órgão") NÃO são etapas — são o responsável pelas atividades que vêm a seguir
+- Atribua esse responsável a todas as atividades abaixo dele até surgir uma nova linha de ator isolado
+- "Seccional (Analista ou Auditor)" → executor = "Seccional"
+- Se não identificado, use ""
 
 POP:\n${texto}`;
     const rawText = await chamarIA('extrair_pop', prompt, loadEl);
     if(!rawText) throw new Error('Sem resposta da IA.');
-    const jsonStr=rawText.trim().replaceAll(/```json?/g,'').replaceAll('```','').trim();
-    const extracted=JSON.parse(jsonStr);
+    let jsonStr=rawText.trim().replaceAll(/```json?/g,'').replaceAll('```','').trim();
+    if(!jsonStr.startsWith('{')){const s=jsonStr.indexOf('{'),e=jsonStr.lastIndexOf('}');if(s!==-1&&e>s)jsonStr=jsonStr.slice(s,e+1);}
+    let extracted;
+    try{ extracted=JSON.parse(jsonStr); }
+    catch(e){ throw new Error('A IA não retornou um JSON válido. Tente novamente ou verifique se o arquivo contém texto extraível (não apenas imagens).'); }
     document.getElementById('pop-nome').value=extracted.nome||'';
     document.getElementById('pop-area').value=extracted.area||'';
     document.getElementById('pop-objetivo').value=extracted.objetivo||'';
