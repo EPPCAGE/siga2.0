@@ -4756,7 +4756,6 @@ function buildPrazosCardHTML(){
   const tMedio=duracoes.length?Math.round(duracoes.reduce((a,b)=>a+b,0)/duracoes.length):null;
   const comPrazo=concluidos.filter(p=>p.ent?.dt_prev);
   const noPrazo=comPrazo.filter(p=>p.ent.dt_efetiva<=p.ent.dt_prev).length;
-  const foraPrazo=comPrazo.length-noPrazo;
   const pctNo=comPrazo.length?Math.round(noPrazo/comPrazo.length*100):null;
   const pctFora=pctNo!==null?100-pctNo:null;
   if(tMedio===null&&pctNo===null) return '';
