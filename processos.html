@@ -5179,6 +5179,11 @@ function abrirEditarMetadados(){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
   ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
     <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1.2rem">✎ Editar dados do processo</div>
+    <div class="fg"><label class="fl">Processo na arquitetura</label>
+      <select class="fi" id="em-arq-id">
+        <option value="">— Não vinculado —</option>
+        ${getUnidadesMapeaveis().map(u=>`<option value="${esc(u.arq_id)}" ${u.arq_id===p.arq_id?'selected':''}>${esc(u.label)}</option>`).join('')}
+      </select></div>
     <div class="fg"><label class="fl">Dono do processo</label>
       <input class="fi" id="em-dono" value="${esc(p.dono||'')}" placeholder="Nome do dono"></div>
     <div class="fg"><label class="fl">E-mail do dono</label>
@@ -5215,6 +5220,14 @@ function salvarMetadados(){
   p.dono=novoDono;
   p.dono_email=novoDonoEmail;
   p.produto=document.getElementById('em-produto')?.value||p.produto;
+  const novoArqId=document.getElementById('em-arq-id')?.value||'';
+  if(novoArqId!==p.arq_id) {
+    const unidade=getUnidadesMapeaveis().find(u=>u.arq_id===novoArqId);
+    p.arq_id=novoArqId||null;
+    if(unidade){p.macro=unidade.macro;p.area=unidade.area||p.area;}
+    if(novoArqId){mapeadosManual.add(novoArqId);lsSet('mapeadosManual',JSON.stringify([...mapeadosManual]));fbAutoSave('mapeados');}
+    push(p,p.etapa,'EP','Processo vinculado à arquitetura: '+(unidade?.label||'(removido)'));
+  }
   const inter=(document.getElementById('em-inter')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.interessados=inter;
   // Patrocinador / Gestor
