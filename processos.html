@@ -19938,20 +19938,23 @@ async function processarArquivoPOP(input){
     const prompt=`Analise o POP abaixo e retorne APENAS um JSON válido (sem markdown) com a estrutura:
 {"nome":"...","area":"...","objetivo":"...","atores":["..."],"etapas":[{"nome":"...","tipo":"Atividade|Decisao|Evento","executor":"..."}]}
 
-REGRAS para classificar cada elemento do fluxo:
-- "Atividade": tarefas, execuções, verificações, comunicações, registros (a maioria)
-- "Decisao": gateways, bifurcações, condicionais — frases numeradas como "2.3.1", "Qual é o risco?", "O processo está no escopo?", "Caso sim/não"
-- "Evento": início do processo, fim/encerramento ("Processo devolvido", "fim do processo")
+COMO CLASSIFICAR CADA LINHA:
+- "Atividade": linhas com verbos de ação (Receber, Verificar, Inserir, Analisar, Enviar, Examinar, Diligenciar, Preencher, Enquadrar, Atender, Avaliar, Informar, Cancelar, Criar, Validar, Registrar etc.)
+- "Decisao": linhas que TERMINAM COM "?" — independente de serem numeradas ou não (ex: "Primeira liquidação?", "Contém Erro?", "Cabe retenção?", "Quem está analisando, Auditor ou Analista?")
+- "Evento": linha de início do processo E linhas que contenham "fim do processo" ou descrevam o estado final (ex: "Processo devolvido (fim do processo)", "INSS Retido (fim do processo)")
 
-REGRAS CRÍTICAS para o campo "executor" (ator por etapa):
-- Neste tipo de documento, o ator aparece como uma LINHA ISOLADA antes de um grupo de atividades (ex: "Auxiliar Administrativo", "Servidor", "Analista", "Auditor")
-- Esse ator se aplica a TODAS as atividades listadas abaixo dele, até que apareça outro nome de ator isolado
-- Quando uma seção diz "Se o analista analisou: ..." → executor é "Analista"; "Se o auditor analisou: ..." → executor é "Auditor"
-- Quando o texto cita explicitamente "O Auditor então deverá:" ou "Auditor" em negrito/isolado → o executor muda para "Auditor"
-- Use o nome do papel exatamente como aparece no documento (ex: "Auxiliar Administrativo", "Analista", "Auditor", "Servidor")
-- Se genuinamente não for possível identificar, use ""
+NÃO INCLUIR como etapa (ignorar completamente):
+- Cabeçalhos e títulos de seção numéricos sem "?" e sem verbo de ação (ex: "2.3.2 INSS", "2.3 Execução do processo", "2.3.1 Identificação da Regra de Retenção aplicável")
+- Linhas de condição/ramificação que começam com "Caso" (ex: "Caso seja a primeira liquidação:", "Caso não exija:", "Caso caiba retenção")
+- Linhas de remissão interna (ex: "Encaminhar para o Item 2.3.2.2", "Processo segue no Item 2.3.2.2", "Encaminhar para o Item...")
+- Observações e notas que começam com "OBS:"
+- Linhas isoladas de ator sem verbo de ação (ex: "Auditor", "Analista", "Seccional (Analista ou Auditor)", "Tesouraria própria do órgão")
 
-Inclua TODOS os elementos do fluxo, inclusive os gateways/condicionais e eventos de fim.
+EXECUTOR por etapa:
+- Linhas isoladas de papel/cargo (ex: "Auditor", "Analista", "Seccional (Analista ou Auditor)", "Tesouraria própria do órgão") NÃO são etapas — são o responsável pelas atividades que vêm a seguir
+- Atribua esse responsável a todas as atividades abaixo dele até surgir uma nova linha de ator isolado
+- "Seccional (Analista ou Auditor)" → executor = "Seccional"
+- Se não identificado, use ""
 
 POP:\n${texto}`;
     const rawText = await chamarIA('extrair_pop', prompt, loadEl);
