@@ -1239,10 +1239,11 @@ function projAtualizarBadgeReunioes() {
 // PÁGINA: PORTFÓLIO
 // ════════════════════════════════════════════════════════════════════
 function projRenderProjItem(p) {
+  const pid = projEsc(String(p.id));
   return `
-    <div class="proj-list-item" onclick="projAbrirDetalhe('${p.id}')">
+    <div class="proj-list-item" onclick="projAbrirDetalhe('${pid}')">
       <div class="proj-list-icon">
-        ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" alt="ícone">` : `<span style="font-size:20px">${p.icone_emoji || '📁'}</span>`}
+        ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" alt="ícone">` : `<span style="font-size:20px">${projEsc(p.icone_emoji || '📁')}</span>`}
       </div>
       <div>
         <div class="proj-list-name">${projEsc(p.nome)}</div>
@@ -1260,8 +1261,8 @@ function projRenderProjItem(p) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
         <span class="proj-list-badge ${projFaseBadgeClass(p.status,p.fase_atual)}">${projFaseText(p)}</span>
-        <button type="button" class="proj-btn" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();projTrocarIcone('${p.id}')">🎨</button>
-        <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();projExcluir('${p.id}')">Excluir</button>
+        <button type="button" class="proj-btn" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();projTrocarIcone('${pid}')">🎨</button>
+        <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();projExcluir('${pid}')">Excluir</button>
       </div>
     </div>
   `;
@@ -2325,9 +2326,10 @@ function projGoReunioesProj(projId) {
 
 // ── Helper: render a single reunião item ──
 function projRenderReuniaoItem(projId, r, isDone) {
+  const pid = projEsc(String(projId));
   return `
     <div class="proj-reunion-item ${isDone?'proj-reunion-done':''}" style="display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;gap:8px;padding:.6rem 0;border-bottom:1px solid #eaecf3">
-      <div class="proj-reunion-check ${isDone?'done':''}" onclick="projToggleReuniaoPage('${projId}','${projEsc(r.id)}')">
+      <div class="proj-reunion-check ${isDone?'done':''}" onclick="projToggleReuniaoPage('${pid}','${projEsc(r.id)}')">
         ${isDone ? '<svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
       </div>
       <div>
@@ -2339,8 +2341,8 @@ function projRenderReuniaoItem(projId, r, isDone) {
         ${r.observacoes ? `<div style="font-size:11px;color:var(--ink3)">📝 ${projEsc(r.observacoes)}</div>` : ''}
       </div>
       <span style="font-size:10px;padding:2px 7px;border-radius:5px;${isDone?'background:var(--teal-l);color:var(--teal)':'background:var(--blue-l);color:var(--blue)'}">${isDone?'Realizada':'Pendente'}</span>
-      <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal('${projId}','${projEsc(r.id)}')">✏️</button>
-      <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao('${projId}','${projEsc(r.id)}')">✕</button>
+      <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal('${pid}','${projEsc(r.id)}')">✏️</button>
+      <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao('${pid}','${projEsc(r.id)}')">✕</button>
     </div>
   `;
 }
@@ -2395,7 +2397,7 @@ function projEditarReuniaoModal(projetoId, reuniaoId) {
         <input type="text" class="proj-fi" id="edit-r-obs" value="${projEsc(r.observacoes||'')}"></div>
       <div class="proj-btn-row">
         <button type="button" class="proj-btn" onclick="this.closest('[style*=fixed]').remove()">Cancelar</button>
-        <button type="button" class="proj-btn primary" onclick="projSalvarEdicaoReuniao('${projetoId}','${reuniaoId}',this)">Salvar</button>
+        <button type="button" class="proj-btn primary" onclick="projSalvarEdicaoReuniao('${projEsc(String(projetoId))}','${projEsc(String(reuniaoId))}',this)">Salvar</button>
       </div>
     </div>
   `;
@@ -2565,13 +2567,13 @@ function projRenderDetalhe(p) {
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.4rem;flex-wrap:wrap">
       <button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">← Portfólio</button>
-      <div style="font-size:28px;cursor:pointer;padding:2px 6px;border-radius:8px;border:1px dashed transparent;transition:all .2s" title="Alterar ícone" onclick="projShowEmojiPicker(${JSON.stringify(String(p.id))})" onmouseover="this.style.borderColor='#1A5DC8';this.style.background='#ebf1fc'" onmouseout="this.style.borderColor='transparent';this.style.background='none'">${p.icone_url ? '<img src="'+projEsc(p.icone_url)+'" style="width:32px;height:32px;object-fit:cover;border-radius:6px">' : (p.icone_emoji || '📁')}</div>
+      <div style="font-size:28px;cursor:pointer;padding:2px 6px;border-radius:8px;border:1px dashed transparent;transition:all .2s" title="Alterar ícone" onclick="projShowEmojiPicker(${JSON.stringify(String(p.id))})" onmouseover="this.style.borderColor='#1A5DC8';this.style.background='#ebf1fc'" onmouseout="this.style.borderColor='transparent';this.style.background='none'">${p.icone_url ? '<img src="'+projEsc(p.icone_url)+'" style="width:32px;height:32px;object-fit:cover;border-radius:6px">' : projEsc(p.icone_emoji || '📁')}</div>
       <div style="flex:1">
         <div style="font-family:'Syne',sans-serif;font-size:19px;font-weight:700;color:#1a2540">${projEsc(p.nome)}</div>
         <div style="font-size:12px;color:var(--ink3);margin-top:2px">Gerente: ${projEsc(p.gerente)} ${p.patrocinador ? '· Patrocinador: '+projEsc(p.patrocinador) : ''}</div>
       </div>
       <span class="proj-list-badge ${projFaseBadgeClass(p.status,p.fase_atual)}" style="font-size:12px;padding:4px 12px">${projFaseText(p)}</span>
-      ${p.status==='ativo' ? '<span id="proj-fase-buttons" data-pid="' + p.id + '"></span>' : ''}
+      ${p.status==='ativo' ? '<span id="proj-fase-buttons" data-pid="' + projEsc(String(p.id)) + '"></span>' : ''}
     </div>
 
     <!-- Workflow -->
