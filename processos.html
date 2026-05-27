@@ -3777,7 +3777,7 @@ function rMeusProc(){
     const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && (p.url||_pubGetBpmnUrls(p).length));
     const popBadges = popsVinc.flatMap(p=>[
       p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">📄 ${esc(p.titulo)}</a>`:'',
-      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 ${label?esc(label):'BPMN'}</a>`:'';}):[])
+      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 ${_lbl}</a>`:'';}):[])
     ]).filter(Boolean).join('');
     const revSt=(mapeado&&proc&&!isGestorUser)?_revStatus(proc):null;
     let revBadge='';
@@ -3874,7 +3874,7 @@ function abrirInfoMeusProc(arqId){
       const links = pops.flatMap(p=>{
         const _vHtml=p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':'';
         const _urlLink=p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${_vHtml}</a>`:'';
-        const _bpmnLinks=p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN${label?' — '+esc(label):' — '+esc(p.titulo)}</a>`:''}):[];
+        const _bpmnLinks=p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?' — '+esc(label):' — '+esc(p.titulo);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN${_lbl}</a>`:''}):[];
         return [_urlLink,..._bpmnLinks];
       }).filter(Boolean).join('');
       return `<div style="border-top:1px solid var(--bdr);padding-top:.75rem;margin-top:.5rem">
@@ -14041,7 +14041,7 @@ function metaFieldsReadonly(item){
   const pubHTML = popsVinc.length ? `<div style="margin-top:.6rem;display:flex;flex-wrap:wrap;gap:6px">
     ${popsVinc.flatMap(p=>[
       p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:3px 9px;border-radius:4px;text-decoration:none">📄 ${esc(p.titulo)}</a>`:'',
-      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:3px 9px;border-radius:4px;text-decoration:none">🔷 ${label?esc(label)+' — ':' '}${esc(p.titulo)}</a>`:'';}):[])
+      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label)+' — ':' ';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:3px 9px;border-radius:4px;text-decoration:none">🔷 ${_lbl}${esc(p.titulo)}</a>`:'';}):[])
     ]).filter(Boolean).join('')}
   </div>` : '';
   const proc = processos.find(pr=>pr.arq_id===item.id);
@@ -15853,7 +15853,7 @@ function rPub(){
           <div class="pub-card-meta">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div class="pub-card-actions">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
-            ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${label?esc(label):'BPMN'}</a>`:''}).join(''):''}
+            ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${_lbl}</a>`:''}).join(''):''}
 
             ${isEP()?`<button type="button" class="btn pub-action-edit" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">Editar</button>
             <button type="button" class="btn pub-action-delete" style="font-size:10px;padding:2px 8px" onclick="deletarPub(${p.id})">Excluir</button>`:''}
