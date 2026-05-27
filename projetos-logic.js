@@ -903,17 +903,18 @@ function projRenderInicio() {
     let lanesHTML = '';
     ordered.forEach((p, idx) => {
       const pct = p.percentual || 0;
-      const emoji = p.icone_emoji || '📋';
+      const emoji = projEsc(p.icone_emoji || '📋');
+      const pid = projEsc(String(p.id));
       const atrasoStatus = projAtrasoStatusProjeto(p);
       lanesHTML += `
-        <div class="proj-launchpad-lane" id="proj-lane-${p.id}" data-id="${p.id}" data-idx="${idx}">
+        <div class="proj-launchpad-lane" id="proj-lane-${pid}" data-id="${pid}" data-idx="${idx}">
           <div class="proj-launchpad-lane-grid">${gridSegs}</div>
-          <div class="proj-rocket" id="proj-rocket-${p.id}"
-               data-id="${p.id}" data-pct="${pct}"
+          <div class="proj-rocket" id="proj-rocket-${pid}"
+               data-id="${pid}" data-pct="${pct}"
                style="left:${projRocketLeftStyle(pct)}"
-               onmousedown="projRocketUnifiedDrag(event,'${p.id}')"
-               ontouchstart="projRocketUnifiedDrag(event,'${p.id}')"
-               ondblclick="projAbrirDetalhe('${p.id}')">
+               onmousedown="projRocketUnifiedDrag(event,'${pid}')"
+               ontouchstart="projRocketUnifiedDrag(event,'${pid}')"
+               ondblclick="projAbrirDetalhe('${pid}')">
             <div class="proj-rocket-icon">
               ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">` : emoji}
             </div>
@@ -1204,7 +1205,7 @@ function projRenderReunioesDoMes() {
   todas.sort((a,b) => (a.data || '9999-12-31').localeCompare(b.data || '9999-12-31') || String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
   reunEl.innerHTML = todas.map(r => `
     <div class="proj-reunion-item ${r.realizada ? 'proj-reunion-done' : ''}" id="reunion-item-${projEsc(r.id)}">
-      <div class="proj-reunion-check ${r.realizada ? 'done' : ''}" onclick="projToggleReuniao('${r._projeto_id}','${projEsc(r.id)}')">
+      <div class="proj-reunion-check ${r.realizada ? 'done' : ''}" onclick="projToggleReuniao('${projEsc(r._projeto_id)}','${projEsc(r.id)}')">
         ${r.realizada ? '<svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
       </div>
       <div style="flex:1;min-width:0">
@@ -1851,36 +1852,6 @@ async function projDownloadStatusReportPNG() {
   a.download = `Relatorio_Executivo_Projetos_Email_${new Date().toISOString().slice(0,10)}.png`;
   a.href = out.toDataURL('image/png');
   a.click();
-}
-
-function projExportReunioesRealizadasPDF() {
-  projLoad();
-  const monthValue = document.getElementById('greuniao-rel-mes')?.value || projMonthValue();
-  const label = projMonthLabel(monthValue);
-  const realizadas = [];
-  PROJETOS.forEach(p => {
-    (p.execucao?.reunioes||[]).forEach(r => {
-      if(r.realizada && r.data && projIsoInMonth(r.data, monthValue)) realizadas.push({ ...r, _projeto:p });
-    });
-  });
-  const rows = realizadas.sort((a,b)=>(a.data||'').localeCompare(b.data||'')).map(r => `
-    <tr>
-      <td>${projFormatDate(r.data)}</td>
-      <td>${projEsc(r._projeto.nome)}</td>
-      <td>${projEsc(r.nome)}</td>
-      <td>${projEsc(r.participantes||'')}</td>
-      <td>${projEsc(r.observacoes||'')}</td>
-    </tr>
-  `).join('');
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Reuniões Realizadas</title>
-    <style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540}.head{border-left:8px solid var(--blue);padding:14px 18px;background:#f0f6ff;margin-bottom:16px}.k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#00a89a;font-weight:700}h1{margin:4px 0;color:var(--blue);font-size:24px}.sub{font-size:12px;color:#5f6b80}table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:var(--blue);color:#fff;text-align:left;padding:8px}td{border-bottom:1px solid #d9e2ef;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}.empty{padding:18px;border:1px solid #d9e2ef;border-radius:8px;color:#5f6b80}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
-    </head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Reuniões Realizadas</h1><div class="sub">${projEsc(label)} · ${realizadas.length} reunião(ões)</div></div>
-    ${realizadas.length ? `<table><thead><tr><th>Data</th><th>Projeto</th><th>Reunião</th><th>Participantes</th><th>Observações</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">Nenhuma reunião realizada encontrada para o mês/ano selecionado.</div>'}
-    <script>setTimeout(function(){window.print();},350);</script></body></html>`;
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const w = window.open(url, '_blank');
-  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); URL.revokeObjectURL(url); return; }
 }
 
 function projQuarterValue(date) {
