@@ -1986,7 +1986,7 @@ Não responda este e-mail.</pre>
         <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">Segure Ctrl (Windows) ou ⌘ (Mac) para selecionar múltiplos processos</div>
       </div>
       <div class="fg" id="pub-bpmn-wrap">
-        <label class="fl">Imagens do BPMN</label>
+        <div class="fl">Imagens do BPMN</div>
         <div id="pub-bpmn-list"></div>
         <button type="button" class="btn" style="font-size:11px;padding:3px 10px;margin-top:4px" onclick="_pubBpmnAdd()">+ Adicionar imagem BPMN</button>
       </div>
@@ -2949,9 +2949,9 @@ function rPainelGestor(){
   if(!el)return;
   const subEl=document.getElementById('painel-gestor-sub');
   const todas=getUnidadesMapeaveis();
-  const _etFinal=['publicacao','acompanha','auditoria'];
-  const mapeados=todas.filter(u=>(u.proc&&_etFinal.includes(u.proc.etapa))||isMapeado(u.arq_id));
-  const emAnd=todas.filter(u=>u.proc&&!_etFinal.includes(u.proc.etapa)&&!isMapeado(u.arq_id));
+  const _etFinal=new Set(['publicacao','acompanha','auditoria']);
+  const mapeados=todas.filter(u=>(u.proc&&_etFinal.has(u.proc.etapa))||isMapeado(u.arq_id));
+  const emAnd=todas.filter(u=>u.proc&&!_etFinal.has(u.proc.etapa)&&!isMapeado(u.arq_id));
   const naoMapeadas=todas.filter(u=>!u.proc&&!isMapeado(u.arq_id));
   if(subEl) subEl.textContent=`${todas.length} processos/subprocessos · Atualizado em ${new Date().toLocaleDateString('pt-BR')}`;
 
@@ -2992,11 +2992,10 @@ function rPainelGestor(){
       : p.ent?.dt_inicio||null;
     let dias='—';
     if(dtAb){dias=Math.round((hoje-new Date(dtAb))/86400000);}
-    const previsao=p.ent?.dt_prev
-      ? new Date(p.ent.dt_prev).toLocaleDateString('pt-BR')
-      : typeof dias==='number'
-        ? new Date(hoje.getTime()+Math.max(0,60-dias)*86400000).toLocaleDateString('pt-BR')
-        : '—';
+    let previsao;
+    if(p.ent?.dt_prev){previsao=new Date(p.ent.dt_prev).toLocaleDateString('pt-BR');}
+    else if(typeof dias==='number'){previsao=new Date(hoje.getTime()+Math.max(0,60-dias)*86400000).toLocaleDateString('pt-BR');}
+    else{previsao='—';}
     return `<tr style="border-bottom:1px solid var(--bdr)">
       <td style="padding:.45rem .6rem;font-size:12px;font-weight:500">${esc(p.nome)}</td>
       <td style="padding:.45rem .6rem;font-size:11px;color:var(--ink3)">${esc(ETAPAS[ei]?.titulo||p.etapa||'—')}</td>
@@ -3778,13 +3777,12 @@ function rMeusProc(){
     const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && (p.url||_pubGetBpmnUrls(p).length));
     const popBadges = popsVinc.flatMap(p=>[
       p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">📄 ${esc(p.titulo)}</a>`:'',
-      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>safeUrl(url)?`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 ${label?esc(label):'BPMN'}</a>`:''):[])
+      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 ${label?esc(label):'BPMN'}</a>`:'';}):[])
     ]).filter(Boolean).join('');
     const revSt=(mapeado&&proc&&!isGestorUser)?_revStatus(proc):null;
-    const revBadge=revSt==='vencida'
-      ?`<span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Revisão vencida</span>`
-      :revSt==='pendente'
-      ?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">⚠ Revisão em breve</span>`:'';
+    let revBadge='';
+    if(revSt==='vencida')revBadge=`<span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Revisão vencida</span>`;
+    else if(revSt==='pendente')revBadge=`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">⚠ Revisão em breve</span>`;
     const revBtn=(revSt==='vencida'||revSt==='pendente')
       ?`<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 9px" onclick="event.stopPropagation();abrirRevisaoPeriodica(${proc.id})">✔ Revisar</button>`:'';
     const hasFaq = !!(proc?.form?.faq?.trim());
@@ -3873,10 +3871,12 @@ function abrirInfoMeusProc(arqId){
     ${(()=>{
       const pops = publicacoes.filter(p=>(p.arq_ids||[]).includes(arqId) && (p.url||_pubGetBpmnUrls(p).length));
       if(!pops.length) return '';
-      const links = pops.flatMap(p=>[
-        p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':''}</a>`:'',
-        ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>safeUrl(url)?`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN${label?' — '+esc(label):' — '+esc(p.titulo)}</a>`:''):[])
-      ]).filter(Boolean).join('');
+      const links = pops.flatMap(p=>{
+        const _vHtml=p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':'';
+        const _urlLink=p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${_vHtml}</a>`:'';
+        const _bpmnLinks=p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN${label?' — '+esc(label):' — '+esc(p.titulo)}</a>`:''}):[];
+        return [_urlLink,..._bpmnLinks];
+      }).filter(Boolean).join('');
       return `<div style="border-top:1px solid var(--bdr);padding-top:.75rem;margin-top:.5rem">
         <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">POPs / Documentos vinculados</div>
         <div style="display:flex;flex-direction:column;gap:6px">${links}</div>
@@ -4859,8 +4859,8 @@ function initMapChart(){
   });
 }
 function buildSemIndicadoresHTML(){
-  const _etFinal=['publicacao','acompanha','auditoria'];
-  const mapeados=getUnidadesMapeaveis().filter(u=>(u.proc&&_etFinal.includes(u.proc.etapa))||isMapeado(u.arq_id));
+  const _etFinal=new Set(['publicacao','acompanha','auditoria']);
+  const mapeados=getUnidadesMapeaveis().filter(u=>(u.proc&&_etFinal.has(u.proc.etapa))||isMapeado(u.arq_id));
   const semInd=mapeados.filter(u=>!kpis.some(k=>(u.proc&&k.pid===u.proc.id)||k.arq_id===u.arq_id));
   if(!semInd.length) return '';
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid var(--amber);border-radius:var(--r);padding:1rem;margin-top:1rem">
@@ -6038,7 +6038,7 @@ function verificarLembretesRevisao(){
     const email=getDonoEmail(proc);
     if(!email) return;
     let rp=proc.revisao_periodica;
-    if(!rp){rp=_revPeriodica_init(proc);if(!rp)return;proc.revisao_periodica=rp;}
+    if(!rp){rp=_revPeriodica_init(proc);if(!rp){return;}proc.revisao_periodica=rp;}
     const prox=rp.proxima_revisao;
     if(!prox) return;
     if(!rp.lembretes_enviados) rp.lembretes_enviados={pre7:false,venc:false,pos:[]};
@@ -10121,13 +10121,14 @@ function exportarAuditoriaRelPdf(){
         const semAcaoRow = posicaoRow
           ? '<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Proposta de ação corretiva não preenchida.</td></tr>'
           : '';
+        const _acaoCorr=a.acao_corretiva_definida?_e(a.acao_corretiva_definida):'<span style="color:#9ca3af;font-style:italic">Não preenchida</span>';
         const acaoRows=a.acao_corretiva
           ? '<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Proposta de ação corretiva</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_e(a.acao_corretiva)+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Responsável</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.responsavel_acao)||'—')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Ação corretiva definida</td>'
-            +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(a.acao_corretiva_definida?_e(a.acao_corretiva_definida):'<span style="color:#9ca3af;font-style:italic">Não preenchida</span>')+'</td></tr>'
+            +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_acaoCorr+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Prazo</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_d(a.prazo_acao)||'—')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600">Status</td>'
@@ -11587,7 +11588,7 @@ function rEnt(p){
   // Nível por eixo e eixo(s) limitante(s) — recomputado direto de resp para garantir consistência
   const dimNiveis=Object.fromEntries(Object.entries(dims).map(([dim,d])=>[dim,d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):0]));
   const nivelMin=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
-  const eixosLimitantes=Object.entries(dimNiveis).filter(([,n])=>n===nivelMin&&n>0).map(([d])=>d);
+  const eixosLimitantes=new Set(Object.entries(dimNiveis).filter(([,n])=>n===nivelMin&&n>0).map(([d])=>d));
   // Média geral como indicador complementar
   const _valsAll=Object.values(resp);
   const _mediaGeral=_valsAll.length?(_valsAll.reduce((a,b)=>a+b,0)/_valsAll.length).toFixed(1):null;
@@ -11601,10 +11602,12 @@ function rEnt(p){
   ];
   const _mdn=e.mat||0;
   const _mdInfo=_matDesc[_mdn];
+  const _mdMarginB=_mdInfo?.prox?'.5rem':'0';
+  const _mdNextHtml=_mdInfo?.prox?`<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:.2rem">▲ Para evoluir ao ${_mdInfo.proxLevel}:</div><div style="font-size:12px;color:var(--ink2);line-height:1.55">${_mdInfo.prox}</div>`:'<div style="font-size:11.5px;font-weight:600;color:var(--teal)">✓ Nível máximo de maturidade atingido.</div>';
   const matDescHtml=_mdInfo?`<div style="background:var(--bg2);border-left:3px solid var(--blue);border-radius:0 var(--r) var(--r) 0;padding:.6rem .85rem;margin-bottom:.7rem">
     <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">Nível ${_mdn}: ${MATURIDADE_LABELS[_mdn]}</div>
-    <div style="font-size:12px;color:var(--ink2);line-height:1.55;margin-bottom:${_mdInfo.prox?'.5rem':'0'}">${_mdInfo.atual}</div>
-    ${_mdInfo.prox?`<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:.2rem">▲ Para evoluir ao ${_mdInfo.proxLevel}:</div><div style="font-size:12px;color:var(--ink2);line-height:1.55">${_mdInfo.prox}</div>`:'<div style="font-size:11.5px;font-weight:600;color:var(--teal)">✓ Nível máximo de maturidade atingido.</div>'}
+    <div style="font-size:12px;color:var(--ink2);line-height:1.55;margin-bottom:${_mdMarginB}">${_mdInfo.atual}</div>
+    ${_mdNextHtml}
   </div>`:'';
   const comToBe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
   const hasTobe=comToBe&&!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
@@ -11659,7 +11662,7 @@ function rEnt(p){
       ${Object.entries(dims).map(([dim,d])=>{
         const nota=d.cnt>0?(d.sum/d.cnt).toFixed(1):'-';
         const nivelDim=dimNiveis[dim]||0;
-        const isLim=eixosLimitantes.includes(dim);
+        const isLim=eixosLimitantes.has(dim);
         return `<div style="display:flex;align-items:center;gap:8px;padding:4px ${isLim?'6px':'0'};font-size:12px;${isLim?'background:#fff7ed;border-left:2px solid #f97316;padding-left:6px;border-radius:0 4px 4px 0;margin-left:-2px':''}">
           <span style="flex:1;color:var(--ink2);font-weight:${isLim?'600':'400'}">${dim}${isLim?' <span style="font-size:10px;background:#f97316;color:#fff;padding:1px 5px;border-radius:3px;margin-left:3px">limitante</span>':''}</span>
           <span style="font-weight:600;color:var(--blue)">Nível ${nivelDim} · ${nota}</span>
@@ -11676,9 +11679,11 @@ function rEnt(p){
         <tbody>${(e.quest_hist||[]).map((h,i)=>{
           const ord=['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª'][i]||(i+1)+'ª';
           const isRetro=h.dt==='(retroativo)';
-          const _parseHistDt=s=>{if(!s)return null;if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const[d,m,y]=s.split('/');return new Date(y,m-1,d);}return new Date(s);};
+          const _parseHistDt=s=>{if(!s){return null;}if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const[d,m,y]=s.split('/');return new Date(y,m-1,d);}return new Date(s);};
           const _dtObj=isRetro?null:_parseHistDt(h.dt);
-          const dt=isRetro?'<span style="font-size:10px;color:var(--ink3);font-style:italic">data não registrada</span>':(_dtObj&&!isNaN(_dtObj)?_dtObj.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}):'—');
+          let dt;
+          if(isRetro){dt='<span style="font-size:10px;color:var(--ink3);font-style:italic">data não registrada</span>';}
+          else{dt=(_dtObj&&!Number.isNaN(_dtObj))?_dtObj.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';}
           const isLast=i===(e.quest_hist.length-1);
           const rowStyle=isLast?'background:var(--bg2)':'';
           return`<tr style="${rowStyle}">
@@ -11999,7 +12004,7 @@ async function _popPdfAnexo(p){
     }).join('');
     // Nível por eixo e eixo(s) limitante(s)
     const _pdfDims={};
-    QUESTOES.forEach(q=>{if(!_pdfDims[q.dim])_pdfDims[q.dim]={sum:0,cnt:0};if(resp[q.id]){_pdfDims[q.dim].sum+=resp[q.id];_pdfDims[q.dim].cnt++;}});
+    QUESTOES.forEach(q=>{if(!_pdfDims[q.dim]){_pdfDims[q.dim]={sum:0,cnt:0};}if(resp[q.id]){_pdfDims[q.dim].sum+=resp[q.id];_pdfDims[q.dim].cnt++;}});
     const _pdfValsAll=Object.values(resp);
     const _pdfMedia=_pdfValsAll.length?(_pdfValsAll.reduce((a,b)=>a+b,0)/_pdfValsAll.length).toFixed(1):null;
     const _pdfDimRows=Object.entries(_pdfDims).map(([dim,d])=>{
@@ -12143,7 +12148,7 @@ async function gerarPopPdf(){
     ${cageLogo?`.pop-doc-hdr{background-image:url("${cageLogo}");background-repeat:no-repeat;background-position:right 16px center;background-size:auto 48px;padding-right:110px}`:''}
     @media print{.pop-pdf-bar{display:none!important}[data-popsec]>div:first-child{break-after:avoid}}
   </style>
-  </head><body>${logoFixed}${inner}${anexo}<script>setTimeout(function(){window.print();},200);<\/script></body></html>`;
+  </head><body>${logoFixed}${inner}${anexo}${['<scr','ipt>setTimeout(function(){window.print();},200);</scr','ipt>'].join('')}</body></html>`;
   const w=globalThis.open('','_blank');
   if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
   w.document.write(fullHtml);
@@ -12180,7 +12185,7 @@ async function gerarPopPdfDireto(){
     ${cageLogo?`.pop-doc-hdr{background-image:url("${cageLogo}");background-repeat:no-repeat;background-position:right 16px center;background-size:auto 48px;padding-right:110px}`:''}
     @media print{.pop-pdf-bar{display:none!important}[data-popsec]>div:first-child{break-after:avoid}}
   </style>
-  </head><body>${logoFixed}${inner}${anexo}<script>setTimeout(function(){window.print();},200);<\/script></body></html>`;
+  </head><body>${logoFixed}${inner}${anexo}${['<scr','ipt>setTimeout(function(){window.print();},200);</scr','ipt>'].join('')}</body></html>`;
   const w=globalThis.open('','_blank');
   if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
   w.document.write(fullHtml);
@@ -14036,7 +14041,7 @@ function metaFieldsReadonly(item){
   const pubHTML = popsVinc.length ? `<div style="margin-top:.6rem;display:flex;flex-wrap:wrap;gap:6px">
     ${popsVinc.flatMap(p=>[
       p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:3px 9px;border-radius:4px;text-decoration:none">📄 ${esc(p.titulo)}</a>`:'',
-      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>safeUrl(url)?`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:3px 9px;border-radius:4px;text-decoration:none">🔷 ${label?esc(label)+' — ':' '}${esc(p.titulo)}</a>`:''):[])
+      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:3px 9px;border-radius:4px;text-decoration:none">🔷 ${label?esc(label)+' — ':' '}${esc(p.titulo)}</a>`:'';}):[])
     ]).filter(Boolean).join('')}
   </div>` : '';
   const proc = processos.find(pr=>pr.arq_id===item.id);
@@ -15016,11 +15021,10 @@ function kpiGrupoCardHTML(key, items){
   }
 
   // Linked process
-  const linkedProc = items[0].pid
-    ? processos.find(p=>p.id===items[0].pid)
-    : items[0].arq_id
-      ? (()=>{const o=_kpiArquiteturaOptions().find(x=>x.id===items[0].arq_id);return o?{nome:o.nome}:null;})()
-      : null;
+  let linkedProc;
+  if(items[0].pid){linkedProc=processos.find(p=>p.id===items[0].pid);}
+  else if(items[0].arq_id){const _o=_kpiArquiteturaOptions().find(x=>x.id===items[0].arq_id);linkedProc=_o?{nome:_o.nome}:null;}
+  else{linkedProc=null;}
 
   // Analysis lines with period label
   const analises = items.filter(i=>i.analise).map(i=>
@@ -15849,7 +15853,7 @@ function rPub(){
           <div class="pub-card-meta">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div class="pub-card-actions">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
-            ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>safeUrl(url)?`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${label?esc(label):'BPMN'}</a>`:'').join(''):''}
+            ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${label?esc(label):'BPMN'}</a>`:''}).join(''):''}
 
             ${isEP()?`<button type="button" class="btn pub-action-edit" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">Editar</button>
             <button type="button" class="btn pub-action-delete" style="font-size:10px;padding:2px 8px" onclick="deletarPub(${p.id})">Excluir</button>`:''}
