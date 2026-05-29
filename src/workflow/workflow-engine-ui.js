@@ -6,6 +6,11 @@
     painelAtual: 'tarefas',
     instanciaAtual: null,
     tarefaAtual: null,
+    formularioAtual: null,       // schema sendo editado no modal de formulário
+    formularioCampos: [],        // campos do formulário sendo editado
+    configProcessoId: null,      // processo sendo configurado
+    configProcessoEtapas: [],    // etapas do processo sendo configurado
+    formularioModelos: [],       // cache dos modelos carregados
   };
 
   function _uid() {
@@ -54,6 +59,11 @@
     await updateDoc(_docRef(colNome, id), { ...dados, _atualizado_em: new Date() });
   }
 
+  async function _setDoc(colNome, id, dados) {
+    const { setDoc } = globalScope.fb();
+    await setDoc(_docRef(colNome, id), { ...dados, _atualizado_em: new Date() }, { merge: true });
+  }
+
   // ── Helpers de UI ─────────────────────────────────────────────────────────
   function _esc(v) {
     return typeof globalScope.esc === 'function'
@@ -86,7 +96,7 @@
   }
 
   // ── Navegação interna do módulo ───────────────────────────────────────────
-  const _paineis = ['tarefas','instancias','iniciar','executar','historico'];
+  const _paineis = ['tarefas','instancias','iniciar','executar','historico','formularios','config-processo'];
 
   function wfNavWorkflow(painel) {
     _st.painelAtual = painel;
@@ -97,7 +107,7 @@
     const alvo = document.getElementById(`wf-painel-${painel}`);
     if (alvo) alvo.style.display = '';
 
-    const tabIds = ['tarefas','instancias','iniciar'];
+    const tabIds = ['tarefas','instancias','iniciar','formularios'];
     tabIds.forEach(t => {
       const btn = document.getElementById(`wf-tab-${t}`);
       if (btn) btn.style.fontWeight = t === painel ? '700' : '';
@@ -107,6 +117,7 @@
       tarefas: wfCarregarTarefas,
       instancias: wfCarregarInstancias,
       iniciar: wfCarregarProcessosMapeados,
+      formularios: wfCarregarFormularios,
     };
     carregadores[painel]?.();
   }
@@ -199,9 +210,26 @@
          }).join('')}</div>`
       : '';
 
+    // Carrega config do processo e renderiza formulário se houver
+    const formContainer = document.getElementById('wf-exec-formulario');
+    try {
+      const configProc = await _getDoc('wf_config_processo', tarefa.processo_id);
+      const etapaConfig = configProc?.etapas?.[tarefa.etapa_modelo_id];
+      if (etapaConfig?.formulario_id) {
+        const schema = await _getDoc('wf_formulario_modelos', etapaConfig.formulario_id);
+        if (schema && typeof globalScope.wfRenderizarFormulario === 'function') {
+          const valoresIniciais = tarefa.dados_formulario || {};
+          const formEl = globalScope.wfRenderizarFormulario(schema, valoresIniciais);
+          formContainer.appendChild(formEl);
+          _st.tarefaAtual._campos = schema.campos || [];
+        }
+      }
+    } catch (_e) {
+      // formulário opcional — falha silenciosa
+    }
+
     // Botões de ação: próxima etapa ou concluir
     const acoesEl = document.getElementById('wf-exec-acoes');
-    const etapaAtual = etapas[idxAtual];
     const proxEtapa = etapas[idxAtual + 1];
     if (proxEtapa) {
       acoesEl.innerHTML = `
@@ -393,6 +421,7 @@
         return;
       }
 
+      const isEp = globalScope.isEP?.();
       el.innerHTML = disponiveis.map(p => {
         const usaToBe = (p.mod?.etapas_proc_tobe || []).length > 0;
         const etapas = usaToBe ? p.mod.etapas_proc_tobe : p.mod.etapas_proc;
@@ -405,7 +434,10 @@
               <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">${atividades.length} etapa(s) executável(is) · ${_badge(usaToBe ? 'TO BE' : 'AS IS', usaToBe ? '#10b981' : '#3b82f6')}</div>
               <div style="font-size:11px;color:var(--ink3)">${atividades.slice(0,4).map(e => _esc(e.nome)).join(' → ')}${atividades.length > 4 ? ' → …' : ''}</div>
             </div>
-            <button type="button" class="btn btn-p btn-sm" style="flex-shrink:0" onclick="wfIniciarDeProcesso('${_esc(p.id)}')">Iniciar</button>
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+              <button type="button" class="btn btn-p btn-sm" onclick="wfIniciarDeProcesso('${_esc(p.id)}')">Iniciar</button>
+              ${isEp ? `<button type="button" class="btn btn-sm" onclick="wfConfigurarProcesso('${_esc(p.id)}')">Configurar</button>` : ''}
+            </div>
           </div>
         `);
       }).join('');
@@ -433,17 +465,28 @@
       return;
     }
 
+    // Carrega config do processo para SLA por etapa
+    let configEtapas = {};
+    try {
+      const configProc = await _getDoc('wf_config_processo', processoId);
+      configEtapas = configProc?.etapas || {};
+    } catch (_e) { /* segue sem config */ }
+
     // Monta snapshot das etapas com os dados do mapeamento
-    const snapshotEtapas = etapasExec.map((e, i) => ({
-      id: `${processoId}_${e.id || i}`,
-      nome: e.nome || `Etapa ${i + 1}`,
-      tipo: e.tipo || 'Atividade',
-      desc: e.desc || null,
-      executor: e.executor || null,
-      modo: e.modo || 'Manual',
-      natureza: e.natureza || null,
-      sla_horas: 0,  // sem SLA por padrão — pode ser configurado futuramente
-    }));
+    const snapshotEtapas = etapasExec.map((e, i) => {
+      const etapaId = `${processoId}_${e.id || i}`;
+      const etapaConf = configEtapas[etapaId] || {};
+      return {
+        id: etapaId,
+        nome: e.nome || `Etapa ${i + 1}`,
+        tipo: e.tipo || 'Atividade',
+        desc: e.desc || null,
+        executor: e.executor || null,
+        modo: e.modo || 'Manual',
+        natureza: e.natureza || null,
+        sla_horas: etapaConf.sla_horas ?? 0,
+      };
+    });
 
     const titulo = `${proc.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
 
@@ -534,6 +577,272 @@
     wfNavWorkflow('instancias');
   }
 
+  // ── Formulários ───────────────────────────────────────────────────────────
+  async function wfCarregarFormularios() {
+    const el = document.getElementById('wf-lista-formularios');
+    if (!el) return;
+    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    try {
+      const modelos = await _getAll('wf_formulario_modelos');
+      _st.formularioModelos = modelos;
+      if (!modelos.length) {
+        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum formulário cadastrado. Clique em "+ Formulário" para criar.</div>';
+        return;
+      }
+      el.innerHTML = modelos.map(m => _card(`
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(m.titulo)}</div>
+            <div style="font-size:12px;color:var(--ink3)">${(m.campos || []).length} campo(s) · versão ${_esc(String(m.versao || 1))}</div>
+          </div>
+          <button type="button" class="btn btn-sm" onclick="wfAbrirModalNovoFormulario('${_esc(m.id)}')">Editar</button>
+        </div>
+      `)).join('');
+    } catch (e) {
+      el.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
+    }
+  }
+
+  const _tiposCampo = [
+    { v: 'texto',    l: 'Texto curto' },
+    { v: 'textarea', l: 'Texto longo' },
+    { v: 'numero',   l: 'Número' },
+    { v: 'data',     l: 'Data' },
+    { v: 'select',   l: 'Lista de opções' },
+    { v: 'checkbox', l: 'Caixa de seleção' },
+  ];
+
+  async function wfAbrirModalNovoFormulario(formularioId) {
+    let schema = null;
+    if (formularioId) {
+      schema = await _getDoc('wf_formulario_modelos', formularioId);
+    }
+    _st.formularioAtual = schema || { id: null, titulo: '', campos: [], versao: 1 };
+    _st.formularioCampos = JSON.parse(JSON.stringify(_st.formularioAtual.campos || []));
+
+    const overlay = document.getElementById('wf-modal-formulario');
+    if (!overlay) return;
+
+    document.getElementById('wf-modal-form-titulo').value = _st.formularioAtual.titulo || '';
+    _wfRenderizarCamposEditor();
+    overlay.style.display = 'flex';
+  }
+
+  function _wfRenderizarCamposEditor() {
+    const el = document.getElementById('wf-modal-form-campos');
+    if (!el) return;
+    if (!_st.formularioCampos.length) {
+      el.innerHTML = '<div style="color:var(--ink3);font-size:13px;margin-bottom:8px">Nenhum campo adicionado ainda.</div>';
+      return;
+    }
+    el.innerHTML = _st.formularioCampos.map((c, i) => `
+      <div style="border:1px solid var(--bdr);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--bg2)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:600">${_esc(c.label || 'Campo ' + (i+1))}</span>
+          <div style="display:flex;gap:4px">
+            ${i > 0 ? `<button type="button" class="btn btn-sm" onclick="_wfMoverCampo(${i},-1)" title="Mover para cima">↑</button>` : ''}
+            ${i < _st.formularioCampos.length - 1 ? `<button type="button" class="btn btn-sm" onclick="_wfMoverCampo(${i},1)" title="Mover para baixo">↓</button>` : ''}
+            <button type="button" class="btn btn-r btn-sm" onclick="_wfRemoverCampo(${i})">✕</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label class="lbl" style="font-size:11px">Label</label>
+            <input type="text" class="fi" value="${_esc(c.label)}" oninput="_wfAtualizarCampo(${i},'label',this.value)" style="margin-top:2px">
+          </div>
+          <div>
+            <label class="lbl" style="font-size:11px">Tipo</label>
+            <select class="fi" onchange="_wfAtualizarCampo(${i},'tipo',this.value)" style="margin-top:2px">
+              ${_tiposCampo.map(t => `<option value="${t.v}"${c.tipo===t.v?' selected':''}>${_esc(t.l)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        ${c.tipo === 'select' ? `
+        <div style="margin-top:8px">
+          <label class="lbl" style="font-size:11px">Opções (uma por linha)</label>
+          <textarea class="fi" rows="3" oninput="_wfAtualizarCampo(${i},'_opcoesTexto',this.value)" style="margin-top:2px;resize:vertical">${_esc((c.opcoes||[]).join('\n'))}</textarea>
+        </div>` : ''}
+        <div style="margin-top:8px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+            <input type="checkbox" ${c.obrigatorio?'checked':''} onchange="_wfAtualizarCampo(${i},'obrigatorio',this.checked)">
+            Campo obrigatório
+          </label>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function _wfAtualizarCampo(idx, campo, valor) {
+    if (!_st.formularioCampos[idx]) return;
+    if (campo === '_opcoesTexto') {
+      _st.formularioCampos[idx].opcoes = valor.split('\n').map(s => s.trim()).filter(Boolean);
+    } else {
+      _st.formularioCampos[idx][campo] = valor;
+    }
+    // Re-renderiza apenas se mudou o tipo (para mostrar/ocultar campo de opções)
+    if (campo === 'tipo') _wfRenderizarCamposEditor();
+  }
+
+  function _wfAdicionarCampo() {
+    _st.formularioCampos.push({
+      id: `campo_${Date.now()}`,
+      label: '',
+      tipo: 'texto',
+      obrigatorio: false,
+      opcoes: [],
+    });
+    _wfRenderizarCamposEditor();
+  }
+
+  function _wfRemoverCampo(idx) {
+    _st.formularioCampos.splice(idx, 1);
+    _wfRenderizarCamposEditor();
+  }
+
+  function _wfMoverCampo(idx, dir) {
+    const alvo = idx + dir;
+    if (alvo < 0 || alvo >= _st.formularioCampos.length) return;
+    const tmp = _st.formularioCampos[idx];
+    _st.formularioCampos[idx] = _st.formularioCampos[alvo];
+    _st.formularioCampos[alvo] = tmp;
+    _wfRenderizarCamposEditor();
+  }
+
+  function wfFecharModalFormulario() {
+    const overlay = document.getElementById('wf-modal-formulario');
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  async function wfSalvarFormulario() {
+    const titulo = document.getElementById('wf-modal-form-titulo').value.trim();
+    if (!titulo) { alert('Informe o título do formulário.'); return; }
+
+    const campos = _st.formularioCampos.map(c => ({
+      id: c.id || `campo_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      label: c.label || '',
+      tipo: c.tipo || 'texto',
+      obrigatorio: !!c.obrigatorio,
+      opcoes: c.opcoes || [],
+    }));
+
+    try {
+      const schema = _st.formularioAtual;
+      if (schema.id) {
+        await _updateDoc('wf_formulario_modelos', schema.id, {
+          titulo,
+          campos,
+          versao: (schema.versao || 1) + 1,
+        });
+      } else {
+        await _addDoc('wf_formulario_modelos', {
+          titulo,
+          campos,
+          versao: 1,
+        });
+      }
+      wfFecharModalFormulario();
+      wfCarregarFormularios();
+    } catch (e) {
+      alert('Erro ao salvar formulário: ' + e.message);
+    }
+  }
+
+  // ── Configurar Processo ───────────────────────────────────────────────────
+  async function wfConfigurarProcesso(processoId) {
+    const proc = await _getDoc('processos', processoId);
+    if (!proc) { alert('Processo não encontrado.'); return; }
+
+    const usaToBe = (proc.mod?.etapas_proc_tobe || []).length > 0;
+    const todasEtapas = usaToBe ? proc.mod.etapas_proc_tobe : (proc.mod?.etapas_proc || []);
+    const atividades = todasEtapas.filter(e => !e.tipo || e.tipo === 'Atividade' || e.tipo === 'Aprovação');
+
+    _st.configProcessoId = processoId;
+    _st.configProcessoEtapas = atividades.map((e, i) => ({
+      id: `${processoId}_${e.id || i}`,
+      nome: e.nome || `Etapa ${i + 1}`,
+    }));
+
+    // Carrega config salva
+    let configSalva = {};
+    try {
+      const doc = await _getDoc('wf_config_processo', processoId);
+      configSalva = doc?.etapas || {};
+    } catch (_e) { /* sem config prévia */ }
+
+    // Carrega modelos de formulário
+    if (!_st.formularioModelos.length) {
+      _st.formularioModelos = await _getAll('wf_formulario_modelos');
+    }
+
+    // Título
+    const tituloEl = document.getElementById('wf-config-proc-titulo');
+    if (tituloEl) tituloEl.textContent = proc.nome;
+
+    // Renderiza etapas
+    const etapasEl = document.getElementById('wf-config-proc-etapas');
+    if (etapasEl) {
+      const opcoesFormulario = _st.formularioModelos.map(m =>
+        `<option value="${_esc(m.id)}">${_esc(m.titulo)}</option>`
+      ).join('');
+
+      etapasEl.innerHTML = _st.configProcessoEtapas.map(etapa => {
+        const conf = configSalva[etapa.id] || {};
+        return `
+          <div style="border:1px solid var(--bdr);border-radius:8px;padding:14px;margin-bottom:10px">
+            <div style="font-weight:600;font-size:14px;margin-bottom:10px">${_esc(etapa.nome)}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div>
+                <label class="lbl" style="font-size:11px">Formulário</label>
+                <select class="fi" id="wf-conf-form-${_esc(etapa.id)}" style="margin-top:4px">
+                  <option value="">— Sem formulário —</option>
+                  ${opcoesFormulario}
+                </select>
+              </div>
+              <div>
+                <label class="lbl" style="font-size:11px">SLA (horas)</label>
+                <input type="number" class="fi" id="wf-conf-sla-${_esc(etapa.id)}" min="0" value="${_esc(String(conf.sla_horas ?? 0))}" style="margin-top:4px">
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Preenche selects com valor salvo
+      _st.configProcessoEtapas.forEach(etapa => {
+        const conf = configSalva[etapa.id] || {};
+        const sel = document.getElementById(`wf-conf-form-${etapa.id}`);
+        if (sel && conf.formulario_id) sel.value = conf.formulario_id;
+      });
+    }
+
+    wfNavWorkflow('config-processo');
+  }
+
+  async function wfSalvarConfigProcesso() {
+    if (!_st.configProcessoId) return;
+
+    const etapas = {};
+    _st.configProcessoEtapas.forEach(etapa => {
+      const sel = document.getElementById(`wf-conf-form-${etapa.id}`);
+      const slaEl = document.getElementById(`wf-conf-sla-${etapa.id}`);
+      etapas[etapa.id] = {
+        formulario_id: sel?.value || null,
+        sla_horas: Number(slaEl?.value || 0),
+      };
+    });
+
+    try {
+      await _setDoc('wf_config_processo', _st.configProcessoId, {
+        processo_id: _st.configProcessoId,
+        etapas,
+      });
+      alert('Configuração salva com sucesso.');
+      wfNavWorkflow('iniciar');
+    } catch (e) {
+      alert('Erro ao salvar configuração: ' + e.message);
+    }
+  }
+
   // ── Exposição global ──────────────────────────────────────────────────────
   Object.assign(globalScope, {
     rWorkflow,
@@ -547,6 +856,19 @@
     wfAbrirHistorico,
     wfCancelarInstancia,
     wfConfirmarCancelar,
+    // Formulários
+    wfCarregarFormularios,
+    wfAbrirModalNovoFormulario,
+    wfFecharModalFormulario,
+    wfSalvarFormulario,
+    _wfAdicionarCampo,
+    _wfRenderizarCamposEditor,
+    _wfAtualizarCampo,
+    _wfRemoverCampo,
+    _wfMoverCampo,
+    // Config processo
+    wfConfigurarProcesso,
+    wfSalvarConfigProcesso,
     _st,
   });
 
