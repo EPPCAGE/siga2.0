@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "wf_tarefa_workflows",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "papel_alvo", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "wf_transicao_fluxos",
       "queryScope": "COLLECTION",
       "fields": [

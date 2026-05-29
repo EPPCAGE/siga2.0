@@ -2068,6 +2068,7 @@ Não responda este e-mail.</pre>
     <button type="button" class="btn" id="wf-tab-tarefas" onclick="wfNavWorkflow('tarefas')" style="border-radius:6px 6px 0 0;border-bottom:none">📋 Minhas Tarefas</button>
     <button type="button" class="btn" id="wf-tab-instancias" onclick="wfNavWorkflow('instancias')" style="border-radius:6px 6px 0 0;border-bottom:none">🔄 Processos Ativos</button>
     <button type="button" class="btn" id="wf-tab-iniciar" onclick="wfNavWorkflow('iniciar')" style="border-radius:6px 6px 0 0;border-bottom:none">▶ Iniciar</button>
+    <button type="button" class="btn ep-only" id="wf-tab-designer" onclick="wfAbrirDesigner()" style="border-radius:6px 6px 0 0;border-bottom:none">🧩 Designer</button>
     <button type="button" class="btn ep-only" id="wf-tab-formularios" onclick="wfNavWorkflow('formularios')" style="border-radius:6px 6px 0 0;border-bottom:none">📝 Formulários</button>
   </div>
 
@@ -2085,13 +2086,68 @@ Não responda este e-mail.</pre>
     </div>
   </div>
 
-  <!-- Painel: Iniciar — lista processos mapeados disponíveis -->
+  <!-- Painel: Iniciar — abas mapeamento × templates -->
   <div id="wf-painel-iniciar" style="display:none">
-    <div class="ib ibb" style="margin-bottom:16px">
-      Selecione um processo já mapeado para iniciar sua execução como workflow rastreável. O sistema usará as etapas do TO BE (quando disponível) ou do AS IS.
+    <div style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap">
+      <button type="button" class="btn btn-sm" id="wf-iniciar-tab-mapeamento" onclick="wfIniciarAba('mapeamento')">A partir de mapeamento</button>
+      <button type="button" class="btn btn-sm" id="wf-iniciar-tab-templates" onclick="wfIniciarAba('templates')">Templates publicados</button>
     </div>
-    <div id="wf-lista-mapeamentos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
-      <div style="color:var(--ink3);font-size:14px">Carregando processos mapeados…</div>
+
+    <div id="wf-iniciar-aba-mapeamento">
+      <div class="ib ibb" style="margin-bottom:16px">
+        Selecione um processo já mapeado. Use "Importar e configurar" para abrir o designer visual, ou "Iniciar direto" para execução sequencial simples (TO BE quando disponível, senão AS IS).
+      </div>
+      <div id="wf-lista-mapeamentos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
+        <div style="color:var(--ink3);font-size:14px">Carregando processos mapeados…</div>
+      </div>
+    </div>
+
+    <div id="wf-iniciar-aba-templates" style="display:none">
+      <div class="ib ibb" style="margin-bottom:16px">
+        Templates de workflow publicados no designer. Clique em "Iniciar" para criar uma nova instância.
+      </div>
+      <div id="wf-lista-templates" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
+        <div style="color:var(--ink3);font-size:14px">Carregando templates…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Painel: Designer visual de fluxo (EP only) -->
+  <div id="wf-painel-designer" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <button type="button" class="btn" onclick="wfNavWorkflow('iniciar')">← Voltar</button>
+      <input type="text" class="fi" id="wf-designer-nome" placeholder="Nome do workflow" style="max-width:280px">
+      <input type="text" class="fi" id="wf-designer-desc" placeholder="Descrição (opcional)" style="flex:1;min-width:200px">
+      <button type="button" class="btn btn-p btn-sm" onclick="wfDesignerSalvar()">Salvar</button>
+      <button type="button" class="btn btn-sm" onclick="wfDesignerPublicar()">Publicar</button>
+    </div>
+    <div style="display:grid;grid-template-columns:170px 1fr 280px;gap:12px;align-items:start">
+      <!-- Paleta -->
+      <div class="card" style="padding:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Elementos</div>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:8px">Arraste para o canvas</div>
+        <div class="wf-palette-item" draggable="true" data-tipo="inicio" style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--bdr);border-radius:8px;margin-bottom:8px;cursor:grab">
+          <span style="width:14px;height:14px;border-radius:50%;background:#10b981;flex-shrink:0"></span> Início
+        </div>
+        <div class="wf-palette-item" draggable="true" data-tipo="tarefa" style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--bdr);border-radius:8px;margin-bottom:8px;cursor:grab">
+          <span style="width:14px;height:14px;border-radius:3px;background:#3b82f6;flex-shrink:0"></span> Tarefa
+        </div>
+        <div class="wf-palette-item" draggable="true" data-tipo="aprovacao" style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--bdr);border-radius:8px;margin-bottom:8px;cursor:grab">
+          <span style="width:14px;height:14px;background:#f59e0b;flex-shrink:0;transform:rotate(45deg)"></span> Aprovação
+        </div>
+        <div class="wf-palette-item" draggable="true" data-tipo="fim" style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--bdr);border-radius:8px;margin-bottom:8px;cursor:grab">
+          <span style="width:14px;height:14px;border-radius:50%;background:#ef4444;border:2px solid #fff;box-shadow:0 0 0 1px #ef4444;flex-shrink:0"></span> Fim
+        </div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:8px">Selecione uma aresta/nó e pressione Delete para remover.</div>
+      </div>
+      <!-- Canvas -->
+      <div class="card" id="wf-designer-canvas-wrap" style="padding:0;overflow:auto;max-height:70vh;background:#f8fafc">
+        <svg id="wf-designer-canvas" style="width:100%;min-width:900px;height:1000px;display:block"></svg>
+      </div>
+      <!-- Config do nó -->
+      <div class="card" id="wf-designer-config" style="padding:14px;max-height:70vh;overflow-y:auto">
+        <div style="color:var(--ink3);font-size:13px">Selecione um nó para configurar.</div>
+      </div>
     </div>
   </div>
 
@@ -2102,6 +2158,7 @@ Não responda este e-mail.</pre>
       <h3 id="wf-exec-titulo" style="margin:0;font-size:17px;color:var(--ink)"></h3>
     </div>
     <div class="card" style="padding:20px">
+      <div id="wf-exec-papel" style="margin-bottom:10px"></div>
       <div id="wf-exec-progresso"></div>
       <div id="wf-exec-instrucoes" style="background:var(--blue-l);border-radius:6px;padding:12px;font-size:13px;color:var(--blue);margin-bottom:16px;display:none"></div>
       <div id="wf-exec-dados-anteriores" style="display:none;margin-bottom:16px">
@@ -2111,7 +2168,8 @@ Não responda este e-mail.</pre>
       </div>
       <div id="wf-exec-formulario"></div>
       <div style="margin-top:14px">
-        <label class="lbl">Observação (opcional)</label>
+        <label class="lbl">Parecer / justificativa</label>
+        <span id="wf-exec-parecer-hint" style="display:none;font-size:11px;color:var(--red);margin-left:6px">obrigatório</span>
         <textarea id="wf-exec-obs" class="fi" rows="3" style="width:100%;margin-top:4px;resize:vertical"></textarea>
       </div>
       <div id="wf-exec-acoes" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"></div>
