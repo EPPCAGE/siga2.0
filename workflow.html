@@ -612,9 +612,28 @@ function _wfBoot() {
   onAuthStateChanged(auth, async user => {
     if (!user) { window.location.href = 'index.html'; return; }
     try {
-      const token = await user.getIdTokenResult(/* forceRefresh */ false);
+      // Força refresh para obter custom claims atualizados
+      const token = await user.getIdTokenResult(/* forceRefresh */ true);
+      let perfil = token.claims.perfil;
+
+      // Fallback: lê perfil do Firestore se o claim ainda não propagou
+      if (!perfil) {
+        try {
+          const { db, doc, getDoc } = globalThis._fb;
+          const configSnap = await getDoc(doc(db, 'config', 'usuarios'));
+          if (configSnap.exists()) {
+            const usuarios = configSnap.data()?.lista || configSnap.data()?.usuarios || [];
+            const entrada = usuarios.find(u => u.uid === user.uid || u.email === user.email);
+            perfil = entrada?.perfil || null;
+          }
+        } catch (fbErr) {
+          console.warn('[WF] Fallback Firestore falhou:', fbErr.message);
+        }
+      }
+
       _wfState.usuario = user;
-      _wfState.perfil = token.claims.perfil || 'dono';
+      _wfState.perfil = perfil || 'dono';
+      console.info('[WF] Perfil resolvido:', _wfState.perfil);
       _aplicarPermissoesSidebar();
       wfCarregarTarefas();
       wfAtualizarBadges();
