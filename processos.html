@@ -2149,7 +2149,7 @@ Não responda este e-mail.</pre>
   <div id="wf-painel-executar" style="display:none;max-width:680px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
       <button type="button" class="btn" onclick="wfNavWorkflow('tarefas')">← Voltar</button>
-      <h3 id="wf-exec-titulo" style="margin:0;font-size:17px;color:var(--ink)"></h3>
+      <h3 id="wf-exec-titulo" style="margin:0;font-size:17px;color:var(--ink)" aria-live="polite">Executar tarefa</h3>
     </div>
     <div class="card" style="padding:20px">
       <div id="wf-exec-papel" style="margin-bottom:10px"></div>
@@ -2162,7 +2162,7 @@ Não responda este e-mail.</pre>
       </div>
       <div id="wf-exec-formulario"></div>
       <div style="margin-top:14px">
-        <label class="lbl">Parecer / justificativa</label>
+        <label class="lbl" for="wf-exec-obs">Parecer / justificativa</label>
         <span id="wf-exec-parecer-hint" style="display:none;font-size:11px;color:var(--red);margin-left:6px">obrigatório</span>
         <textarea id="wf-exec-obs" class="fi" rows="3" style="width:100%;margin-top:4px;resize:vertical"></textarea>
       </div>
@@ -2174,7 +2174,7 @@ Não responda este e-mail.</pre>
   <div id="wf-painel-historico" style="display:none;max-width:640px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
       <button type="button" class="btn" onclick="wfNavWorkflow('instancias')">← Voltar</button>
-      <h3 id="wf-hist-titulo" style="margin:0;font-size:17px;color:var(--ink)"></h3>
+      <h3 id="wf-hist-titulo" style="margin:0;font-size:17px;color:var(--ink)" aria-live="polite">Histórico</h3>
       <button type="button" class="btn btn-r btn-sm" id="wf-hist-btn-cancelar" onclick="wfCancelarInstancia()" style="display:none;margin-left:auto">Cancelar processo</button>
     </div>
     <div class="card" style="padding:16px;margin-bottom:16px">
@@ -2204,7 +2204,7 @@ Não responda este e-mail.</pre>
   <div id="wf-painel-config-processo" style="display:none;max-width:720px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
       <button type="button" class="btn" onclick="wfNavWorkflow('iniciar')">← Voltar</button>
-      <h3 id="wf-config-proc-titulo" style="margin:0;font-size:17px;color:var(--ink)"></h3>
+      <h3 id="wf-config-proc-titulo" style="margin:0;font-size:17px;color:var(--ink)" aria-live="polite">Configurar processo</h3>
     </div>
     <div class="ib ibb" style="margin-bottom:16px">
       Associe um formulário e defina o SLA (em horas) para cada etapa do processo. Deixe em branco para usar os padrões do mapeamento.
@@ -2225,7 +2225,7 @@ Não responda este e-mail.</pre>
       </div>
       <div class="modal-bd" style="overflow-y:auto;flex:1">
         <div style="margin-bottom:14px">
-          <label class="lbl">Título do formulário</label>
+          <label class="lbl" for="wf-modal-form-titulo">Título do formulário</label>
           <input type="text" class="fi" id="wf-modal-form-titulo" placeholder="Ex.: Formulário de solicitação" style="margin-top:4px">
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">

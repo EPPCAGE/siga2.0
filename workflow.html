@@ -373,11 +373,11 @@
     <h3 class="wf-modal-titulo" id="modal-modelo-titulo">Novo Modelo de Processo</h3>
     <input type="hidden" id="modal-modelo-id">
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Nome do processo *</label>
+      <label class="wf-form-label" for="mm-nome">Nome do processo *</label>
       <input type="text" id="mm-nome" class="wf-form-input" placeholder="Ex: Aprovação de Despesa">
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Descrição</label>
+      <label class="wf-form-label" for="mm-descricao">Descrição</label>
       <textarea id="mm-descricao" class="wf-form-input" rows="3" placeholder="Descreva o objetivo do processo…"></textarea>
     </div>
     <div class="wf-form-grupo">
@@ -402,11 +402,11 @@
     <h3 class="wf-modal-titulo">Configurar Etapa</h3>
     <input type="hidden" id="modal-etapa-id">
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Nome da etapa *</label>
+      <label class="wf-form-label" for="me-nome">Nome da etapa *</label>
       <input type="text" id="me-nome" class="wf-form-input" placeholder="Ex: Análise do Gestor">
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Tipo</label>
+      <label class="wf-form-label" for="me-tipo">Tipo</label>
       <select id="me-tipo" class="wf-form-input wf-form-select">
         <option value="tarefa">Tarefa</option>
         <option value="aprovacao">Aprovação</option>
@@ -415,7 +415,7 @@
       </select>
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Responsável</label>
+      <label class="wf-form-label" for="me-resp-tipo">Responsável</label>
       <select id="me-resp-tipo" class="wf-form-input wf-form-select" onchange="wfToggleResponsavelValor()">
         <option value="solicitante">Próprio solicitante</option>
         <option value="perfil">Perfil do sistema</option>
@@ -423,21 +423,21 @@
       </select>
     </div>
     <div class="wf-form-grupo" id="me-resp-valor-grupo" style="display:none">
-      <label class="wf-form-label" id="me-resp-valor-label">Valor</label>
+      <label class="wf-form-label" for="me-resp-valor" id="me-resp-valor-label">Valor</label>
       <input type="text" id="me-resp-valor" class="wf-form-input" placeholder="Perfil (ep, gestor…) ou UID">
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">SLA (horas úteis, 0 = sem prazo)</label>
+      <label class="wf-form-label" for="me-sla">SLA (horas úteis, 0 = sem prazo)</label>
       <input type="number" id="me-sla" class="wf-form-input" min="0" value="0">
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Formulário dinâmico</label>
+      <label class="wf-form-label" for="me-formulario">Formulário dinâmico</label>
       <select id="me-formulario" class="wf-form-input wf-form-select">
         <option value="">Nenhum</option>
       </select>
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Instruções para o responsável</label>
+      <label class="wf-form-label" for="me-instrucoes">Instruções para o responsável</label>
       <textarea id="me-instrucoes" class="wf-form-input" rows="2"></textarea>
     </div>
     <div class="wf-modal-footer">
@@ -452,15 +452,15 @@
   <div class="wf-modal">
     <h3 class="wf-modal-titulo">Configurar Transição</h3>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Etapa de origem</label>
+      <label class="wf-form-label" for="mt-origem">Etapa de origem</label>
       <select id="mt-origem" class="wf-form-input wf-form-select"></select>
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Etapa de destino</label>
+      <label class="wf-form-label" for="mt-destino">Etapa de destino</label>
       <select id="mt-destino" class="wf-form-input wf-form-select"></select>
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Condição</label>
+      <label class="wf-form-label" for="mt-condicao">Condição</label>
       <select id="mt-condicao" class="wf-form-input wf-form-select">
         <option value="sempre">Sempre (avança automático)</option>
         <option value="aprovado">Aprovado</option>
@@ -468,7 +468,7 @@
       </select>
     </div>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Label do botão (ex: "Aprovar")</label>
+      <label class="wf-form-label" for="mt-label">Label do botão (ex: "Aprovar")</label>
       <input type="text" id="mt-label" class="wf-form-input" placeholder="Avançar">
     </div>
     <div class="wf-modal-footer">
@@ -486,7 +486,7 @@
       Selecione um processo já modelado na arquitetura institucional para vincular a este workflow.
     </p>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Processo da arquitetura</label>
+      <label class="wf-form-label" for="arq-processo">Processo da arquitetura</label>
       <select id="arq-processo" class="wf-form-input wf-form-select">
         <option value="">Carregando…</option>
       </select>
@@ -504,7 +504,7 @@
   <div class="wf-modal" style="max-width:680px">
     <h3 class="wf-modal-titulo">Editor de Formulário</h3>
     <div class="wf-form-grupo">
-      <label class="wf-form-label">Título do formulário *</label>
+      <label class="wf-form-label" for="mf-titulo">Título do formulário *</label>
       <input type="text" id="mf-titulo" class="wf-form-input" placeholder="Ex: Solicitação de Compra">
     </div>
     <div style="margin-bottom:14px">
@@ -1131,7 +1131,7 @@ async function wfSalvarEtapa() {
     tipo: document.getElementById('me-tipo').value,
     responsavel_tipo: document.getElementById('me-resp-tipo').value,
     responsavel_valor: document.getElementById('me-resp-valor').value.trim() || null,
-    sla_horas: parseInt(document.getElementById('me-sla').value) || 0,
+    sla_horas: Number.parseInt(document.getElementById('me-sla').value) || 0,
     formulario_modelo_id: document.getElementById('me-formulario').value || null,
     instrucoes: document.getElementById('me-instrucoes').value.trim(),
     ordem: (_wfState.etapasModelo.length + 1),
