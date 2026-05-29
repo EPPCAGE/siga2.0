@@ -326,11 +326,13 @@ async function projFbSaveAll(options){
 function projFbAutoSave(label){
   if(!fbReady()) return Promise.resolve();
   clearTimeout(_projFbState.saveTimer);
+  _projFbState.saving = true;
   return new Promise((resolve, reject)=>{
     _projFbState.saveTimer = setTimeout(()=>{
     projFbSaveAll({includeConfig: label === 'listas' || label === 'importar'}).catch(e=>{
       console.warn('projFbAutoSave('+label+'):', e.message);
       try { projToast('Erro ao salvar na nuvem: ' + e.message, '#dc2626'); } catch(_e){}
+      _projFbState.saving = false;
       reject(e);
     }).then(resolve);
     }, 500);
@@ -613,6 +615,7 @@ function projFixDefaults(p) {
     programa_id: p.programa_id || null,
     macroprocessos: p.macroprocessos || [],
     objetivos_estrategicos: p.objetivos_estrategicos || [],
+    ppe_ciclos: (p.ppe_ciclos && typeof p.ppe_ciclos === 'object' && !Array.isArray(p.ppe_ciclos)) ? p.ppe_ciclos : {},
     // Dados de cada fase
     aprovacao: p.aprovacao || {
       motivo_inicio: '', aprovado: false, dt_aprovacao: '', obs: ''
@@ -663,6 +666,7 @@ function projGo(pageId, btnEl) {
     case 'reunioes':  projRenderReunioesPage(); break;
     case 'usuarios':  projRenderUsuariosPage(); break;
     case 'status-report': projRenderStatusReport(); break;
+    case 'ppe':       projRenderPpePage(); break;
     case 'indicadores': projRenderIndicadoresPage(); break;
     case 'novo':      projRenderNovo(); break;
   }
@@ -691,7 +695,41 @@ function projToast(msg, color) {
 
 // ── Utilitários ────────────────────────────────────────────────────
 function projEsc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s||'')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#39;');
+}
+
+function projSafeHtml(html) {
+  const value = String(html || '');
+  if(globalThis.DOMPurify && typeof globalThis.DOMPurify.sanitize === 'function') {
+    return globalThis.DOMPurify.sanitize(value, {
+      ADD_ATTR: [
+        'target',
+        'onclick', 'onchange', 'oninput', 'onblur', 'onkeydown',
+        'onmousedown', 'ontouchstart', 'ondblclick',
+        'onmouseover', 'onmouseout',
+        'ondragstart', 'ondragover', 'ondragend', 'ondrop'
+      ],
+      FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'base'],
+      FORBID_ATTR: ['srcdoc'],
+      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+    });
+  }
+  return projEsc(value);
+}
+
+function projSetSafeHtml(el, html) {
+  if(!el) return;
+  el.innerHTML = projSafeHtml(html);
+}
+
+function projAppendSafeHtml(el, position, html) {
+  if(!el) return;
+  el.insertAdjacentHTML(position, projSafeHtml(html));
 }
 
 function projNormKey(s) {
@@ -903,17 +941,18 @@ function projRenderInicio() {
     let lanesHTML = '';
     ordered.forEach((p, idx) => {
       const pct = p.percentual || 0;
-      const emoji = p.icone_emoji || '📋';
+      const emoji = projEsc(p.icone_emoji || '📋');
+      const pid = projEsc(String(p.id));
       const atrasoStatus = projAtrasoStatusProjeto(p);
       lanesHTML += `
-        <div class="proj-launchpad-lane" id="proj-lane-${p.id}" data-id="${p.id}" data-idx="${idx}">
+        <div class="proj-launchpad-lane" id="proj-lane-${pid}" data-id="${pid}" data-idx="${idx}">
           <div class="proj-launchpad-lane-grid">${gridSegs}</div>
-          <div class="proj-rocket" id="proj-rocket-${p.id}"
-               data-id="${p.id}" data-pct="${pct}"
+          <div class="proj-rocket" id="proj-rocket-${pid}"
+               data-id="${pid}" data-pct="${pct}"
                style="left:${projRocketLeftStyle(pct)}"
-               onmousedown="projRocketUnifiedDrag(event,'${p.id}')"
-               ontouchstart="projRocketUnifiedDrag(event,'${p.id}')"
-               ondblclick="projAbrirDetalhe('${p.id}')">
+               onmousedown="projRocketUnifiedDrag(event,'${pid}')"
+               ontouchstart="projRocketUnifiedDrag(event,'${pid}')"
+               ondblclick="projAbrirDetalhe('${pid}')">
             <div class="proj-rocket-icon">
               ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">` : emoji}
             </div>
@@ -936,7 +975,7 @@ function projRenderInicio() {
       axisInner += `<div class="proj-launchpad-axis-lbl" style="left:${pct}%">${pct}%</div>`;
     }
 
-    lpContainer.innerHTML = `
+    projSetSafeHtml(lpContainer, `
       <div class="proj-launchpad-wrap">
         <div class="proj-launchpad-grid-bg"></div>
         <div class="proj-launchpad-glow"></div>
@@ -963,7 +1002,7 @@ function projRenderInicio() {
           </div>
         </div>
       </div>
-    `;
+    `);
     requestAnimationFrame(() => {
       projFitLaunchpadRockets();
       projBindLaunchpadResize();
@@ -979,7 +1018,7 @@ function projRenderInicio() {
 
   // 4. Estatísticas
   const statsRow = document.getElementById('proj-stats-row');
-  if(statsRow) statsRow.innerHTML = `
+  if(statsRow) projSetSafeHtml(statsRow, `
     <div class="proj-stat s-amber">
       <div class="proj-stat-n">${emIdeacaoPlan.length}</div>
       <div class="proj-stat-l">Ideação / Planejamento</div>
@@ -995,7 +1034,7 @@ function projRenderInicio() {
       <div class="proj-stat-l">Concluídos</div>
       <div class="proj-stat-icon" style="background:#e6f9f0">✅</div>
     </div>
-  `;
+  `);
 }
 
 // ── UNIFIED DRAG: detects horizontal vs vertical intent ──
@@ -1197,14 +1236,14 @@ function projRenderReunioesDoMes() {
   });
 
   if(todas.length === 0) {
-    reunEl.innerHTML = '<div style="text-align:center;padding:1.2rem;color:#b0b8cc;font-size:13px">Nenhuma reunião agendada este mês</div>';
+    projSetSafeHtml(reunEl, '<div style="text-align:center;padding:1.2rem;color:#b0b8cc;font-size:13px">Nenhuma reunião agendada este mês</div>');
     return;
   }
 
   todas.sort((a,b) => (a.data || '9999-12-31').localeCompare(b.data || '9999-12-31') || String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
-  reunEl.innerHTML = todas.map(r => `
+  projSetSafeHtml(reunEl, todas.map(r => `
     <div class="proj-reunion-item ${r.realizada ? 'proj-reunion-done' : ''}" id="reunion-item-${projEsc(r.id)}">
-      <div class="proj-reunion-check ${r.realizada ? 'done' : ''}" onclick="projToggleReuniao('${r._projeto_id}','${projEsc(r.id)}')">
+      <div class="proj-reunion-check ${r.realizada ? 'done' : ''}" onclick="projToggleReuniao('${projEsc(r._projeto_id)}','${projEsc(r.id)}')">
         ${r.realizada ? '<svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
       </div>
       <div style="flex:1;min-width:0">
@@ -1213,7 +1252,7 @@ function projRenderReunioesDoMes() {
       </div>
       ${r.data ? `<div class="proj-reunion-date">${projFormatDate(r.data)}</div>` : ''}
     </div>
-  `).join('');
+  `).join(''));
 }
 
 function projToggleReuniao(projetoId, reuniaoId) {
@@ -1238,10 +1277,11 @@ function projAtualizarBadgeReunioes() {
 // PÁGINA: PORTFÓLIO
 // ════════════════════════════════════════════════════════════════════
 function projRenderProjItem(p) {
+  const pid = projEsc(String(p.id));
   return `
-    <div class="proj-list-item" onclick="projAbrirDetalhe('${p.id}')">
+    <div class="proj-list-item" onclick="projAbrirDetalhe('${pid}')">
       <div class="proj-list-icon">
-        ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" alt="ícone">` : `<span style="font-size:20px">${p.icone_emoji || '📁'}</span>`}
+        ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" alt="ícone">` : `<span style="font-size:20px">${projEsc(p.icone_emoji || '📁')}</span>`}
       </div>
       <div>
         <div class="proj-list-name">${projEsc(p.nome)}</div>
@@ -1259,8 +1299,8 @@ function projRenderProjItem(p) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
         <span class="proj-list-badge ${projFaseBadgeClass(p.status,p.fase_atual)}">${projFaseText(p)}</span>
-        <button type="button" class="proj-btn" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();projTrocarIcone('${p.id}')">🎨</button>
-        <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();projExcluir('${p.id}')">Excluir</button>
+        <button type="button" class="proj-btn" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();projTrocarIcone('${pid}')">🎨</button>
+        <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 9px" onclick="event.stopPropagation();projExcluir('${pid}')">Excluir</button>
       </div>
     </div>
   `;
@@ -1275,7 +1315,7 @@ function projRenderPortfolio() {
   const concluidos = PROJETOS.filter(p=>p.status==='concluido' || p.status==='cancelado');
 
   if(ativos.length === 0) {
-    el.innerHTML = '<div style="text-align:center;padding:3rem;color:#b0b8cc"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhum projeto em andamento</div><div style="font-size:13px">Clique em "Novo Projeto" para começar.</div></div>';
+    projSetSafeHtml(el, '<div style="text-align:center;padding:3rem;color:#b0b8cc"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhum projeto em andamento</div><div style="font-size:13px">Clique em "Novo Projeto" para começar.</div></div>');
   } else {
     // Show only active projects - grouped by program
     let html = '';
@@ -1311,17 +1351,17 @@ function projRenderPortfolio() {
       html += '<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:700;color:#1a2540;margin:1.5rem 0 .8rem">Projetos sem programa</div>';
       html += soltos.map(projRenderProjItem).join('');
     }
-    el.innerHTML = html;
+    projSetSafeHtml(el, html);
   }
 
   // Link to concluded projects
   if(concluidos.length > 0) {
-    el.innerHTML += `
+    projAppendSafeHtml(el, 'beforeend', `
       <div style="margin-top:2rem;padding-top:1.4rem;border-top:2px solid #eaecf3;text-align:center">
         <button type="button" class="proj-btn" style="font-size:13px;padding:8px 20px" onclick="projGo('concluidos')">
           🏆 Ver Projetos Concluídos (${concluidos.length})
         </button>
-      </div>`;
+      </div>`);
   }
 }
 
@@ -1346,7 +1386,7 @@ function projRenderConcluidos() {
     html = '<div style="text-align:center;padding:3rem;color:#b0b8cc;font-size:13px">Nenhum projeto concluído ou cancelado.</div>';
   }
   el.textContent = '';
-  el.insertAdjacentHTML('beforeend', html);
+  projAppendSafeHtml(el, 'beforeend', html);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1430,7 +1470,7 @@ function projRenderUsuariosPage() {
   const overdue = rows.filter(r => r.overdue);
   const done = rows.filter(r => r.task.concluida);
   const table = rows.length ? `<table class="proj-v9-table"><thead><tr><th>Responsável</th><th>Projeto</th><th>Tarefa</th><th>Fim Prev.</th><th>Status</th><th>%</th></tr></thead><tbody>${rows.map(r => `<tr class="${r.overdue?'proj-user-row-overdue':''}"><td><span class="proj-user-avatar">${projEsc(projUserInitials(r.label))}</span>${projEsc(r.label)}</td><td>${projEsc(r.projectName)}</td><td>${r.task._parentName ? `<span style="color:var(--ink3)">${projEsc(r.task._parentName)} / </span>` : ''}${projEsc(r.task.nome||'Tarefa sem nome')}</td><td>${projEsc(projFormatDate(r.task.dt_fim))}</td><td>${r.overdue ? '<span class="risk-heat risk-alto">Atrasada</span>' : (r.task.concluida ? '<span class="risk-heat risk-baixo">Concluída</span>' : '<span class="risk-heat risk-medio">Em andamento</span>')}</td><td>${Number(r.task.conclusao||0)}%</td></tr>`).join('')}</tbody></table>` : '<div class="proj-v9-chart-card" style="font-size:12px;color:var(--ink3)">Nenhuma tarefa com responsável nos filtros atuais.</div>';
-  el.innerHTML = `
+  projSetSafeHtml(el, `
     <div class="proj-v9-filter-card">
       <div class="proj-card-t">Filtros</div>
       <div class="proj-v9-filter-grid">
@@ -1452,7 +1492,293 @@ function projRenderUsuariosPage() {
       <div class="proj-card-t">Tarefas vinculadas</div>
       ${table}
     </div>
-  `;
+  `);
+}
+
+const PROJ_PPE_FIRST_YEAR = 2026;
+const PROJ_PPE_FIRST_QUARTER = 3;
+const PROJ_PPE_LAST_YEAR = 2040;
+const PROJ_PPE_LAST_QUARTER = 4;
+let _projPpeCycle = null;
+
+function projPpeCycleKey(year, quarter) {
+  return `${year}Q${quarter}`;
+}
+
+function projPpeCycleLabel(cycleKey) {
+  const parsed = projPpeParseCycle(cycleKey);
+  return parsed ? `${parsed.quarter}º Tri ${parsed.year}` : '3º Tri 2026';
+}
+
+function projPpeParseCycle(cycleKey) {
+  const match = String(cycleKey || '').match(/^(\d{4})Q([1-4])$/);
+  if(!match) return null;
+  return { year: Number.parseInt(match[1], 10), quarter: Number.parseInt(match[2], 10) };
+}
+
+function projPpeCycleIndex(cycleKey) {
+  const parsed = projPpeParseCycle(cycleKey);
+  if(!parsed) return -1;
+  return (parsed.year * 4) + parsed.quarter;
+}
+
+function projPpeCycles() {
+  const cycles = [];
+  for(let year = PROJ_PPE_FIRST_YEAR; year <= PROJ_PPE_LAST_YEAR; year++) {
+    const startQ = year === PROJ_PPE_FIRST_YEAR ? PROJ_PPE_FIRST_QUARTER : 1;
+    for(let quarter = startQ; quarter <= PROJ_PPE_LAST_QUARTER; quarter++) {
+      cycles.push({ key: projPpeCycleKey(year, quarter), year, quarter, label: `${quarter}º Tri ${year}` });
+    }
+  }
+  return cycles;
+}
+
+function projPpeClampCycle(cycleKey) {
+  const cycles = projPpeCycles();
+  const idx = cycles.findIndex(c => c.key === cycleKey);
+  if(idx >= 0) return cycleKey;
+  const parsed = projPpeParseCycle(cycleKey);
+  if(!parsed) return cycles[0].key;
+  return projPpeCycleIndex(cycleKey) < projPpeCycleIndex(cycles[0].key) ? cycles[0].key : cycles[cycles.length - 1].key;
+}
+
+function projPpeCurrentBrazilParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: 'numeric'
+  }).formatToParts(date);
+  return {
+    year: Number(parts.find(p => p.type === 'year')?.value || date.getFullYear()),
+    month: Number(parts.find(p => p.type === 'month')?.value || (date.getMonth() + 1))
+  };
+}
+
+function projPpeDefaultCycle(date = new Date()) {
+  const parts = projPpeCurrentBrazilParts(date);
+  const currentQuarter = Math.floor((parts.month - 1) / 3) + 1;
+  let quarter = currentQuarter + 1;
+  let year = parts.year;
+  if(quarter > 4) {
+    quarter = 1;
+    year += 1;
+  }
+  return projPpeClampCycle(projPpeCycleKey(year, quarter));
+}
+
+function projPpeSelectedCycle() {
+  if(!_projPpeCycle) _projPpeCycle = projPpeDefaultCycle();
+  _projPpeCycle = projPpeClampCycle(_projPpeCycle);
+  return _projPpeCycle;
+}
+
+function projPpeMoveCycle(direction) {
+  projSavePpeFromForm(projPpeSelectedCycle());
+  const cycles = projPpeCycles();
+  const idx = cycles.findIndex(c => c.key === projPpeSelectedCycle());
+  const next = Math.max(0, Math.min(cycles.length - 1, idx + direction));
+  _projPpeCycle = cycles[next].key;
+  projRenderPpePage();
+}
+
+function projPpeSelectCycle(value) {
+  projSavePpeFromForm(projPpeSelectedCycle());
+  _projPpeCycle = projPpeClampCycle(value);
+  projRenderPpePage();
+}
+
+function projPpeEntry(project, cycleKey) {
+  const map = project?.ppe_ciclos;
+  if(!map || typeof map !== 'object' || Array.isArray(map)) return { texto: '' };
+  const entry = map[cycleKey];
+  if(typeof entry === 'string') return { texto: entry };
+  return entry && typeof entry === 'object' ? entry : { texto: '' };
+}
+
+function projPpeText(project, cycleKey) {
+  return String(projPpeEntry(project, cycleKey).texto || '');
+}
+
+function projSetPpeText(project, cycleKey, value) {
+  if(!project.ppe_ciclos || typeof project.ppe_ciclos !== 'object' || Array.isArray(project.ppe_ciclos)) project.ppe_ciclos = {};
+  project.ppe_ciclos[cycleKey] = {
+    texto: String(value || ''),
+    atualizado_em: new Date().toISOString(),
+    atualizado_por: projUserDisplayName(typeof usuarioLogado !== 'undefined' ? usuarioLogado : null) || ''
+  };
+}
+
+function projFinishPpeCloudSave() {
+  _projFbState.saving = false;
+  if(_projFbState.pendingRender) {
+    _projFbState.pendingRender = false;
+    projRenderCurrentPage();
+  }
+}
+
+async function projPersistPpeProjects(projects, silent) {
+  const targets = (projects || []).filter(Boolean);
+  if(!targets.length) return true;
+  if(!fbReady()) {
+    const saved = projSave();
+    if(saved && !silent) projToast('Meta PPE salva.');
+    return saved;
+  }
+  _projFbState.saving = true;
+  try {
+    await Promise.all(targets.map(project => projetosRepository.set(project.id, _fsClean({
+      ppe_ciclos: project.ppe_ciclos || {}
+    }), { merge: true })));
+    try {
+      localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS || []));
+    } catch(e) {
+      console.warn('projPersistPpeProjects/cache:', e.message);
+    }
+    if(!silent) projToast('Meta PPE salva.');
+    return true;
+  } catch(e) {
+    console.warn('projPersistPpeProjects:', e.message);
+    if(!silent) projToast('Erro ao salvar meta PPE na nuvem: ' + e.message, '#dc2626');
+    return false;
+  } finally {
+    projFinishPpeCloudSave();
+  }
+}
+
+function projPpeActiveProjects() {
+  return (PROJETOS || [])
+    .filter(p => p.status === 'ativo')
+    .slice()
+    .sort((a, b) => {
+      const programCompare = projProgramaNome(a).localeCompare(projProgramaNome(b), 'pt-BR');
+      return programCompare || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+    });
+}
+
+function projRenderPpePage() {
+  projLoad();
+  const el = document.getElementById('proj-ppe-content');
+  if(!el) return;
+  if(!projCanWriteExec()) {
+    projSetSafeHtml(el, '<div class="proj-ib proj-ib-amber">A aba PPE é exclusiva para usuários EPP. Usuários com acesso apenas de visualização não podem editar ou gerar este relatório.</div>');
+    return;
+  }
+  const cycle = projPpeSelectedCycle();
+  const cycles = projPpeCycles();
+  const cycleIdx = cycles.findIndex(c => c.key === cycle);
+  const ativos = projPpeActiveProjects();
+  const preenchidos = ativos.filter(p => projPpeText(p, cycle).trim()).length;
+  projSetSafeHtml(el, `
+    <div class="proj-ppe-toolbar">
+      <div>
+        <div class="proj-ppe-title">Metas PPE do próximo ciclo</div>
+        <div class="proj-ppe-subtitle">Textos salvos por trimestre para compor o relatório à Coordenação de Gestão Estratégica.</div>
+      </div>
+      <div class="proj-ppe-cycle">
+        <button type="button" class="proj-ppe-arrow" ${cycleIdx <= 0 ? 'disabled' : ''} onclick="projPpeMoveCycle(-1)" title="Ciclo anterior">‹</button>
+        <select class="proj-ppe-select" aria-label="Selecionar ciclo PPE" onchange="projPpeSelectCycle(this.value)">
+          ${cycles.map(c => `<option value="${projEsc(c.key)}" ${c.key === cycle ? 'selected' : ''}>${projEsc(c.label)}</option>`).join('')}
+        </select>
+        <button type="button" class="proj-ppe-arrow" ${cycleIdx >= cycles.length - 1 ? 'disabled' : ''} onclick="projPpeMoveCycle(1)" title="Próximo ciclo">›</button>
+      </div>
+    </div>
+    <div class="proj-ppe-summary">
+      <div><strong>${ativos.length}</strong><span>Projetos ativos</span></div>
+      <div><strong>${preenchidos}</strong><span>Com metas indicadas</span></div>
+      <div><strong>${projEsc(projPpeCycleLabel(cycle))}</strong><span>Ciclo selecionado</span></div>
+    </div>
+    ${ativos.length ? `<div class="proj-ppe-list">
+      ${ativos.map(p => `
+        <div class="proj-ppe-card">
+          <div class="proj-ppe-card-head">
+            ${projIconHtml(p, 'proj-status-icon')}
+            <div>
+              <div class="proj-ppe-project">${projEsc(p.nome || 'Projeto')}</div>
+              <div class="proj-ppe-meta">Programa: ${projEsc(projProgramaNome(p))} · Gerente: ${projEsc(p.gerente || 'Não informado')} · ${p.percentual || 0}%</div>
+            </div>
+          </div>
+          <textarea class="proj-fi proj-ppe-text" data-proj-id="${projEsc(String(p.id))}" rows="4" placeholder="Indique as atividades/metas deste projeto para o PPE no ciclo selecionado..." onchange="projSalvarPpeTexto('${projEsc(String(p.id))}', '${projEsc(cycle)}', this.value)">${projEsc(projPpeText(p, cycle))}</textarea>
+        </div>
+      `).join('')}
+    </div>` : '<div style="text-align:center;padding:2rem;color:#b0b8cc;font-size:13px">Nenhum projeto ativo encontrado.</div>'}
+  `);
+}
+
+function projSalvarPpeTexto(projId, cycleKey, value, silent) {
+  if(!projCanWriteExec()) {
+    if(!silent) projToast('Somente EPP pode editar as metas PPE.', '#d97706');
+    return;
+  }
+  const safeCycle = projPpeClampCycle(cycleKey);
+  projLoad();
+  const proj = PROJETOS.find(p => String(p.id) === String(projId));
+  if(!proj) return;
+  projSetPpeText(proj, safeCycle, value);
+  projPersistPpeProjects([proj], silent).catch(() => {});
+}
+
+function projSavePpeFromForm(cycleKey = projPpeSelectedCycle()) {
+  if(!projCanWriteExec()) return;
+  let changed = false;
+  const changedProjects = [];
+  const safeCycle = projPpeClampCycle(cycleKey);
+  document.querySelectorAll('.proj-ppe-text[data-proj-id]').forEach(txt => {
+    const proj = PROJETOS.find(p => String(p.id) === String(txt.dataset.projId));
+    if(!proj) return;
+    const current = projPpeText(proj, safeCycle);
+    if(current !== txt.value) {
+      projSetPpeText(proj, safeCycle, txt.value);
+      changedProjects.push(proj);
+      changed = true;
+    }
+  });
+  if(changed) projPersistPpeProjects(changedProjects, true).catch(() => {});
+}
+
+function projExportPpePDF() {
+  if(!projEnsureWriteExec('Somente EPP pode gerar o relatório PPE.')) return;
+  projLoad();
+  const cycle = projPpeSelectedCycle();
+  projSavePpeFromForm(cycle);
+  const blob = new Blob([projBuildPpeReportHTML(cycle)], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if(!w) {
+    projToast('Permita pop-ups para exportar o PDF.', '#d97706');
+    URL.revokeObjectURL(url);
+  }
+}
+
+function projBuildPpeReportHTML(cycleKey) {
+  const cycle = projPpeClampCycle(cycleKey);
+  const label = projPpeCycleLabel(cycle);
+  const data = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const reportLogo = new URL(PROJ_CAGE_REPORT_LOGO, window.location.href).href;
+  const ativos = projPpeActiveProjects();
+  const rows = ativos
+    .map(p => ({ p, texto: projPpeText(p, cycle).trim() }))
+    .filter(row => row.texto);
+  const groups = {};
+  rows.forEach(row => {
+    const program = projProgramaNome(row.p);
+    if(!groups[program]) groups[program] = [];
+    groups[program].push(row);
+  });
+  const groupsHtml = Object.entries(groups).map(([program, items]) => `
+    <section class="ppe-program">
+      <h2>${projEsc(program)}</h2>
+      ${items.map(({p, texto}) => `
+        <article class="ppe-card">
+          <div>
+            <h3>${projEsc(p.nome || 'Projeto')}</h3>
+            <div class="ppe-sub">Gerente: ${projEsc(p.gerente || 'Não informado')} · Patrocinador: ${projEsc(p.patrocinador || 'Não informado')} · Conclusão: ${p.percentual || 0}%</div>
+          </div>
+          <div class="ppe-note"><span>Metas/atividades indicadas para o PPE</span><p>${projEsc(texto).replaceAll('\n', '<br>')}</p></div>
+        </article>
+      `).join('')}
+    </section>
+  `).join('');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório PPE - ${projEsc(label)}</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.ppe-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.ppe-logo{width:185px;max-height:72px;object-fit:contain}.ppe-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}h1{margin:4px 0;font-size:27px;color:#0f2746}.ppe-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.ppe-date{font-size:12px;color:var(--muted)}.ppe-ref{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);border:1px solid #cfe0f4;background:#f8fbff;border-radius:999px;padding:3px 9px}.ppe-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.ppe-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}.ppe-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.ppe-chip strong{font-size:20px;color:var(--blue);display:block}.ppe-program{margin-top:20px}.ppe-program h2{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:0 0 12px}.ppe-card{border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}h3{font-size:15px;margin:0;color:#0f2746}.ppe-sub{font-size:10.5px;color:#6b7588;margin-top:3px}.ppe-note{margin-top:10px;border-left:3px solid #f59e0b;padding-left:12px}.ppe-note span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}.ppe-note p{font-size:12px;line-height:1.5;margin:0;color:#334155}.ppe-empty{padding:14px;border:1px dashed #d0d7e8;border-radius:10px;color:#5f6b80;font-size:12px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="ppe-cover"><div><div class="ppe-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Relatório de Metas PPE</h1><div class="ppe-meta"><span class="ppe-date">Emitido em ${data}</span><span class="ppe-ref">${projEsc(label)}</span></div></div><img class="ppe-logo" src="${reportLogo}" alt="CAGE"></header><section class="ppe-intro">Relatório gerado a partir do SIGA para indicar à Coordenação de Gestão Estratégica as atividades e metas de projetos propostas para o Prêmio de Produtividade e Eficiência no ciclo selecionado.</section><div class="ppe-summary"><div class="ppe-chip"><strong>${ativos.length}</strong>Projetos ativos</div><div class="ppe-chip"><strong>${rows.length}</strong>Projetos com metas PPE</div><div class="ppe-chip"><strong>${projEsc(label)}</strong>Ciclo</div></div>${groupsHtml || '<div class="ppe-empty">Nenhuma meta PPE foi indicada para este ciclo.</div>'}<script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
 }
 
 function projRenderStatusReport() {
@@ -1461,10 +1787,10 @@ function projRenderStatusReport() {
   if(!el) return;
   const ativos = PROJETOS.filter(p => p.status === 'ativo');
   if(!ativos.length) {
-    el.innerHTML = '<div style="text-align:center;padding:2rem;color:#b0b8cc;font-size:13px">Nenhum projeto em andamento encontrado.</div>';
+    projSetSafeHtml(el, '<div style="text-align:center;padding:2rem;color:#b0b8cc;font-size:13px">Nenhum projeto em andamento encontrado.</div>');
     return;
   }
-  el.innerHTML = `
+  projSetSafeHtml(el, `
     <div class="proj-ib proj-ib-blue">Preencha a observação livre de cada projeto. Esse texto será exibido ao lado do projeto no PDF do Relatório Executivo.</div>
     <div class="proj-status-grid">
       ${ativos.map(p => `
@@ -1493,7 +1819,7 @@ function projRenderStatusReport() {
         </div>
       `).join('')}
     </div>
-  `;
+  `);
 }
 
 function projSalvarStatusReportObs(projId, value, silent) {
@@ -1853,36 +2179,6 @@ async function projDownloadStatusReportPNG() {
   a.click();
 }
 
-function projExportReunioesRealizadasPDF() {
-  projLoad();
-  const monthValue = document.getElementById('greuniao-rel-mes')?.value || projMonthValue();
-  const label = projMonthLabel(monthValue);
-  const realizadas = [];
-  PROJETOS.forEach(p => {
-    (p.execucao?.reunioes||[]).forEach(r => {
-      if(r.realizada && r.data && projIsoInMonth(r.data, monthValue)) realizadas.push({ ...r, _projeto:p });
-    });
-  });
-  const rows = realizadas.sort((a,b)=>(a.data||'').localeCompare(b.data||'')).map(r => `
-    <tr>
-      <td>${projFormatDate(r.data)}</td>
-      <td>${projEsc(r._projeto.nome)}</td>
-      <td>${projEsc(r.nome)}</td>
-      <td>${projEsc(r.participantes||'')}</td>
-      <td>${projEsc(r.observacoes||'')}</td>
-    </tr>
-  `).join('');
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Reuniões Realizadas</title>
-    <style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;color:#1a2540}.head{border-left:8px solid var(--blue);padding:14px 18px;background:#f0f6ff;margin-bottom:16px}.k{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#00a89a;font-weight:700}h1{margin:4px 0;color:var(--blue);font-size:24px}.sub{font-size:12px;color:#5f6b80}table{width:100%;border-collapse:collapse;font-size:11.5px}th{background:var(--blue);color:#fff;text-align:left;padding:8px}td{border-bottom:1px solid #d9e2ef;padding:7px;vertical-align:top}tr:nth-child(even) td{background:#f8fbff}.empty{padding:18px;border:1px solid #d9e2ef;border-radius:8px;color:#5f6b80}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
-    </head><body><div class="head"><div class="k">CAGE-RS · Escritório de Projetos e Processos</div><h1>Reuniões Realizadas</h1><div class="sub">${projEsc(label)} · ${realizadas.length} reunião(ões)</div></div>
-    ${realizadas.length ? `<table><thead><tr><th>Data</th><th>Projeto</th><th>Reunião</th><th>Participantes</th><th>Observações</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">Nenhuma reunião realizada encontrada para o mês/ano selecionado.</div>'}
-    <script>setTimeout(function(){window.print();},350);</script></body></html>`;
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const w = window.open(url, '_blank');
-  if(!w) { projToast('Permita pop-ups para exportar o PDF.', '#d97706'); URL.revokeObjectURL(url); return; }
-}
-
 function projQuarterValue(date) {
   const d = date || new Date();
   return d.getFullYear() + '-T' + (Math.floor(d.getMonth() / 3) + 1);
@@ -2017,7 +2313,7 @@ function projRenderReunioesCalendar(container) {
   // Title — static SVG + text
   const titleDiv = document.createElement('div');
   titleDiv.className = 'proj-form-section-title';
-  titleDiv.innerHTML = '<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1.5" y="3" width="13" height="11.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.5v3M11 1.5v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  projSetSafeHtml(titleDiv, '<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1.5" y="3" width="13" height="11.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.5v3M11 1.5v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>');
   titleDiv.appendChild(document.createTextNode(' Calendário de Reuniões'));
   section.appendChild(titleDiv);
 
@@ -2138,7 +2434,7 @@ function projRenderReunioesPage() {
   if(!el) return;
 
   // Static form only — no user data in this string
-  el.innerHTML = `
+  projSetSafeHtml(el, `
     <div class="proj-form-section" style="margin-bottom:1rem">
       <div class="proj-form-section-title">
         <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
@@ -2187,7 +2483,7 @@ function projRenderReunioesPage() {
       </div>
       </div>
     </div>
-  `;
+  `);
 
   // Calendar built entirely via DOM (user data via textContent/title/addEventListener)
   const calDiv = document.createElement('div');
@@ -2220,7 +2516,7 @@ function projRenderReunioesPage() {
       card.className = 'proj-card'; card.style.marginBottom = '1rem';
       const hd = document.createElement('div');
       hd.className = 'proj-card-t'; hd.style.cursor = 'pointer';
-      hd.innerHTML = calSvg;
+      projSetSafeHtml(hd, calSvg);
       hd.addEventListener('click', () => projGoReunioesProj(pId));
       const link = document.createElement('a');
       link.href = 'javascript:void(0)';
@@ -2239,7 +2535,7 @@ function projRenderReunioesPage() {
     card.className = 'proj-card'; card.style.marginBottom = '1rem';
     const hd = document.createElement('div');
     hd.className = 'proj-card-t'; hd.style.cursor = 'pointer';
-    hd.innerHTML = calSvg;
+    projSetSafeHtml(hd, calSvg);
     hd.addEventListener('click', () => projGoReunioesProj(pId));
     const link = document.createElement('a');
     link.href = 'javascript:void(0)';
@@ -2349,14 +2645,15 @@ function projGoReunioesProj(projId) {
     html += `</div></div>`;
   }
 
-  el.innerHTML = html;
+  projSetSafeHtml(el, html);
 }
 
 // ── Helper: render a single reunião item ──
 function projRenderReuniaoItem(projId, r, isDone) {
+  const pid = projEsc(String(projId));
   return `
     <div class="proj-reunion-item ${isDone?'proj-reunion-done':''}" style="display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;gap:8px;padding:.6rem 0;border-bottom:1px solid #eaecf3">
-      <div class="proj-reunion-check ${isDone?'done':''}" onclick="projToggleReuniaoPage('${projId}','${projEsc(r.id)}')">
+      <div class="proj-reunion-check ${isDone?'done':''}" onclick="projToggleReuniaoPage('${pid}','${projEsc(r.id)}')">
         ${isDone ? '<svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
       </div>
       <div>
@@ -2368,8 +2665,8 @@ function projRenderReuniaoItem(projId, r, isDone) {
         ${r.observacoes ? `<div style="font-size:11px;color:var(--ink3)">📝 ${projEsc(r.observacoes)}</div>` : ''}
       </div>
       <span style="font-size:10px;padding:2px 7px;border-radius:5px;${isDone?'background:var(--teal-l);color:var(--teal)':'background:var(--blue-l);color:var(--blue)'}">${isDone?'Realizada':'Pendente'}</span>
-      <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal('${projId}','${projEsc(r.id)}')">✏️</button>
-      <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao('${projId}','${projEsc(r.id)}')">✕</button>
+      <button type="button" class="proj-btn" style="font-size:11px;padding:3px 8px" onclick="projEditarReuniaoModal('${pid}','${projEsc(r.id)}')">✏️</button>
+      <button type="button" class="proj-btn danger" style="font-size:11px;padding:3px 8px" onclick="projExcluirReuniao('${pid}','${projEsc(r.id)}')">✕</button>
     </div>
   `;
 }
@@ -2409,7 +2706,7 @@ function projEditarReuniaoModal(projetoId, reuniaoId) {
 
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem';
-  modal.innerHTML = `
+  projSetSafeHtml(modal, `
     <div style="background:#fff;border-radius:16px;padding:1.6rem;width:100%;max-width:480px;box-shadow:0 16px 48px rgba(0,0,0,.2)">
       <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#1a2540;margin-bottom:1.2rem">Editar Reunião</div>
       <div class="proj-fg"><label class="proj-fl">Nome<span>*</span></label>
@@ -2424,10 +2721,10 @@ function projEditarReuniaoModal(projetoId, reuniaoId) {
         <input type="text" class="proj-fi" id="edit-r-obs" value="${projEsc(r.observacoes||'')}"></div>
       <div class="proj-btn-row">
         <button type="button" class="proj-btn" onclick="this.closest('[style*=fixed]').remove()">Cancelar</button>
-        <button type="button" class="proj-btn primary" onclick="projSalvarEdicaoReuniao('${projetoId}','${reuniaoId}',this)">Salvar</button>
+        <button type="button" class="proj-btn primary" onclick="projSalvarEdicaoReuniao('${projEsc(String(projetoId))}','${projEsc(String(reuniaoId))}',this)">Salvar</button>
       </div>
     </div>
-  `;
+  `);
   document.body.appendChild(modal);
 }
 
@@ -2487,8 +2784,8 @@ function projRenderNovo() {
   const progSel = document.getElementById('pnovo-programa');
   if(progSel) {
     const ativos = PROGRAMAS.filter(pg => pg.status === 'ativo');
-    progSel.innerHTML = '<option value="">Sem programa</option>' +
-      ativos.map(pg => `<option value="${projEsc(String(pg.id))}">${projEsc(pg.nome)}</option>`).join('');
+    projSetSafeHtml(progSel, '<option value="">Sem programa</option>' +
+      ativos.map(pg => `<option value="${projEsc(String(pg.id))}">${projEsc(pg.nome)}</option>`).join(''));
     progSel.value = '';
   }
 }
@@ -2591,16 +2888,16 @@ function projRenderDetalhe(p) {
     <div class="proj-tab ${i===0?'on':''}" onclick="projDetalheTab('${f.id}',this)">${f.label}</div>
   `).join('');
 
-  el.innerHTML = `
+  projSetSafeHtml(el, `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.4rem;flex-wrap:wrap">
       <button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">← Portfólio</button>
-      <div style="font-size:28px;cursor:pointer;padding:2px 6px;border-radius:8px;border:1px dashed transparent;transition:all .2s" title="Alterar ícone" onclick="projShowEmojiPicker(${JSON.stringify(String(p.id))})" onmouseover="this.style.borderColor='#1A5DC8';this.style.background='#ebf1fc'" onmouseout="this.style.borderColor='transparent';this.style.background='none'">${p.icone_url ? '<img src="'+projEsc(p.icone_url)+'" style="width:32px;height:32px;object-fit:cover;border-radius:6px">' : (p.icone_emoji || '📁')}</div>
+      <div style="font-size:28px;cursor:pointer;padding:2px 6px;border-radius:8px;border:1px dashed transparent;transition:all .2s" title="Alterar ícone" onclick="projShowEmojiPicker(${JSON.stringify(String(p.id))})" onmouseover="this.style.borderColor='#1A5DC8';this.style.background='#ebf1fc'" onmouseout="this.style.borderColor='transparent';this.style.background='none'">${p.icone_url ? '<img src="'+projEsc(p.icone_url)+'" style="width:32px;height:32px;object-fit:cover;border-radius:6px">' : projEsc(p.icone_emoji || '📁')}</div>
       <div style="flex:1">
         <div style="font-family:'Syne',sans-serif;font-size:19px;font-weight:700;color:#1a2540">${projEsc(p.nome)}</div>
         <div style="font-size:12px;color:var(--ink3);margin-top:2px">Gerente: ${projEsc(p.gerente)} ${p.patrocinador ? '· Patrocinador: '+projEsc(p.patrocinador) : ''}</div>
       </div>
       <span class="proj-list-badge ${projFaseBadgeClass(p.status,p.fase_atual)}" style="font-size:12px;padding:4px 12px">${projFaseText(p)}</span>
-      ${p.status==='ativo' ? '<span id="proj-fase-buttons" data-pid="' + p.id + '"></span>' : ''}
+      ${p.status==='ativo' ? '<span id="proj-fase-buttons" data-pid="' + projEsc(String(p.id)) + '"></span>' : ''}
     </div>
 
     <!-- Workflow -->
@@ -2611,7 +2908,7 @@ function projRenderDetalhe(p) {
     <!-- Tabs das fases -->
     <div class="proj-tabs" id="proj-detalhe-tabs">${tabs}</div>
     <div id="proj-detalhe-tab-content"></div>
-  `;
+  `);
 
   // Populate fase buttons (avoid nested template literals)
   let faseBtn = document.getElementById('proj-fase-buttons');
@@ -2640,11 +2937,11 @@ function projDetalheTab(faseId, tabEl) {
   if(!content) return;
 
   switch(faseId) {
-    case 'aprovacao':    content.innerHTML = projTabAprovacao(proj); setTimeout(projPopulateVinculacoes,50); break;
-    case 'ideacao':      content.innerHTML = projTabIdeacao(proj); break;
-    case 'planejamento': content.innerHTML = projTabPlanejamento(proj); break;
-    case 'execucao':     content.innerHTML = projTabExecucao(proj); break;
-    case 'conclusao':    content.innerHTML = projTabConclusao(proj); break;
+    case 'aprovacao':    projSetSafeHtml(content, projTabAprovacao(proj)); setTimeout(projPopulateVinculacoes,50); break;
+    case 'ideacao':      projSetSafeHtml(content, projTabIdeacao(proj)); break;
+    case 'planejamento': projSetSafeHtml(content, projTabPlanejamento(proj)); break;
+    case 'execucao':     projSetSafeHtml(content, projTabExecucao(proj)); break;
+    case 'conclusao':    projSetSafeHtml(content, projTabConclusao(proj)); break;
   }
   projApplyProjectReadonly(faseId);
 }
@@ -2673,7 +2970,7 @@ function projApplyProjectReadonly(faseId){
     const msg = projIsLinkedManager()
       ? 'Visualização geral. Este projeto está vinculado ao seu perfil Projetos; você pode editar apenas o cronograma.'
       : 'Seu perfil tem acesso apenas de visualização no SIGA Projetos.';
-    content.insertAdjacentHTML('afterbegin', `<div class="proj-readonly-banner">${projEsc(msg)}</div>`);
+    projAppendSafeHtml(content, 'afterbegin', `<div class="proj-readonly-banner">${projEsc(msg)}</div>`);
   }
 }
 
@@ -2888,7 +3185,7 @@ function projTabIdeacao(p) {
         ${ide.canvas_html ? `
           <div class="proj-eap-embed">
             <div style="padding:.6rem .8rem;background:var(--teal-l);border-bottom:1px solid #e5e8ef;font-size:11px;font-weight:600;color:var(--teal)">Pré-visualização do Canvas</div>
-            <div style="padding:1rem;overflow-x:auto">${ide.canvas_html}</div>
+            <iframe sandbox="allow-scripts" srcdoc="${(ide.canvas_html||'').replaceAll('&','&amp;').replaceAll('"','&quot;')}" style="width:100%;min-height:200px;border:none;display:block"></iframe>
           </div>
         ` : ''}
       </div>
@@ -3454,6 +3751,7 @@ function projTabExecucao(p) {
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>
               <tr style="background:#f0f4ff">
+                <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:28px"></th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3;width:70px">Nº</th>
                 <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:24px">✓</th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3">Nome</th>
@@ -3463,8 +3761,10 @@ function projTabExecucao(p) {
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:100px">Fim Prev.</th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3;width:120px">Responsável</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:70px">%</th>
+                <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:42px">Anot.</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:40px">Sub</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:30px"></th>
+                <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:56px">Ordem</th>
               </tr>
             </thead>
             <tbody id="exec-tarefas-body">
@@ -3595,6 +3895,7 @@ function projCalcDerivedPct(tarefas) {
 function projRenderTarefasRows(tarefas, depth, parentIdx) {
   if(!tarefas) return '';
   let html = '';
+  const canWriteSchedule = projCanWriteSchedule();
   tarefas.forEach((t, i) => {
     const path = parentIdx !== undefined && parentIdx !== null ? parentIdx+'.'+i : ''+i;
     const hasSubs = t.subtarefas && t.subtarefas.length > 0;
@@ -3605,7 +3906,14 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
     const today = new Date().toISOString().slice(0,10);
     const overdue = !t.concluida && t.dt_fim && t.dt_fim < today;
     const rowBg = overdue ? 'background:#fef2f2' : (t.concluida ? 'background:#f0fdf4' : '');
+    const hasNotes = Array.isArray(t.anotacoes) && t.anotacoes.length > 0;
+    const canDrag = canWriteSchedule && !hasSubs && parentIdx !== undefined && parentIdx !== null;
+    const canMoveUp = i > 0;
+    const canMoveDown = i < tarefas.length - 1;
     html += `<tr style="${rowBg}">
+      <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
+        ${canDrag ? `<button type="button" class="proj-task-drag-handle" draggable="true" title="Arrastar para reordenar no mesmo bloco" ondragstart="projTaskDragStart(event,'${path}')" ondragover="projTaskDragOver(event,'${path}')" ondrop="projTaskDrop(event,'${path}')" ondragend="projTaskDragEnd(event)">⋮⋮</button>` : ''}
+      </td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike};font-family:'DM Mono',monospace;font-size:11px;white-space:nowrap">${path.split('.').map(n=>Number.parseInt(n,10)+1).join('.')}.</td>
       <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
         ${!hasSubs ? `<input type="checkbox" ${t.concluida?'checked':''} onchange="projToggleTarefa('${path}')">` : ''}
@@ -3627,10 +3935,19 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
           `<input type="number" min="0" max="100" value="${pct}" onchange="projUpdateTarefa('${path}','conclusao',Number.parseInt(this.value,10)||0)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:50px;text-align:center">`}
       </td>
       <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
+        <button type="button" class="proj-task-note-btn ${hasNotes?'on':''}" title="Anotações" onclick="projOpenTaskNotes('${path}')">✎</button>
+      </td>
+      <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
         <button type="button" title="Adicionar subtarefa" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0" onclick="projAddTarefa('${path}')">＋</button>
       </td>
       <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
         <button type="button" title="Excluir" style="background:none;border:none;cursor:pointer;font-size:13px;color:#dc2626;padding:0" onclick="projRemoveTarefa('${path}')">✕</button>
+      </td>
+      <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
+        ${canWriteSchedule && hasSubs ? `<div class="proj-task-order-controls">
+          <button type="button" title="Mover para cima" ${canMoveUp?'':'disabled'} onclick="projMoveTaskByButton('${path}',-1)">↑</button>
+          <button type="button" title="Mover para baixo" ${canMoveDown?'':'disabled'} onclick="projMoveTaskByButton('${path}',1)">↓</button>
+        </div>` : ''}
       </td>
     </tr>`;
     if(hasSubs) {
@@ -3655,6 +3972,224 @@ function projGetTarefaByPath(tarefas, path) {
     list = list[parts[i]].subtarefas || [];
   }
   return {list, index: parts[parts.length-1]};
+}
+
+let _projTaskDragPath = '';
+
+function projTaskParentPath(path) {
+  const text = String(path || '');
+  const idx = text.lastIndexOf('.');
+  return idx === -1 ? '' : text.slice(0, idx);
+}
+
+function projTaskIndexFromPath(path) {
+  const idx = Number.parseInt(String(path || '').split('.').pop(), 10);
+  return Number.isFinite(idx) ? idx : -1;
+}
+
+function projRefreshScheduleAfterMutation(proj) {
+  projSyncDerivedTaskDates(proj.execucao.tarefas);
+  if(proj.execucao.pct_mode === 'derivado') {
+    proj.percentual = projCalcDerivedPct(proj.execucao.tarefas);
+    proj.execucao.percentual = proj.percentual;
+  }
+  projSave();
+  projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+}
+
+function projMoveTaskToIndex(path, targetIndex) {
+  return projWithScheduleWrite(() => {
+    projLoad();
+    const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
+    if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
+    const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
+    if(!ref || !ref.list || !ref.list[ref.index]) return;
+    const boundedTarget = Math.max(0, Math.min(targetIndex, ref.list.length - 1));
+    if(ref.index === boundedTarget) return;
+    projEnsureCurrentScheduleBackupBeforeMutation(proj);
+    const [task] = ref.list.splice(ref.index, 1);
+    ref.list.splice(boundedTarget, 0, task);
+    projRefreshScheduleAfterMutation(proj);
+  });
+}
+
+function projMoveTaskByButton(path, direction) {
+  projLoad();
+  const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
+  if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
+  const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
+  const task = ref && ref.list ? ref.list[ref.index] : null;
+  if(!task || !(task.subtarefas || []).length) return;
+  projMoveTaskToIndex(path, ref.index + direction);
+}
+
+function projTaskDragStart(event, path) {
+  _projTaskDragPath = String(path || '');
+  if(event?.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', _projTaskDragPath);
+  }
+}
+
+function projTaskDragOver(event, path) {
+  const fromPath = _projTaskDragPath || event?.dataTransfer?.getData('text/plain') || '';
+  if(fromPath && projTaskParentPath(fromPath) === projTaskParentPath(path)) {
+    event.preventDefault();
+    if(event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+}
+
+function projTaskDrop(event, targetPath) {
+  event.preventDefault();
+  const fromPath = _projTaskDragPath || event?.dataTransfer?.getData('text/plain') || '';
+  _projTaskDragPath = '';
+  if(!fromPath || fromPath === targetPath) return;
+  if(projTaskParentPath(fromPath) !== projTaskParentPath(targetPath)) {
+    projToast('Reordene tarefas apenas dentro do mesmo bloco.', '#d97706');
+    return;
+  }
+  const fromIndex = projTaskIndexFromPath(fromPath);
+  const targetIndex = projTaskIndexFromPath(targetPath);
+  if(fromIndex < 0 || targetIndex < 0) return;
+  projMoveTaskToIndex(fromPath, targetIndex);
+}
+
+function projTaskDragEnd() {
+  _projTaskDragPath = '';
+}
+
+function projFormatBrasiliaDateTime(value) {
+  if(!value) return '';
+  const date = new Date(value);
+  if(Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(date);
+}
+
+function projCloseTaskNotes() {
+  const el = document.getElementById('proj-task-notes-modal');
+  if(el) el.remove();
+}
+
+function projCurrentUserForNote() {
+  const user = typeof usuarioLogado !== 'undefined' ? usuarioLogado : null;
+  return {
+    name: projUserDisplayName(user) || String(user?.email || 'Usuário'),
+    email: String(user?.email || '').trim().toLowerCase()
+  };
+}
+
+function projCanDeleteTaskNote(note) {
+  const currentUser = projCurrentUserForNote();
+  const noteEmail = String(note?.autor_email || '').trim().toLowerCase();
+  if(noteEmail && currentUser.email) return noteEmail === currentUser.email;
+  const currentName = projNormKey(currentUser.name);
+  const noteName = projNormKey(note?.autor_nome);
+  return Boolean(noteName && currentName && currentName !== 'usuário' && noteName === currentName);
+}
+
+function projOpenTaskNotes(path) {
+  projLoad();
+  const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
+  const ref = proj && proj.execucao ? projGetTarefaByPath(proj.execucao.tarefas || [], path) : null;
+  const task = ref && ref.list ? ref.list[ref.index] : null;
+  if(!task) return;
+  projCloseTaskNotes();
+  const notes = Array.isArray(task.anotacoes) ? task.anotacoes : [];
+  const canWriteSchedule = projCanWriteSchedule(proj.id);
+  const modal = document.createElement('div');
+  modal.id = 'proj-task-notes-modal';
+  modal.className = 'proj-task-notes-backdrop';
+  projSetSafeHtml(modal, `
+    <div class="proj-task-notes-card" role="dialog" aria-modal="true" aria-labelledby="proj-task-notes-title">
+      <div class="proj-task-notes-head">
+        <div>
+          <div id="proj-task-notes-title" class="proj-task-notes-title">Anotações</div>
+          <div class="proj-task-notes-subtitle">${projEsc(task.nome || 'Tarefa')}</div>
+        </div>
+        <button type="button" class="proj-task-notes-close" onclick="projCloseTaskNotes()" aria-label="Fechar">×</button>
+      </div>
+      <div class="proj-task-notes-list">
+        ${notes.length ? notes.map(n => `
+          <article class="proj-task-note-item">
+            <div class="proj-task-note-head">
+              <div class="proj-task-note-meta">${projEsc(n.autor_nome || 'Usuário')} · ${projEsc(projFormatBrasiliaDateTime(n.criado_em))} BRT</div>
+              ${canWriteSchedule && projCanDeleteTaskNote(n) ? `<button type="button" class="proj-task-note-delete" title="Excluir anotação" onclick="projDeleteTaskNote('${path}','${projEsc(n.id || '')}')">Excluir</button>` : ''}
+            </div>
+            <div class="proj-task-note-text">${projEsc(n.texto || '')}</div>
+          </article>
+        `).join('') : '<div class="proj-task-notes-empty">Nenhuma anotação publicada.</div>'}
+      </div>
+      ${canWriteSchedule ? `<textarea id="proj-task-note-text" class="proj-fi proj-task-note-textarea" placeholder="Escreva uma anotação sobre esta tarefa"></textarea>` : '<div class="proj-task-notes-empty">Você pode visualizar as anotações, mas não editar o cronograma deste projeto.</div>'}
+      <div class="proj-task-notes-actions">
+        <button type="button" class="proj-btn" onclick="projCloseTaskNotes()">Cancelar</button>
+        ${canWriteSchedule ? `<button type="button" class="proj-btn primary" onclick="projPublishTaskNote('${path}')">Publicar</button>` : ''}
+      </div>
+    </div>
+  `);
+  modal.addEventListener('click', ev => {
+    if(ev.target === modal) projCloseTaskNotes();
+  });
+  document.body.appendChild(modal);
+  const input = document.getElementById('proj-task-note-text');
+  if(input) input.focus();
+}
+
+function projPublishTaskNote(path) {
+  const input = document.getElementById('proj-task-note-text');
+  const text = String(input?.value || '').trim();
+  if(!text) {
+    projToast('Escreva uma anotação antes de publicar.', '#d97706');
+    return;
+  }
+  return projWithScheduleWrite(() => {
+    projLoad();
+    const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
+    if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
+    const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
+    const task = ref && ref.list ? ref.list[ref.index] : null;
+    if(!task) return;
+    projEnsureCurrentScheduleBackupBeforeMutation(proj);
+    const currentUser = projCurrentUserForNote();
+    if(!Array.isArray(task.anotacoes)) task.anotacoes = [];
+    task.anotacoes.push({
+      id: `note-${Date.now()}`,
+      texto: text,
+      autor_nome: currentUser.name,
+      autor_email: currentUser.email,
+      criado_em: new Date().toISOString()
+    });
+    projSave();
+    projCloseTaskNotes();
+    projToast('Anotação publicada.', 'var(--teal)');
+    projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
+}
+
+function projDeleteTaskNote(path, noteId) {
+  return projWithScheduleWrite(() => {
+    projLoad();
+    const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
+    if(!proj || !proj.execucao || !proj.execucao.tarefas) return;
+    const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
+    const task = ref && ref.list ? ref.list[ref.index] : null;
+    if(!task || !Array.isArray(task.anotacoes)) return;
+    const index = task.anotacoes.findIndex(n => String(n.id || '') === String(noteId || ''));
+    const note = index >= 0 ? task.anotacoes[index] : null;
+    if(!note || !projCanDeleteTaskNote(note)) {
+      projToast('Você só pode excluir suas próprias anotações.', '#d97706');
+      return;
+    }
+    projEnsureCurrentScheduleBackupBeforeMutation(proj);
+    task.anotacoes.splice(index, 1);
+    projSave();
+    projToast('Anotação excluída.', 'var(--teal)');
+    projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+    projOpenTaskNotes(path);
+  });
 }
 
 function projAddTarefa(parentPath) {
@@ -4102,13 +4637,13 @@ function progRenderPage() {
   if(!el) return;
 
   if(PROGRAMAS.length === 0) {
-    el.innerHTML = `
+    projSetSafeHtml(el, `
       <div style="text-align:center;padding:3rem;color:#b0b8cc">
         <div style="font-size:40px;margin-bottom:12px">📂</div>
         <div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhum programa cadastrado</div>
         <div style="font-size:13px;margin-bottom:1rem">Programas agrupam projetos relacionados sob uma mesma estratégia.</div>
         <button type="button" class="proj-btn primary" onclick="progAbrirModalNovo()">+ Criar primeiro programa</button>
-      </div>`;
+      </div>`);
     return;
   }
 
@@ -4160,7 +4695,7 @@ function progRenderPage() {
     </div>
   `;
 
-  el.innerHTML = renderGrp('Programas Ativos', ativos) + renderGrp('Programas Concluídos', concluidos) + renderGrp('Programas Cancelados', cancelados);
+  projSetSafeHtml(el, renderGrp('Programas Ativos', ativos) + renderGrp('Programas Concluídos', concluidos) + renderGrp('Programas Cancelados', cancelados));
 }
 
 function progAbrirModalNovo() {
@@ -4177,7 +4712,7 @@ function progAbrirModalEditar(id) {
 function _progModal(pg, titulo) {
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
-  modal.innerHTML = `
+  projSetSafeHtml(modal, `
     <div style="background:#fff;border-radius:16px;padding:1.6rem;width:100%;max-width:540px;box-shadow:0 16px 48px rgba(0,0,0,.2)">
       <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:#1a2540;margin-bottom:1.2rem">${titulo}</div>
       <div class="proj-fg">
@@ -4211,7 +4746,7 @@ function _progModal(pg, titulo) {
         <button type="button" class="proj-btn primary" onclick="progSalvarModal('${pg.id||''}',this)">Salvar</button>
       </div>
     </div>
-  `;
+  `);
   document.body.appendChild(modal);
   setTimeout(() => document.getElementById('prog-m-nome')?.focus(), 50);
 }
@@ -4285,7 +4820,7 @@ function progAbrirDetalhe(id) {
 
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
-  modal.innerHTML = `
+  projSetSafeHtml(modal, `
     <div style="background:#fff;border-radius:16px;padding:1.8rem;width:100%;max-width:720px;box-shadow:0 16px 48px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;gap:12px">
         <div style="flex:1;min-width:0">
@@ -4351,7 +4886,7 @@ function progAbrirDetalhe(id) {
         <button type="button" class="proj-btn primary" onclick="this.closest('[style*=fixed]').remove()">Fechar</button>
       </div>
     </div>
-  `;
+  `);
   document.body.appendChild(modal);
 }
 
@@ -4904,12 +5439,12 @@ function projRenderDashV9() {
   const sel = (id,label,arr,val) => `<div class="proj-fg" style="margin:0"><label class="proj-fl">${label}</label><select class="proj-fi" id="${id}" onchange="projRenderDashV9()"><option value="">Todos</option>${arr.map(v=>`<option value="${projEsc(v)}" ${v===val?'selected':''}>${projEsc(v)}</option>`).join('')}</select></div>`;
   const filtrados = projFiltrarProjetosV9(all);
   const filtrosEl = document.getElementById('proj-dash-filtros');
-  if(filtrosEl) filtrosEl.innerHTML = `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros</div><div class="proj-v9-filter-grid">${sel('proj-f-patrocinador','Patrocinador',opts.patrocinador,cur.patrocinador)}${sel('proj-f-objetivo','Objetivo Estratégico',opts.objetivo,cur.objetivo)}${sel('proj-f-macro','Macroprocesso',opts.macro,cur.macro)}${sel('proj-f-divisao','Divisão',opts.divisao,cur.divisao)}</div></div>`;
+  if(filtrosEl) projSetSafeHtml(filtrosEl, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros</div><div class="proj-v9-filter-grid">${sel('proj-f-patrocinador','Patrocinador',opts.patrocinador,cur.patrocinador)}${sel('proj-f-objetivo','Objetivo Estratégico',opts.objetivo,cur.objetivo)}${sel('proj-f-macro','Macroprocesso',opts.macro,cur.macro)}${sel('proj-f-divisao','Divisão',opts.divisao,cur.divisao)}</div></div>`);
 
   const alertasEl = document.getElementById('proj-dash-alertas');
   if(alertasEl) {
     const comAtraso = filtrados.map(p => ({ p, tarefas:projTarefasAtrasadasProjeto(p) })).filter(x => x.tarefas.length);
-    alertasEl.innerHTML = `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><a href="#" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)" style="font-weight:800;color:var(--blue);text-decoration:none">${projIconHtml(p)} ${projEsc(p.nome)}</a><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`;
+    projSetSafeHtml(alertasEl, `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><a href="#" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)" style="font-weight:800;color:var(--blue);text-decoration:none">${projIconHtml(p)} ${projEsc(p.nome)}</a><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`);
   }
 
   const graficosEl = document.getElementById('proj-dash-graficos');
@@ -4918,7 +5453,7 @@ function projRenderDashV9() {
     const macrosSemProjeto = projUnlinkedValues(PROJ_MACROS, all, p => projDimensoesProjeto(p).macros);
     const objetivosSemProjeto = projUnlinkedValues(PROJ_OBJETIVOS, all, p => projDimensoesProjeto(p).objetivos);
     const indResumo = inds.slice(0,8).map(({p,ind}) => `<div class="proj-v9-mini-ind"><div><strong>${projEsc(ind.nome||'Indicador')}</strong><div style="font-size:11px;color:var(--ink3)">${projEsc(p.nome)}</div></div><div>${projEsc(projIndicadorResumo(ind))}</div></div>`).join('');
-    graficosEl.innerHTML = `<div class="proj-v9-chart-card"><div class="proj-card-t">Resumo de Indicadores</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div><strong>${filtrados.length}</strong><span> Projetos</span></div><div><strong>${Math.round(filtrados.reduce((a,p)=>a+(p.percentual||0),0)/(filtrados.length||1))}%</strong><span> Média</span></div><div><strong>${inds.length}</strong><span> Indicadores</span></div><div><strong>${filtrados.filter(p=>projTarefasAtrasadasProjeto(p).length).length}</strong><span> Com atraso</span></div></div>${indResumo ? `<div class="proj-v9-mini-list">${indResumo}</div>` : '<div style="font-size:12px;color:var(--ink3);margin-top:.7rem">Nenhum indicador cadastrado nos filtros atuais.</div>'}</div><div class="proj-v9-chart-grid">${projChartBars('Projetos por Macroprocesso', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).macros), {unlinkedLabel:'Ver Macroprocessos sem Projeto vinculado', unlinkedItems:macrosSemProjeto, unlinkedKey:'macroprocessos-sem-projeto'})}${projChartBars('Projetos por Objetivo Estratégico', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).objetivos), {unlinkedLabel:'Ver Objetivos Estratégicos sem Projeto vinculado', unlinkedItems:objetivosSemProjeto, unlinkedKey:'objetivos-sem-projeto'})}${projChartBars('Projetos por Patrocinador', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).patrocinador))}${projChartBars('Projetos por Indicadores', projIndicadoresDashItems(inds))}</div>`;
+    projSetSafeHtml(graficosEl, `<div class="proj-v9-chart-card"><div class="proj-card-t">Resumo de Indicadores</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div><strong>${filtrados.length}</strong><span> Projetos</span></div><div><strong>${Math.round(filtrados.reduce((a,p)=>a+(p.percentual||0),0)/(filtrados.length||1))}%</strong><span> Média</span></div><div><strong>${inds.length}</strong><span> Indicadores</span></div><div><strong>${filtrados.filter(p=>projTarefasAtrasadasProjeto(p).length).length}</strong><span> Com atraso</span></div></div>${indResumo ? `<div class="proj-v9-mini-list">${indResumo}</div>` : '<div style="font-size:12px;color:var(--ink3);margin-top:.7rem">Nenhum indicador cadastrado nos filtros atuais.</div>'}</div><div class="proj-v9-chart-grid">${projChartBars('Projetos por Macroprocesso', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).macros), {unlinkedLabel:'Ver Macroprocessos sem Projeto vinculado', unlinkedItems:macrosSemProjeto, unlinkedKey:'macroprocessos-sem-projeto'})}${projChartBars('Projetos por Objetivo Estratégico', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).objetivos), {unlinkedLabel:'Ver Objetivos Estratégicos sem Projeto vinculado', unlinkedItems:objetivosSemProjeto, unlinkedKey:'objetivos-sem-projeto'})}${projChartBars('Projetos por Patrocinador', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).patrocinador))}${projChartBars('Projetos por Indicadores', projIndicadoresDashItems(inds))}</div>`);
   }
 }
 
@@ -4936,7 +5471,7 @@ function projRenderIndicadoresPage() {
   const macroOpts = projOptionsFromProjetos(projetos, p => projDimensoesProjeto(p).macros).map(v => `<option value="${projEsc(v)}" ${v===fArea?'selected':''}>${projEsc(v)}</option>`).join('');
   const chart = projIndicadoresMetaChart(rows);
   const table = rows.length ? `<table class="proj-v9-table"><thead><tr><th>Projeto</th><th>Indicador</th><th>Meta</th><th>Resultado</th><th>Unidade</th><th></th></tr></thead><tbody>${rows.map(r => `<tr><td>${projEsc(r.p.nome)}</td><td><input class="proj-fi" value="${projEsc(r.ind.nome||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'nome',this.value)"></td><td><input class="proj-fi" type="number" step="0.01" value="${projEsc(r.ind.meta||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'meta',this.value)"></td><td><input class="proj-fi" type="number" step="0.01" value="${projEsc(r.ind.resultado ?? r.ind.atual ?? '')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'resultado',this.value)"></td><td><input class="proj-fi" value="${projEsc(r.ind.unidade||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'unidade',this.value)"></td><td><button type="button" class="proj-btn danger" style="font-size:11px;padding:4px 8px" onclick="projRemoveIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx})">Remover</button></td></tr>`).join('')}</tbody></table>` : '<div class="proj-v9-chart-card" style="font-size:12px;color:var(--ink3)">Nenhum indicador encontrado para os filtros atuais.</div>';
-  el.innerHTML = `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros e edição</div><div class="proj-v9-filter-grid"><div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-ind-filter-proj" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${projetosOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Macroprocesso</label><select class="proj-fi" id="proj-ind-filter-area" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${macroOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Adicionar em projeto</label><select class="proj-fi" id="proj-ind-add-proj"><option value="">Selecione</option>${projetosOpts}</select></div><div style="display:flex;align-items:end"><button type="button" class="proj-btn primary" onclick="projAddIndicadorProjetoGlobal()">+ Indicador</button></div></div></div><div class="proj-v9-bi-grid"><div>${chart}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Indicadores cadastrados</div>${table}</div></div>`;
+  projSetSafeHtml(el, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros e edição</div><div class="proj-v9-filter-grid"><div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-ind-filter-proj" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${projetosOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Macroprocesso</label><select class="proj-fi" id="proj-ind-filter-area" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${macroOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Adicionar em projeto</label><select class="proj-fi" id="proj-ind-add-proj"><option value="">Selecione</option>${projetosOpts}</select></div><div style="display:flex;align-items:end"><button type="button" class="proj-btn primary" onclick="projAddIndicadorProjetoGlobal()">+ Indicador</button></div></div></div><div class="proj-v9-bi-grid"><div>${chart}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Indicadores cadastrados</div>${table}</div></div>`);
 }
 
 function projUpdateIndicadorGlobal(projId, idx, field, value) {
@@ -5020,7 +5555,7 @@ function projBuildStatusReportHTMLLegacy() {
   const grupos = {};
   ativos.forEach(p => { const g = projProgramaNome(p); if(!grupos[g]) grupos[g] = []; grupos[g].push(p); });
   const media = ativos.length ? Math.round(ativos.reduce((a,p)=>a+(p.percentual||0),0)/ativos.length) : 0;
-  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,p.percentual||0)); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div></div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}`).join('');
+  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,p.percentual||0)); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replaceAll('\n','<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div></div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}`).join('');
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#172033;margin:0;background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:168px;max-height:62px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:#5f6b80}.sr-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:20px;color:var(--blue);display:block}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:18px 0 10px}.sr-card{display:grid;grid-template-columns:1.45fr .9fr;gap:14px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:#00a89a}.sr-progress{height:7px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="sr-cover"><div><div class="sr-kicker">${orgLabel}</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${PROJ_CAGE_REPORT_LOGO}" alt="CAGE"></header><div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${media}%</strong>Média de conclusão</div><div class="sr-chip"><strong>${Object.keys(grupos).length}</strong>Programas</div></div>${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}<script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
 }
 
@@ -5037,7 +5572,7 @@ function projBuildStatusReportHTMLV10(){
   const publicUrl = projEsc(ORG_CONFIG.publicUrl);
   const indicadorRows = projIndicadoresLista(ativos);
   const indicadoresHtml = indicadorRows.length ? `<section class="sr-indicators"><h2>Indicadores cadastrados</h2><table><thead><tr><th>Projeto</th><th>Indicador</th><th>Resultado / Meta</th><th>Atingimento</th></tr></thead><tbody>${indicadorRows.map(({p, ind}) => { const meta = projIndicadorValor(ind,'meta'); const atual = projIndicadorValor(ind,'resultado'); const pct = meta ? (atual / meta) * 100 : 0; return `<tr><td>${projEsc(p.nome||'')}</td><td>${projEsc(ind.nome||'Indicador')}</td><td>${projEsc(atual)} / ${projEsc(meta)}</td><td>${projPctFmt(pct)}</td></tr>`; }).join('')}</tbody></table></section>` : '<section class="sr-indicators"><h2>Indicadores cadastrados</h2><p>Nenhum indicador cadastrado nos projetos em andamento.</p></section>';
-  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div></div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}`).join('');
+  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replaceAll('\n','<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div></div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}`).join('');
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Executivo</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-date{font-size:12px;color:var(--muted)}.sr-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-intro a{color:var(--blue);font-weight:700;text-decoration:none}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:18px 0 10px}.sr-card{display:grid;grid-template-columns:1.45fr .9fr;gap:14px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}.sr-indicators{margin-top:20px;break-inside:avoid}.sr-indicators h2{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px}.sr-indicators table{width:100%;border-collapse:collapse;font-size:11px}.sr-indicators th{background:#0f2746;color:#fff;text-align:left;padding:7px}.sr-indicators td{border-bottom:1px solid #d9e2ef;padding:7px}.sr-indicators tr:nth-child(even) td{background:#f8fbff}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="sr-cover"><div><div class="sr-kicker">${orgLabel}</div><h1>Status Report Executivo</h1><div class="sr-date">Emitido em ${data}</div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do ${projEsc(ORG_CONFIG.systemFullName)}, módulo de Projetos. Acesse o SIGA em <a href="${publicUrl}">${publicUrl}</a>.</section><div class="sr-summary"><div class="sr-chip"><strong>${ativos.length}</strong>Projetos em andamento</div><div class="sr-chip"><strong>${media}%</strong>Média de conclusão</div></div>${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}${indicadoresHtml}<script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
 }
 
@@ -5072,7 +5607,7 @@ function projBuildStatusReportHTML(){
     if(!tarefas.length) return '';
     return `<div class="sr-project-overdue"><span>Tarefas atrasadas</span>${tarefas.slice(0,6).map(t => `<div><strong>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</strong><em>${projFormatDate(t.dt_fim)}</em></div>`).join('')}${tarefas.length>6?`<small>+${tarefas.length-6} tarefa(s) atrasada(s)</small>`:''}</div>`;
   };
-  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<section class="sr-program-block"><h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replace(/\n/g,'<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div>${projectIndicators(p)}${projectOverdue(p)}</div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}</section>`).join('');
+  const groupsHtml = Object.entries(grupos).map(([prog,items]) => `<section class="sr-program-block"><h2 class="sr-program">${projEsc(prog)}</h2>${items.map(p => { const pct = Math.max(0,Math.min(100,Number(p.percentual ?? p.execucao?.percentual ?? 0))); const obs = projEsc(p.status_report_obs||'Sem sumário executivo registrado.').replaceAll('\n','<br>'); return `<section class="sr-card"><div class="sr-card-main"><div class="sr-title-row"><div><h3>${projEsc(p.nome)}</h3><div class="sr-sub">Projeto em andamento · ${projEsc(projFaseText(p))}</div></div><div class="sr-pct">${pct}%</div></div><div class="sr-progress"><div style="width:${pct}%"></div></div><div class="sr-info"><div><span>Patrocinador</span>${projEsc(p.patrocinador||'Não informado')}</div><div><span>Gerente</span>${projEsc(p.gerente||'Não informado')}</div><div><span>Gerente substituto</span>${projEsc(p.gerente_substituto||'Não informado')}</div><div><span>% de conclusão</span>${pct}%</div></div>${projectIndicators(p)}${projectOverdue(p)}</div><aside class="sr-note"><span>Sumário Executivo</span><p>${obs}</p></aside></section>`; }).join('')}</section>`).join('');
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Executivo de Projetos</title><style>:root{--blue:#005a9c;--teal:#00bfb3;--ink:#172033;--muted:#5f6b80}@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);margin:0;background:#fff}.sr-page{background:#fff}.sr-cover{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:18px 20px;margin-bottom:18px;border:1px solid #d8e6f5;border-left:8px solid var(--blue);background:linear-gradient(90deg,#f5fbff,#fff)}.sr-logo{width:185px;max-height:72px;object-fit:contain}.sr-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}.sr-cover h1{margin:4px 0;font-size:27px;color:#0f2746}.sr-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sr-date{font-size:12px;color:var(--muted)}.sr-ref{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);border:1px solid #cfe0f4;background:#f8fbff;border-radius:999px;padding:3px 9px}.sr-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}.sr-chip{border:1px solid #d9e5f5;border-radius:8px;padding:9px 12px;font-size:12px;background:#f8fbff}.sr-chip strong{font-size:20px;color:var(--blue);display:block}.sr-intro{border:1px solid #d9e5f5;border-radius:10px;background:#f8fbff;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5;color:#334155}.sr-exec{border:1px solid #d9e5f5;border-radius:14px;padding:16px;margin:0 0 18px;background:linear-gradient(135deg,#f8fbff,#fff)}.sr-exec-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:12px}.sr-exec-head span{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);font-weight:800}.sr-exec-head h2{font-size:18px;margin:3px 0 0;color:#0f2746}.sr-ring-row{display:flex;align-items:center;gap:18px;margin:0 0 14px}.sr-ring-card{display:flex;align-items:center;gap:10px}.sr-ring{width:112px;height:112px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative;flex:none}.sr-ring-average{background:conic-gradient(var(--teal) calc(var(--pct)*1%),#e7edf5 0)}.sr-ring-projects{background:conic-gradient(#00a89a calc(var(--done)*1%),#005a9c 0)}.sr-ring:before{content:'';position:absolute;inset:12px;border-radius:50%;background:#fff}.sr-ring strong,.sr-ring small{position:relative;z-index:1;line-height:1;text-align:center}.sr-ring strong{font-size:24px;color:var(--blue)}.sr-ring small{display:block;font-size:8.5px;color:var(--muted);text-transform:uppercase}.sr-ring-legend{font-size:10px;color:#334155;display:grid;gap:4px}.sr-ring-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.sr-ring-legend .blue{background:#005a9c}.sr-ring-legend .green{background:#00a89a}.sr-ring-logo{margin-left:auto;min-width:180px;display:flex;align-items:center;justify-content:flex-end}.sr-ring-logo img{max-width:220px;max-height:86px;object-fit:contain}.sr-exec-grid{display:grid;grid-template-columns:1fr;gap:14px}.sr-exec-panel{border:1px solid #edf2f7;border-radius:10px;background:#fff;padding:12px}.sr-exec-panel h3{font-size:12px;margin:0 0 10px;color:#0f2746;text-transform:uppercase;letter-spacing:.06em}.sr-mini-row{display:grid;grid-template-columns:minmax(240px,1.25fr) 1.1fr 42px minmax(120px,.75fr);gap:8px;align-items:center;font-size:10.5px;margin:7px 0}.sr-completed-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px}.sr-completed-list li{border-bottom:1px solid #edf2f7;padding:6px 0;font-size:10.5px}.sr-completed-list strong{display:block;color:#0f2746}.sr-mini-row span{color:#334155;white-space:normal;overflow:visible;text-overflow:clip}.sr-mini-row div{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden}.sr-mini-row i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-mini-row strong{font-size:10.5px;color:var(--blue);text-align:right}.sr-mini-row em{font-style:normal;color:#5f6b80;font-size:9.8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sr-top-list{margin:12px 0 0;padding:0;list-style:none;border-top:1px solid #edf2f7}.sr-top-list li{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;padding:6px 0;border-bottom:1px solid #edf2f7}.sr-top-list span{color:#0b8f84;font-weight:800}.sr-program-block{margin-top:34px}.sr-program{font-size:16px;color:var(--blue);border-bottom:2px solid var(--teal);padding-bottom:5px;margin:0 0 12px}.sr-card{display:grid;grid-template-columns:.95fr 1.25fr;gap:16px;border:1px solid #d9e2ef;border-radius:10px;padding:14px;margin-bottom:12px;break-inside:avoid;background:#fff}.sr-title-row{display:flex;align-items:flex-start;gap:10px}.sr-title-row>div:first-child{flex:1}h3{font-size:15px;margin:0;color:#0f2746}.sr-sub{font-size:10.5px;color:#6b7588;margin-top:2px}.sr-pct{font-size:26px;font-weight:800;color:var(--teal)}.sr-progress{height:8px;border-radius:99px;background:#e7edf5;overflow:hidden;margin:12px 0}.sr-progress div{height:100%;min-width:2px;background:linear-gradient(90deg,var(--blue),var(--teal))}.sr-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sr-info div{font-size:12px;border-top:1px solid #edf2f7;padding-top:6px}.sr-info span,.sr-note span,.sr-project-indicators>span,.sr-project-overdue>span{display:block;font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}.sr-project-indicators,.sr-project-overdue{margin-top:10px;border-top:1px solid #edf2f7;padding-top:7px}.sr-project-indicators div,.sr-project-overdue div{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:3px 0}.sr-project-indicators em{font-style:normal;color:#0b8f84;font-weight:700}.sr-project-overdue{background:#fffaf2;border:1px solid #fde2b5;border-radius:8px;padding:7px 8px}.sr-project-overdue em{font-style:normal;color:#b45309;font-weight:700;white-space:nowrap}.sr-project-overdue small{display:block;color:#b45309;font-size:10px;margin-top:3px}.sr-note{border-left:3px solid #f59e0b;padding-left:12px}.sr-note p{font-size:12px;line-height:1.45;margin:0;color:#334155}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="sr-page"><header class="sr-cover"><div><div class="sr-kicker">CAGE-RS · Escritório de Projetos e Processos</div><h1>Relatório Executivo de Projetos</h1><div class="sr-meta"><span class="sr-date">Emitido em ${data}</span><span class="sr-ref">ref. ${ref}</span></div></div><img class="sr-logo" src="${reportLogo}" alt="CAGE"></header><section class="sr-intro">Este relatório foi gerado a partir dos dados do Sistema Integrado de Gestão Estratégica (SIGA), módulo de Projetos.</section>${execHtml}${groupsHtml||'<div>Nenhum projeto em andamento encontrado.</div>'}</div><script>setTimeout(function(){window.print();},450);<\/script></body></html>`;
 }
 
@@ -5226,7 +5761,7 @@ function projRenderEstrategiaPageLegacy() {
   projNormalizeStrategyLists();
   const el = document.getElementById('proj-estrategia-content');
   if(!el) return;
-  el.innerHTML = `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-card-t">Macroprocessos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Se existir uma versão com prefixo entre colchetes e outra sem, a versão com colchetes é mantida.</div><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div>${projStrategyRelatedHtml('macro', PROJ_MACROS||[])}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Objetivos Estratégicos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Estes dados alimentam o workflow e os gráficos do dashboard.</div><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div>${projStrategyRelatedHtml('objetivo', PROJ_OBJETIVOS||[])}</div></div>`;
+  projSetSafeHtml(el, `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-card-t">Macroprocessos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Se existir uma versão com prefixo entre colchetes e outra sem, a versão com colchetes é mantida.</div><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div>${projStrategyRelatedHtml('macro', PROJ_MACROS||[])}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Objetivos Estratégicos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Estes dados alimentam o workflow e os gráficos do dashboard.</div><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div>${projStrategyRelatedHtml('objetivo', PROJ_OBJETIVOS||[])}</div></div>`);
 }
 
 function projRenderEstrategiaPage() {
@@ -5235,7 +5770,7 @@ function projRenderEstrategiaPage() {
   const el = document.getElementById('proj-estrategia-content');
   if(!el) return;
   const editors = isEP() ? `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Macroprocessos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('macro')">Abrir edição</button></div><div id="proj-strategy-editor-macro" class="proj-strategy-editor-body"><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div></div></div><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Objetivos Estratégicos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('objetivo')">Abrir edição</button></div><div id="proj-strategy-editor-objetivo" class="proj-strategy-editor-body"><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div></div></div></div>` : '';
-  el.innerHTML = `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'macros')}${editors}`;
+  projSetSafeHtml(el, `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'macros')}${editors}`);
 }
 
 function projSalvarEstrategia(kind) {
@@ -5255,13 +5790,13 @@ function projPopulateVinculacoes() {
   let proj = PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});
   if(!proj) return;
   let ml = document.getElementById('aprov-macro-list');
-  if(ml) ml.innerHTML = (proj.macroprocessos||[]).map(function(m,i){let v=projCanonicalStrategyValue(m,PROJ_MACROS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:#f0f4ff;border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverMacro('+i+')">✕</button></div>';}).join('');
+  if(ml) projSetSafeHtml(ml, (proj.macroprocessos||[]).map(function(m,i){let v=projCanonicalStrategyValue(m,PROJ_MACROS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:#f0f4ff;border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverMacro('+i+')">✕</button></div>';}).join(''));
   let ms = document.getElementById('aprov-macro-sel');
-  if(ms) ms.innerHTML = '<option value="">Selecione...</option>' + PROJ_MACROS.map(function(m){return '<option value="'+projEsc(m)+'">'+projEsc(m)+'</option>';}).join('');
+  if(ms) projSetSafeHtml(ms, '<option value="">Selecione...</option>' + PROJ_MACROS.map(function(m){return '<option value="'+projEsc(m)+'">'+projEsc(m)+'</option>';}).join(''));
   let ol = document.getElementById('aprov-obj-list');
-  if(ol) ol.innerHTML = (proj.objetivos_estrategicos||[]).map(function(o,i){let v=projCanonicalStrategyValue(o,PROJ_OBJETIVOS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:var(--teal-l);border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverObj('+i+')">✕</button></div>';}).join('');
+  if(ol) projSetSafeHtml(ol, (proj.objetivos_estrategicos||[]).map(function(o,i){let v=projCanonicalStrategyValue(o,PROJ_OBJETIVOS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:var(--teal-l);border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverObj('+i+')">✕</button></div>';}).join(''));
   let os = document.getElementById('aprov-obj-sel');
-  if(os) os.innerHTML = '<option value="">Selecione...</option>' + PROJ_OBJETIVOS.map(function(o){return '<option value="'+projEsc(o)+'">'+projEsc(o)+'</option>';}).join('');
+  if(os) projSetSafeHtml(os, '<option value="">Selecione...</option>' + PROJ_OBJETIVOS.map(function(o){return '<option value="'+projEsc(o)+'">'+projEsc(o)+'</option>';}).join(''));
 }
 
 function projAddMacroNovo(){if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.'))return;let inp=document.getElementById('aprov-macro-novo');if(!inp||!inp.value.trim()){projToast('Digite o macroprocesso.','#d97706');return;}let v=inp.value.trim();PROJ_MACROS=projNormalizeStrategyList([].concat(PROJ_MACROS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_MACROS);projLoad();let p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(!p.macroprocessos.includes(v))p.macroprocessos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
@@ -5319,5 +5854,5 @@ function projRenderMemorial(p) {
   if(!content) return;
   const licoes = [conc.licoes_data, conc.licoes_participantes, conc.licoes_certo, conc.licoes_melhorar, conc.licoes_ideias].some(Boolean);
   const imgs = projMemorialImagesHtml(conc);
-  content.innerHTML = `<div class="proj-ph"><div><div class="proj-ph-t">Memorial do Projeto</div><div class="proj-ph-s">${projEsc(p.nome||'Projeto')}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="proj-btn primary" style="font-size:12px;padding:5px 11px" onclick="projAbrirDetalhe('${projEsc(String(p.id))}', true)">Ver Workflow</button><button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">Voltar ao Portfólio</button></div></div><div class="proj-form-section"><div class="proj-form-section-title">Informações Gerais</div><div class="proj-g3"><div><div class="proj-fl">Projeto</div><strong>${projEsc(p.nome||'')}</strong></div><div><div class="proj-fl">Patrocinador</div><strong>${projEsc(p.patrocinador||'Não informado')}</strong></div><div><div class="proj-fl">Gerente</div><strong>${projEsc(p.gerente||'Não informado')}</strong></div></div></div><div class="proj-form-section"><div class="proj-form-section-title">História do Projeto</div><div style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia||'História ainda não registrada.')}</div></div>${projMemorialNewsEmbeds(conc)}<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Imagens do Memorial</div>${imgs}</div>${licoes ? `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Lições Aprendidas</div><div class="proj-g2"><div><div class="proj-fl">Data da reunião</div><strong>${projFormatDate(conc.licoes_data)||'Não informada'}</strong></div><div><div class="proj-fl">Participantes</div><strong>${projEsc(conc.licoes_participantes||'Não informado')}</strong></div></div><div class="proj-g3" style="margin-top:1rem"><div><div class="proj-fl">O que deu certo?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_certo||'')}</div></div><div><div class="proj-fl">O que pode melhorar?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_melhorar||'')}</div></div><div><div class="proj-fl">Sugestões / ideias</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_ideias||'')}</div></div></div></div>` : ''}`;
+  projSetSafeHtml(content, `<div class="proj-ph"><div><div class="proj-ph-t">Memorial do Projeto</div><div class="proj-ph-s">${projEsc(p.nome||'Projeto')}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="proj-btn primary" style="font-size:12px;padding:5px 11px" onclick="projAbrirDetalhe('${projEsc(String(p.id))}', true)">Ver Workflow</button><button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">Voltar ao Portfólio</button></div></div><div class="proj-form-section"><div class="proj-form-section-title">Informações Gerais</div><div class="proj-g3"><div><div class="proj-fl">Projeto</div><strong>${projEsc(p.nome||'')}</strong></div><div><div class="proj-fl">Patrocinador</div><strong>${projEsc(p.patrocinador||'Não informado')}</strong></div><div><div class="proj-fl">Gerente</div><strong>${projEsc(p.gerente||'Não informado')}</strong></div></div></div><div class="proj-form-section"><div class="proj-form-section-title">História do Projeto</div><div style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia||'História ainda não registrada.')}</div></div>${projMemorialNewsEmbeds(conc)}<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Imagens do Memorial</div>${imgs}</div>${licoes ? `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Lições Aprendidas</div><div class="proj-g2"><div><div class="proj-fl">Data da reunião</div><strong>${projFormatDate(conc.licoes_data)||'Não informada'}</strong></div><div><div class="proj-fl">Participantes</div><strong>${projEsc(conc.licoes_participantes||'Não informado')}</strong></div></div><div class="proj-g3" style="margin-top:1rem"><div><div class="proj-fl">O que deu certo?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_certo||'')}</div></div><div><div class="proj-fl">O que pode melhorar?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_melhorar||'')}</div></div><div><div class="proj-fl">Sugestões / ideias</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_ideias||'')}</div></div></div></div>` : ''}`);
 }

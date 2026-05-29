@@ -3,6 +3,10 @@
 Sistema de Gestão de Processos Institucionais do EP·CAGE (CAGE/Sefaz-RS).
 Firebase Hosting + Firestore + Cloud Functions (Node.js 20) + Azure OpenAI.
 
+**Repositório:** https://dev.azure.com/sefaz-rs/siga/_git/siga2.0
+**Branches:** `main` (produção) → `hml` (homologação) → `dev` (desenvolvimento)
+Todo desenvolvimento parte de uma branch de feature para `dev` via Pull Request.
+
 ## Estrutura de arquivos
 
 ```

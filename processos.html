@@ -275,7 +275,7 @@ select.fi{cursor:pointer}
 .chip:hover{border-color:var(--blue-b);color:var(--blue)}.chip.on{background:var(--blue-l);border-color:var(--blue-b);color:var(--blue)}
 .pub-card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid var(--bdr);gap:8px;flex-wrap:wrap}
 .pub-card-meta{font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pub-card-actions{display:flex;gap:5px;flex-shrink:0}
+.pub-card-actions{display:flex;gap:5px;flex-wrap:wrap}
 .pub-action-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
 .srch{padding:5px 9px;border-radius:6px;border:1px solid var(--bdr2);font-size:12px;color:var(--ink);background:var(--surf);font-family:var(--f);min-width:150px}
 .srch:focus{outline:none;border-color:var(--blue)}
@@ -316,6 +316,8 @@ select.fi{cursor:pointer}
 .et-evento-fim{background:var(--red-b);color:var(--red)}
 .et-decisao{background:var(--amber-l);color:var(--amber)}
 .et-coment{background:var(--bg3);color:var(--ink3)}
+.et-subproc{background:var(--purple-l);color:var(--purple)}
+.etapa-sub-filho{border-left:3px solid var(--purple-b);padding-left:.5rem;margin-left:.5rem}
 .etapa-nome{font-size:13px;font-weight:600;color:var(--ink);flex:1}
 /* audit executive report */
 .aud-report{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:.5rem}
@@ -1383,6 +1385,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div><div class="card-t" style="margin-bottom:.6rem;color:var(--red)">⚠ Prazo vencido</div><div id="dash-vencidos"></div></div>
   </div>
   <div id="dash-analytics"></div>
+  <div id="dash-prazos"></div>
+  <div id="dash-mapchart"></div>
+  <div id="dash-sem-indicadores"></div>
 </div></div>
 
 <div id="page-processos" class="page"><div style="padding:2rem">
@@ -1600,6 +1605,10 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem">
     <span class="fbar-l">Indicador</span>
     <select class="fi" id="ind-nome-sel" onchange="rInd()" style="max-width:220px"><option value="">Todos</option></select>
+    <span class="fbar-l ind-filtros-avancados">Macroprocesso</span>
+    <select class="fi ind-filtros-avancados" id="ind-macro-sel" onchange="_indMacroChange()" style="max-width:200px"><option value="">Todos</option></select>
+    <span class="fbar-l ind-filtros-avancados">Processo</span>
+    <select class="fi ind-filtros-avancados" id="ind-proc-sel" onchange="rInd()" style="max-width:200px"><option value="">Todos</option></select>
     <span class="fbar-l ind-filtros-avancados">Área</span>
     <select class="fi ind-filtros-avancados" id="ind-area-sel" onchange="rInd()" style="max-width:160px"><option value="">Todas</option></select>
     <span class="fbar-l ind-filtros-avancados">PPE?</span>
@@ -1981,8 +1990,9 @@ Não responda este e-mail.</pre>
         <div style="font-size:10.5px;color:var(--ink3);margin-top:3px">Segure Ctrl (Windows) ou ⌘ (Mac) para selecionar múltiplos processos</div>
       </div>
       <div class="fg" id="pub-bpmn-wrap">
-        <label class="fl" for="pub-bpmn-url">Link da imagem do BPMN</label>
-        <input class="fi" id="pub-bpmn-url" placeholder="https://... link para a imagem do fluxograma BPMN">
+        <div class="fl">Imagens do BPMN</div>
+        <div id="pub-bpmn-list"></div>
+        <button type="button" class="btn" style="font-size:11px;padding:3px 10px;margin-top:4px" onclick="_pubBpmnAdd()">+ Adicionar imagem BPMN</button>
       </div>
       <div class="fg">
         <label class="fl" for="pub-thumb">Capa / Thumbnail</label>
@@ -2395,9 +2405,14 @@ function nextEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.i
 function prevEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.id===id);return i>0?et[i-1].id:null;}
 function fBadge(etId){const f=etFase(etId);return '<span class="badge '+(FASE_COR[f]||'bgr')+'">'+(FASE_LABEL[f]||f)+'</span>';}
 function eBadge(etId){return '<span class="badge '+(EBADGE[etId]||'bgr')+'">'+etLb(etId)+'</span>';}
+// Effective next follow-up date: derived from latest meeting when available (field may be stale)
+function _dtProxAcomp(p){
+  const _u=(p.reunioes_acomp||[]).filter(r=>r.data).sort((a,b)=>a.data<b.data?1:-1)[0];
+  return _u?.data?_addDias(_u.data,180):(p.dt_proximo_acompanhamento||'');
+}
 function _eBadgeAcomp(p){
   if(p.etapa!=='acompanha') return eBadge(p.etapa);
-  const dtProx=p.dt_proximo_acompanhamento;
+  const dtProx=_dtProxAcomp(p);
   const vencido=dtProx&&dtProx<new Date().toISOString().slice(0,10);
   return vencido
     ?'<span class="badge" style="background:var(--red-l);color:var(--red)">⚠ Acompanhamento</span>'
@@ -2520,6 +2535,7 @@ let _trilhaIdC = 1;
 
 let publicacoes = [];
 let _pubIdC = 1;
+let _pubBpmnUrls = [];
 
 let plano = [];
 let _planoIdC = 1;
@@ -2816,7 +2832,7 @@ function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'b
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.filter(isProcessoEmAndamento).length;
   document.getElementById('nb-pend').textContent=getPendenciasDashboard().length;
-  const _filaCnt=getTarefasUsr().length+(!isEP()?processos.filter(p=>['vencida','pendente'].includes(_revStatus(p))&&['acompanha','auditoria'].includes(p.etapa)&&(p.dono===usuarioLogado?.nome||p.dono_email===usuarioLogado?.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id))).length:0);
+  const _filaCnt=getTarefasUsr().length+(isEP()?0:processos.filter(p=>['vencida','pendente'].includes(_revStatus(p))&&['acompanha','auditoria'].includes(p.etapa)&&(p.dono===usuarioLogado?.nome||p.dono_email===usuarioLogado?.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id))).length);
   document.getElementById('nb-fila-cnt').textContent=_filaCnt;
   const meusProcCnt=document.getElementById('nb-meusproc-cnt');
   if(meusProcCnt) meusProcCnt.textContent=getMinhasUnidades().length;
@@ -3137,9 +3153,9 @@ function rPainelGestor(){
   if(!el)return;
   const subEl=document.getElementById('painel-gestor-sub');
   const todas=getUnidadesMapeaveis();
-  const _etFinal=['publicacao','acompanha','auditoria'];
-  const mapeados=todas.filter(u=>(u.proc&&_etFinal.includes(u.proc.etapa))||isMapeado(u.arq_id));
-  const emAnd=todas.filter(u=>u.proc&&!_etFinal.includes(u.proc.etapa)&&!isMapeado(u.arq_id));
+  const _etFinal=new Set(['publicacao','acompanha','auditoria']);
+  const mapeados=todas.filter(u=>(u.proc&&_etFinal.has(u.proc.etapa))||isMapeado(u.arq_id));
+  const emAnd=todas.filter(u=>u.proc&&!_etFinal.has(u.proc.etapa)&&!isMapeado(u.arq_id));
   const naoMapeadas=todas.filter(u=>!u.proc&&!isMapeado(u.arq_id));
   if(subEl) subEl.textContent=`${todas.length} processos/subprocessos · Atualizado em ${new Date().toLocaleDateString('pt-BR')}`;
 
@@ -3180,11 +3196,10 @@ function rPainelGestor(){
       : p.ent?.dt_inicio||null;
     let dias='—';
     if(dtAb){dias=Math.round((hoje-new Date(dtAb))/86400000);}
-    const previsao=p.ent?.dt_prev
-      ? new Date(p.ent.dt_prev).toLocaleDateString('pt-BR')
-      : typeof dias==='number'
-        ? new Date(hoje.getTime()+Math.max(0,60-dias)*86400000).toLocaleDateString('pt-BR')
-        : '—';
+    let previsao;
+    if(p.ent?.dt_prev){previsao=new Date(p.ent.dt_prev).toLocaleDateString('pt-BR');}
+    else if(typeof dias==='number'){previsao=new Date(hoje.getTime()+Math.max(0,60-dias)*86400000).toLocaleDateString('pt-BR');}
+    else{previsao='—';}
     return `<tr style="border-bottom:1px solid var(--bdr)">
       <td style="padding:.45rem .6rem;font-size:12px;font-weight:500">${esc(p.nome)}</td>
       <td style="padding:.45rem .6rem;font-size:11px;color:var(--ink3)">${esc(ETAPAS[ei]?.titulo||p.etapa||'—')}</td>
@@ -3253,14 +3268,6 @@ function rPainelGestor(){
     </div>
   </div>`;
 
-  // Sem indicadores
-  const semInd=mapeados.filter(u=>!kpis.some(k=>(u.proc&&k.pid===u.proc.id)||k.arq_id===u.arq_id));
-  const semIndHtml=semInd.length?`<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid var(--amber);border-radius:var(--r);padding:1rem;margin-bottom:1.5rem">
-    <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.5rem">⚠ Processos sem indicadores vinculados (${semInd.length})</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px">
-      ${semInd.map(u=>`<span style="font-size:11px;background:var(--bg2);border:1px solid var(--bdr);border-radius:99px;padding:2px 10px">${esc(u.nome)}</span>`).join('')}
-    </div>
-  </div>`:'';
 
   // Desatualizados (sem atividade há +1 ano)
   const umAnoAtras=new Date();umAnoAtras.setFullYear(umAnoAtras.getFullYear()-1);
@@ -3313,7 +3320,7 @@ function rPainelGestor(){
     </table></div>
   </div>`:'';
 
-  el.innerHTML=statsHtml+pieHtml+macroHtml+andHtml+relIndHtml+matHtml+semIndHtml+desatualHtml+relHtml;
+  el.innerHTML=statsHtml+pieHtml+macroHtml+andHtml+relIndHtml+matHtml+desatualHtml+relHtml;
 
   setTimeout(()=>{
     if(typeof Chart==='undefined') return;
@@ -3971,16 +3978,15 @@ function rMeusProc(){
       return `<span style="flex:1;height:3px;border-radius:2px;background:${bg}"></span>`;
     }).join('') : '';
     const tipo = u.isSub ? 'Subprocesso' : 'Processo';
-    const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && (p.url||p.bpmn_url));
+    const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(u.arq_id) && (p.url||_pubGetBpmnUrls(p).length));
     const popBadges = popsVinc.flatMap(p=>[
       p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">📄 ${esc(p.titulo)}</a>`:'',
-      p.bpmn_url&&p.categoria==='POPs'?`<a href="${esc(safeUrl(p.bpmn_url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 BPMN</a>`:''
+      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:4px;text-decoration:none;white-space:nowrap">🔷 ${_lbl}</a>`:'';}):[])
     ]).filter(Boolean).join('');
     const revSt=(mapeado&&proc&&!isGestorUser)?_revStatus(proc):null;
-    const revBadge=revSt==='vencida'
-      ?`<span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Revisão vencida</span>`
-      :revSt==='pendente'
-      ?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">⚠ Revisão em breve</span>`:'';
+    let revBadge='';
+    if(revSt==='vencida')revBadge=`<span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">🔴 Revisão vencida</span>`;
+    else if(revSt==='pendente')revBadge=`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">⚠ Revisão em breve</span>`;
     const revBtn=(revSt==='vencida'||revSt==='pendente')
       ?`<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 9px" onclick="event.stopPropagation();abrirRevisaoPeriodica(${proc.id})">✔ Revisar</button>`:'';
     const hasFaq = !!(proc?.form?.faq?.trim());
@@ -4067,12 +4073,14 @@ function abrirInfoMeusProc(arqId){
       ${row('Documentações e regulamentações',item.docs)}
     </div>
     ${(()=>{
-      const pops = publicacoes.filter(p=>(p.arq_ids||[]).includes(arqId) && (p.url||p.bpmn_url));
+      const pops = publicacoes.filter(p=>(p.arq_ids||[]).includes(arqId) && (p.url||_pubGetBpmnUrls(p).length));
       if(!pops.length) return '';
-      const links = pops.flatMap(p=>[
-        p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':''}</a>`:'',
-        p.bpmn_url&&p.categoria==='POPs'?`<a href="${esc(safeUrl(p.bpmn_url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN — ${esc(p.titulo)}</a>`:''
-      ]).filter(Boolean).join('');
+      const links = pops.flatMap(p=>{
+        const _vHtml=p.versao?' <span style="font-weight:400;color:var(--ink3)">'+esc(p.versao)+'</span>':'';
+        const _urlLink=p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--green,#16a34a);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--green-b,#dcfce7);border-radius:6px">📄 ${esc(p.titulo)}${_vHtml}</a>`:'';
+        const _bpmnLinks=p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?' — '+esc(label):' — '+esc(p.titulo);return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#5b21b6;font-weight:600;text-decoration:none;padding:6px 10px;background:#ede9fe;border-radius:6px">🔷 BPMN${_lbl}</a>`:''}):[];
+        return [_urlLink,..._bpmnLinks];
+      }).filter(Boolean).join('');
       return `<div style="border-top:1px solid var(--bdr);padding-top:.75rem;margin-top:.5rem">
         <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">POPs / Documentos vinculados</div>
         <div style="display:flex;flex-direction:column;gap:6px">${links}</div>
@@ -4808,6 +4816,10 @@ function rDash(){
   document.getElementById('dash-vencidos').innerHTML=buildVencidosHTML(vencidos);
   // Q036: analytics gerenciais
   document.getElementById('dash-analytics').innerHTML=buildAnalyticsHTML();
+  document.getElementById('dash-prazos').innerHTML=buildPrazosCardHTML();
+  document.getElementById('dash-mapchart').innerHTML=buildMapChartHTML();
+  document.getElementById('dash-sem-indicadores').innerHTML=buildSemIndicadoresHTML();
+  setTimeout(()=>{initPrazosChart();initMapChart();},0);
 }
 function filtEtapaGo(etId){filtFaseAtual='';document.querySelectorAll('#fase-chips .chip').forEach((c,i)=>c.classList.toggle('on',i===0));go('processos',document.getElementById('nb-proc'));}
 
@@ -4936,6 +4948,130 @@ function buildAnalyticsHTML(){
       ${topDevRows}</div>`:''}
     ${topTempo.length?`<div><div class="sec-lbl" style="margin-bottom:.4rem">Etapas com maior tempo médio</div>
       ${topTempoRows}</div>`:''}
+  </div>`;
+}
+function buildPrazosCardHTML(){
+  const concluidos=processos.filter(p=>p.ent?.dt_inicio&&p.ent?.dt_efetiva);
+  if(!concluidos.length) return '';
+  const duracoes=concluidos.map(p=>{
+    const d=Math.round((new Date(p.ent.dt_efetiva)-new Date(p.ent.dt_inicio))/(1000*60*60*24));
+    return d>=0?d:null;
+  }).filter(d=>d!==null);
+  const tMedio=duracoes.length?Math.round(duracoes.reduce((a,b)=>a+b,0)/duracoes.length):null;
+  const comPrazo=concluidos.filter(p=>p.ent?.dt_prev);
+  const noPrazo=comPrazo.filter(p=>p.ent.dt_efetiva<=p.ent.dt_prev).length;
+  const pctNo=comPrazo.length?Math.round(noPrazo/comPrazo.length*100):null;
+  const pctFora=pctNo===null?null:100-pctNo;
+  if(tMedio===null&&pctNo===null) return '';
+  const statBase='background:var(--bg2);border-radius:var(--r);padding:.8rem;text-align:center';
+  return `<div class="card" style="margin-bottom:1rem">
+    <div class="card-t">Prazos e duração dos mapeamentos</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:${comPrazo.length?'1rem':'0'}">
+      ${tMedio===null?'':`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--blue)">${tMedio}d</div><div style="font-size:11px;color:var(--ink3)">Tempo médio (início → entrega)</div></div>`}
+      ${pctNo===null?'':`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--teal)">${pctNo}%</div><div style="font-size:11px;color:var(--ink3)">Entregues no prazo</div></div>`}
+      ${pctFora===null?'':`<div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--red)">${pctFora}%</div><div style="font-size:11px;color:var(--ink3)">Entregues fora do prazo</div></div>`}
+      <div style="${statBase}"><div style="font-size:22px;font-weight:700;color:var(--ink2)">${concluidos.length}</div><div style="font-size:11px;color:var(--ink3)">Mapeamentos concluídos</div></div>
+    </div>
+    ${comPrazo.length?`<div style="display:flex;justify-content:center"><div style="position:relative;height:180px;width:240px"><canvas id="dash-prazos-canvas"></canvas></div></div>`:''}
+  </div>`;
+}
+function initPrazosChart(){
+  if(typeof Chart==='undefined') return;
+  const canvas=document.getElementById('dash-prazos-canvas');
+  if(!canvas) return;
+  const comPrazo=processos.filter(p=>p.ent?.dt_prev&&p.ent?.dt_efetiva);
+  if(!comPrazo.length) return;
+  const noPrazo=comPrazo.filter(p=>p.ent.dt_efetiva<=p.ent.dt_prev).length;
+  const foraPrazo=comPrazo.length-noPrazo;
+  new Chart(canvas,{
+    type:'doughnut',
+    data:{
+      labels:['No prazo','Fora do prazo'],
+      datasets:[{data:[noPrazo,foraPrazo],backgroundColor:['#0d9488','#ef4444'],borderWidth:0}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:12},padding:16}},
+        tooltip:{callbacks:{label:ctx=>' '+ctx.label+': '+ctx.raw+' ('+Math.round(ctx.raw/comPrazo.length*100)+'%)'}}
+      },
+      cutout:'60%'
+    }
+  });
+}
+function buildMapChartHTML(){
+  const MESES_PT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const hoje=new Date();
+  const meses=[];
+  for(let i=17;i>=0;i--){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    meses.push({key:d.toISOString().slice(0,7),label:MESES_PT[d.getMonth()]+'/'+String(d.getFullYear()).slice(2)});
+  }
+  const contagem={};
+  processos.forEach(p=>{
+    const ef=p.ent?.dt_efetiva||'';
+    if(!ef) return;
+    const ym=ef.slice(0,7);
+    contagem[ym]=(contagem[ym]||0)+1;
+  });
+  const temDados=meses.some(m=>contagem[m.key]);
+  if(!temDados) return '';
+  return `<div class="card" style="margin-bottom:1rem">
+    <div class="card-t">Mapeamentos concluídos por mês</div>
+    <div style="position:relative;height:220px"><canvas id="dash-mapchart-canvas"></canvas></div>
+  </div>`;
+}
+function initMapChart(){
+  if(typeof Chart==='undefined') return;
+  const canvas=document.getElementById('dash-mapchart-canvas');
+  if(!canvas) return;
+  const MESES_PT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const hoje=new Date();
+  const meses=[];
+  for(let i=17;i>=0;i--){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    meses.push({key:d.toISOString().slice(0,7),label:MESES_PT[d.getMonth()]+'/'+String(d.getFullYear()).slice(2)});
+  }
+  const contagem={};
+  processos.forEach(p=>{
+    const ef=p.ent?.dt_efetiva||'';
+    if(!ef) return;
+    const ym=ef.slice(0,7);
+    contagem[ym]=(contagem[ym]||0)+1;
+  });
+  new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels:meses.map(m=>m.label),
+      datasets:[{
+        label:'Concluídos',
+        data:meses.map(m=>contagem[m.key]||0),
+        backgroundColor:'#0d9488',
+        borderRadius:4,
+        borderSkipped:false,
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y+' mapeamento'+(ctx.parsed.y===1?'':'s')}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{beginAtZero:true,ticks:{stepSize:1,precision:0,font:{size:11}},grid:{color:'rgba(0,0,0,.06)'}}
+      }
+    }
+  });
+}
+function buildSemIndicadoresHTML(){
+  const _etFinal=new Set(['publicacao','acompanha','auditoria']);
+  const mapeados=getUnidadesMapeaveis().filter(u=>(u.proc&&_etFinal.has(u.proc.etapa))||isMapeado(u.arq_id));
+  const semInd=mapeados.filter(u=>!kpis.some(k=>(u.proc&&k.pid===u.proc.id)||k.arq_id===u.arq_id));
+  if(!semInd.length) return '';
+  return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid var(--amber);border-radius:var(--r);padding:1rem;margin-top:1rem">
+    <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.5rem">⚠ Processos sem indicadores vinculados (${semInd.length})</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${semInd.map(u=>`<span style="font-size:11px;background:var(--bg2);border:1px solid var(--bdr);border-radius:99px;padding:2px 10px">${esc(u.nome)}</span>`).join('')}
+    </div>
   </div>`;
 }
 // ═══════════════════════════════════════════
@@ -5137,12 +5273,12 @@ function renderProcs(){
   if(epSel){
     const prevEP=epSel.value;
     const eps=[...new Set(baseProcs.map(p=>p.resp_ep).filter(Boolean))].sort();
-    epSel.innerHTML='<option value="">EP: Todos</option>'+eps.map(v=>`<option${v===prevEP?' selected':''}>${v}</option>`).join('');
+    epSel.innerHTML='<option value="">EP: Todos</option>'+eps.map(v=>`<option${v===prevEP?' selected':''}>${esc(v)}</option>`).join('');
   }
   if(donoSel){
     const prevDono=donoSel.value;
     const donos=[...new Set(baseProcs.map(p=>p.dono).filter(Boolean))].sort();
-    donoSel.innerHTML='<option value="">Dono: Todos</option>'+donos.map(v=>`<option${v===prevDono?' selected':''}>${v}</option>`).join('');
+    donoSel.innerHTML='<option value="">Dono: Todos</option>'+donos.map(v=>`<option${v===prevDono?' selected':''}>${esc(v)}</option>`).join('');
   }
   const filtEP=epSel?.value||'';
   const filtDono=donoSel?.value||'';
@@ -5163,7 +5299,7 @@ function _procMetaLinhaHTML(p){
 }
 function _procCardConcluidoHTML(p){
   const fmtD=d=>d?d.split('-').reverse().join('/'):'—';
-  const dtProx=p.dt_proximo_acompanhamento;
+  const dtProx=_dtProxAcomp(p);
   const acompVenc=dtProx&&dtProx<new Date().toISOString().slice(0,10);
   const concCor=acompVenc?'var(--red)':'var(--ink3)';
   const concWarn=acompVenc?' ⚠':'';
@@ -5259,6 +5395,11 @@ function abrirEditarMetadados(){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
   ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
     <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1.2rem">✎ Editar dados do processo</div>
+    <div class="fg"><label class="fl">Processo na arquitetura</label>
+      <select class="fi" id="em-arq-id">
+        <option value="">— Não vinculado —</option>
+        ${getUnidadesMapeaveis().map(u=>`<option value="${esc(u.arq_id)}" ${u.arq_id===p.arq_id?'selected':''}>${esc(u.label)}</option>`).join('')}
+      </select></div>
     <div class="fg"><label class="fl">Dono do processo</label>
       <input class="fi" id="em-dono" value="${esc(p.dono||'')}" placeholder="Nome do dono"></div>
     <div class="fg"><label class="fl">E-mail do dono</label>
@@ -5295,6 +5436,14 @@ function salvarMetadados(){
   p.dono=novoDono;
   p.dono_email=novoDonoEmail;
   p.produto=document.getElementById('em-produto')?.value||p.produto;
+  const novoArqId=document.getElementById('em-arq-id')?.value||'';
+  if(novoArqId!==p.arq_id) {
+    const unidade=getUnidadesMapeaveis().find(u=>u.arq_id===novoArqId);
+    p.arq_id=novoArqId||null;
+    if(unidade){p.macro=unidade.macro;p.area=unidade.area||p.area;}
+    if(novoArqId){mapeadosManual.add(novoArqId);lsSet('mapeadosManual',JSON.stringify([...mapeadosManual]));fbAutoSave('mapeados');}
+    push(p,p.etapa,'EP','Processo vinculado à arquitetura: '+(unidade?.label||'(removido)'));
+  }
   const inter=(document.getElementById('em-inter')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
   p.interessados=inter;
   // Patrocinador / Gestor
@@ -6093,7 +6242,7 @@ function verificarLembretesRevisao(){
     const email=getDonoEmail(proc);
     if(!email) return;
     let rp=proc.revisao_periodica;
-    if(!rp){rp=_revPeriodica_init(proc);if(!rp)return;proc.revisao_periodica=rp;}
+    if(!rp){rp=_revPeriodica_init(proc);if(!rp){return;}proc.revisao_periodica=rp;}
     const prox=rp.proxima_revisao;
     if(!prox) return;
     if(!rp.lembretes_enviados) rp.lembretes_enviados={pre7:false,venc:false,pos:[]};
@@ -7142,7 +7291,7 @@ function _acompReuniaoCardHtml(r, i){
 }
 function _acompAgendamentoBannerHtml(p){
   const fmtDtAcomp = d => d ? d.split('-').reverse().join('/') : '—';
-  const dtProx = p.dt_proximo_acompanhamento;
+  const dtProx = _dtProxAcomp(p);
   if(!dtProx) return '';
   const dtEfetiva = p.ent && p.ent.dt_efetiva;
   const diasAteAcomp = Math.round((new Date(dtProx) - Date.now()) / (1000*60*60*24));
@@ -7637,10 +7786,10 @@ function _rAcaoAppendEPBars(el, p, isPulada){
     ${_prazoHtml}
   </div>`;
   const btns=[];
-  btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="abrirAtribuirEtapa('${p.etapa}')">👤 Atribuir a...</button>`);
-  if(showPrazo) btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="definirPrazoEP('${p.etapa}')">✎ Definir prazo</button>`);
+  btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px" data-etid="${esc(p.etapa)}" onclick="abrirAtribuirEtapa(this.dataset.etid)">👤 Atribuir a...</button>`);
+  if(showPrazo) btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px" data-etid="${esc(p.etapa)}" onclick="definirPrazoEP(this.dataset.etid)">✎ Definir prazo</button>`);
   if(prevEt(p.etapa)) btns.push(`<button type="button" class="btn" style="font-size:11px;padding:3px 9px;color:var(--red)" onclick="voltarEtapaConfirm()">↩ Voltar etapa</button>`);
-  if(!isPulada&&hasNext) btns.push(`<button type="button" class="btn btn-a" style="font-size:11px;padding:3px 9px" onclick="pularEtapaConfirm('${p.etapa}')">⏭ Pular etapa</button>`);
+  if(!isPulada&&hasNext) btns.push(`<button type="button" class="btn btn-a" style="font-size:11px;padding:3px 9px" data-etid="${esc(p.etapa)}" onclick="pularEtapaConfirm(this.dataset.etid)">⏭ Pular etapa</button>`);
   if(hasAdvance){
     const advanceLabel = hasNext ? '✓ Salvar e ir para próxima →' : '✓ Salvar e concluir etapa';
     btns.push(
@@ -8280,6 +8429,8 @@ function excluirReuniaoAcomp(idx){
   confirmar('Excluir esta reunião de acompanhamento?',async()=>{
     const p=curProc;if(!p?.reunioes_acomp)return;
     p.reunioes_acomp.splice(idx,1);
+    const _latest=[...p.reunioes_acomp].filter(r=>r.data).sort((a,b)=>a.data<b.data?1:-1)[0];
+    if(_latest?.data) p.dt_proximo_acompanhamento=_addDias(_latest.data,180);
     await fbSaveAll();
     toast('Reunião excluída.','var(--amber)');
     rDetalhe();
@@ -10176,13 +10327,14 @@ function exportarAuditoriaRelPdf(){
         const semAcaoRow = posicaoRow
           ? '<tr><td colspan="2" style="padding:6px 10px;color:#9ca3af;font-style:italic">Proposta de ação corretiva não preenchida.</td></tr>'
           : '';
+        const _acaoCorr=a.acao_corretiva_definida?_e(a.acao_corretiva_definida):'<span style="color:#9ca3af;font-style:italic">Não preenchida</span>';
         const acaoRows=a.acao_corretiva
           ? '<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Proposta de ação corretiva</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_e(a.acao_corretiva)+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Responsável</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_e(a.responsavel_acao)||'—')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;vertical-align:top">Ação corretiva definida</td>'
-            +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+(a.acao_corretiva_definida?_e(a.acao_corretiva_definida):'<span style="color:#9ca3af;font-style:italic">Não preenchida</span>')+'</td></tr>'
+            +'<td style="padding:6px 10px;border-bottom:1px solid #eee" contenteditable="true">'+_acaoCorr+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;border-bottom:1px solid #eee;font-weight:600">Prazo</td>'
             +'<td style="padding:6px 10px;border-bottom:1px solid #eee">'+(_d(a.prazo_acao)||'—')+'</td></tr>'
             +'<tr><td style="background:#f5f7fa;padding:6px 10px;font-weight:600">Status</td>'
@@ -10382,7 +10534,8 @@ function inferNatureza(nome){
 }
 let etapasIdC=100;
 
-function tipoCls(t,sub){
+function tipoCls(t,sub,isSubProc){
+  if(isSubProc)      return 'et-subproc';
   if(t==='Atividade') return 'et-ativ';
   if(t==='Decisao')  return 'et-decisao';
   if(t==='Evento')   return sub==='Fim' ? 'et-evento-fim' : 'et-evento';
@@ -10648,7 +10801,7 @@ function renderEtapasProc(etapas, reworkData=null){
     const reworkLabel=isConfirmado?'Retrabalho':'Retrabalho?';
     const reworkBadge=isSuspeito?`<button type="button" onclick="_toggleRetrabalho('${esc(e.id)}','${which}')" title="${reworkTitle}" style="border:none;cursor:pointer;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;flex-shrink:0;background:${reworkBg};color:${reworkColor};border:1px solid ${reworkBorder}" id="rework-badge-${which}-${esc(e.id)}">↺ ${reworkLabel}</button>`:'';
     return `
-    <div class="etapa-proc" id="ep-${e.id}" draggable="true"
+    <div class="etapa-proc${e.fromSubProcess?' etapa-sub-filho':''}" id="ep-${e.id}" draggable="true"
       onmouseenter="bpmnHoverEtapa(event,'${e.id}')"
       onmouseleave="bpmnHoverEtapa(event,null)"
       ondragstart="onEtapaDragStart(event,'${e.id}')"
@@ -10658,7 +10811,7 @@ function renderEtapasProc(etapas, reworkData=null){
       <div class="etapa-proc-hd">
         <span class="etapa-drag-handle" title="Arrastar para reordenar">⠿</span>
         <div class="etapa-seq">${e.seq}</div>
-        <span class="etapa-tipo ${tipoCls(e.tipo,e.subtipo_evento)}">${e.tipo}${e.subtipo_evento?' · '+e.subtipo_evento:''}</span>
+        <span class="etapa-tipo ${tipoCls(e.tipo,e.subtipo_evento,e.isSubProcess)}">${e.isSubProcess?'Subprocesso':e.tipo}${e.subtipo_evento?' · '+e.subtipo_evento:''}</span>
         <div class="etapa-nome">
           ${e.nome}
           ${_gwBadge(e)}
@@ -10877,7 +11030,8 @@ function _bpmnNodeToEtapa(node, id, gwCtx){
     tipo:node.tipo, subtipo_evento:node.subtipo||null,
     natureza:node.natureza||naturezaFallback, modo:node.modo||null,
     executor:node.executor||'', desc:node.desc||'', caminhos:[],
-    vinculo_gw: gwCtx ? {gw_ep_id:gwCtx.epId,label:gwCtx.label} : null
+    vinculo_gw: gwCtx ? {gw_ep_id:gwCtx.epId,label:gwCtx.label} : null,
+    ...(node.isSubProcess && {isSubProcess:true})
   };
 }
 function _bpmnPopulateGatewayPaths(elem, id, outgoing, flowLabels){
@@ -10935,15 +11089,13 @@ function _bpmnBuildFlatGwAware(outgoing, nodeInfo, flowLabels){
   return ordered;
 }
 function _bpmnGetSubprocessChildren(subEl, GW_TAGS, TASK_TAGS, laneMap){
-  const tagSet=new Set([
-    'startevent','endevent','intermediatethrowevent','intermediatecatchevent',
-    'task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask',
-    'exclusivegateway','inclusivegateway','parallelgateway','complexgateway',
-  ]);
+  const taskTags=['startEvent','endEvent','intermediateThrowEvent','intermediateCatchEvent',
+    'task','userTask','serviceTask','sendTask','receiveTask','manualTask','scriptTask',
+    'exclusiveGateway','inclusiveGateway','parallelGateway','complexGateway'];
   const nodeInfo={};
-  Array.from(subEl.children).forEach(e=>{
+  // Busca em todos os descendentes (não só filhos diretos) para suportar subprocessos aninhados
+  _bpmnFindAll(subEl, taskTags).forEach(e=>{
     const tag=e.localName.toLowerCase();
-    if(!tagSet.has(tag)) return;
     const id=e.getAttribute('id'); if(!id) return;
     const typeInfo=_bpmnNodeType(tag, GW_TAGS, TASK_TAGS);
     if(!typeInfo) return;
@@ -10953,8 +11105,7 @@ function _bpmnGetSubprocessChildren(subEl, GW_TAGS, TASK_TAGS, laneMap){
   if(!Object.keys(nodeInfo).length) return [];
   const outgoing={};
   const flowLabels={};
-  Array.from(subEl.children).forEach(sf=>{
-    if(sf.localName.toLowerCase()!=='sequenceflow') return;
+  _bpmnFindAll(subEl, ['sequenceFlow']).forEach(sf=>{
     const src=sf.getAttribute('sourceRef'), tgt=sf.getAttribute('targetRef');
     if(!src||!tgt) return;
     if(!outgoing[src]) outgoing[src]=[];
@@ -10974,7 +11125,8 @@ function _bpmnExpandSubprocesses(elems, xml, GW_TAGS, TASK_TAGS, laneMap){
     if(!subEls.length){ result.push(elem); return; }
     const children=_bpmnGetSubprocessChildren(subEls[0], GW_TAGS, TASK_TAGS, laneMap);
     if(!children.length){ result.push(elem); return; }
-    children.forEach(c=>result.push(c));
+    result.push(elem);
+    children.forEach(c=>{ c.fromSubProcess=true; result.push(c); });
   });
   return result;
 }
@@ -11642,7 +11794,7 @@ function rEnt(p){
   // Nível por eixo e eixo(s) limitante(s) — recomputado direto de resp para garantir consistência
   const dimNiveis=Object.fromEntries(Object.entries(dims).map(([dim,d])=>[dim,d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):0]));
   const nivelMin=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
-  const eixosLimitantes=Object.entries(dimNiveis).filter(([,n])=>n===nivelMin&&n>0).map(([d])=>d);
+  const eixosLimitantes=new Set(Object.entries(dimNiveis).filter(([,n])=>n===nivelMin&&n>0).map(([d])=>d));
   // Média geral como indicador complementar
   const _valsAll=Object.values(resp);
   const _mediaGeral=_valsAll.length?(_valsAll.reduce((a,b)=>a+b,0)/_valsAll.length).toFixed(1):null;
@@ -11656,10 +11808,12 @@ function rEnt(p){
   ];
   const _mdn=e.mat||0;
   const _mdInfo=_matDesc[_mdn];
+  const _mdMarginB=_mdInfo?.prox?'.5rem':'0';
+  const _mdNextHtml=_mdInfo?.prox?`<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:.2rem">▲ Para evoluir ao ${_mdInfo.proxLevel}:</div><div style="font-size:12px;color:var(--ink2);line-height:1.55">${_mdInfo.prox}</div>`:'<div style="font-size:11.5px;font-weight:600;color:var(--teal)">✓ Nível máximo de maturidade atingido.</div>';
   const matDescHtml=_mdInfo?`<div style="background:var(--bg2);border-left:3px solid var(--blue);border-radius:0 var(--r) var(--r) 0;padding:.6rem .85rem;margin-bottom:.7rem">
     <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">Nível ${_mdn}: ${MATURIDADE_LABELS[_mdn]}</div>
-    <div style="font-size:12px;color:var(--ink2);line-height:1.55;margin-bottom:${_mdInfo.prox?'.5rem':'0'}">${_mdInfo.atual}</div>
-    ${_mdInfo.prox?`<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:.2rem">▲ Para evoluir ao ${_mdInfo.proxLevel}:</div><div style="font-size:12px;color:var(--ink2);line-height:1.55">${_mdInfo.prox}</div>`:'<div style="font-size:11.5px;font-weight:600;color:var(--teal)">✓ Nível máximo de maturidade atingido.</div>'}
+    <div style="font-size:12px;color:var(--ink2);line-height:1.55;margin-bottom:${_mdMarginB}">${_mdInfo.atual}</div>
+    ${_mdNextHtml}
   </div>`:'';
   const comToBe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
   const hasTobe=comToBe&&!!(p.mod?.etapas_proc_tobe?.length||p.mod?.bpmnToBe);
@@ -11714,7 +11868,7 @@ function rEnt(p){
       ${Object.entries(dims).map(([dim,d])=>{
         const nota=d.cnt>0?(d.sum/d.cnt).toFixed(1):'-';
         const nivelDim=dimNiveis[dim]||0;
-        const isLim=eixosLimitantes.includes(dim);
+        const isLim=eixosLimitantes.has(dim);
         return `<div style="display:flex;align-items:center;gap:8px;padding:4px ${isLim?'6px':'0'};font-size:12px;${isLim?'background:#fff7ed;border-left:2px solid #f97316;padding-left:6px;border-radius:0 4px 4px 0;margin-left:-2px':''}">
           <span style="flex:1;color:var(--ink2);font-weight:${isLim?'600':'400'}">${dim}${isLim?' <span style="font-size:10px;background:#f97316;color:#fff;padding:1px 5px;border-radius:3px;margin-left:3px">limitante</span>':''}</span>
           <span style="font-weight:600;color:var(--blue)">Nível ${nivelDim} · ${nota}</span>
@@ -11731,16 +11885,18 @@ function rEnt(p){
         <tbody>${(e.quest_hist||[]).map((h,i)=>{
           const ord=['1ª','2ª','3ª','4ª','5ª','6ª','7ª','8ª','9ª'][i]||(i+1)+'ª';
           const isRetro=h.dt==='(retroativo)';
-          const _parseHistDt=s=>{if(!s)return null;if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const[d,m,y]=s.split('/');return new Date(y,m-1,d);}return new Date(s);};
+          const _parseHistDt=s=>{if(!s){return null;}if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const[d,m,y]=s.split('/');return new Date(y,m-1,d);}return new Date(s);};
           const _dtObj=isRetro?null:_parseHistDt(h.dt);
-          const dt=isRetro?'<span style="font-size:10px;color:var(--ink3);font-style:italic">data não registrada</span>':(_dtObj&&!isNaN(_dtObj)?_dtObj.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}):'—');
+          let dt;
+          if(isRetro){dt='<span style="font-size:10px;color:var(--ink3);font-style:italic">data não registrada</span>';}
+          else{dt=(_dtObj&&!Number.isNaN(_dtObj))?_dtObj.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';}
           const isLast=i===(e.quest_hist.length-1);
           const rowStyle=isLast?'background:var(--bg2)':'';
           return`<tr style="${rowStyle}">
             <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${ord}${isLast&&!isRetro?' <span style="font-size:10px;color:var(--teal);font-weight:600">atual</span>':''}${isRetro?' <span style="font-size:10px;color:var(--ink3);font-weight:600" title="Registro reconstruído automaticamente a partir dos dados existentes">retroativo</span>':''}</td>
             <td style="padding:5px 6px;border-bottom:1px solid var(--bdr)">${dt}</td>
             <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr);font-weight:700;color:var(--blue)">${h.nivel||'—'}/5</td>
-            <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr)">${h.media!=null?Number(h.media).toFixed(1):'—'}</td>
+            <td style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--bdr)">${h.media==null?'—':Number(h.media).toFixed(1)}</td>
           </tr>`;}).join('')}</tbody>
       </table>`:''}
     </div>
@@ -12054,7 +12210,7 @@ async function _popPdfAnexo(p){
     }).join('');
     // Nível por eixo e eixo(s) limitante(s)
     const _pdfDims={};
-    QUESTOES.forEach(q=>{if(!_pdfDims[q.dim])_pdfDims[q.dim]={sum:0,cnt:0};if(resp[q.id]){_pdfDims[q.dim].sum+=resp[q.id];_pdfDims[q.dim].cnt++;}});
+    QUESTOES.forEach(q=>{if(!_pdfDims[q.dim]){_pdfDims[q.dim]={sum:0,cnt:0};}if(resp[q.id]){_pdfDims[q.dim].sum+=resp[q.id];_pdfDims[q.dim].cnt++;}});
     const _pdfValsAll=Object.values(resp);
     const _pdfMedia=_pdfValsAll.length?(_pdfValsAll.reduce((a,b)=>a+b,0)/_pdfValsAll.length).toFixed(1):null;
     const _pdfDimRows=Object.entries(_pdfDims).map(([dim,d])=>{
@@ -12179,7 +12335,7 @@ async function gerarPopPdf(){
   try{anexo=await _popPdfAnexo(p);}catch(ex){console.warn('_popPdfAnexo:',ex);}
   if(btn){btn.disabled=false;btn.textContent='⬇ Gerar POP em PDF';}
   const cageLogo=await _fetchCageLogoBase64();
-  const nomeCSS=(p?.nome||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/[\r\n]/g,' ');
+  const nomeCSS=(p?.nome||'').replaceAll(/[\r\n]/g,' ');
   const _pgHdr=`@page{size:A4 portrait;margin:22mm 20mm;@top-left{content:"POP — Procedimento Operacional Padrão${nomeCSS?' — '+nomeCSS:''}";font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:700;color:#1a1a2e;vertical-align:bottom;padding-bottom:3px;border-bottom:1px solid #e0e0f0}}`;
   const logoFixed='';
   const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
@@ -12198,7 +12354,7 @@ async function gerarPopPdf(){
     ${cageLogo?`.pop-doc-hdr{background-image:url("${cageLogo}");background-repeat:no-repeat;background-position:right 16px center;background-size:auto 48px;padding-right:110px}`:''}
     @media print{.pop-pdf-bar{display:none!important}[data-popsec]>div:first-child{break-after:avoid}}
   </style>
-  </head><body>${logoFixed}${inner}${anexo}<script>setTimeout(function(){window.print();},200);<\/script></body></html>`;
+  </head><body>${logoFixed}${inner}${anexo}${['<scr','ipt>setTimeout(function(){window.print();},200);</scr','ipt>'].join('')}</body></html>`;
   const w=globalThis.open('','_blank');
   if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
   w.document.write(fullHtml);
@@ -12216,7 +12372,7 @@ async function gerarPopPdfDireto(){
   let anexo='';
   try{anexo=await _popPdfAnexo(p);}catch(ex){console.warn('_popPdfAnexo:',ex);}
   const cageLogo=await _fetchCageLogoBase64();
-  const nomeCSS=(p?.nome||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/[\r\n]/g,' ');
+  const nomeCSS=(p?.nome||'').replaceAll(/[\r\n]/g,' ');
   const _pgHdr=`@page{size:A4 portrait;margin:22mm 20mm;@top-left{content:"POP — Procedimento Operacional Padrão${nomeCSS?' — '+nomeCSS:''}";font-family:'Segoe UI',Arial,sans-serif;font-size:10px;font-weight:700;color:#1a1a2e;vertical-align:bottom;padding-bottom:3px;border-bottom:1px solid #e0e0f0}}`;
   const logoFixed='';
   const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${nome}</title>
@@ -12235,7 +12391,7 @@ async function gerarPopPdfDireto(){
     ${cageLogo?`.pop-doc-hdr{background-image:url("${cageLogo}");background-repeat:no-repeat;background-position:right 16px center;background-size:auto 48px;padding-right:110px}`:''}
     @media print{.pop-pdf-bar{display:none!important}[data-popsec]>div:first-child{break-after:avoid}}
   </style>
-  </head><body>${logoFixed}${inner}${anexo}<script>setTimeout(function(){window.print();},200);<\/script></body></html>`;
+  </head><body>${logoFixed}${inner}${anexo}${['<scr','ipt>setTimeout(function(){window.print();},200);</scr','ipt>'].join('')}</body></html>`;
   const w=globalThis.open('','_blank');
   if(!w){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
   w.document.write(fullHtml);
@@ -13328,7 +13484,7 @@ function rArqPopulateFilters(){
   if(aSel){
     const cur = aSel.value;
     aSel.innerHTML = '<option value="">Todas</option>' +
-      [...areas].sort().map(a=>`<option ${cur===a?'selected':''}>${a}</option>`).join('');
+      [...areas].sort().map(a=>`<option ${cur===a?'selected':''}>${esc(a)}</option>`).join('');
   }
   const oSel = document.getElementById('arq-f-obje');
   if(oSel){
@@ -13346,7 +13502,7 @@ function rArqPopulateFilters(){
     }));
     const cur = dSel.value;
     dSel.innerHTML = '<option value="">Todos</option>' +
-      [...donos].sort().map(d=>`<option ${cur===d?'selected':''}>${d}</option>`).join('');
+      [...donos].sort().map(d=>`<option ${cur===d?'selected':''}>${esc(d)}</option>`).join('');
     if(cur && !donos.has(cur)) dSel.value='';
   }
 }
@@ -14022,16 +14178,21 @@ function buildPainelAlertasEPHTML(){
 
 function _procCentralInteligenciaHTML(proc){
   const {riscos, indicadores, pubs, trilhasProc, atividadesPlano, analise, vencido, sinais, recomendacoes} = _procIntelSnapshot(proc);
+  const _revSt = _revStatus(proc);
   const topGargalos = (analise.gargalos||[]).slice(0,2);
   const topOportunidades = (analise.oportunidades||[]).slice(0,2);
   let statusPrazo = 'Sem previsão';
   if(proc.ent?.dt_prev) statusPrazo = proc.ent.dt_prev.split('-').reverse().join('/');
   if(vencido) statusPrazo = 'Vencido';
+  const revisarBtn = (_revSt==='vencida'||_revSt==='pendente')
+    ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 9px;margin-left:auto" onclick="abrirRevisaoPeriodica(${proc.id})">✔ Revisar</button>`
+    : '';
 
   return `<div style="margin-top:.75rem;padding:.75rem .85rem;background:var(--surf2);border:1px solid var(--bdr);border-radius:var(--r)">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:.65rem">
       <div style="font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em">Central de inteligência</div>
       ${sinais.length ? sinais.slice(0,3).map(s=>`<span class="badge ${s.cls}" style="font-size:10px">${s.txt}</span>`).join('') : '<span class="badge bg" style="font-size:10px">Sem alertas imediatos</span>'}
+      ${revisarBtn}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:7px;font-size:11px">
       <div><span style="font-weight:600;color:var(--ink2)">Etapa:</span> <span style="color:var(--ink3)">${etLb(proc.etapa)}</span></div>
@@ -14052,7 +14213,6 @@ function _procCentralInteligenciaHTML(proc){
 }
 
 function _metaFieldsMapeamentoHTML(item, proc){
-  const matNivel = proc.ent?.mat||0;
   const progBar = _metaFieldsProgBar(proc);
   const mapeandoBadge = ['acompanha','auditoria'].includes(proc.etapa) ? '' : '<span class="badge ba" style="font-size:10px;margin-left:auto">Em mapeamento</span>';
   return `
@@ -14069,14 +14229,6 @@ function _metaFieldsMapeamentoHTML(item, proc){
       ${isEP()?`<label class="btn" style="font-size:10px;padding:2px 8px;cursor:pointer" title="Carregar imagem de fluxo Bizagi">📎 Alterar imagem<input type="file" accept="image/*" style="display:none" onchange="uploadFluxoArq('${item.id}',this)"></label>`:''}
     </div>
     <div style="display:flex;gap:2px;margin-bottom:.6rem">${progBar}</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;font-size:11px">
-      <div><span style="font-weight:600;color:var(--ink2)">Dono:</span> <span style="color:var(--ink3)">${proc.dono||'—'}</span></div>
-      <div><span style="font-weight:600;color:var(--ink2)">Resp. EP:</span> <span style="color:var(--ink3)">${proc.resp_ep||'—'}</span></div>
-      <div><span style="font-weight:600;color:var(--ink2)">Maturidade:</span> <span style="color:var(--ink3)">${matNivel?matNivel+'/5 — '+MATURIDADE_LABELS[matNivel]:'Não avaliada'}</span></div>
-      ${proc.ent?.dt_inicio?`<div><span style="font-weight:600;color:var(--ink2)">Início:</span> <span style="color:var(--ink3)">${proc.ent.dt_inicio}</span></div>`:''}
-      ${proc.ent?.dt_prev?`<div><span style="font-weight:600;color:var(--ink2)">Previsão:</span> <span style="color:var(--ink3)">${proc.ent.dt_prev}</span></div>`:''}
-      ${proc.produto?`<div><span style="font-weight:600;color:var(--ink2)">Produto:</span> <span style="color:var(--ink3)">${proc.produto}</span></div>`:''}
-    </div>
     ${_procCentralInteligenciaHTML(proc)}
   </div>`;
 }
@@ -14091,15 +14243,15 @@ function metaFieldsReadonly(item){
   const metaHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">
     ${fields.map(([l,v])=>v?`<div style="font-size:11px"><span style="font-weight:600;color:var(--ink2)">${l}:</span> <span style="color:var(--ink3)">${v}</span></div>`:'').join('')}
   </div>`;
-  const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(item.id)&&(p.url||p.bpmn_url));
+  const popsVinc = publicacoes.filter(p=>(p.arq_ids||[]).includes(item.id)&&(p.url||_pubGetBpmnUrls(p).length));
   const pubHTML = popsVinc.length ? `<div style="margin-top:.6rem;display:flex;flex-wrap:wrap;gap:6px">
     ${popsVinc.flatMap(p=>[
       p.url?`<a href="${esc(safeUrl(p.url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ccfbf1;color:#0d9488;padding:3px 9px;border-radius:4px;text-decoration:none">📄 ${esc(p.titulo)}</a>`:'',
-      p.bpmn_url&&p.categoria==='POPs'?`<a href="${esc(safeUrl(p.bpmn_url)||'')}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:3px 9px;border-radius:4px;text-decoration:none">🔷 BPMN — ${esc(p.titulo)}</a>`:''
+      ...(p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label)+' — ':' ';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;padding:3px 9px;border-radius:4px;text-decoration:none">🔷 ${_lbl}${esc(p.titulo)}</a>`:'';}):[])
     ]).filter(Boolean).join('')}
   </div>` : '';
   const proc = processos.find(pr=>pr.arq_id===item.id);
-  if(!proc) return metaHTML + pubHTML;
+  if(!proc || !isEP()) return metaHTML + pubHTML;
   return metaHTML + pubHTML + _metaFieldsMapeamentoHTML(item, proc);
 }
 
@@ -14821,12 +14973,24 @@ function _kpiPeriodoToIntervalo(periodo){
   return {trims:[], sems:[]};
 }
 
+function _kpiGetMacroProc(k){
+  if(k.arq_id){const u=getUnidadesMapeaveis().find(u=>u.arq_id===k.arq_id);if(u)return{macro:u.macro||'',proc:u.nome||''};}
+  if(k.pid){const p=processos.find(p=>p.id===k.pid);if(p)return{macro:p.macro||'',proc:p.nome||''};}
+  return{macro:'',proc:''};
+}
+function _indMacroChange(){
+  const procSel=document.getElementById('ind-proc-sel');
+  if(procSel) procSel.value='';
+  rInd();
+}
 function populateIndFilters(){
   const areaSel      = document.getElementById('ind-area-sel');
   const cicloSel     = document.getElementById('ind-ciclo-sel');
   const periSel      = document.getElementById('ind-periodo-sel');
   const nomeSel      = document.getElementById('ind-nome-sel');
   const intervaloSel = document.getElementById('ind-intervalo-sel');
+  const macroSel     = document.getElementById('ind-macro-sel');
+  const procSel      = document.getElementById('ind-proc-sel');
   if(!areaSel) return;
 
   const curArea      = areaSel.value;
@@ -14834,16 +14998,24 @@ function populateIndFilters(){
   const curPeri      = periSel.value;
   const curNome      = nomeSel ? nomeSel.value : '';
   const curIntervalo = intervaloSel ? intervaloSel.value : '';
+  const curMacro     = macroSel ? macroSel.value : '';
+  const curProc      = procSel  ? procSel.value  : '';
 
   const areas   = [...new Set(kpis.map(k=>k.area).filter(Boolean))].sort();
   const ciclos  = [...new Set(kpis.map(k=>k.ciclo).filter(Boolean))].sort();
   const periods = [...new Set(kpis.map(k=>k.periodo).filter(Boolean))].sort((a,b)=>periodoToNum(a)-periodoToNum(b));
   const nomes   = [...new Set(kpis.map(k=>k.nome).filter(Boolean))].sort();
+  const macros  = [...new Set(kpis.map(k=>_kpiGetMacroProc(k).macro).filter(Boolean))].sort();
+  const procs   = [...new Set(kpis
+    .filter(k=>!curMacro||_kpiGetMacroProc(k).macro===curMacro)
+    .map(k=>_kpiGetMacroProc(k).proc).filter(Boolean))].sort();
 
   areaSel.innerHTML  = '<option value="">Todas as áreas</option>'  + areas.map(a=>`<option ${curArea===a?'selected':''}>${esc(a)}</option>`).join('');
   cicloSel.innerHTML = '<option value="">Todos os ciclos</option>' + ciclos.map(a=>`<option ${curCiclo===a?'selected':''}>${esc(a)}</option>`).join('');
   periSel.innerHTML  = '<option value="">Todos os períodos</option>' + periods.map(a=>`<option ${curPeri===a?'selected':''}>${esc(a)}</option>`).join('');
   if(nomeSel) nomeSel.innerHTML = '<option value="">Todos os indicadores</option>' + nomes.map(a=>`<option ${curNome===a?'selected':''}>${esc(a)}</option>`).join('');
+  if(macroSel) macroSel.innerHTML = '<option value="">Todos os macroprocessos</option>' + macros.map(m=>`<option ${curMacro===m?'selected':''}>${esc(m)}</option>`).join('');
+  if(procSel)  procSel.innerHTML  = '<option value="">Todos os processos</option>'      + procs.map(p=>`<option ${curProc===p?'selected':''}>${esc(p)}</option>`).join('');
 
   // Intervalo: gera opções agrupadas por trimestre e semestre, diferenciando por ano
   if(intervaloSel){
@@ -14915,15 +15087,20 @@ function rInd(){
   const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const nome      = document.getElementById('ind-nome-sel')?.value      || '';
   const ppe       = document.getElementById('ind-ppe-sel')?.value       || '';
+  const macro     = document.getElementById('ind-macro-sel')?.value     || '';
+  const proc      = document.getElementById('ind-proc-sel')?.value      || '';
 
-  const lista = kpis.filter(k=>
-    (!area      || k.area   === area)   &&
-    (!ciclo     || k.ciclo  === ciclo)  &&
-    (!period    || k.periodo === period) &&
-    _periodoInIntervalo(k.periodo, intervalo) &&
-    (!nome      || k.nome   === nome)   &&
-    (!ppe       || k.ppe    === ppe)
-  );
+  const lista = kpis.filter(k=>{
+    const mp=(macro||proc)?_kpiGetMacroProc(k):{macro:'',proc:''};
+    return (!area      || k.area    === area)   &&
+      (!ciclo     || k.ciclo   === ciclo)  &&
+      (!period    || k.periodo === period) &&
+      _periodoInIntervalo(k.periodo, intervalo) &&
+      (!nome      || k.nome    === nome)   &&
+      (!ppe       || k.ppe     === ppe)    &&
+      (!macro     || mp.macro  === macro)  &&
+      (!proc      || mp.proc   === proc);
+  });
 
   const grupos = kpiGroupByKey(lista);
   const nGrupos = Object.keys(grupos).length;
@@ -15050,11 +15227,10 @@ function kpiGrupoCardHTML(key, items){
   }
 
   // Linked process
-  const linkedProc = items[0].pid
-    ? processos.find(p=>p.id===items[0].pid)
-    : items[0].arq_id
-      ? (()=>{const o=_kpiArquiteturaOptions().find(x=>x.id===items[0].arq_id);return o?{nome:o.nome}:null;})()
-      : null;
+  let linkedProc;
+  if(items[0].pid){linkedProc=processos.find(p=>p.id===items[0].pid);}
+  else if(items[0].arq_id){const _o=_kpiArquiteturaOptions().find(x=>x.id===items[0].arq_id);linkedProc=_o?{nome:_o.nome}:null;}
+  else{linkedProc=null;}
 
   // Analysis lines with period label
   const analises = items.filter(i=>i.analise).map(i=>
@@ -15883,7 +16059,8 @@ function rPub(){
           <div class="pub-card-meta">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div class="pub-card-actions">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
-            ${p.categoria==='POPs'&&safeUrl(p.bpmn_url)?`<a href="${esc(safeUrl(p.bpmn_url))}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">Ver BPMN</a>`:''}
+            ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${_lbl}</a>`:''}).join(''):''}
+
             ${isEP()?`<button type="button" class="btn pub-action-edit" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">Editar</button>
             <button type="button" class="btn pub-action-delete" style="font-size:10px;padding:2px 8px" onclick="deletarPub(${p.id})">Excluir</button>`:''}
           </div>
@@ -15898,6 +16075,32 @@ function _pubPopularSelectProcs(selectedArqIds){
   if(!sel) return;
   const unidades = getUnidadesMapeaveis().sort((a,b)=>a.label.localeCompare(b.label));
   sel.innerHTML = unidades.map(u=>`<option value="${esc(u.arq_id)}"${(selectedArqIds||[]).includes(u.arq_id)?' selected':''}>${esc(u.label)}</option>`).join('');
+}
+function _pubGetBpmnUrls(p){
+  if(p.bpmn_urls?.length) return p.bpmn_urls;
+  if(p.bpmn_url) return [{url:p.bpmn_url,label:''}];
+  return [];
+}
+function _renderBpmnUrlList(){
+  const c=document.getElementById('pub-bpmn-list');
+  if(!c) return;
+  if(!_pubBpmnUrls.length){
+    c.innerHTML='<div style="font-size:11px;color:var(--ink3);margin-bottom:4px">Nenhuma imagem adicionada.</div>';
+    return;
+  }
+  c.innerHTML=_pubBpmnUrls.map((item,i)=>`<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+    <input class="fi" placeholder="Rótulo (ex: AS IS)" style="width:120px;flex-shrink:0" value="${esc(item.label)}" oninput="_pubBpmnUrls[${i}].label=this.value">
+    <input class="fi" placeholder="https://... link da imagem" style="flex:1" value="${esc(item.url)}" oninput="_pubBpmnUrls[${i}].url=this.value">
+    <button type="button" class="btn" style="font-size:11px;padding:3px 8px;color:var(--red);flex-shrink:0" onclick="_pubBpmnRemove(${i})">✕</button>
+  </div>`).join('');
+}
+function _pubBpmnAdd(){
+  _pubBpmnUrls.push({url:'',label:''});
+  _renderBpmnUrlList();
+}
+function _pubBpmnRemove(i){
+  _pubBpmnUrls.splice(i,1);
+  _renderBpmnUrlList();
 }
 function _pubCatChange(cat){
   const isPop = cat==='POPs';
@@ -15921,9 +16124,10 @@ function abrirModalPub(){
   document.getElementById('pub-tags').value    = '';
   document.getElementById('pub-thumb').value   = '';
   document.getElementById('pub-thumb-preview').style.display = 'none';
-  document.getElementById('pub-bpmn-url').value = '';
+  _pubBpmnUrls=[];
   _pubPopularSelectProcs([]);
   _pubCatChange('Manual');
+  _renderBpmnUrlList();
   document.getElementById('pub-modal').style.display = 'flex';
 }
 
@@ -15945,9 +16149,10 @@ function editarPub(id){
   const prev = document.getElementById('pub-thumb-preview');
   const img  = document.getElementById('pub-thumb-img');
   if(p.thumb_url){ img.src=p.thumb_url; prev.style.display='block'; } else { prev.style.display='none'; }
-  document.getElementById('pub-bpmn-url').value = p.bpmn_url||'';
+  _pubBpmnUrls=_pubGetBpmnUrls(p).map(x=>({url:x.url||'',label:x.label||''}));
   _pubPopularSelectProcs(p.arq_ids||[]);
   _pubCatChange(p.categoria||'Manual');
+  _renderBpmnUrlList();
   document.getElementById('pub-modal').style.display = 'flex';
 }
 
@@ -15967,7 +16172,8 @@ function salvarPub(){
     responsavel: document.getElementById('pub-resp').value.trim(),
     tags:        document.getElementById('pub-tags').value.trim(),
     thumb_url:   document.getElementById('pub-thumb').value.trim(),
-    bpmn_url:    document.getElementById('pub-bpmn-url').value.trim(),
+    bpmn_urls:   _pubBpmnUrls.filter(x=>x.url.trim()).map(x=>({url:x.url.trim(),label:x.label.trim()})),
+    bpmn_url:    _pubBpmnUrls.find(x=>x.url.trim())?.url.trim()||'',
     arq_ids:     arqIds,
   };
   const editId = document.getElementById('pub-edit-id').value;
@@ -18376,7 +18582,7 @@ async function _fbLoadPublicacoes(){
 async function _fbLoadRelatoriosPat(){
   const doc = await configRepository.get('relatorios_pat');
   if(doc.exists() && doc.data().data){
-    try { relatoriosPat = JSON.parse(doc.data().data); } catch(e){ relatoriosPat = []; }
+    try { relatoriosPat = JSON.parse(doc.data().data); } catch(e){ console.warn('relatoriosPat parse error:',e); relatoriosPat = []; }
   }
 }
 async function _fbSaveRelatoriosPat(){
@@ -19984,29 +20190,37 @@ async function processarArquivoPOP(input){
     const arrayBuffer=await input.files[0].arrayBuffer();
     const result=await mammoth.extractRawText({arrayBuffer});
     const texto=result.value.trim().slice(0,12000);
-    const prompt=`Analise o POP abaixo e retorne APENAS um JSON válido (sem markdown) com a estrutura:
+    const prompt=`Analise o documento de processo/POP abaixo e retorne APENAS um JSON válido (sem markdown) com a estrutura:
 {"nome":"...","area":"...","objetivo":"...","atores":["..."],"etapas":[{"nome":"...","tipo":"Atividade|Decisao|Evento","executor":"..."}]}
 
-REGRAS para classificar cada elemento do fluxo:
-- "Atividade": tarefas, execuções, verificações, comunicações, registros (a maioria)
-- "Decisao": gateways, bifurcações, condicionais — frases numeradas como "2.3.1", "Qual é o risco?", "O processo está no escopo?", "Caso sim/não"
-- "Evento": início do processo, fim/encerramento ("Processo devolvido", "fim do processo")
+CLASSIFICAÇÃO das etapas:
+- "Evento": início do processo (recebimento da demanda, disparo de formulário, acionamento) e encerramentos explícitos ("Finalizar demanda", "fim do processo", estado final do fluxo)
+- "Decisao": qualquer item que TERMINE COM "?" — ex: "Caso a demanda pertença à DTI ou outro órgão?", "É necessário reunião?", "Demanda recebida via formulário?", "Primeira liquidação?", "Contém Erro?"
+- "Atividade": toda ação, verificação, comunicação ou registro — sejam itens numerados (2.3.1, 2.3.4.3.1), bullet points ou linhas do tipo "Caso X: [verbo]" onde haja uma ação após os dois pontos
 
-REGRAS CRÍTICAS para o campo "executor" (ator por etapa):
-- Neste tipo de documento, o ator aparece como uma LINHA ISOLADA antes de um grupo de atividades (ex: "Auxiliar Administrativo", "Servidor", "Analista", "Auditor")
-- Esse ator se aplica a TODAS as atividades listadas abaixo dele, até que apareça outro nome de ator isolado
-- Quando uma seção diz "Se o analista analisou: ..." → executor é "Analista"; "Se o auditor analisou: ..." → executor é "Auditor"
-- Quando o texto cita explicitamente "O Auditor então deverá:" ou "Auditor" em negrito/isolado → o executor muda para "Auditor"
-- Use o nome do papel exatamente como aparece no documento (ex: "Auxiliar Administrativo", "Analista", "Auditor", "Servidor")
-- Se genuinamente não for possível identificar, use ""
+O que INCLUIR: toda ação, decisão e encerramento do fluxo — inclusive saídas de gateways com ação (ex: "Caso não seja possível: Manter em tickets separados" → etapa "Manter em tickets separados")
 
-Inclua TODOS os elementos do fluxo, inclusive os gateways/condicionais e eventos de fim.
+O que NÃO INCLUIR:
+- Parágrafos de definição de conceitos (ex: "ALTA CRITICIDADE: São demandas que podem gerar impactos...")
+- Tabelas de score, critérios de pontuação e modelos de cálculo
+- Remissões internas ("Encaminhar para item 2.3.4", "ver item 2.3.2")
+- "OBS:", FAQ, indicadores, documentos correlatos
+- Seções introdutórias e de metodologia (1.x, 3.x, 4.x, 5.x, 6.x)
+
+EXECUTOR por etapa — o ator pode aparecer de três formas distintas:
+- No título da seção numerada (ex: "2.3.5 Diretiva CAGE" → executor = "Diretiva CAGE"; "2.3.6 ... Adjuntos e Contador-Geral do Estado" → executor = "Adjuntos e Contador-Geral")
+- Como linha isolada de cargo antes de um grupo de atividades (ex: "Auditor", "Seccional (Analista ou Auditor)" → usar como executor dos itens seguintes)
+- Como referência explícita no texto ("os adjuntos e o Contador-Geral avaliarão" → executor = "Adjuntos e Contador-Geral")
+Atribua o executor mais próximo e recente a cada etapa. Use "" se não identificado.
 
 POP:\n${texto}`;
     const rawText = await chamarIA('extrair_pop', prompt, loadEl);
     if(!rawText) throw new Error('Sem resposta da IA.');
-    const jsonStr=rawText.trim().replaceAll(/```json?/g,'').replaceAll('```','').trim();
-    const extracted=JSON.parse(jsonStr);
+    let jsonStr=rawText.trim().replaceAll(/```json?/g,'').replaceAll('```','').trim();
+    if(!jsonStr.startsWith('{')){const s=jsonStr.indexOf('{'),e=jsonStr.lastIndexOf('}');if(s!==-1&&e>s)jsonStr=jsonStr.slice(s,e+1);}
+    let extracted;
+    try{ extracted=JSON.parse(jsonStr); }
+    catch{ throw new Error('A IA não retornou um JSON válido. Tente novamente ou verifique se o arquivo contém texto extraível (não apenas imagens).'); }
     document.getElementById('pop-nome').value=extracted.nome||'';
     document.getElementById('pop-area').value=extracted.area||'';
     document.getElementById('pop-objetivo').value=extracted.objetivo||'';

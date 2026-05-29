@@ -1,0 +1,7 @@
+name: "SIGA 2.0 - CodeQL Config"
+
+paths:
+  - projetos.html
+  - projetos-logic.js
+  - projetos.shared.js
+  - src
