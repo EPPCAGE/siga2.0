@@ -14,3 +14,4 @@ config/config.local.js
 config/config.deploy.js
 !config/config.example.js
 *.local.js
+.claude/worktrees/
