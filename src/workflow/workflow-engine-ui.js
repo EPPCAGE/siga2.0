@@ -768,13 +768,43 @@
   // ════════════════════════════════════════════════════════════════════════
   // DESIGNER VISUAL DE FLUXO
   // ════════════════════════════════════════════════════════════════════════
-  const _NO_TIPOS = {
-    inicio:    { w: 48,  h: 48,  cor: '#10b981' },
-    tarefa:    { w: 160, h: 60,  cor: '#3b82f6' },
-    aprovacao: { w: 160, h: 70,  cor: '#f59e0b' },
-    fim:       { w: 48,  h: 48,  cor: '#ef4444' },
-  };
-  const _CANVAS_W = 2000, _CANVAS_H = 1400;
+  // instância bpmn.js do designer e config dos nós em memória
+  let _wfModeler = null;
+  const _wfConfigNos = {};  // { [bpmnId]: config }
+  let _wfModeloAtual = null;
+
+  function _bpmnTipoToWf(t) {
+    if (t === 'bpmn:StartEvent') return 'inicio';
+    if (t === 'bpmn:EndEvent') return 'fim';
+    if (t === 'bpmn:ExclusiveGateway' || t === 'bpmn:InclusiveGateway' || t === 'bpmn:ParallelGateway') return 'aprovacao';
+    return 'tarefa';
+  }
+
+  // Extrai canvas.nos + canvas.arestas do bpmn.js para uso pelo motor de execução
+  function _wfSyncCanvas() {
+    if (!_wfModeler) return { nos: [], arestas: [] };
+    const reg = _wfModeler.get('elementRegistry');
+    const els = reg.getAll();
+    const nos = els
+      .filter(e => e.type !== 'label' && e.type !== 'bpmn:SequenceFlow' && e.type !== 'bpmn:Process' && e.type !== 'bpmn:Collaboration' && e.type !== 'bpmn:Participant')
+      .map(e => ({
+        id: e.id,
+        tipo: _bpmnTipoToWf(e.type),
+        nome: e.businessObject?.name || e.id,
+        x: e.x || 0, y: e.y || 0,
+        config: _wfConfigNos[e.id] || _configPadrao(),
+      }));
+    const arestas = els
+      .filter(e => e.type === 'bpmn:SequenceFlow')
+      .map(e => ({
+        id: e.id,
+        origem: e.source?.id,
+        destino: e.target?.id,
+        acao: e.businessObject?.name || 'avancar',
+        label: e.businessObject?.name || 'Avançar',
+      }));
+    return { nos, arestas };
+  }
 
   function _novoModeloVazio() {
     return {
@@ -789,7 +819,7 @@
     };
   }
 
-  // Importa um mapeamento → cria wf_processo_modelos rascunho → abre designer
+  // Importa um mapeamento → gera BPMN XML → cria wf_processo_modelos rascunho → abre designer
   async function wfImportarMapeamento(processoId) {
     const proc = await _getDoc('processos', processoId);
     if (!proc) { alert('Processo não encontrado.'); return; }
@@ -798,43 +828,74 @@
     const etapasExec = todasEtapas.filter(e => !e.tipo || e.tipo === 'Atividade' || e.tipo === 'Aprovação');
     if (!etapasExec.length) { alert('Este processo não possui etapas executáveis.'); return; }
 
-    const nos = [];
-    const arestas = [];
-    const colX = 80, stepY = 110, baseY = 60;
-    nos.push({ id: 'no_inicio', tipo: 'inicio', nome: 'Início', x: colX + 56, y: baseY,
-      config: _configPadrao() });
-
-    let anterior = 'no_inicio';
+    // Gera BPMN XML com layout horizontal
+    const BW = 120, BH = 60, GAP = 50, Y = 100, startX = 60;
+    const ids = etapasExec.map((_, i) => `task_${i + 1}`);
+    let processXml = '<startEvent id="start" name="Início"/>\n';
     etapasExec.forEach((e, i) => {
-      const id = `no_${i + 1}`;
-      const tipo = e.tipo === 'Aprovação' ? 'aprovacao' : 'tarefa';
+      const tipo = e.tipo === 'Aprovação' ? 'userTask' : 'userTask';
+      processXml += `    <${tipo} id="${ids[i]}" name="${(e.nome || `Etapa ${i+1}`).replace(/"/g, '&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}"/>\n`;
+    });
+    processXml += '    <endEvent id="end" name="Fim"/>\n';
+    // sequence flows
+    processXml += `    <sequenceFlow id="f0" sourceRef="start" targetRef="${ids[0]}"/>\n`;
+    ids.forEach((id, i) => {
+      const next = ids[i + 1] || 'end';
+      processXml += `    <sequenceFlow id="f${i+1}" sourceRef="${id}" targetRef="${next}"/>\n`;
+    });
+
+    // DI (posições)
+    const allIds = ['start', ...ids, 'end'];
+    const startW = 36, startH = 36;
+    let diShapes = '';
+    allIds.forEach((id, i) => {
+      const isEvent = id === 'start' || id === 'end';
+      const w = isEvent ? startW : BW, h = isEvent ? startH : BH;
+      const x = startX + i * (BW + GAP) + (isEvent ? (BW - startW) / 2 : 0);
+      const y = Y + (isEvent ? (BH - startH) / 2 : 0);
+      diShapes += `      <bpmndi:BPMNShape bpmnElement="${id}"><omgdc:Bounds x="${x}" y="${y}" width="${w}" height="${h}"/></bpmndi:BPMNShape>\n`;
+    });
+    let diEdges = '';
+    allIds.forEach((id, i) => {
+      if (i === allIds.length - 1) return;
+      const srcId = id, tgtId = allIds[i + 1];
+      const srcIsEvent = srcId === 'start' || srcId === 'end';
+      const tgtIsEvent = tgtId === 'start' || tgtId === 'end';
+      const sw = srcIsEvent ? startW : BW, sx = startX + i * (BW + GAP) + (srcIsEvent ? (BW - startW) / 2 : 0);
+      const tx = startX + (i+1) * (BW + GAP) + (tgtIsEvent ? (BW - startW) / 2 : 0);
+      diEdges += `      <bpmndi:BPMNEdge bpmnElement="f${i}"><omgdi:waypoint x="${sx + sw}" y="${Y + BH/2}"/><omgdi:waypoint x="${tx}" y="${Y + BH/2}"/></bpmndi:BPMNEdge>\n`;
+    });
+
+    const bpmnXml = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://ep.cage">
+  <process id="proc1" isExecutable="false">
+    ${processXml}  </process>
+  <bpmndi:BPMNDiagram id="d1"><bpmndi:BPMNPlane bpmnElement="proc1">
+${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</definitions>`;
+
+    // config_nos com defaults
+    const configNos = {};
+    etapasExec.forEach((e, i) => {
       const cfg = _configPadrao();
       cfg.instrucoes = e.desc || '';
-      cfg.acoes = tipo === 'aprovacao' ? ['aprovar','rejeitar'] : ['aprovar'];
-      nos.push({ id, tipo, nome: e.nome || `Etapa ${i + 1}`, x: colX, y: baseY + (i + 1) * stepY, config: cfg });
-      arestas.push({ id: `ar_${anterior}_${id}`, origem: anterior, destino: id,
-        acao: 'avancar', label: 'Avançar' });
-      anterior = id;
+      cfg.acoes = e.tipo === 'Aprovação' ? ['aprovar','rejeitar'] : ['avancar'];
+      configNos[ids[i]] = cfg;
     });
-    const fimId = 'no_fim';
-    nos.push({ id: fimId, tipo: 'fim', nome: 'Fim', x: colX + 56, y: baseY + (etapasExec.length + 1) * stepY,
-      config: _configPadrao() });
-    arestas.push({ id: `ar_${anterior}_${fimId}`, origem: anterior, destino: fimId, acao: 'avancar', label: 'Avançar' });
 
     try {
-      const modelo = {
+      const id = await _addDoc('wf_processo_modelos', {
         nome: `${proc.nome} (workflow)`,
         descricao: `Importado do mapeamento ${usaToBe ? 'TO BE' : 'AS IS'} de "${proc.nome}".`,
-        status: 'rascunho',
-        versao: 1,
+        status: 'rascunho', versao: 1,
         processo_origem_id: processoId,
         fluxo_origem: usaToBe ? 'tobe' : 'asis',
-        canvas: { nos, arestas },
+        bpmn_xml: bpmnXml,
+        config_nos: configNos,
+        canvas: { nos: [], arestas: [] }, // preenchido ao salvar
         criado_por: _uid(),
-      };
-      const id = await _addDoc('wf_processo_modelos', modelo);
-      modelo.id = id;
-      _abrirDesignerComModelo(modelo);
+      });
+      await wfAbrirDesigner(id);
     } catch (e) {
       alert('Erro ao importar: ' + e.message);
     }
@@ -852,379 +913,186 @@
   }
 
   async function wfAbrirDesigner(modeloId) {
-    let modelo;
-    if (modeloId) {
-      modelo = await _getDoc('wf_processo_modelos', modeloId);
-      if (!modelo) { alert('Modelo não encontrado.'); return; }
-      modelo.canvas = modelo.canvas || { nos: [], arestas: [] };
-    } else {
-      modelo = _novoModeloVazio();
-    }
+    const modelo = modeloId ? await _getDoc('wf_processo_modelos', modeloId) : _novoModeloVazio();
+    if (!modelo) { alert('Modelo não encontrado.'); return; }
+
+    _wfModeloAtual = modelo;
+    // Carrega config dos nós em memória
+    Object.keys(_wfConfigNos).forEach(k => delete _wfConfigNos[k]);
+    Object.assign(_wfConfigNos, modelo.config_nos || {});
+
     if (!_st.formularioModelos.length) {
       try { _st.formularioModelos = await _getAll('wf_formulario_modelos'); } catch (_e) { /* */ }
     }
-    _abrirDesignerComModelo(modelo);
-  }
 
-  function _abrirDesignerComModelo(modelo) {
-    _st.designerModelo = modelo;
-    _st.designerNoSel = null;
-    _st.designerArestaSel = null;
     const nomeEl = document.getElementById('wf-designer-nome');
     if (nomeEl) nomeEl.value = modelo.nome || '';
     const descEl = document.getElementById('wf-designer-desc');
     if (descEl) descEl.value = modelo.descricao || '';
-    _designerSetupPaleta();
-    _designerRenderCanvas();
-    _designerRenderConfig();
+    const dirtyEl = document.getElementById('wf-bpmn-dirty');
+    if (dirtyEl) dirtyEl.style.display = 'none';
+
     wfNavWorkflow('designer');
+    setTimeout(() => _wfInitModeler(modelo), 150);
   }
 
-  let _paletaBound = false;
-  function _designerSetupPaleta() {
-    if (_paletaBound) return;
-    _paletaBound = true;
-    document.querySelectorAll('.wf-palette-item').forEach(item => {
-      item.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', item.dataset.tipo);
-        e.dataTransfer.effectAllowed = 'copy';
-      });
-    });
-    const wrap = document.getElementById('wf-designer-canvas-wrap');
-    if (wrap) {
-      wrap.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
-      wrap.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const tipo = e.dataTransfer.getData('text/plain');
-        if (tipo && _NO_TIPOS[tipo]) wfDesignerSoltarNo(tipo, e.clientX, e.clientY);
-      });
-    }
-  }
+  function _wfInitModeler(modelo) {
+    const loadingEl = document.getElementById('wf-bpmn-loading');
+    const wrapEl = document.getElementById('wf-bpmn-wrap');
 
-  // — Render do canvas SVG —
-  function _designerRenderCanvas() {
-    const svg = document.getElementById('wf-designer-canvas');
-    if (!svg || !_st.designerModelo) return;
-    const { nos, arestas } = _st.designerModelo.canvas;
-    svg.setAttribute('viewBox', `0 0 ${_CANVAS_W} ${_CANVAS_H}`);
-
-    const noById = id => nos.find(n => n.id === id);
-    let s = '';
-    // defs com marcador de seta
-    s += `<defs><marker id="wf-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#94a3b8"/></marker></defs>`;
-
-    // arestas
-    arestas.forEach(a => {
-      const o = noById(a.origem), d = noById(a.destino);
-      if (!o || !d) return;
-      const od = _NO_TIPOS[o.tipo], dd = _NO_TIPOS[d.tipo];
-      const x1 = o.x + od.w, y1 = o.y + od.h / 2;
-      const x2 = d.x,        y2 = d.y + dd.h / 2;
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-      const sel = a.id === _st.designerArestaSel;
-      const cor = (globalScope.WF_ACAO_COR || {})[a.acao] || '#94a3b8';
-      s += `<g class="wf-aresta" data-aresta="${_esc(a.id)}" style="cursor:pointer">
-        <path d="M${x1},${y1} C${x1 + 50},${y1} ${x2 - 50},${y2} ${x2},${y2}" fill="none"
-          stroke="${sel ? '#2563eb' : cor}" stroke-width="${sel ? 3 : 2}" marker-end="url(#wf-arrow)"/>
-        <rect x="${mx - 38}" y="${my - 12}" width="76" height="22" rx="11" fill="#fff" stroke="${cor}" stroke-width="1"/>
-        <text x="${mx}" y="${my + 4}" text-anchor="middle" font-size="11" fill="${cor}">${_esc(a.label || a.acao)}</text>
-      </g>`;
-    });
-
-    // nós
-    nos.forEach(n => {
-      const def = _NO_TIPOS[n.tipo] || _NO_TIPOS.tarefa;
-      const sel = n.id === _st.designerNoSel;
-      s += `<g class="wf-no" data-no="${_esc(n.id)}" transform="translate(${n.x},${n.y})" style="cursor:move">`;
-      if (n.tipo === 'inicio' || n.tipo === 'fim') {
-        s += `<circle cx="${def.w/2}" cy="${def.h/2}" r="${def.w/2}" fill="${def.cor}" stroke="${sel ? '#2563eb' : '#fff'}" stroke-width="${sel ? 3 : 2}"/>`;
-        if (n.tipo === 'fim') s += `<circle cx="${def.w/2}" cy="${def.h/2}" r="${def.w/2 - 5}" fill="none" stroke="#fff" stroke-width="2"/>`;
-        s += `<text x="${def.w/2}" y="${def.h + 14}" text-anchor="middle" font-size="11" fill="#475569">${_esc(n.nome)}</text>`;
-      } else if (n.tipo === 'aprovacao') {
-        const cx = def.w/2, cy = def.h/2;
-        s += `<polygon points="${cx},0 ${def.w},${cy} ${cx},${def.h} 0,${cy}" fill="#fff7ed" stroke="${sel ? '#2563eb' : def.cor}" stroke-width="${sel ? 3 : 2}"/>`;
-        s += `<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="12" fill="#92400e">${_esc(_truncar(n.nome, 20))}</text>`;
-      } else {
-        s += `<rect x="0" y="0" width="${def.w}" height="${def.h}" rx="10" fill="#eff6ff" stroke="${sel ? '#2563eb' : def.cor}" stroke-width="${sel ? 3 : 2}"/>`;
-        s += `<text x="${def.w/2}" y="${def.h/2 + 4}" text-anchor="middle" font-size="12" fill="#1e40af">${_esc(_truncar(n.nome, 22))}</text>`;
-      }
-      // ponto de saída (handle) + botão remover, exceto fim/inicio onde aplicável
-      if (n.tipo !== 'fim') {
-        s += `<circle class="wf-handle" data-handle="${_esc(n.id)}" cx="${def.w}" cy="${def.h/2}" r="6" fill="#2563eb" stroke="#fff" stroke-width="2" style="cursor:crosshair"/>`;
-      }
-      s += `<g class="wf-no-del" data-del="${_esc(n.id)}" style="cursor:pointer">
-        <circle cx="${def.w}" cy="0" r="8" fill="#ef4444"/>
-        <text x="${def.w}" y="4" text-anchor="middle" font-size="11" fill="#fff">✕</text></g>`;
-      s += `</g>`;
-    });
-
-    svg.innerHTML = s;
-    _designerBindCanvas(svg);
-  }
-
-  function _truncar(t, n) { t = String(t || ''); return t.length > n ? t.slice(0, n - 1) + '…' : t; }
-
-  function _designerBindCanvas(svg) {
-    // converte coord de tela para coord do viewBox
-    function pt(evt) {
-      const r = svg.getBoundingClientRect();
-      const sx = _CANVAS_W / r.width, sy = _CANVAS_H / r.height;
-      return { x: (evt.clientX - r.left) * sx, y: (evt.clientY - r.top) * sy };
-    }
-
-    svg.onmousedown = (evt) => {
-      const delEl = evt.target.closest('.wf-no-del');
-      if (delEl) { evt.stopPropagation(); _designerRemoverNo(delEl.dataset.del); return; }
-
-      const handleEl = evt.target.closest('.wf-handle');
-      if (handleEl) {
-        evt.preventDefault();
-        _st.designerDrag = { tipo: 'aresta', origem: handleEl.dataset.handle, from: pt(evt), to: pt(evt) };
-        return;
-      }
-
-      const arestaEl = evt.target.closest('.wf-aresta');
-      if (arestaEl) {
-        _st.designerArestaSel = arestaEl.dataset.aresta;
-        _st.designerNoSel = null;
-        _designerRenderCanvas(); _designerRenderConfig();
-        return;
-      }
-
-      const noEl = evt.target.closest('.wf-no');
-      if (noEl) {
-        const id = noEl.dataset.no;
-        const no = _st.designerModelo.canvas.nos.find(n => n.id === id);
-        const p = pt(evt);
-        _st.designerDrag = { tipo: 'no', id, dx: p.x - no.x, dy: p.y - no.y, moved: false };
-        _st.designerNoSel = id; _st.designerArestaSel = null;
-        _designerRenderConfig();
-        return;
-      }
-      // clicou em vazio → desseleciona
-      _st.designerNoSel = null; _st.designerArestaSel = null;
-      _designerRenderCanvas(); _designerRenderConfig();
-    };
-
-    svg.onmousemove = (evt) => {
-      if (!_st.designerDrag) return;
-      const p = pt(evt);
-      if (_st.designerDrag.tipo === 'no') {
-        const no = _st.designerModelo.canvas.nos.find(n => n.id === _st.designerDrag.id);
-        if (no) { no.x = Math.max(0, p.x - _st.designerDrag.dx); no.y = Math.max(0, p.y - _st.designerDrag.dy); _st.designerDrag.moved = true; _designerRenderCanvas(); }
-      } else if (_st.designerDrag.tipo === 'aresta') {
-        _st.designerDrag.to = p;
-        _designerRenderCanvas();
-        // desenha linha temporária
-        const d = _st.designerDrag;
-        svg.insertAdjacentHTML('beforeend',
-          `<line x1="${d.from.x}" y1="${d.from.y}" x2="${d.to.x}" y2="${d.to.y}" stroke="#2563eb" stroke-width="2" stroke-dasharray="4"/>`);
-      }
-    };
-
-    svg.onmouseup = (evt) => {
-      const drag = _st.designerDrag;
-      _st.designerDrag = null;
-      if (!drag) return;
-      if (drag.tipo === 'aresta') {
-        const noEl = evt.target.closest('.wf-no');
-        if (noEl && noEl.dataset.no !== drag.origem) {
-          _designerNovaAresta(drag.origem, noEl.dataset.no);
-        } else {
-          _designerRenderCanvas();
-        }
-      }
-    };
-  }
-
-  // arrastar tipo de nó da paleta para o canvas
-  function wfDesignerSoltarNo(tipo, clientX, clientY) {
-    const svg = document.getElementById('wf-designer-canvas');
-    if (!svg || !_st.designerModelo) return;
-    const r = svg.getBoundingClientRect();
-    const sx = _CANVAS_W / r.width, sy = _CANVAS_H / r.height;
-    const x = Math.max(0, (clientX - r.left) * sx - _NO_TIPOS[tipo].w / 2);
-    const y = Math.max(0, (clientY - r.top) * sy - _NO_TIPOS[tipo].h / 2);
-    const labels = globalScope.WF_TIPO_ETAPA_LABELS || {};
-    const id = `no_${Date.now().toString(36)}`;
-    _st.designerModelo.canvas.nos.push({
-      id, tipo, nome: labels[tipo] || tipo, x, y, config: _configPadrao(),
-    });
-    _st.designerNoSel = id;
-    _designerRenderCanvas(); _designerRenderConfig();
-  }
-
-  function _designerRemoverNo(id) {
-    const c = _st.designerModelo.canvas;
-    c.nos = c.nos.filter(n => n.id !== id);
-    c.arestas = c.arestas.filter(a => a.origem !== id && a.destino !== id);
-    if (_st.designerNoSel === id) _st.designerNoSel = null;
-    _designerRenderCanvas(); _designerRenderConfig();
-  }
-
-  // mini-modal para escolher a ação da transição
-  function _designerNovaAresta(origem, destino) {
-    const ACAO_LABELS = globalScope.WF_ACAO_LABELS || { avancar: 'Avançar' };
-    const opcoes = Object.keys(ACAO_LABELS);
-    // usa um prompt simples (sem libs) com lista numerada
-    const lista = opcoes.map((a, i) => `${i + 1}) ${ACAO_LABELS[a]}`).join('\n');
-    const resp = prompt(`Ação da transição:\n${lista}\n\nDigite o número:`, '1');
-    if (resp === null) { _designerRenderCanvas(); return; }
-    const idx = parseInt(resp, 10) - 1;
-    const acao = opcoes[idx] || 'avancar';
-    _st.designerModelo.canvas.arestas.push({
-      id: `ar_${origem}_${destino}_${Date.now().toString(36)}`,
-      origem, destino, acao, label: ACAO_LABELS[acao] || acao,
-    });
-    _designerRenderCanvas();
-  }
-
-  function wfDesignerRemoverArestaSel() {
-    if (!_st.designerArestaSel) return;
-    const c = _st.designerModelo.canvas;
-    c.arestas = c.arestas.filter(a => a.id !== _st.designerArestaSel);
-    _st.designerArestaSel = null;
-    _designerRenderCanvas(); _designerRenderConfig();
-  }
-
-  // — Painel de configuração do nó selecionado —
-  function _designerRenderConfig() {
-    const el = document.getElementById('wf-designer-config');
-    if (!el) return;
-    const no = _st.designerModelo?.canvas.nos.find(n => n.id === _st.designerNoSel);
-    if (!no) {
-      el.innerHTML = '<div style="color:var(--ink3);font-size:13px">Selecione um nó para configurar, ou arraste um elemento da paleta para o canvas.</div>';
+    if (typeof BpmnJS === 'undefined') {
+      if (loadingEl) loadingEl.innerHTML = '<div style="text-align:center;padding:2rem"><div style="font-size:28px;margin-bottom:8px">📦</div><div style="font-size:13px;font-weight:600">Editor BPMN não disponível offline</div></div>';
       return;
     }
-    if (no.tipo === 'inicio' || no.tipo === 'fim') {
-      el.innerHTML = `<div style="font-weight:600;font-size:14px;margin-bottom:8px">${_esc(no.nome)}</div>
-        <label class="lbl" style="font-size:11px">Nome</label>
-        <input type="text" class="fi" value="${_esc(no.nome)}" oninput="wfDesignerCampoNo('nome',this.value)" style="margin-top:4px">
-        <div style="color:var(--ink3);font-size:12px;margin-top:8px">Nó estrutural — sem papéis ou ações.</div>`;
-      return;
-    }
-    const cfg = no.config || _configPadrao();
-    no.config = cfg;
+
+    if (_wfModeler) { try { _wfModeler.destroy(); } catch (_e) {} _wfModeler = null; }
+    if (wrapEl) wrapEl.style.display = 'none';
+    if (loadingEl) { loadingEl.style.display = ''; loadingEl.innerHTML = '<div class="spin"></div><span>Carregando editor…</span>'; }
+
+    _wfModeler = new BpmnJS({ container: '#wf-bpmn-canvas' });
+
+    _wfModeler.on('commandStack.changed', () => {
+      const d = document.getElementById('wf-bpmn-dirty');
+      if (d) d.style.display = 'inline';
+    });
+
+    _wfModeler.on('selection.changed', ({ newSelection }) => {
+      const el = newSelection.length === 1 ? newSelection[0] : null;
+      _wfRenderConfigPanel(el);
+    });
+
+    const xml = modelo.bpmn_xml || (typeof BPMN_DEFAULT !== 'undefined' ? BPMN_DEFAULT : '');
+    _wfModeler.importXML(xml).then(() => {
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (wrapEl) wrapEl.style.display = '';
+      _wfModeler.get('canvas').zoom('fit-viewport');
+    }).catch(err => {
+      if (loadingEl) loadingEl.innerHTML = `<div style="color:var(--red);padding:1rem;font-size:13px">Erro: ${_esc(err.message || String(err))}</div>`;
+    });
+  }
+
+  // — Painel de configuração do elemento selecionado —
+  function _wfRenderConfigPanel(el) {
+    const painel = document.getElementById('wf-designer-config');
+    if (!painel) return;
+
+    // Só configura tasks (não sequence flows, labels, start/end events)
+    const configuravel = el && (
+      el.type === 'bpmn:Task' || el.type === 'bpmn:UserTask' ||
+      el.type === 'bpmn:ManualTask' || el.type === 'bpmn:ServiceTask' ||
+      el.type === 'bpmn:ExclusiveGateway' || el.type === 'bpmn:InclusiveGateway'
+    );
+
+    if (!configuravel) { painel.style.display = 'none'; return; }
+    painel.style.display = '';
+
+    const id = el.id;
+    const cfg = _wfConfigNos[id] || _configPadrao();
+    _wfConfigNos[id] = cfg;
     const papeis = cfg.papeis || {};
     const acoes = cfg.acoes || [];
+
     const alvoOpts = (sel) => {
       const opts = { '': '— Ninguém —', solicitante: 'Próprio solicitante', ep: 'Perfil EP', gestor: 'Perfil Gestor', dono: 'Perfil Dono' };
       return Object.entries(opts).map(([v, l]) =>
         `<option value="${v}"${(sel || '') === v ? ' selected' : ''}>${_esc(l)}</option>`).join('');
     };
-    const formOpts = `<option value="">— Sem formulário —</option>` +
-      (_st.formularioModelos || []).map(m => `<option value="${_esc(m.id)}"${cfg.formulario_id === m.id ? ' selected' : ''}>${_esc(m.titulo)}</option>`).join('');
-    const acaoChk = (a, l) => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-        <input type="checkbox" ${acoes.includes(a) ? 'checked' : ''} onchange="wfDesignerToggleAcao('${a}',this.checked)"> ${_esc(l)}</label>`;
+    const formOpts = '<option value="">— Sem formulário —</option>' +
+      (_st.formularioModelos || []).map(m =>
+        `<option value="${_esc(m.id)}"${cfg.formulario_id === m.id ? ' selected' : ''}>${_esc(m.titulo)}</option>`).join('');
+    const acaoChk = (a, l) =>
+      `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" ${acoes.includes(a) ? 'checked' : ''} onchange="wfDesignerToggleAcao('${_esc(id)}','${a}',this.checked)"> ${_esc(l)}</label>`;
 
-    el.innerHTML = `
-      <div style="font-weight:600;font-size:14px;margin-bottom:10px">Configurar etapa</div>
-      <label class="lbl" style="font-size:11px">Nome do nó</label>
-      <input type="text" class="fi" value="${_esc(no.nome)}" oninput="wfDesignerCampoNo('nome',this.value)" style="margin-top:4px;margin-bottom:12px">
-
-      <div style="font-size:12px;font-weight:600;margin-bottom:6px">Papéis</div>
+    painel.innerHTML = `
+      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--ink)">${_esc(el.businessObject?.name || id)}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Papéis</div>
       <label class="lbl" style="font-size:11px">Executor</label>
-      <select class="fi" onchange="wfDesignerPapel('executor',this.value)" style="margin-top:2px;margin-bottom:8px">${alvoOpts(papeis.executor)}</select>
+      <select class="fi" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerPapel('${_esc(id)}','executor',this.value)">${alvoOpts(papeis.executor)}</select>
       <label class="lbl" style="font-size:11px">Revisor</label>
-      <select class="fi" onchange="wfDesignerPapel('revisor',this.value)" style="margin-top:2px;margin-bottom:8px">${alvoOpts(papeis.revisor)}</select>
+      <select class="fi" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerPapel('${_esc(id)}','revisor',this.value)">${alvoOpts(papeis.revisor)}</select>
       <label class="lbl" style="font-size:11px">Aprovador</label>
-      <select class="fi" onchange="wfDesignerPapel('aprovador',this.value)" style="margin-top:2px;margin-bottom:12px">${alvoOpts(papeis.aprovador)}</select>
-
-      <div style="font-size:12px;font-weight:600;margin-bottom:6px">Ações disponíveis</div>
+      <select class="fi" style="margin-top:2px;margin-bottom:12px" onchange="wfDesignerPapel('${_esc(id)}','aprovador',this.value)">${alvoOpts(papeis.aprovador)}</select>
+      <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Ações disponíveis</div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px">
-        ${acaoChk('avancar','Avançar')}
-        ${acaoChk('aprovar','Aprovar')}
-        ${acaoChk('rejeitar','Rejeitar')}
-        ${acaoChk('devolver','Devolver')}
+        ${acaoChk('avancar','Avançar')}${acaoChk('aprovar','Aprovar')}
+        ${acaoChk('rejeitar','Rejeitar')}${acaoChk('devolver','Devolver')}
         ${acaoChk('solicitar_ajuste','Solicitar ajuste')}
       </div>
-
       <label class="lbl" style="font-size:11px">Formulário dinâmico</label>
-      <select class="fi" onchange="wfDesignerCampoCfg('formulario_id',this.value||null)" style="margin-top:2px;margin-bottom:8px">${formOpts}</select>
-
+      <select class="fi" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerCampoCfg('${_esc(id)}','formulario_id',this.value||null)">${formOpts}</select>
       <label class="lbl" style="font-size:11px">SLA (horas úteis · 0 = sem prazo)</label>
-      <input type="number" class="fi" min="0" value="${_esc(String(cfg.sla_horas || 0))}" oninput="wfDesignerCampoCfg('sla_horas',Number(this.value)||0)" style="margin-top:2px;margin-bottom:8px">
-
+      <input type="number" class="fi" min="0" value="${_esc(String(cfg.sla_horas || 0))}" style="margin-top:2px;margin-bottom:8px" oninput="wfDesignerCampoCfg('${_esc(id)}','sla_horas',Number(this.value)||0)">
       <label class="lbl" style="font-size:11px">Instruções</label>
-      <textarea class="fi" rows="3" oninput="wfDesignerCampoCfg('instrucoes',this.value)" style="margin-top:2px;margin-bottom:8px;resize:vertical">${_esc(cfg.instrucoes || '')}</textarea>
-
+      <textarea class="fi" rows="3" style="margin-top:2px;margin-bottom:8px;resize:vertical" oninput="wfDesignerCampoCfg('${_esc(id)}','instrucoes',this.value)">${_esc(cfg.instrucoes || '')}</textarea>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-        <input type="checkbox" ${cfg.exige_parecer ? 'checked' : ''} onchange="wfDesignerCampoCfg('exige_parecer',this.checked)"> Exige parecer/justificativa</label>
-    `;
+        <input type="checkbox" ${cfg.exige_parecer ? 'checked' : ''} onchange="wfDesignerCampoCfg('${_esc(id)}','exige_parecer',this.checked)"> Exige parecer obrigatório</label>`;
   }
 
-  function _noSel() { return _st.designerModelo?.canvas.nos.find(n => n.id === _st.designerNoSel); }
-
-  function wfDesignerCampoNo(campo, valor) {
-    const no = _noSel(); if (!no) return;
-    no[campo] = valor;
-    if (campo === 'nome') _designerRenderCanvas();
+  function wfDesignerCampoCfg(noId, campo, valor) {
+    if (!_wfConfigNos[noId]) _wfConfigNos[noId] = _configPadrao();
+    _wfConfigNos[noId][campo] = valor;
   }
-  function wfDesignerCampoCfg(campo, valor) {
-    const no = _noSel(); if (!no) return;
-    no.config = no.config || _configPadrao();
-    no.config[campo] = valor;
+  function wfDesignerPapel(noId, papel, valor) {
+    if (!_wfConfigNos[noId]) _wfConfigNos[noId] = _configPadrao();
+    _wfConfigNos[noId].papeis = _wfConfigNos[noId].papeis || {};
+    _wfConfigNos[noId].papeis[papel] = valor || null;
   }
-  function wfDesignerPapel(papel, valor) {
-    const no = _noSel(); if (!no) return;
-    no.config = no.config || _configPadrao();
-    no.config.papeis = no.config.papeis || {};
-    no.config.papeis[papel] = valor || null;
-  }
-  function wfDesignerToggleAcao(acao, on) {
-    const no = _noSel(); if (!no) return;
-    no.config = no.config || _configPadrao();
-    const set = new Set(no.config.acoes || []);
+  function wfDesignerToggleAcao(noId, acao, on) {
+    if (!_wfConfigNos[noId]) _wfConfigNos[noId] = _configPadrao();
+    const set = new Set(_wfConfigNos[noId].acoes || []);
     if (on) set.add(acao); else set.delete(acao);
-    no.config.acoes = Array.from(set);
-  }
-
-  function _designerColetarMeta() {
-    const m = _st.designerModelo;
-    m.nome = document.getElementById('wf-designer-nome')?.value.trim() || m.nome;
-    m.descricao = document.getElementById('wf-designer-desc')?.value.trim() || '';
+    _wfConfigNos[noId].acoes = Array.from(set);
   }
 
   async function wfDesignerSalvar() {
-    if (!_st.designerModelo) return;
-    _designerColetarMeta();
-    const m = _st.designerModelo;
-    const dados = {
-      nome: m.nome,
-      descricao: m.descricao,
-      status: m.status || 'rascunho',
-      versao: m.versao || 1,
-      processo_origem_id: m.processo_origem_id || null,
-      fluxo_origem: m.fluxo_origem || null,
-      canvas: m.canvas,
-      criado_por: m.criado_por || _uid(),
-    };
+    if (!_wfModeler || !_wfModeloAtual) return;
     try {
-      if (m.id) {
-        await _updateDoc('wf_processo_modelos', m.id, dados);
+      const { xml } = await _wfModeler.saveXML({ format: true });
+      const canvas = _wfSyncCanvas();
+      const nome = document.getElementById('wf-designer-nome')?.value.trim() || _wfModeloAtual.nome;
+      const descricao = document.getElementById('wf-designer-desc')?.value.trim() || '';
+      const dados = {
+        nome, descricao,
+        status: _wfModeloAtual.status || 'rascunho',
+        versao: _wfModeloAtual.versao || 1,
+        processo_origem_id: _wfModeloAtual.processo_origem_id || null,
+        fluxo_origem: _wfModeloAtual.fluxo_origem || null,
+        bpmn_xml: xml,
+        config_nos: _wfConfigNos,
+        canvas,
+        criado_por: _wfModeloAtual.criado_por || _uid(),
+      };
+      if (_wfModeloAtual.id) {
+        await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, dados);
       } else {
-        m.id = await _addDoc('wf_processo_modelos', dados);
+        _wfModeloAtual.id = await _addDoc('wf_processo_modelos', dados);
       }
-      alert('Workflow salvo.');
+      Object.assign(_wfModeloAtual, dados);
+      const dirtyEl = document.getElementById('wf-bpmn-dirty');
+      if (dirtyEl) dirtyEl.style.display = 'none';
+      if (typeof globalScope.toast === 'function') globalScope.toast('✓ Workflow salvo');
     } catch (e) {
       alert('Erro ao salvar: ' + e.message);
     }
   }
 
   async function wfDesignerPublicar() {
-    if (!_st.designerModelo) return;
-    // valida fluxo: precisa de início, fim e ao menos uma etapa conectada
-    const { nos, arestas } = _st.designerModelo.canvas;
-    if (!nos.some(n => n.tipo === 'inicio')) { alert('O fluxo precisa de um nó INÍCIO.'); return; }
-    if (!nos.some(n => n.tipo === 'fim')) { alert('O fluxo precisa de um nó FIM.'); return; }
-    if (!arestas.length) { alert('O fluxo precisa de ao menos uma transição.'); return; }
-    _st.designerModelo.status = 'publicado';
-    _st.designerModelo.versao = (_st.designerModelo.versao || 1);
+    if (!_wfModeler || !_wfModeloAtual) return;
+    const canvas = _wfSyncCanvas();
+    if (!canvas.nos.some(n => n.tipo === 'inicio')) { alert('O fluxo precisa de um evento de início.'); return; }
+    if (!canvas.nos.some(n => n.tipo === 'fim')) { alert('O fluxo precisa de um evento de fim.'); return; }
+    if (!canvas.arestas.length) { alert('O fluxo precisa de ao menos uma conexão.'); return; }
+    _wfModeloAtual.status = 'publicado';
     await wfDesignerSalvar();
-    alert('Workflow publicado e disponível na aba "Templates publicados".');
+    if (typeof globalScope.toast === 'function') globalScope.toast('✓ Workflow publicado!');
+    else alert('Workflow publicado!');
     wfNavWorkflow('iniciar');
   }
+
+  // Mantém stubs das funções antigas expostas para não quebrar chamadas inline
+  function wfDesignerCampoNo() {}
+  function wfDesignerRemoverArestaSel() {}
 
   // — Iniciar uma instância a partir de um modelo do designer —
   async function wfIniciarDeModelo(modeloId) {
