@@ -175,6 +175,52 @@
     REJEITADO: 'rejeitado',
   });
 
+  // Ações que podem ser tomadas numa etapa e que rotulam as transições
+  const ACAO = Object.freeze({
+    AVANCAR: 'avancar',
+    APROVAR: 'aprovar',
+    REJEITAR: 'rejeitar',
+    DEVOLVER: 'devolver',
+    SOLICITAR_AJUSTE: 'solicitar_ajuste',
+  });
+
+  const ACAO_LABELS = Object.freeze({
+    avancar: 'Avançar',
+    aprovar: 'Aprovar',
+    rejeitar: 'Rejeitar',
+    devolver: 'Devolver',
+    solicitar_ajuste: 'Solicitar ajuste',
+  });
+
+  const ACAO_COR = Object.freeze({
+    avancar: '#3b82f6',
+    aprovar: '#10b981',
+    rejeitar: '#ef4444',
+    devolver: '#f59e0b',
+    solicitar_ajuste: '#8b5cf6',
+  });
+
+  // Papéis por etapa
+  const PAPEL = Object.freeze({
+    EXECUTOR: 'executor',
+    REVISOR: 'revisor',
+    APROVADOR: 'aprovador',
+  });
+
+  const PAPEL_LABELS = Object.freeze({
+    executor: 'Executor',
+    revisor: 'Revisor',
+    aprovador: 'Aprovador',
+  });
+
+  // Valores possíveis para atribuição de um papel
+  const PAPEL_ALVO_LABELS = Object.freeze({
+    solicitante: 'Próprio solicitante',
+    ep: 'Perfil EP',
+    gestor: 'Perfil Gestor',
+    dono: 'Perfil Dono',
+  });
+
   // Horas antes do prazo para emitir alerta de SLA
   const SLA_ALERTA_HORAS = 2;
 
@@ -202,6 +248,12 @@
     WF_TIPO_EVENTO_LABELS: TIPO_EVENTO_HISTORICO_LABELS,
     WF_TIPO_NOTIFICACAO: TIPO_NOTIFICACAO,
     WF_CONDICAO_TRANSICAO: CONDICAO_TRANSICAO,
+    WF_ACAO: ACAO,
+    WF_ACAO_LABELS: ACAO_LABELS,
+    WF_ACAO_COR: ACAO_COR,
+    WF_PAPEL: PAPEL,
+    WF_PAPEL_LABELS: PAPEL_LABELS,
+    WF_PAPEL_ALVO_LABELS: PAPEL_ALVO_LABELS,
     WF_SLA_ALERTA_HORAS: SLA_ALERTA_HORAS,
   });
 })(globalThis);
