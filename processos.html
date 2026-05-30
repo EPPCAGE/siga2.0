@@ -896,6 +896,51 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 #inactivity-warning .iw-body strong{color:#fff}
 #inactivity-warning .iw-btn{padding:7px 14px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--f);width:100%;transition:background .12s}
 #inactivity-warning .iw-btn:hover{background:#1248A8}
+
+/* workflow ui fixups */
+.modal-overlay{position:fixed;inset:0;background:rgba(18,20,27,.45);display:none;align-items:center;justify-content:center;z-index:2600;padding:20px}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--bdr);font-family:var(--fh);font-size:16px;font-weight:700;color:var(--ink)}
+.modal-bd{padding:14px}
+.modal-ft{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid var(--bdr)}
+.modal-x{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid var(--bdr2);background:var(--surf);color:var(--ink3);font-size:15px;line-height:1;cursor:pointer;transition:all .12s;flex-shrink:0}
+.modal-x:hover{background:var(--bg2);color:var(--ink)}
+
+.wf-tab-nao-solicitante{display:inline-flex;align-items:center}
+.wf-exec-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}
+.wf-exec-header-info{flex:1;min-width:0}
+.wf-exec-acoes-bar{display:flex;align-items:center;gap:8px;padding:14px 20px;background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:16px;box-shadow:var(--sh)}
+
+.wf-fields-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:18px;border:1px dashed var(--bdr2);border-radius:10px;background:var(--surf2);color:var(--ink3);font-size:13px;text-align:center}
+.wf-fields-empty-icon{font-size:20px;line-height:1}
+
+.wf-field-card{border:1px solid var(--bdr);border-radius:10px;background:var(--surf);margin-bottom:10px;overflow:hidden;box-shadow:var(--sh)}
+.wf-field-card-hd{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg2);border-bottom:1px solid var(--bdr)}
+.wf-field-card-drag{cursor:grab;color:var(--ink4);font-size:14px;line-height:1;user-select:none}
+.wf-field-card-label{font-size:13px;font-weight:700;color:var(--ink2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wf-field-type-badge{margin-left:auto;display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid var(--blue-b);background:var(--blue-l);font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.wf-field-card-actions{display:flex;align-items:center;gap:4px}
+.wf-field-action-btn{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bdr2);border-radius:6px;background:var(--surf);color:var(--ink2);cursor:pointer;font-size:12px;line-height:1;padding:0;transition:all .12s}
+.wf-field-action-btn:hover{background:var(--bg2);border-color:var(--bdr)}
+.wf-field-action-btn.del{color:var(--red);border-color:var(--red-b);background:var(--red-l)}
+.wf-field-action-btn.del:hover{background:#f8dede}
+.wf-field-card-body{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+.wf-field-col{min-width:0}
+.wf-field-card-full{grid-column:1/-1}
+.wf-field-required{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);padding:10px 12px;border-top:1px solid var(--bdr);background:var(--surf2)}
+.wf-field-required input{accent-color:var(--blue)}
+
+.wf-member-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf);cursor:pointer;transition:all .12s}
+.wf-member-chip:hover{border-color:var(--blue-b);background:var(--blue-l)}
+.wf-grupo-membro-cb{accent-color:var(--blue);cursor:pointer;flex-shrink:0}
+.wf-member-chip-name{font-size:13px;color:var(--ink2);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wf-member-chip-perfil{margin-left:auto;font-size:10px;font-weight:700;color:var(--ink3);background:var(--bg2);border:1px solid var(--bdr);border-radius:999px;padding:2px 7px;white-space:nowrap}
+
+@media(max-width:760px){
+  .modal-overlay{padding:10px}
+  .wf-field-card-body{grid-template-columns:1fr}
+  .wf-exec-acoes-bar{padding:10px 12px;flex-wrap:wrap}
+  .wf-field-type-badge{order:3;margin-left:0}
+}
 </style>
 </head>
 <body>

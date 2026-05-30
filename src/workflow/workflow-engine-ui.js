@@ -1463,7 +1463,6 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   function _wfInitModeler(modelo) {
     const loadingEl = document.getElementById('wf-bpmn-loading');
     const canvasEl = document.getElementById('wf-bpmn-canvas');
-    const wrapEl = canvasEl?.parentElement || null;
 
     if (typeof BpmnJS === 'undefined') {
       if (loadingEl) loadingEl.innerHTML = '<div style="text-align:center;padding:2rem"><div style="font-size:28px;margin-bottom:8px">📦</div><div style="font-size:13px;font-weight:600">Editor BPMN não disponível offline</div></div>';
@@ -1471,7 +1470,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
 
     if (_wfModeler) { try { _wfModeler.destroy(); } catch (_e) {} _wfModeler = null; }
-    if (wrapEl) wrapEl.style.display = 'none';
+    if (canvasEl) canvasEl.style.display = 'none';
     if (loadingEl) { loadingEl.style.display = ''; loadingEl.innerHTML = '<div class="spin"></div><span>Carregando editor…</span>'; }
 
     _wfModeler = new BpmnJS({ container: '#wf-bpmn-canvas' });
@@ -1489,7 +1488,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const xml = modelo.bpmn_xml || (typeof BPMN_DEFAULT !== 'undefined' ? BPMN_DEFAULT : '');
     _wfModeler.importXML(xml).then(() => {
       if (loadingEl) loadingEl.style.display = 'none';
-      if (wrapEl) wrapEl.style.display = '';
+      if (canvasEl) canvasEl.style.display = '';
       _wfModeler.get('canvas').zoom('fit-viewport');
     }).catch(err => {
       if (loadingEl) loadingEl.innerHTML = `<div style="color:var(--red);padding:1rem;font-size:13px">Erro: ${_esc(err.message || String(err))}</div>`;
@@ -3303,6 +3302,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     _wfRenderTransicoesConfig(modelo);
     _wfRenderArqInfo(modelo);
     wfNavWorkflow('config-modelo');
+    setTimeout(() => _wfInitModeler(modelo), 0);
   }
 
   function _wfEtapas(modelo) {
