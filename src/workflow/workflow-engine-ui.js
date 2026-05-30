@@ -1009,6 +1009,7 @@
             ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-sm" onclick="wfSuspenderInstancia('${_esc(i.id)}')">Suspender</button>` : ''}
             ${i.status === 'suspenso' && podeGerenciar ? `<button type="button" class="btn btn-p btn-sm" onclick="wfRetomarInstancia('${_esc(i.id)}')">Retomar</button>` : ''}
             ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfConfirmarCancelar('${_esc(i.id)}')">Cancelar</button>` : ''}
+            ${i.status === 'cancelado' && podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfExcluirInstancia('${_esc(i.id)}')">🗑 Excluir</button>` : ''}
           </div>
         `);
       }).join('');
@@ -1448,30 +1449,37 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const painel = document.getElementById('wf-designer-config');
     if (!painel) return;
 
-    // Só configura tasks (não sequence flows, labels, start/end events)
-    const configuravel = el && (
-      el.type === 'bpmn:Task' || el.type === 'bpmn:UserTask' ||
-      el.type === 'bpmn:ManualTask' || el.type === 'bpmn:ServiceTask' ||
-      el.type === 'bpmn:ExclusiveGateway' || el.type === 'bpmn:InclusiveGateway' ||
-      el.type === 'bpmn:SequenceFlow'
-    );
+    const tipo = el?.type || '';
 
-    if (!configuravel) { painel.style.display = 'none'; return; }
+    // Tipos configuráveis
+    const eTarefa = tipo === 'bpmn:Task' || tipo === 'bpmn:UserTask' ||
+                    tipo === 'bpmn:ManualTask' || tipo === 'bpmn:ServiceTask';
+    const eGatewayXOR = tipo === 'bpmn:ExclusiveGateway' || tipo === 'bpmn:InclusiveGateway';
+    const eGatewayAND = tipo === 'bpmn:ParallelGateway';
+    const eAresta     = tipo === 'bpmn:SequenceFlow';
+    const eInicio     = tipo === 'bpmn:StartEvent';
+    const eFim        = tipo === 'bpmn:EndEvent';
+    const eIntermediario = tipo === 'bpmn:IntermediateCatchEvent' || tipo === 'bpmn:IntermediateThrowEvent';
 
-    // ── SequenceFlow: editor de condições de gateway ──────────────────────────
-    if (el.type === 'bpmn:SequenceFlow') {
-      painel.style.display = '';
-      const id = el.id;
+    if (!eTarefa && !eGatewayXOR && !eGatewayAND && !eAresta && !eInicio && !eFim && !eIntermediario) {
+      painel.style.display = 'none'; return;
+    }
+
+    painel.style.display = '';
+    const id = el.id;
+    const nome = _esc(el.businessObject?.name || '');
+
+    // ── SequenceFlow: condições de saída de gateway ────────────────────────────
+    if (eAresta) {
       if (!_wfConfigNos[id]) _wfConfigNos[id] = { condicoes: [], operador_logico: 'AND', padrao: false };
       const cfg = _wfConfigNos[id];
       painel.innerHTML = `
-        <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--ink)">
-          Gateway: ${_esc(el.businessObject?.name || id)}
-        </div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Condição de saída</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--ink)">${nome || _esc(id)}</div>
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:10px">
           <input type="checkbox" id="wf-aresta-padrao-${_esc(id)}" ${cfg.padrao ? 'checked' : ''}
             onchange="wfDesignerArestaPadrao('${_esc(id)}',this.checked)">
-          Saída padrão (else — usada quando nenhuma condição bater)
+          Saída padrão (else — quando nenhuma outra condição bater)
         </label>
         <div id="wf-aresta-conds-wrap-${_esc(id)}" style="${cfg.padrao ? 'opacity:.4;pointer-events:none' : ''}">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -1489,9 +1497,130 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       return;
     }
 
-    painel.style.display = '';
+    // ── Gateway XOR / OR: só nome e resumo das saídas ─────────────────────────
+    if (eGatewayXOR) {
+      if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
+      const cfg = _wfConfigNos[id];
+      // Lista saídas do gateway para orientação
+      const saidas = (el.outgoing || []).map(s => {
+        const cfgS = _wfConfigNos[s.id] || {};
+        const rotulo = s.businessObject?.name || s.id;
+        const status = cfgS.padrao ? '⬜ padrão (else)' : cfgS.condicoes?.length ? `✅ ${cfgS.condicoes.length} condição(ões)` : '⚠️ sem condição';
+        return `<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;gap:8px">
+          <span style="color:var(--ink2)">${_esc(rotulo)}</span>
+          <span style="color:var(--ink3)">${status}</span>
+        </div>`;
+      }).join('') || '<div style="font-size:11px;color:var(--ink3)">Sem saídas configuradas.</div>';
 
-    const id = el.id;
+      painel.innerHTML = `
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">
+          ${tipo === 'bpmn:InclusiveGateway' ? 'Gateway Inclusivo (OR)' : 'Gateway Exclusivo (XOR)'}
+        </div>
+        <label class="lbl" style="font-size:11px">Nome / rótulo</label>
+        <input type="text" class="fi" style="margin-top:2px;margin-bottom:12px" value="${nome}"
+          oninput="wfDesignerCampoCfg('${_esc(id)}','_nome',this.value);try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Saídas</div>
+        <div style="margin-bottom:10px">${saidas}</div>
+        <div style="font-size:11px;color:var(--ink3);padding:8px;background:var(--surf2);border-radius:6px">
+          💡 Clique em cada <strong>seta de saída</strong> para configurar sua condição.
+          Uma saída deve ser marcada como <em>padrão (else)</em>.
+        </div>`;
+      return;
+    }
+
+    // ── Gateway AND (Paralelo): informativo ───────────────────────────────────
+    if (eGatewayAND) {
+      painel.innerHTML = `
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Gateway Paralelo (AND)</div>
+        <label class="lbl" style="font-size:11px">Nome / rótulo</label>
+        <input type="text" class="fi" style="margin-top:2px;margin-bottom:12px" value="${nome}"
+          oninput="try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+        <div style="font-size:12px;padding:10px;background:var(--surf2);border-radius:6px;color:var(--ink2);line-height:1.5">
+          <strong>Como funciona:</strong><br>
+          • <strong>Divisão (split):</strong> todas as saídas são ativadas simultaneamente.<br>
+          • <strong>Junção (join):</strong> aguarda a conclusão de todos os caminhos paralelos antes de prosseguir.<br>
+          Não requer configuração de condições.
+        </div>`;
+      return;
+    }
+
+    // ── Evento de Início ─────────────────────────────────────────────────────
+    if (eInicio) {
+      if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
+      const cfg = _wfConfigNos[id];
+      painel.innerHTML = `
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Início</div>
+        <label class="lbl" style="font-size:11px">Nome</label>
+        <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
+          oninput="try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+        <label class="lbl" style="font-size:11px">Tipo de disparo</label>
+        <select class="fi" style="margin-top:2px;margin-bottom:10px"
+          onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_disparo',this.value)">
+          <option value="manual"   ${(cfg.tipo_disparo||'manual')==='manual'    ? 'selected':''}>Manual — usuário inicia pelo sistema</option>
+          <option value="agendado" ${cfg.tipo_disparo==='agendado' ? 'selected':''}>Agendado — trigger externo / cron</option>
+          <option value="evento"   ${cfg.tipo_disparo==='evento'   ? 'selected':''}>Evento — gerado por outro processo</option>
+        </select>
+        <label class="lbl" style="font-size:11px">Descrição / orientação ao solicitante</label>
+        <textarea class="fi" rows="3" style="margin-top:2px;resize:vertical"
+          placeholder="Descreva quando e como este processo deve ser iniciado…"
+          oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>`;
+      return;
+    }
+
+    // ── Evento de Fim ────────────────────────────────────────────────────────
+    if (eFim) {
+      if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
+      const cfg = _wfConfigNos[id];
+      painel.innerHTML = `
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Fim</div>
+        <label class="lbl" style="font-size:11px">Nome</label>
+        <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
+          oninput="try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+        <label class="lbl" style="font-size:11px">Tipo</label>
+        <select class="fi" style="margin-top:2px;margin-bottom:10px"
+          onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_fim',this.value)">
+          <option value="normal"     ${(cfg.tipo_fim||'normal')==='normal'     ? 'selected':''}>Normal — processo concluído</option>
+          <option value="cancelado"  ${cfg.tipo_fim==='cancelado'  ? 'selected':''}>Cancelado — processo encerrado sem conclusão</option>
+          <option value="erro"       ${cfg.tipo_fim==='erro'       ? 'selected':''}>Erro — falha no processo</option>
+        </select>
+        <label class="lbl" style="font-size:11px">Mensagem ao solicitante (opcional)</label>
+        <textarea class="fi" rows="2" style="margin-top:2px;margin-bottom:10px;resize:vertical"
+          placeholder="Ex: Sua solicitação foi concluída com sucesso. Use {{processo.titulo}}, {{solicitante.nome}}…"
+          oninput="wfDesignerCampoCfg('${_esc(id)}','mensagem_fim',this.value)">${_esc(cfg.mensagem_fim || '')}</textarea>
+        <label class="lbl" style="font-size:11px">Notificar também (além do solicitante)</label>
+        <select class="fi" style="margin-top:2px"
+          onchange="wfDesignerCampoCfg('${_esc(id)}','notificar_fim',this.value)">
+          <option value=""         ${!cfg.notificar_fim ? 'selected':''}>Somente o solicitante</option>
+          <option value="ep"       ${cfg.notificar_fim==='ep'       ? 'selected':''}>EP também</option>
+          <option value="gestor"   ${cfg.notificar_fim==='gestor'   ? 'selected':''}>Gestor também</option>
+          <option value="todos"    ${cfg.notificar_fim==='todos'    ? 'selected':''}>EP + Gestor + solicitante</option>
+        </select>`;
+      return;
+    }
+
+    // ── Evento Intermediário ─────────────────────────────────────────────────
+    if (eIntermediario) {
+      if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
+      const cfg = _wfConfigNos[id];
+      painel.innerHTML = `
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento Intermediário</div>
+        <label class="lbl" style="font-size:11px">Nome</label>
+        <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
+          oninput="try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+        <label class="lbl" style="font-size:11px">Tipo</label>
+        <select class="fi" style="margin-top:2px;margin-bottom:10px"
+          onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_evento',this.value)">
+          <option value="mensagem" ${(cfg.tipo_evento||'mensagem')==='mensagem' ? 'selected':''}>Mensagem / notificação</option>
+          <option value="timer"    ${cfg.tipo_evento==='timer'    ? 'selected':''}>Timer / aguardar tempo</option>
+          <option value="sinal"    ${cfg.tipo_evento==='sinal'    ? 'selected':''}>Sinal externo</option>
+        </select>
+        <label class="lbl" style="font-size:11px">Descrição</label>
+        <textarea class="fi" rows="2" style="margin-top:2px;resize:vertical"
+          oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>`;
+      return;
+    }
+
+    // ── Tarefa / Atividade ────────────────────────────────────────────────────
     const cfg = _wfConfigNos[id] || _configPadrao();
     _wfConfigNos[id] = cfg;
     const papeis = cfg.papeis || {};
@@ -1507,14 +1636,11 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         'gestor':             'Perfil Gestor',
         'dono':               'Perfil Dono',
       };
-      const usuarios = (globalScope.USUARIOS || []).filter(u => u.uid || u.id);
+      const usuarios = (globalScope.USUARIOS || []).filter(u => u.email);
       return Object.entries(fixos).map(([v, l]) =>
         `<option value="${v}"${(sel || '') === v ? ' selected' : ''}>${_esc(l)}</option>`
       ).join('') + (usuarios.length ? `<optgroup label="Usuário específico">${
-        usuarios.map(u => {
-          const uid = u.uid || u.id;
-          return `<option value="${_esc(uid)}"${(sel || '') === uid ? ' selected' : ''}>${_esc(u.nome || u.email || uid)}</option>`;
-        }).join('')
+        usuarios.map(u => `<option value="${_esc(u.email)}"${(sel || '') === u.email ? ' selected' : ''}>${_esc(u.nome || u.email)}</option>`).join('')
       }</optgroup>` : '');
     };
     const formOpts = '<option value="">— Sem formulário —</option>' +
@@ -1525,7 +1651,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <input type="checkbox" ${acoes.includes(a) ? 'checked' : ''} onchange="wfDesignerToggleAcao('${_esc(id)}','${a}',this.checked)"> ${_esc(l)}</label>`;
 
     painel.innerHTML = `
-      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--ink)">${_esc(el.businessObject?.name || id)}</div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Atividade</div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--ink)">${nome || _esc(id)}</div>
       <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Papéis</div>
       <label class="lbl" style="font-size:11px">Executor</label>
       <select class="fi" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerPapel('${_esc(id)}','executor',this.value)">${alvoOpts(papeis.executor)}</select>
@@ -1543,7 +1670,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       <select class="fi" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerCampoCfg('${_esc(id)}','formulario_id',this.value||null)">${formOpts}</select>
       <label class="lbl" style="font-size:11px">SLA (horas úteis · 0 = sem prazo)</label>
       <input type="number" class="fi" min="0" value="${_esc(String(cfg.sla_horas || 0))}" style="margin-top:2px;margin-bottom:8px" oninput="wfDesignerCampoCfg('${_esc(id)}','sla_horas',Number(this.value)||0)">
-      <label class="lbl" style="font-size:11px">Instruções</label>
+      <label class="lbl" style="font-size:11px">Instruções ao executor</label>
       <textarea class="fi" rows="3" style="margin-top:2px;margin-bottom:8px;resize:vertical" oninput="wfDesignerCampoCfg('${_esc(id)}','instrucoes',this.value)">${_esc(cfg.instrucoes || '')}</textarea>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
         <input type="checkbox" ${cfg.exige_parecer ? 'checked' : ''} onchange="wfDesignerCampoCfg('${_esc(id)}','exige_parecer',this.checked)"> Exige parecer obrigatório</label>
@@ -1559,13 +1686,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           value="${_esc(cfg.titulo_notificacao || '')}"
           oninput="wfDesignerCampoCfg('${_esc(id)}','titulo_notificacao',this.value)">
         <label class="lbl" style="font-size:11px">Mensagem</label>
-        <textarea class="fi" rows="2" style="margin-top:2px;resize:vertical"
+        <textarea class="fi" rows="2" style="margin-top:2px;margin-bottom:10px;resize:vertical"
           placeholder='Processo "{{processo.titulo}}" — etapa "{{etapa.nome}}" aguarda sua ação.'
           oninput="wfDesignerCampoCfg('${_esc(id)}','mensagem_notificacao',this.value)">${_esc(cfg.mensagem_notificacao || '')}</textarea>
       </div>
       <div style="margin-top:12px;border-top:1px solid var(--bdr);padding-top:12px">
         <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px">Comentário automático</div>
-        <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Criado automaticamente com autor "Sistema" ao iniciar a etapa. Use variáveis: {{processo.titulo}}, {{etapa.nome}}, {{prazo}}, {{solicitante.nome}}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Criado com autor "Sistema" ao iniciar a etapa.</div>
         <textarea class="fi" rows="2" style="margin-top:2px;resize:vertical"
           placeholder="Ex: Etapa {{etapa.nome}} iniciada. Prazo: {{prazo}}."
           oninput="wfDesignerCampoCfg('${_esc(id)}','comentario_automatico',this.value)">${_esc(cfg.comentario_automatico || '')}</textarea>
@@ -1834,68 +1961,59 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   // — Coleta perfis que precisam de atribuição explícita ao iniciar —
   // Retorna array de strings únicas, ex: ['ep', 'gestor']
-  function _wfPerfisParaAtribuir(nos) {
-    const PERFIS_ATRIBUIVEIS = ['ep', 'dono', 'gestor'];
-    const encontrados = new Set();
-    (nos || []).forEach(n => {
-      const p = n.config?.papeis || {};
-      ['executor','revisor','aprovador'].forEach(papel => {
-        if (p[papel] && PERFIS_ATRIBUIVEIS.includes(p[papel])) encontrados.add(p[papel]);
-      });
-    });
-    return [...encontrados];
-  }
-
-  // Abre modal de atribuição; chama callback(atribuicoes) ou null se cancelado
-  function _wfAbrirModalAtribuicao(perfisNecessarios, nomeModelo, callback) {
+  // Abre modal de vinculação de equipe; chama callback({ grupo_id, grupo_nome }) ou null se cancelado
+  async function _wfAbrirModalAtribuicao(nomeModelo, callback) {
     const el = document.getElementById('wf-modal-atribuicao');
     if (!el) { callback({}); return; }
-    const lista = document.getElementById('wf-modal-atrib-lista');
     const titulo = document.getElementById('wf-modal-atrib-titulo');
-    if (titulo) titulo.textContent = `Atribuir responsáveis — ${_esc(nomeModelo)}`;
+    if (titulo) titulo.textContent = `Vincular equipe — ${_esc(nomeModelo)}`;
 
-    const PERFIL_LABELS_LOCAL = { ep: 'Equipe de Processos (EP)', dono: 'Dono do Processo', gestor: 'Gestor / Adjunto' };
-    // Normaliza campo uid (pode ser 'uid' ou 'id') e nome (pode ser 'nome' ou 'name')
-    const _uid_u = u => u.uid || u.id || '';
-    const _nome_u = u => u.nome || u.name || '';
-    const usuariosFiltrados = (globalScope.USUARIOS || []).filter(u => _uid_u(u) && _nome_u(u));
+    const sel = document.getElementById('wf-atrib-sel-equipe');
+    const membrosDiv = document.getElementById('wf-atrib-equipe-membros');
+    if (sel) sel.innerHTML = '<option value="">— carregando… —</option>';
 
-    lista.innerHTML = perfisNecessarios.map(perf => {
-      const todos = usuariosFiltrados;
-      const comPerfil = todos.filter(u => {
-        const p = globalScope.getPerfisUsuario ? globalScope.getPerfisUsuario(u) : (u.perfis || (u.perfil ? [u.perfil] : []));
-        return p.includes(perf);
-      });
-      // Se nenhum usuário tem o perfil, exibe todos como fallback
-      const fonte = comPerfil.length ? comPerfil : todos;
-      const aviso = comPerfil.length === 0 && todos.length
-        ? `<div style="font-size:11px;color:var(--amber,#b45309);margin-top:4px">⚠ Nenhum usuário cadastrado com este perfil — selecione qualquer responsável.</div>`
-        : '';
-      const opts = fonte.map(u => `<option value="${_esc(_uid_u(u))}">${_esc(_nome_u(u))}</option>`).join('');
-      return `<div style="margin-bottom:14px">
-        <label class="lbl" style="display:block;margin-bottom:4px">${_esc(PERFIL_LABELS_LOCAL[perf] || perf)}</label>
-        <select class="fi" id="wf-atrib-sel-${_esc(perf)}">${opts || '<option value="">— sem usuários cadastrados —</option>'}</select>
-        ${aviso}
-      </div>`;
-    }).join('');
+    const { getDocs, collection, query, orderBy } = globalScope.fb();
+    const snap = await getDocs(query(collection(_db(), 'wf_grupos'), orderBy('nome')));
+    const grupos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (sel) {
+      if (grupos.length) {
+        sel.innerHTML = `<option value="">— selecione uma equipe —</option>` +
+          grupos.map(g => `<option value="${_esc(g.id)}">${_esc(g.nome)}</option>`).join('');
+      } else {
+        sel.innerHTML = '<option value="">— nenhuma equipe cadastrada —</option>';
+      }
+      sel.onchange = () => {
+        const g = grupos.find(x => x.id === sel.value);
+        if (!membrosDiv) return;
+        if (!g) { membrosDiv.classList.remove('vis'); return; }
+        const nomes = (g.membros_email || []).map(email => {
+          const u = (globalScope.USUARIOS || []).find(x => x.email === email);
+          return _esc(u?.nome || email);
+        });
+        membrosDiv.innerHTML = nomes.length
+          ? `<strong>${nomes.length} membro${nomes.length > 1 ? 's' : ''}:</strong> ${nomes.join(', ')}`
+          : 'Nenhum membro cadastrado nesta equipe.';
+        membrosDiv.classList.add('vis');
+      };
+    }
 
     el.style.display = 'flex';
-    // armazena callback no elemento para uso no confirmar/cancelar
     el._atribCallback = callback;
-    el._atribPerfis = perfisNecessarios;
+    el._atribGrupos = grupos;
   }
 
   function wfConfirmarAtribuicao() {
     const el = document.getElementById('wf-modal-atribuicao');
     if (!el) return;
-    const perfis = el._atribPerfis || [];
-    const atribuicoes = {};
-    for (const perf of perfis) {
-      const sel = document.getElementById(`wf-atrib-sel-${perf}`);
-      if (sel?.value) atribuicoes[perf] = sel.value;
-    }
+    const sel = document.getElementById('wf-atrib-sel-equipe');
+    const grupos = el._atribGrupos || [];
+    const grupoId = sel?.value || null;
+    const grupo = grupos.find(g => g.id === grupoId) || null;
     el.style.display = 'none';
-    if (typeof el._atribCallback === 'function') el._atribCallback(atribuicoes);
+    if (typeof el._atribCallback === 'function') {
+      el._atribCallback(grupoId ? { grupo_id: grupoId, grupo_nome: grupo?.nome || grupoId } : {});
+    }
   }
 
   function wfCancelarAtribuicao() {
@@ -1918,11 +2036,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const primeira = _proximoNo(modelo.canvas, inicio.id, null);
     if (!primeira) { alert('Modelo sem etapa após o início.'); return; }
 
-    // Verifica se há perfis que precisam de atribuição explícita
-    const perfisNecessarios = _wfPerfisParaAtribuir(nos);
-
-    const _prosseguir = async (atribuicoes) => {
-      if (atribuicoes === null) return; // cancelado
+    const _prosseguir = async (vinculo) => {
+      if (vinculo === null) return; // cancelado
       const titulo = `${modelo.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
       try {
         const anoAtual = new Date().getFullYear();
@@ -1937,7 +2052,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           etapa_atual_id: primeira.id,
           solicitante_uid: uid,
           ultimo_executor_uid: null,
-          atribuicoes: Object.keys(atribuicoes).length ? atribuicoes : null,
+          grupo_id: vinculo.grupo_id || null,
+          grupo_nome: vinculo.grupo_nome || null,
           canvas: modelo.canvas,
           snapshot_etapas: nos.filter(n => n.tipo === 'tarefa' || n.tipo === 'aprovacao')
             .map(n => ({ id: n.id, nome: n.nome, tipo: n.tipo })),
@@ -1945,8 +2061,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           concluido_em: null,
         });
         await _registrarHistorico(instanciaId, 'instancia_criada', uid, null, null,
-          `Workflow "${modelo.nome}" iniciado a partir de template.`, { modelo_id: modelo.id });
-        const instObj = { id: instanciaId, titulo, processo_id: modelo.processo_origem_id, solicitante_uid: uid, atribuicoes };
+          `Workflow "${modelo.nome}" iniciado a partir de template.`, { modelo_id: modelo.id, grupo_id: vinculo.grupo_id || null });
+        const instObj = { id: instanciaId, titulo, processo_id: modelo.processo_origem_id, solicitante_uid: uid, grupo_id: vinculo.grupo_id || null };
         await _criarTarefasDoNo(instObj, primeira);
         alert(`Workflow iniciado! Etapa "${primeira.nome}" criada.`);
         wfNavWorkflow(globalScope.isSolicitante?.() ? 'instancias' : 'tarefas');
@@ -1955,11 +2071,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       }
     };
 
-    if (perfisNecessarios.length) {
-      _wfAbrirModalAtribuicao(perfisNecessarios, modelo.nome, _prosseguir);
-    } else {
-      _prosseguir({});
-    }
+    _wfAbrirModalAtribuicao(modelo.nome, _prosseguir);
   }
 
   // ── Motor de Regras ───────────────────────────────────────────────────────
@@ -2170,6 +2282,28 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfNavWorkflow('instancias');
   }
 
+  async function wfExcluirInstancia(instanciaId) {
+    if (!confirm('Excluir permanentemente esta instância cancelada? Esta ação não pode ser desfeita.')) return;
+    const { deleteDoc, doc, getDocs, query, collection, where } = globalScope.fb();
+    try {
+      // Remove tarefas vinculadas
+      const tarefas = await _queryDocs('wf_tarefa_workflows',
+        where('instancia_id', '==', instanciaId)
+      );
+      const historicos = await _queryDocs('wf_historico_workflows',
+        where('instancia_id', '==', instanciaId)
+      );
+      const batch = (globalScope.fb().writeBatch)(_db());
+      tarefas.forEach(t => batch.delete(doc(_db(), 'wf_tarefa_workflows', t.id)));
+      historicos.forEach(h => batch.delete(doc(_db(), 'wf_historico_workflows', h.id)));
+      batch.delete(doc(_db(), 'wf_instancia_processos', instanciaId));
+      await batch.commit();
+      wfCarregarInstancias();
+    } catch (e) {
+      alert('Erro ao excluir: ' + e.message);
+    }
+  }
+
   // ── Formulários ───────────────────────────────────────────────────────────
   async function wfCarregarFormularios() {
     const el = document.getElementById('wf-lista-formularios');
@@ -2221,48 +2355,52 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     overlay.style.display = 'flex';
   }
 
+  const _tipoLabels = { texto:'Texto', numero:'Número', data:'Data', select:'Seleção', textarea:'Texto longo', checkbox:'Sim/Não', arquivo:'Arquivo' };
+
   function _wfRenderizarCamposEditor() {
     const el = document.getElementById('wf-modal-form-campos');
     if (!el) return;
     if (!_st.formularioCampos.length) {
-      el.innerHTML = '<div style="color:var(--ink3);font-size:13px;margin-bottom:8px">Nenhum campo adicionado ainda.</div>';
+      el.innerHTML = `<div class="wf-fields-empty"><span class="wf-fields-empty-icon">📋</span>Nenhum campo adicionado ainda.<br><span style="font-size:12px">Clique em "+ Adicionar campo" para começar.</span></div>`;
       return;
     }
-    el.innerHTML = _st.formularioCampos.map((c, i) => `
-      <div style="border:1px solid var(--bdr);border-radius:8px;padding:12px;margin-bottom:10px;background:var(--bg2)">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
-          <span style="font-size:13px;font-weight:600">${_esc(c.label || 'Campo ' + (i+1))}</span>
-          <div style="display:flex;gap:4px">
-            ${i > 0 ? `<button type="button" class="btn btn-sm" onclick="_wfMoverCampo(${i},-1)" title="Mover para cima">↑</button>` : ''}
-            ${i < _st.formularioCampos.length - 1 ? `<button type="button" class="btn btn-sm" onclick="_wfMoverCampo(${i},1)" title="Mover para baixo">↓</button>` : ''}
-            <button type="button" class="btn btn-r btn-sm" onclick="_wfRemoverCampo(${i})">✕</button>
+    el.innerHTML = _st.formularioCampos.map((c, i) => {
+      const tipoLabel = _tipoLabels[c.tipo] || c.tipo;
+      return `
+      <div class="wf-field-card">
+        <div class="wf-field-card-hd">
+          <span class="wf-field-card-drag" title="Reordenar">⠿</span>
+          <span class="wf-field-card-label">${_esc(c.label || 'Campo sem nome')}</span>
+          <span class="wf-field-type-badge">${_esc(tipoLabel)}</span>
+          <div class="wf-field-card-actions">
+            ${i > 0 ? `<button type="button" class="wf-field-action-btn" onclick="_wfMoverCampo(${i},-1)" title="Mover para cima">↑</button>` : ''}
+            ${i < _st.formularioCampos.length - 1 ? `<button type="button" class="wf-field-action-btn" onclick="_wfMoverCampo(${i},1)" title="Mover para baixo">↓</button>` : ''}
+            <button type="button" class="wf-field-action-btn del" onclick="_wfRemoverCampo(${i})" title="Remover campo">✕</button>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div>
-            <label class="lbl" style="font-size:11px">Label</label>
-            <input type="text" class="fi" value="${_esc(c.label)}" oninput="_wfAtualizarCampo(${i},'label',this.value)" style="margin-top:2px">
+        <div class="wf-field-card-body">
+          <div class="wf-field-col">
+            <label class="lbl" for="wf-campo-label-${i}">Nome do campo</label>
+            <input type="text" class="fi" id="wf-campo-label-${i}" value="${_esc(c.label)}" placeholder="Ex.: Nome completo" oninput="_wfAtualizarCampo(${i},'label',this.value)">
           </div>
-          <div>
-            <label class="lbl" style="font-size:11px">Tipo</label>
-            <select class="fi" onchange="_wfAtualizarCampo(${i},'tipo',this.value)" style="margin-top:2px">
-              ${_tiposCampo.map(t => `<option value="${t.v}"${c.tipo===t.v?' selected':''}>${_esc(t.l)}</option>`).join('')}
+          <div class="wf-field-col">
+            <label class="lbl" for="wf-campo-tipo-${i}">Tipo de resposta</label>
+            <select class="fi" id="wf-campo-tipo-${i}" onchange="_wfAtualizarCampo(${i},'tipo',this.value)">
+              ${_tiposCampo.map(t => `<option value="${_esc(t.v)}"${c.tipo===t.v?' selected':''}>${_esc(t.l)}</option>`).join('')}
             </select>
           </div>
+          ${c.tipo === 'select' ? `
+          <div class="wf-field-col wf-field-card-full">
+            <label class="lbl">Opções de seleção <span style="font-weight:400;text-transform:none;letter-spacing:0">(uma por linha)</span></label>
+            <textarea class="fi" rows="3" placeholder="Opção 1&#10;Opção 2&#10;Opção 3" oninput="_wfAtualizarCampo(${i},'_opcoesTexto',this.value)">${_esc((c.opcoes||[]).join('\n'))}</textarea>
+          </div>` : ''}
         </div>
-        ${c.tipo === 'select' ? `
-        <div style="margin-top:8px">
-          <label class="lbl" style="font-size:11px">Opções (uma por linha)</label>
-          <textarea class="fi" rows="3" oninput="_wfAtualizarCampo(${i},'_opcoesTexto',this.value)" style="margin-top:2px;resize:vertical">${_esc((c.opcoes||[]).join('\n'))}</textarea>
-        </div>` : ''}
-        <div style="margin-top:8px">
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-            <input type="checkbox" ${c.obrigatorio?'checked':''} onchange="_wfAtualizarCampo(${i},'obrigatorio',this.checked)">
-            Campo obrigatório
-          </label>
-        </div>
-      </div>
-    `).join('');
+        <label class="wf-field-required">
+          <input type="checkbox" ${c.obrigatorio?'checked':''} onchange="_wfAtualizarCampo(${i},'obrigatorio',this.checked)">
+          Preenchimento obrigatório
+        </label>
+      </div>`;
+    }).join('');
   }
 
   function _wfAtualizarCampo(idx, campo, valor) {
@@ -2875,16 +3013,18 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       .filter(u => u.email && (u.nome || u.email))
       .sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email));
 
+    const PERFIL_LABEL = { ep:'EP', dono:'Dono', gestor:'Gestor', solicitante:'Solicitante', gerente_projeto:'Gerente' };
     if (!usuarios.length) {
-      membrosEl.innerHTML = '<div style="color:var(--ink3);font-size:12px">Nenhum usuário cadastrado.</div>';
+      membrosEl.innerHTML = '<div style="color:var(--ink3);font-size:12px;padding:8px">Nenhum usuário cadastrado.</div>';
     } else {
       membrosEl.innerHTML = usuarios.map(u => {
         const email = _esc(u.email);
         const nome = _esc(u.nome || u.email);
-        const perfil = u.perfil ? ` <span style="color:var(--ink3);font-size:11px">(${_esc(u.perfil)})</span>` : '';
-        return `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:3px 0">
+        const perfil = u.perfil ? `<span class="wf-member-chip-perfil">${_esc(PERFIL_LABEL[u.perfil] || u.perfil)}</span>` : '';
+        return `<label class="wf-member-chip">
           <input type="checkbox" class="wf-grupo-membro-cb" value="${email}">
-          ${nome}${perfil}
+          <span class="wf-member-chip-name">${nome}</span>
+          ${perfil}
         </label>`;
       }).join('');
     }
@@ -3035,6 +3175,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfDesignerPublicar,
     wfAbrirHistorico,
     wfCancelarInstancia,
+    wfExcluirInstancia,
     wfConfirmarCancelar,
     wfCarregarComentarios,
     wfResponderComentario,
