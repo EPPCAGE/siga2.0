@@ -2377,259 +2377,215 @@ select.proj-fi { cursor:pointer; }
   .proj-v9-ind-grid { grid-template-columns:1fr; }
 }
 
-/* ═══════════════════════════════════════════
-   WORKFLOW — Sistema de Modais
-   ═══════════════════════════════════════════ */
-
-/* Label padrão de formulário */
-.lbl {
+/* ── SLA badges (workflow) ────────────────────────────────────────────────── */
+.wf-sla-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 99px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--ink3);
-  display: block;
-  margin-bottom: 5px;
-  text-transform: uppercase;
-  letter-spacing: .05em;
+  white-space: nowrap;
+}
+.wf-sla-ok      { background: var(--teal-l,#f0fdf4); color: var(--teal,#0d9488); border: 1px solid var(--teal-b,#99f6e4); }
+.wf-sla-vencendo { background: var(--amber-l,#fffbeb); color: var(--amber,#d97706); border: 1px solid var(--amber-b,#fcd34d); }
+.wf-sla-vencido  { background: var(--red-l,#fef2f2);  color: var(--red,#dc2626);  border: 1px solid var(--red-b,#fecaca); }
+
+/* ── Execution panel header ─────────────────────────────────────────────── */
+.wf-exec-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.wf-exec-header-info { flex: 1; min-width: 0; }
+
+/* ── Actions bar ────────────────────────────────────────────────────────── */
+.wf-exec-acoes-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: var(--surf,#fff);
+  border: 1px solid var(--bdr,#e5e7eb);
+  border-radius: var(--rl,10px);
+  margin-bottom: 16px;
+  box-shadow: var(--sh,0 1px 3px rgba(0,0,0,.07));
 }
 
-/* Overlay de fundo */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(28, 28, 46, .48);
-  z-index: 4000;
-  display: none;
-  padding: 1.5rem 1rem;
-  overflow-y: auto;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
+/* ═══════════════════════════════════════════
+   WORKFLOW — Form Renderer (wfRenderizarFormulario)
+   ═══════════════════════════════════════════ */
 
-/* Caixa do modal */
-.modal {
-  background: var(--surf);
-  border: 1px solid var(--bdr);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(28,28,46,.18), 0 2px 8px rgba(28,28,46,.1);
-  overflow: hidden;
-  margin: auto;
-  position: relative;
+.wf-form {
   display: flex;
   flex-direction: column;
+  gap: 0;
 }
 
-/* Cabeçalho */
-.modal-hd {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 1.1rem 1.4rem 1rem;
-  border-bottom: 1px solid var(--bdr);
-  background: var(--surf2);
+.wf-form-titulo {
   font-family: var(--fh);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink);
-  flex-shrink: 0;
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bdr);
 }
 
-/* Botão fechar (✕) */
-.modal-x {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: none;
-  background: none;
-  color: var(--ink3);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
+/* Grupo de campo individual */
+.wf-campo-grupo {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background .12s, color .12s;
-  padding: 0;
-  font-family: inherit;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
 }
-.modal-x:hover { background: var(--bg2); color: var(--ink); }
+.wf-campo-grupo:last-child { margin-bottom: 0; }
 
-/* Corpo */
-.modal-bd {
-  padding: 1.3rem 1.4rem;
-  flex: 1;
-}
-
-/* Rodapé com ações */
-.modal-ft {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: .9rem 1.4rem;
-  border-top: 1px solid var(--bdr);
-  background: var(--surf2);
-  flex-shrink: 0;
-}
-
-/* ── Editor de campos de formulário ── */
-.wf-field-card {
-  border: 1px solid var(--bdr);
-  border-radius: 10px;
-  padding: 14px 14px 12px;
-  margin-bottom: 10px;
-  background: var(--surf);
-  box-shadow: 0 1px 3px rgba(28,28,46,.04);
-  transition: border-color .12s, box-shadow .12s;
-}
-.wf-field-card:hover { border-color: var(--bdr2); box-shadow: 0 2px 8px rgba(28,28,46,.07); }
-
-.wf-field-card-hd {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.wf-field-card-drag {
-  color: var(--ink4);
-  cursor: grab;
-  font-size: 16px;
-  line-height: 1;
-  padding: 0 2px;
-  flex-shrink: 0;
-  user-select: none;
-}
-.wf-field-card-label {
-  flex: 1;
+/* Label do campo */
+.wf-campo-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--ink2);
+  line-height: 1.4;
+  cursor: default;
 }
-.wf-field-type-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 99px;
+.wf-campo-label::after {
+  /* O asterisco já vem no texto via JS; sem pseudo-elemento adicional */
+}
+
+/* Inputs de texto, número, data, select */
+.wf-campo-input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--bdr2);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surf);
+  font-family: var(--f);
+  transition: border-color .15s, box-shadow .15s;
+  line-height: 1.5;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.wf-campo-input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(26, 93, 200, .1);
+}
+.wf-campo-input::placeholder { color: var(--ink4); }
+
+/* Textarea específico */
+.wf-campo-textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.6;
+}
+
+/* Select */
+.wf-campo-select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2370709A' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+/* Checkbox */
+.wf-campo-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1.5px solid var(--bdr2);
+  background: var(--surf2);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.wf-campo-checkbox-wrapper:hover {
+  border-color: var(--blue-b);
+  background: var(--blue-l);
+}
+.wf-campo-checkbox {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--blue);
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+.wf-campo-checkbox-label {
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+  flex: 1;
+}
+
+/* Anexo */
+.wf-campo-anexo-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wf-campo-anexo-existente {
+  font-size: 12px;
+  color: var(--ink3);
+  padding: 6px 10px;
+  background: var(--surf2);
+  border-radius: 6px;
+  border: 1px solid var(--bdr);
+}
+input[type="file"].wf-campo-input {
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  border-style: dashed;
+  background: var(--surf2);
+  color: var(--ink3);
+}
+input[type="file"].wf-campo-input:hover {
+  border-color: var(--blue-b);
   background: var(--blue-l);
   color: var(--blue);
-  letter-spacing: .03em;
-  flex-shrink: 0;
-  text-transform: uppercase;
 }
-.wf-field-card-actions {
-  display: flex;
-  gap: 3px;
-  flex-shrink: 0;
-}
-.wf-field-action-btn {
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--bdr2);
-  border-radius: 7px;
-  background: var(--surf);
-  color: var(--ink3);
-  font-size: 13px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all .12s;
-  padding: 0;
-  font-family: inherit;
-}
-.wf-field-action-btn:hover { background: var(--bg2); color: var(--ink); border-color: var(--bdr2); }
-.wf-field-action-btn.del { color: var(--red); border-color: var(--red-b); background: var(--red-l); }
-.wf-field-action-btn.del:hover { background: var(--red-b); }
 
-.wf-field-card-body {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.wf-field-card-body .wf-field-col { display: flex; flex-direction: column; gap: 4px; }
-.wf-field-card-full { grid-column: 1 / -1; }
-
-.wf-field-required {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+/* Mensagem de erro */
+.wf-campo-erro {
   font-size: 12px;
-  color: var(--ink2);
-  cursor: pointer;
-  padding: 6px 0 0;
-  user-select: none;
-}
-.wf-field-required input[type=checkbox] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--blue);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-/* Estado vazio */
-.wf-fields-empty {
-  text-align: center;
-  padding: 2rem 1rem;
-  color: var(--ink3);
-  font-size: 13px;
-  border: 2px dashed var(--bdr);
-  border-radius: 10px;
-  background: var(--surf2);
-}
-.wf-fields-empty-icon {
-  font-size: 28px;
+  color: var(--red);
+  font-weight: 500;
+  min-height: 16px;
   display: block;
-  margin-bottom: 8px;
-  opacity: .5;
+}
+.wf-campo-erro:empty { display: none; }
+
+/* Campo inválido */
+.wf-campo-grupo:has(.wf-campo-erro:not(:empty)) .wf-campo-input {
+  border-color: var(--red-b);
+  background: var(--red-l);
 }
 
-/* Membros chip (modal grupo) */
-.wf-member-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+/* Modo somente leitura */
+.wf-campo-leitura {
+  font-size: 14px;
+  color: var(--ink);
+  padding: 9px 12px;
+  background: var(--bg2);
   border-radius: 8px;
-  cursor: pointer;
-  transition: background .1s;
-  border: none;
-  background: none;
-  width: 100%;
-  text-align: left;
-  font-family: inherit;
+  border: 1px solid var(--bdr);
+  min-height: 40px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
-.wf-member-chip:hover { background: var(--bg2); }
-.wf-member-chip input[type=checkbox] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--blue);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.wf-member-chip-name { font-size: 13px; color: var(--ink); font-weight: 500; flex: 1; }
-.wf-member-chip-perfil { font-size: 11px; color: var(--ink3); }
 
-/* Equipe preview (modal atribuição) */
-.wf-equipe-preview {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--blue-l);
-  border: 1px solid var(--blue-b);
-  font-size: 12px;
-  color: var(--ink2);
-  display: none;
+/* Data — fix para webkit */
+input[type="date"].wf-campo-input {
+  min-height: 40px;
 }
-.wf-equipe-preview.vis { display: block; }
-.wf-equipe-preview strong { color: var(--blue); font-weight: 600; }
 
 @media (max-width: 600px) {
-  .modal-overlay { padding: .75rem .5rem; }
-  .modal { border-radius: 12px; }
-  .modal-hd, .modal-bd, .modal-ft { padding-left: 1rem; padding-right: 1rem; }
-  .wf-field-card-body { grid-template-columns: 1fr; }
+  .wf-campo-input { font-size: 16px; }
+  .wf-campo-textarea { min-height: 80px; }
 }

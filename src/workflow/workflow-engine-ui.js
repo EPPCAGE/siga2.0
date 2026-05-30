@@ -110,7 +110,7 @@
   }
 
   // ── Navegação interna do módulo ───────────────────────────────────────────
-  const _paineis = ['tarefas','instancias','iniciar','executar','historico','formularios','config-processo','designer','notificacoes','equipes'];
+  const _paineis = ['tarefas','instancias','solicitacoes','iniciar','executar','historico','formularios','config-processo','designer','notificacoes','equipes'];
 
   function wfNavWorkflow(painel) {
     _st.painelAtual = painel;
@@ -121,7 +121,7 @@
     const alvo = document.getElementById(`wf-painel-${painel}`);
     if (alvo) alvo.style.display = '';
 
-    const tabIds = ['tarefas','instancias','iniciar','formularios','designer','equipes'];
+    const tabIds = ['tarefas','instancias','solicitacoes','iniciar','formularios','designer','equipes'];
     tabIds.forEach(t => {
       const btn = document.getElementById(`wf-tab-${t}`);
       if (btn) btn.style.fontWeight = t === painel ? '700' : '';
@@ -130,6 +130,7 @@
     const carregadores = {
       tarefas: wfCarregarTarefas,
       instancias: wfCarregarInstancias,
+      solicitacoes: wfCarregarSolicitacoes,
       iniciar: wfCarregarIniciar,
       formularios: wfCarregarFormularios,
       notificacoes: _wfRenderNotifPanel,
