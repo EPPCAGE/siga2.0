@@ -85,6 +85,12 @@
       : String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
+  function _safeUrl(url) {
+    if (typeof globalScope.safeUrl === 'function') return globalScope.safeUrl(url);
+    const raw = String(url ?? '');
+    return /^https?:\/\//i.test(raw) ? raw : '#';
+  }
+
   function _badge(texto, cor) {
     return `<span style="padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:${cor}22;color:${cor}">${_esc(texto)}</span>`;
   }
@@ -107,6 +113,10 @@
 
   function _card(conteudo) {
     return `<div class="card" style="padding:16px">${conteudo}</div>`;
+  }
+
+  function _renderer() {
+    return globalScope.wfWorkflowRenderer || null;
   }
 
   // ── Navegação interna do módulo ───────────────────────────────────────────
@@ -202,18 +212,21 @@
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:16px 0">Nenhuma notificação.</div>';
         return;
       }
-      el.innerHTML = notifs.map(n => {
-        const ts = n._criado_em?.seconds
-          ? new Date(n._criado_em.seconds * 1000).toLocaleString('pt-BR')
-          : '—';
-        const bg = n.lida ? 'var(--bg)' : 'var(--blue-soft,#eff6ff)';
-        return `<div style="background:${bg};border:1px solid var(--bdr);border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer"
-          onclick="wfMarcarNotifLida('${n.id}','${n.instancia_id || ''}','${n.titulo || ''}','${n.instancia_id || ''}')">
-          <div style="font-weight:600;font-size:13px">${_esc(n.titulo || '')}</div>
-          <div style="font-size:12px;color:var(--ink2);margin-top:2px">${_esc(n.mensagem || '')}</div>
-          <div style="font-size:11px;color:var(--ink3);margin-top:4px">${ts}</div>
-        </div>`;
-      }).join('');
+      const renderer = _renderer();
+      el.innerHTML = renderer
+        ? renderer.renderNotificacoes(notifs, _esc)
+        : notifs.map(n => {
+          const ts = n._criado_em?.seconds
+            ? new Date(n._criado_em.seconds * 1000).toLocaleString('pt-BR')
+            : '—';
+          const bg = n.lida ? 'var(--bg)' : 'var(--blue-soft,#eff6ff)';
+          return `<div style="background:${bg};border:1px solid var(--bdr);border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer"
+            onclick="wfMarcarNotifLida('${n.id}','${n.instancia_id || ''}','${n.titulo || ''}','${n.instancia_id || ''}')">
+            <div style="font-weight:600;font-size:13px">${_esc(n.titulo || '')}</div>
+            <div style="font-size:12px;color:var(--ink2);margin-top:2px">${_esc(n.mensagem || '')}</div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:4px">${ts}</div>
+          </div>`;
+        }).join('');
     } catch (e) {
       el.innerHTML = `<div style="color:#ef4444;font-size:13px">Erro: ${_esc(e.message)}</div>`;
     }
@@ -228,6 +241,9 @@
   }
 
   function rWorkflow() {
+    if (typeof globalScope.wfValidateWorkflowUIContract === 'function') {
+      globalScope.wfValidateWorkflowUIContract({ strict: false });
+    }
     _wfIniciarBadge();
     // Solicitante: ajusta abas e label (suporta multi-perfil via isSolicitante())
     const sol = globalScope.isSolicitante?.() || globalScope.usuarioLogado?.perfil === 'solicitante';
@@ -334,7 +350,17 @@
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhuma tarefa encontrada.</div>';
         return;
       }
-      const cards = tarefasFiltradas.map(t => {
+      const renderer = _renderer();
+      const cards = renderer
+        ? renderer.renderTarefasCards(tarefasFiltradas, {
+          esc: _esc,
+          badge: _badge,
+          slaInfo: _slaInfo,
+          statusLabels,
+          statusCores,
+          podeGerenciar,
+        })
+        : tarefasFiltradas.map(t => {
         const eFila = t._eFila || (!t.responsavel_uid && !!t.grupo_id);
         const eDisponivel = !t.responsavel_uid && !t.grupo_id;
         let badgeFila = '';
@@ -452,8 +478,8 @@
           }
         }
       }
-    } catch (_e) {
-      // formulário opcional — falha silenciosa
+    } catch (e) {
+      console.warn('[WF] Falha ao carregar formulário da tarefa:', e?.message || e);
     }
 
     // Indica obrigatoriedade de parecer
@@ -499,7 +525,7 @@
       assumida_em: new Date(),
       assumida_por_uid: uid,
     });
-    await _registrarHistorico(tarefa.instancia_id, 'tarefa_assumida', uid, tarefaId, tarefa.etapa_nome, 'Tarefa assumida da fila.');
+    await _registrarHistorico(tarefa.instancia_id, 'tarefa_assumida', uid, tarefa.etapa_modelo_id || null, tarefaId, 'Tarefa assumida da fila.');
     _st.meusGrupos = null;
     wfCarregarTarefas();
   }
@@ -509,18 +535,21 @@
     if (!lista) return;
     const anexos = _st._anexosTarefa || [];
     if (!anexos.length) { lista.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Nenhum anexo.</div>'; return; }
-    lista.innerHTML = anexos.map((a, i) => `
+    lista.innerHTML = anexos.map((a, i) => {
+      const href = _safeUrl(a.url);
+      return `
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 8px;background:var(--surf2);border-radius:6px;margin-bottom:4px">
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 <a href="${_esc(a.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">${_esc(a.nome)}</a></span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 <a href="${_esc(href)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">${_esc(a.nome)}</a></span>
         <span style="color:var(--ink3);flex-shrink:0">${_esc(a.tamanho || '')}</span>
         <button type="button" onclick="wfRemoverAnexo(${i})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:13px;padding:0 2px" aria-label="Remover anexo">✕</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   async function wfAnexarArquivos(input) {
     const files = Array.from(input.files || []);
     if (!files.length) return;
-    const { storage, storageRef, uploadBytes, getDownloadURL } = globalThis._fb || {};
+    const { storage, storageRef, uploadBytes, getDownloadURL } = globalScope.fb?.() || {};
     if (!storage) { alert('Armazenamento não disponível.'); return; }
     const prog = document.getElementById('wf-exec-anexo-progresso');
     for (const file of files) {
@@ -547,7 +576,7 @@
     const anexo = (_st._anexosTarefa || [])[idx];
     if (!anexo) return;
     if (!confirm(`Remover "${anexo.nome}"?`)) return;
-    const { storage, storageRef: sRef, deleteObject } = globalThis._fb || {};
+    const { storage, storageRef: sRef, deleteObject } = globalScope.fb?.() || {};
     if (storage && anexo.path) {
       try { await deleteObject(sRef(storage, anexo.path)); } catch (_e) { /* arquivo pode já não existir */ }
     }
@@ -989,7 +1018,16 @@
       const statusLabels = { em_andamento:'Em andamento', concluido:'Concluído', cancelado:'Cancelado', suspenso:'Suspenso' };
       const statusCores = { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444', suspenso:'#f59e0b' };
       const podeGerenciar = globalScope.isEP?.() || globalScope.isGestor?.();
-      const cards = instanciasFiltradas.map(i => {
+      const renderer = _renderer();
+      const cards = renderer
+        ? renderer.renderInstanciasCards(instanciasFiltradas, {
+          esc: _esc,
+          badge: _badge,
+          podeGerenciar,
+          statusLabels,
+          statusCores,
+        })
+        : instanciasFiltradas.map(i => {
         const etapas = i.snapshot_etapas || [];
         const idxAtual = etapas.findIndex(e => e.id === i.etapa_atual_id);
         const pct = etapas.length > 1 && idxAtual >= 0
@@ -2255,7 +2293,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
             return divGrupo.outerHTML;
           }).join('');
         }
-      } catch (_e) {
+      } catch (e) {
+        console.warn('[WF] Falha ao carregar comentários por etapa:', e?.message || e);
         elComentPorEtapa.innerHTML = '';
       }
     }
@@ -2301,10 +2340,10 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const { deleteDoc, doc, getDocs, query, collection, where } = globalScope.fb();
     try {
       // Remove tarefas vinculadas
-      const tarefas = await _queryDocs('wf_tarefa_workflows',
+      const tarefas = await _getAll('wf_tarefa_workflows',
         where('instancia_id', '==', instanciaId)
       );
-      const historicos = await _queryDocs('wf_historico_workflows',
+      const historicos = await _getAll('wf_historico_workflows',
         where('instancia_id', '==', instanciaId)
       );
       const batch = (globalScope.fb().writeBatch)(_db());
@@ -3747,7 +3786,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   // Tecla Delete remove o nó/aresta selecionado no designer
   document.addEventListener('keydown', (evt) => {
-    if (_st.painelAtual !== 'designer') return;
+    if (_st.painelAtual !== 'config-modelo' && _st.painelAtual !== 'designer') return;
     if (evt.key !== 'Delete' && evt.key !== 'Backspace') return;
     const tag = (evt.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
