@@ -272,12 +272,35 @@
         } catch (_e) { /* índice opcional */ }
       }
 
+      // Tarefas de fila de grupo
+      if (!_st.meusGrupos && !acrescentar) {
+        try {
+          const gs = await _getAll('wf_grupos', where('membros_uid', 'array-contains', uid));
+          _st.meusGrupos = gs;
+        } catch (_e) { _st.meusGrupos = []; }
+      }
+      const tarefasGrupo = [];
+      if (!acrescentar) {
+        for (const g of (_st.meusGrupos || [])) {
+          try {
+            const tgs = await _getAll('wf_tarefa_workflows',
+              where('grupo_id', '==', g.id),
+              where('status', '==', 'pendente'),
+            );
+            tgs.filter(t => !t.responsavel_uid).forEach(t => {
+              t._nomeGrupo = g.nome || g.id;
+              t._eFila = true;
+              tarefasGrupo.push(t);
+            });
+          } catch (_e) { /* índice opcional */ }
+        }
+      }
+
       const mapa = {};
       if (acrescentar) {
-        // Preserva itens já renderizados do perfil e acrescenta novos
         el.querySelectorAll('[data-tarefa-id]').forEach(el2 => { mapa[el2.dataset.tarefaId] = true; });
       }
-      [...minhas, ...porPerfil].forEach(t => { mapa[t.id] = t; });
+      [...minhas, ...porPerfil, ...tarefasGrupo].forEach(t => { mapa[t.id] = t; });
       const tarefas = Object.values(mapa).filter(t => typeof t === 'object');
 
       if (!tarefas.length) {
@@ -303,18 +326,31 @@
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhuma tarefa encontrada.</div>';
         return;
       }
-      const cards = tarefasFiltradas.map(t => `<div data-tarefa-id="${_esc(t.id)}">${_card(`
+      const cards = tarefasFiltradas.map(t => {
+        const eFila = t._eFila || (!t.responsavel_uid && !!t.grupo_id);
+        const eDisponivel = !t.responsavel_uid && !t.grupo_id;
+        let badgeFila = '';
+        if (eFila) {
+          badgeFila = `${_badge('👥 Fila: ' + (t._nomeGrupo || t.grupo_id), '#1e3a5f')} `;
+        } else if (eDisponivel) {
+          badgeFila = `${_badge('📋 Dispon\xEDvel', '#4b5563')} `;
+        }
+        const botoesAcao = (eFila || eDisponivel)
+          ? `<button type="button" class="btn btn-p btn-sm" onclick="wfAssumirTarefa('${_esc(t.id)}')">Assumir</button>`
+          : `<button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir</button>
+          <button type="button" class="btn btn-sm" onclick="wfAbrirDelegacao('${_esc(t.id)}')">Delegar</button>`;
+        return `<div data-tarefa-id="${_esc(t.id)}">${_card(`
         <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(t.etapa_nome || t.etapa_modelo_id)}${t.sla_vencido ? ' <span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle">SLA VENCIDO</span>' : ''}</div>
         <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">${_esc(t.processo_nome || t.instancia_id)}</div>
-        ${_badge(statusLabels[t.status] || t.status, statusCores[t.status] || '#6b7280')}
+        ${_badge(statusLabels[t.status] || t.status, statusCores[t.status] || '#6b7280')} ${badgeFila}
         ${_slaInfo(t)}
         ${t.etapa_desc ? `<div style="font-size:12px;color:var(--ink2);margin-top:6px">${_esc(t.etapa_desc)}</div>` : ''}
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-          <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir</button>
-          <button type="button" class="btn btn-sm" onclick="wfAbrirDelegacao('${_esc(t.id)}')">Delegar</button>
+          ${botoesAcao}
           ${podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfExcluirTarefa('${_esc(t.id)}')">Excluir</button>` : ''}
         </div>
-      `)}</div>`).join('');
+      `)}</div>`;
+      }).join('');
 
       const temMais = snap.docs.length === _WF_PAGE;
       el.innerHTML = cards + (temMais
@@ -441,6 +477,23 @@
     wfCarregarComentarios(tarefa.id);
 
     wfNavWorkflow('executar');
+  }
+
+  async function wfAssumirTarefa(tarefaId) {
+    const uid = _uid();
+    if (!uid) { alert('Usuário não autenticado.'); return; }
+    const tarefa = await _getDoc('wf_tarefa_workflows', tarefaId);
+    if (!tarefa) { alert('Tarefa não encontrada.'); return; }
+    if (tarefa.responsavel_uid) { alert('Esta tarefa já foi assumida por outro usuário.'); return; }
+    await _updateDoc('wf_tarefa_workflows', tarefaId, {
+      responsavel_uid: uid,
+      status: 'em_execucao',
+      assumida_em: new Date(),
+      assumida_por_uid: uid,
+    });
+    await _registrarHistorico(tarefa.instancia_id, 'tarefa_assumida', uid, tarefaId, tarefa.etapa_nome, 'Tarefa assumida da fila.');
+    _st.meusGrupos = null;
+    wfCarregarTarefas();
   }
 
   function _wfRenderAnexos() {
@@ -645,6 +698,7 @@
       if (!valor) continue;
       const uidResp = _resolverPapel(valor, instancia, {});
       const acoesDisp = mapaPapelAcoes[papel];
+      const grupoId = valor.startsWith('grupo:') ? valor.slice(6) : null;
       const tarefaId = await _addDoc('wf_tarefa_workflows', {
         instancia_id: instancia.id,
         processo_nome: instancia.titulo,
@@ -653,9 +707,10 @@
         etapa_nome: no.nome,
         etapa_desc: cfg.instrucoes || null,
         etapa_tipo: no.tipo,
-        responsavel_uid: uidResp,        // pode ser null → assumível por perfil
+        responsavel_uid: uidResp,
         papel_responsavel: papel,
-        papel_alvo: valor,               // 'ep'|'gestor'|'solicitante'|uid
+        papel_alvo: valor,
+        grupo_id: grupoId,
         acoes_disponiveis: acoesDisp,
         acao_tomada: null,
         parecer: null,
@@ -2771,6 +2826,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfNavWorkflow,
     wfCarregarTarefas,
     wfAbrirTarefa,
+    wfAssumirTarefa,
     wfConcluirTarefa,
     wfAnexarArquivos,
     wfRemoverAnexo,
