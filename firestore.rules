@@ -141,7 +141,8 @@ service cloud.firestore {
       allow update: if isAuth() && (
         isEP() ||
         request.auth.token.get('perfil','') == 'gestor' ||
-        resource.data.responsavel_uid == request.auth.uid
+        resource.data.responsavel_uid == request.auth.uid ||
+        resource.data.responsavel_uid == null
       );
       allow delete: if isAuth() && (isEP() || request.auth.token.get('perfil','') == 'gestor');
     }
