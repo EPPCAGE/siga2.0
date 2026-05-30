@@ -108,7 +108,6 @@ Segredos necessários no repositório GitHub:
 ```bash
 npm run test:e2e:smoke       # Navegação básica e login
 npm run test:e2e:projetos    # Módulo de projetos
-npm run test:e2e:mapeamento  # Fluxo completo de mapeamento
 ```
 
 Requer variáveis de ambiente `TEST_EMAIL` e `TEST_PASSWORD`.

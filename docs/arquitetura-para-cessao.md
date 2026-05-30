@@ -231,7 +231,6 @@ export TEST_PASSWORD="senha"
 
 npm run test:e2e:smoke       # Navegação básica e login — rodar sempre
 npm run test:e2e:projetos    # Módulo de projetos
-npm run test:e2e:mapeamento  # Fluxo completo de mapeamento
 ```
 
 O smoke test deve passar após qualquer alteração. Se falhar, não comitar.

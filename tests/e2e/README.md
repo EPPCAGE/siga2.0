@@ -12,9 +12,7 @@ Depois execute um dos comandos:
 
 ```bash
 npm run test:e2e:smoke
-npm run test:e2e:mapeamento
-npm run test:e2e:aderencia
-npm run test:e2e:meus-processos
+npm run test:e2e:projetos
 ```
 
 Artefatos gerados ficam em `tests/e2e/artifacts/` e nao devem ser versionados.

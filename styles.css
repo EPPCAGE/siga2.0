@@ -2560,6 +2560,7 @@ input[type="file"].wf-campo-input:hover {
 
 /* Workflow UI fixups */
 .modal-overlay{position:fixed;inset:0;background:rgba(18,20,27,.45);display:none;align-items:center;justify-content:center;z-index:2600;padding:20px}
+.modal{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;box-shadow:var(--sh2);display:flex;flex-direction:column;overflow:hidden;width:min(96vw,760px)}
 .modal-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--bdr);font-family:var(--fh);font-size:16px;font-weight:700;color:var(--ink)}
 .modal-bd{padding:14px}
 .modal-ft{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid var(--bdr)}

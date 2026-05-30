@@ -1006,6 +1006,7 @@
       const filtroInstStatus = document.getElementById('wf-filtro-inst-status')?.value || '';
       const filtroInstTexto = (document.getElementById('wf-filtro-inst-texto')?.value || '').toLowerCase();
       const instanciasFiltradas = instancias.filter(i => {
+        if (i.excluida) return false;
         if (filtroInstStatus && i.status !== filtroInstStatus) return false;
         if (filtroInstTexto && !(i.titulo || '').toLowerCase().includes(filtroInstTexto)) return false;
         return true;
@@ -2335,22 +2336,29 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   async function wfExcluirInstancia(instanciaId) {
-    if (!confirm('Excluir permanentemente esta instância cancelada? Esta ação não pode ser desfeita.')) return;
-    const { deleteDoc, doc, getDocs, query, collection, where } = globalScope.fb();
+    if (!confirm('Excluir esta instância da listagem? O histórico será preservado para auditoria.')) return;
     try {
-      // Remove tarefas vinculadas
-      const tarefas = await _getAll('wf_tarefa_workflows',
-        where('instancia_id', '==', instanciaId)
-      );
-      const historicos = await _getAll('wf_historico_workflows',
-        where('instancia_id', '==', instanciaId)
-      );
-      const batch = (globalScope.fb().writeBatch)(_db());
-      tarefas.forEach(t => batch.delete(doc(_db(), 'wf_tarefa_workflows', t.id)));
-      historicos.forEach(h => batch.delete(doc(_db(), 'wf_historico_workflows', h.id)));
-      batch.delete(doc(_db(), 'wf_instancia_processos', instanciaId));
-      await batch.commit();
+      const instancia = await _getDoc('wf_instancia_processos', instanciaId);
+      if (!instancia) { alert('Instância não encontrada.'); return; }
+
+      // A exclusão lógica exige instância cancelada para manter consistência do fluxo.
+      if (instancia.status !== 'cancelado') {
+        const podeCancelarExcluir = confirm('A instância ainda está ativa. Deseja cancelar antes de excluir da listagem?');
+        if (!podeCancelarExcluir) return;
+        await wfConfirmarCancelar(instanciaId);
+      }
+
+      await _updateDoc('wf_instancia_processos', instanciaId, {
+        excluida: true,
+        excluida_em: new Date(),
+        excluida_por_uid: _uid(),
+      });
+
+      await _registrarHistorico(instanciaId, 'instancia_excluida_logica', _uid(), null, null,
+        'Instância removida da listagem (exclusão lógica).', {});
+
       wfCarregarInstancias();
+      if (_st.painelAtual === 'solicitacoes') wfCarregarSolicitacoes();
     } catch (e) {
       alert('Erro ao excluir: ' + e.message);
     }
@@ -3194,14 +3202,15 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       if (!uid) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Usuário não autenticado.</div>'; return; }
       const { where } = globalScope.fb();
       const instancias = await _getAll('wf_instancia_processos', where('solicitante_uid', '==', uid));
-      if (!instancias.length) {
+      const instanciasAtivas = instancias.filter(i => !i.excluida);
+      if (!instanciasAtivas.length) {
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Você ainda não iniciou nenhum processo.</div>';
         return;
       }
       const STATUS_COR = globalScope.WF_STATUS_INSTANCIA_COR || { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444', suspenso:'#f59e0b' };
       const STATUS_LABELS = globalScope.WF_STATUS_INSTANCIA_LABELS || { em_andamento:'Em Andamento', concluido:'Concluído', cancelado:'Cancelado', suspenso:'Suspenso' };
-      instancias.sort((a, b) => (b._criado_em?.seconds || 0) - (a._criado_em?.seconds || 0));
-      el.innerHTML = instancias.map(inst => {
+      instanciasAtivas.sort((a, b) => (b._criado_em?.seconds || 0) - (a._criado_em?.seconds || 0));
+      el.innerHTML = instanciasAtivas.map(inst => {
         const cor = STATUS_COR[inst.status] || '#6b7280';
         const label = STATUS_LABELS[inst.status] || (inst.status || '');
         const criado = inst._criado_em?.toDate ? inst._criado_em.toDate().toLocaleDateString('pt-BR') : '—';
@@ -3517,10 +3526,10 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       el = document.createElement('div');
       el.id = id;
       el.className = 'modal-overlay';
-      el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding-top:48px';
+      el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2600;display:flex;align-items:flex-start;justify-content:center;padding-top:48px';
       document.body.appendChild(el);
     }
-    el.innerHTML = `<div class="modal" style="max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column">${html}</div>`;
+    el.innerHTML = `<div class="modal" style="max-width:640px;width:min(96vw,640px);max-height:88vh;display:flex;flex-direction:column;background:var(--surf,#fff);border:1px solid var(--bdr,#dcd9cf);border-radius:12px;box-shadow:var(--sh2,0 8px 28px rgba(0,0,0,.25));overflow:hidden">${html}</div>`;
     el.style.display = 'flex';
   }
 
