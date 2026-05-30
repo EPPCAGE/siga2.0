@@ -104,6 +104,14 @@
         { "fieldPath": "instancia_id", "order": "ASCENDING" },
         { "fieldPath": "_criado_em", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "wf_comentarios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tarefa_id", "order": "ASCENDING" },
+        { "fieldPath": "_criado_em", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

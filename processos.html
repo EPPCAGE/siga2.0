@@ -2200,6 +2200,22 @@ Não responda este e-mail.</pre>
       </div>
       <div id="wf-exec-acoes" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"></div>
     </div>
+
+    <!-- Thread de comentários da etapa -->
+    <div style="margin-top:20px">
+      <strong style="font-size:13px">Comentários desta etapa</strong>
+      <div id="wf-exec-comentarios" style="margin-top:12px"></div>
+      <div style="margin-top:12px">
+        <div id="wf-exec-respondendo-badge" style="display:none;font-size:11px;color:var(--blue);margin-bottom:4px;align-items:center;gap:6px">
+          <span></span>
+          <button type="button" onclick="wfCancelarResposta()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:12px">✕</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <textarea class="fi" id="wf-exec-comentario-texto" rows="2" placeholder="Escreva um comentário sobre esta etapa…" style="flex:1;resize:vertical" aria-label="Comentário"></textarea>
+          <button type="button" class="btn btn-p btn-sm" onclick="wfEnviarComentario()">Enviar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Painel: Histórico da instância -->
@@ -2221,20 +2237,10 @@ Não responda este e-mail.</pre>
       <div style="color:var(--ink3);font-size:14px">Carregando…</div>
     </div>
 
-    <!-- Thread de comentários -->
+    <!-- Comentários por etapa (agrupados na timeline) -->
     <div style="margin-top:24px">
-      <strong style="font-size:13px">Comentários</strong>
-      <div id="wf-hist-comentarios" style="margin-top:12px"></div>
-      <div style="margin-top:12px">
-        <div id="wf-hist-respondendo-badge" style="display:none;font-size:11px;color:var(--blue);margin-bottom:4px;align-items:center;gap:6px">
-          <span></span>
-          <button type="button" onclick="wfCancelarResposta()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:12px">✕</button>
-        </div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <textarea class="fi" id="wf-hist-comentario-texto" rows="2" placeholder="Escreva um comentário…" style="flex:1;resize:vertical" aria-label="Comentário"></textarea>
-          <button type="button" class="btn btn-p btn-sm" onclick="wfEnviarComentario()">Enviar</button>
-        </div>
-      </div>
+      <strong style="font-size:13px">Comentários por etapa</strong>
+      <div id="wf-hist-comentarios-por-etapa" style="margin-top:12px"></div>
     </div>
   </div>
 

@@ -420,6 +420,10 @@
     _st._anexosTarefa = (tarefa.anexos || []).slice();
     _wfRenderAnexos();
 
+    // Carrega comentários desta etapa
+    wfCancelarResposta();
+    wfCarregarComentarios(tarefa.id);
+
     wfNavWorkflow('executar');
   }
 
@@ -1521,12 +1525,43 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       tl.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
     }
 
-    // Carrega comentários
-    await wfCarregarComentarios(instanciaId);
-    // Reseta campo de comentário
-    const areaComent = document.getElementById('wf-hist-comentario-texto');
-    if (areaComent) areaComent.value = '';
-    wfCancelarResposta();
+    // Comentários agrupados por etapa
+    const elComentPorEtapa = document.getElementById('wf-hist-comentarios-por-etapa');
+    if (elComentPorEtapa) {
+      try {
+        const { where: whereC } = globalScope.fb();
+        const todosComentarios = (await _getAll('wf_comentarios',
+          whereC('instancia_id', '==', instanciaId),
+        )).sort((a, b) => (a._criado_em?.seconds ?? 0) - (b._criado_em?.seconds ?? 0));
+
+        if (!todosComentarios.length) {
+          elComentPorEtapa.innerHTML = '<div style="color:var(--ink3);font-size:13px">Nenhum comentário registrado.</div>';
+        } else {
+          // Agrupa por etapa_nome (ou etapa_id)
+          const grupos = {};
+          const ordemGrupos = [];
+          todosComentarios.forEach(c => {
+            const chave = c.etapa_nome || c.etapa_id || 'Sem etapa';
+            if (!grupos[chave]) { grupos[chave] = []; ordemGrupos.push(chave); }
+            grupos[chave].push(c);
+          });
+          elComentPorEtapa.innerHTML = ordemGrupos.map(chave => {
+            const divGrupo = document.createElement('div');
+            divGrupo.style.cssText = 'margin-bottom:20px';
+            const titulo = document.createElement('div');
+            titulo.style.cssText = 'font-size:12px;font-weight:600;color:var(--blue);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px';
+            titulo.textContent = chave;
+            const corpo = document.createElement('div');
+            _renderThreadComentarios(grupos[chave], corpo, false);
+            divGrupo.appendChild(titulo);
+            divGrupo.appendChild(corpo);
+            return divGrupo.outerHTML;
+          }).join('');
+        }
+      } catch (_e) {
+        elComentPorEtapa.innerHTML = '';
+      }
+    }
 
     wfNavWorkflow('historico');
   }
@@ -1814,55 +1849,51 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   // ── P3: Thread de comentários ─────────────────────────────────────────────
 
-  async function wfCarregarComentarios(instanciaId) {
-    const el = document.getElementById('wf-hist-comentarios');
+  // Renderiza thread de comentários em um elemento — reutilizado no painel de execução
+  function _renderThreadComentarios(comentarios, containerEl, interativo = true) {
+    const nomeUsuario = (uid) => {
+      if (!uid) return '—';
+      const u = (globalScope.USUARIOS || []).find(x => x.uid === uid || x.id === uid);
+      return u?.nome || u?.email || uid;
+    };
+    const raizes = comentarios.filter(c => !c.respondendo_a);
+    const respostasPor = {};
+    comentarios.filter(c => c.respondendo_a).forEach(c => {
+      if (!respostasPor[c.respondendo_a]) respostasPor[c.respondendo_a] = [];
+      respostasPor[c.respondendo_a].push(c);
+    });
+    const renderComentario = (c, nivel = 0) => {
+      const ts = c._criado_em?.seconds
+        ? new Date(c._criado_em.seconds * 1000).toLocaleString('pt-BR') : '—';
+      const respostas = respostasPor[c.id] || [];
+      const indent = nivel > 0 ? 'border-left:3px solid var(--bdr);margin-left:20px;padding-left:12px;' : '';
+      return `
+        <div style="${indent}margin-bottom:10px" data-comentario-id="${_esc(c.id)}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-weight:600;font-size:13px">${_esc(nomeUsuario(c.autor_uid))}</span>
+            <span style="font-size:11px;color:var(--ink3)">${ts}</span>
+            ${interativo && nivel === 0 ? `<button type="button" class="btn btn-sm" style="margin-left:auto;font-size:11px;padding:2px 8px"
+              onclick="wfResponderComentario('${_esc(c.id)}','${_esc(nomeUsuario(c.autor_uid))}')">Responder</button>` : ''}
+          </div>
+          <div style="font-size:13px;color:var(--ink);white-space:pre-wrap">${_esc(c.texto)}</div>
+          ${respostas.map(r => renderComentario(r, nivel + 1)).join('')}
+        </div>`;
+    };
+    containerEl.innerHTML = raizes.length
+      ? raizes.map(c => renderComentario(c)).join('')
+      : '<div style="color:var(--ink3);font-size:13px">Nenhum comentário.</div>';
+  }
+
+  async function wfCarregarComentarios(tarefaId) {
+    const el = document.getElementById('wf-exec-comentarios');
     if (!el) return;
     el.innerHTML = '<div style="color:var(--ink3);font-size:13px">Carregando comentários…</div>';
     try {
       const { where } = globalScope.fb();
       const comentarios = (await _getAll('wf_comentarios',
-        where('instancia_id', '==', instanciaId),
-      )).sort((a, b) => {
-        const ta = a._criado_em?.seconds ?? 0;
-        const tb = b._criado_em?.seconds ?? 0;
-        return ta - tb;
-      });
-
-      const nomeUsuario = (uid) => {
-        if (!uid) return '—';
-        const u = (globalScope.USUARIOS || []).find(x => x.uid === uid || x.id === uid);
-        return u?.nome || u?.email || uid;
-      };
-
-      // Agrupa raízes e respostas
-      const raizes = comentarios.filter(c => !c.respondendo_a);
-      const respostasPor = {};
-      comentarios.filter(c => c.respondendo_a).forEach(c => {
-        if (!respostasPor[c.respondendo_a]) respostasPor[c.respondendo_a] = [];
-        respostasPor[c.respondendo_a].push(c);
-      });
-
-      const renderComentario = (c, nivel = 0) => {
-        const ts = c._criado_em?.seconds
-          ? new Date(c._criado_em.seconds * 1000).toLocaleString('pt-BR') : '—';
-        const respostas = respostasPor[c.id] || [];
-        const indent = nivel > 0 ? 'border-left:3px solid var(--bdr);margin-left:20px;padding-left:12px;' : '';
-        return `
-          <div style="${indent}margin-bottom:10px" data-comentario-id="${_esc(c.id)}">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span style="font-weight:600;font-size:13px">${_esc(nomeUsuario(c.autor_uid))}</span>
-              <span style="font-size:11px;color:var(--ink3)">${ts}</span>
-              ${nivel === 0 ? `<button type="button" class="btn btn-sm" style="margin-left:auto;font-size:11px;padding:2px 8px"
-                onclick="wfResponderComentario('${_esc(c.id)}','${_esc(nomeUsuario(c.autor_uid))}')">Responder</button>` : ''}
-            </div>
-            <div style="font-size:13px;color:var(--ink);white-space:pre-wrap">${_esc(c.texto)}</div>
-            ${respostas.map(r => renderComentario(r, nivel + 1)).join('')}
-          </div>`;
-      };
-
-      el.innerHTML = raizes.length
-        ? raizes.map(c => renderComentario(c)).join('')
-        : '<div style="color:var(--ink3);font-size:13px">Nenhum comentário ainda.</div>';
+        where('tarefa_id', '==', tarefaId),
+      )).sort((a, b) => (a._criado_em?.seconds ?? 0) - (b._criado_em?.seconds ?? 0));
+      _renderThreadComentarios(comentarios, el, true);
     } catch (e) {
       el.innerHTML = `<div style="color:#ef4444;font-size:13px">Erro: ${_esc(e.message)}</div>`;
     }
@@ -1870,9 +1901,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function wfResponderComentario(comentarioId, nomeAutor) {
     _st._respondendoA = comentarioId;
-    const area = document.getElementById('wf-hist-comentario-texto');
+    const area = document.getElementById('wf-exec-comentario-texto');
     if (area) { area.placeholder = `Respondendo a ${nomeAutor}…`; area.focus(); }
-    const badge = document.getElementById('wf-hist-respondendo-badge');
+    const badge = document.getElementById('wf-exec-respondendo-badge');
     if (badge) {
       badge.style.display = 'flex';
       const span = badge.querySelector('span');
@@ -1882,27 +1913,30 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function wfCancelarResposta() {
     _st._respondendoA = null;
-    const area = document.getElementById('wf-hist-comentario-texto');
-    if (area) area.placeholder = 'Escreva um comentário…';
-    const badge = document.getElementById('wf-hist-respondendo-badge');
+    const area = document.getElementById('wf-exec-comentario-texto');
+    if (area) area.placeholder = 'Escreva um comentário sobre esta etapa…';
+    const badge = document.getElementById('wf-exec-respondendo-badge');
     if (badge) badge.style.display = 'none';
   }
 
   async function wfEnviarComentario() {
-    if (!_st.instanciaAtual?.id) return;
-    const area = document.getElementById('wf-hist-comentario-texto');
+    if (!_st.tarefaAtual?.id) return;
+    const area = document.getElementById('wf-exec-comentario-texto');
     const texto = area?.value?.trim();
     if (!texto) return;
     try {
       await _addDoc('wf_comentarios', {
-        instancia_id: _st.instanciaAtual.id,
+        tarefa_id: _st.tarefaAtual.id,
+        instancia_id: _st.tarefaAtual.instancia_id,
+        etapa_id: _st.tarefaAtual.etapa_modelo_id || null,
+        etapa_nome: _st.tarefaAtual.etapa_nome || null,
         autor_uid: _uid(),
         texto,
         respondendo_a: _st._respondendoA || null,
       });
       area.value = '';
       wfCancelarResposta();
-      await wfCarregarComentarios(_st.instanciaAtual.id);
+      await wfCarregarComentarios(_st.tarefaAtual.id);
     } catch (e) {
       alert('Erro ao enviar comentário: ' + e.message);
     }
@@ -1924,15 +1958,26 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         return u?.nome || u?.email || uid;
       };
 
+      const { where: whereC } = globalScope.fb();
+      const comentariosCSV = (await _getAll('wf_comentarios',
+        whereC('instancia_id', '==', _st.instanciaAtual.id),
+      )).sort((a, b) => (a._criado_em?.seconds ?? 0) - (b._criado_em?.seconds ?? 0));
+
       const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const linhas = [
-        ['Data/Hora', 'Evento', 'Usuário', 'Etapa', 'Ação', 'Parecer', 'Descrição'].map(esc).join(','),
+        ['Data/Hora', 'Tipo', 'Usuário', 'Etapa', 'Ação', 'Parecer', 'Descrição/Comentário'].map(esc).join(','),
         ...eventos.map(h => {
           const ts = h._criado_em?.seconds
             ? new Date(h._criado_em.seconds * 1000).toLocaleString('pt-BR') : '';
           const d = h.dados || {};
           return [ts, h.tipo_evento, nomeUsuario(h.usuario_uid), h.etapa_id || '',
             d.acao || '', d.parecer || '', h.descricao || ''].map(esc).join(',');
+        }),
+        ...comentariosCSV.map(c => {
+          const ts = c._criado_em?.seconds
+            ? new Date(c._criado_em.seconds * 1000).toLocaleString('pt-BR') : '';
+          return [ts, 'comentario', nomeUsuario(c.autor_uid), c.etapa_nome || c.etapa_id || '',
+            '', '', c.texto || ''].map(esc).join(',');
         }),
       ];
       const bom = '﻿'; // BOM para Excel reconhecer UTF-8
@@ -1979,9 +2024,22 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         </tr>`;
       }).join('');
 
-      const linhasComentarios = comentarios.map(c =>
-        `<tr><td>${esc(ts(c._criado_em))}</td><td>${esc(nomeUsuario(c.autor_uid))}</td><td>${esc(c.texto)}</td></tr>`
-      ).join('');
+      // Agrupa comentários por etapa para o PDF
+      const gruposComent = {};
+      const ordemGrupos = [];
+      comentarios.forEach(c => {
+        const chave = c.etapa_nome || c.etapa_id || 'Sem etapa';
+        if (!gruposComent[chave]) { gruposComent[chave] = []; ordemGrupos.push(chave); }
+        gruposComent[chave].push(c);
+      });
+      const secaoComentarios = ordemGrupos.length ? `<h2>Comentários por etapa</h2>` + ordemGrupos.map(chave => {
+        const linhas = gruposComent[chave].map(c => {
+          const indent = c.respondendo_a ? 'padding-left:20px;color:#555' : '';
+          return `<tr><td style="${indent}">${esc(ts(c._criado_em))}</td><td style="${indent}">${esc(nomeUsuario(c.autor_uid))}</td><td style="${indent}">${esc(c.texto)}</td></tr>`;
+        }).join('');
+        return `<h3 style="font-size:11px;color:#3b82f6;text-transform:uppercase;margin:12px 0 4px">${esc(chave)}</h3>
+        <table><thead><tr><th>Data/Hora</th><th>Autor</th><th>Comentário</th></tr></thead><tbody>${linhas}</tbody></table>`;
+      }).join('') : '';
 
       const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
         <title>Histórico — ${esc(_st.instanciaAtual.titulo || _st.instanciaAtual.id)}</title>
@@ -1993,6 +2051,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           th { background: #f3f4f6; text-align: left; padding: 6px 8px; font-size: 11px; border-bottom: 2px solid #e5e7eb; }
           td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
           h2 { font-size: 13px; margin: 20px 0 8px; }
+          h3 { font-size: 11px; }
           @media print { body { padding: 0; } }
         </style>
       </head><body>
@@ -2001,9 +2060,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <h2>Eventos</h2>
         <table><thead><tr><th>Data/Hora</th><th>Evento</th><th>Usuário</th><th>Descrição</th><th>Ação</th><th>Parecer</th></tr></thead>
         <tbody>${linhasEventos}</tbody></table>
-        ${comentarios.length ? `<h2>Comentários</h2>
-        <table><thead><tr><th>Data/Hora</th><th>Autor</th><th>Comentário</th></tr></thead>
-        <tbody>${linhasComentarios}</tbody></table>` : ''}
+        ${secaoComentarios}
       </body></html>`;
 
       const win = window.open('', '_blank');
