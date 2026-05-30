@@ -224,7 +224,14 @@
 
   function rWorkflow() {
     _wfIniciarBadge();
-    wfNavWorkflow(_st.painelAtual || 'tarefas');
+    // Solicitante: ajusta abas e label
+    const isSolicitante = globalScope.usuarioLogado?.perfil === 'solicitante';
+    document.querySelectorAll('.wf-tab-nao-solicitante').forEach(el => {
+      el.style.display = isSolicitante ? 'none' : '';
+    });
+    const labelInstancias = document.getElementById('wf-tab-instancias-label');
+    if (labelInstancias) labelInstancias.textContent = isSolicitante ? 'Minhas Solicitações' : 'Processos Ativos';
+    wfNavWorkflow(isSolicitante ? 'iniciar' : (_st.painelAtual || 'tarefas'));
   }
 
   const _WF_PAGE = 20; // itens por página

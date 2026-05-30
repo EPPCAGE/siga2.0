@@ -82,6 +82,14 @@
     return globalScope.hasPerfil('gerente_projeto');
   };
 
+  /**
+   * Verifica se usuário é Solicitante (abre workflows, somente leitura no restante)
+   * @returns {boolean}
+   */
+  globalScope.isSolicitante = function isSolicitante() {
+    return globalScope.hasPerfil('solicitante');
+  };
+
   // ══════════════════════════════════════════════════════════════
   // FUNÇÕES DE ACESSO A MÓDULOS
   // ══════════════════════════════════════════════════════════════

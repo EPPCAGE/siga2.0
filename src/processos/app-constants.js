@@ -4,6 +4,7 @@
     dono: 'Executor de Processo',
     gestor: 'Gestor / Adjunto',
     gerente_projeto: 'Projetos',
+    solicitante: 'Solicitante',
   };
 
   globalScope.PERFIL_COR = {
@@ -11,6 +12,7 @@
     dono: '#0A7060',
     gestor: '#A85C00',
     gerente_projeto: '#7c3aed',
+    solicitante: '#0891b2',
   };
 
   globalScope.PERFIL = Object.freeze({
@@ -18,6 +20,7 @@
     DONO: 'dono',
     GESTOR: 'gestor',
     GERENTE_PROJETO: 'gerente_projeto',
+    SOLICITANTE: 'solicitante',
   });
 
   globalScope.STATUS_ENTREGA = Object.freeze({
