@@ -1758,16 +1758,21 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const usuariosFiltrados = (globalScope.USUARIOS || []).filter(u => u.uid && u.nome);
 
     lista.innerHTML = perfisNecessarios.map(perf => {
-      const opts = usuariosFiltrados
-        .filter(u => {
-          const p = globalScope.getPerfisUsuario ? globalScope.getPerfisUsuario(u) : (u.perfis || (u.perfil ? [u.perfil] : []));
-          return p.includes(perf);
-        })
-        .map(u => `<option value="${_esc(u.uid)}">${_esc(u.nome)}</option>`)
-        .join('');
+      const todos = usuariosFiltrados;
+      const comPerfil = todos.filter(u => {
+        const p = globalScope.getPerfisUsuario ? globalScope.getPerfisUsuario(u) : (u.perfis || (u.perfil ? [u.perfil] : []));
+        return p.includes(perf);
+      });
+      // Se nenhum usuário tem o perfil, exibe todos como fallback
+      const fonte = comPerfil.length ? comPerfil : todos;
+      const aviso = comPerfil.length === 0 && todos.length
+        ? `<div style="font-size:11px;color:var(--amber,#b45309);margin-top:4px">⚠ Nenhum usuário cadastrado com este perfil — selecione qualquer responsável.</div>`
+        : '';
+      const opts = fonte.map(u => `<option value="${_esc(u.uid)}">${_esc(u.nome)}</option>`).join('');
       return `<div style="margin-bottom:14px">
         <label class="lbl" style="display:block;margin-bottom:4px">${_esc(PERFIL_LABELS_LOCAL[perf] || perf)}</label>
-        <select class="fi" id="wf-atrib-sel-${_esc(perf)}">${opts || '<option value="">— nenhum usuário com este perfil —</option>'}</select>
+        <select class="fi" id="wf-atrib-sel-${_esc(perf)}">${opts || '<option value="">— sem usuários cadastrados —</option>'}</select>
+        ${aviso}
       </div>`;
     }).join('');
 
