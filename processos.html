@@ -2080,6 +2080,7 @@ Não responda este e-mail.</pre>
     <button type="button" class="btn" id="wf-tab-iniciar" onclick="wfNavWorkflow('iniciar')" style="border-radius:6px 6px 0 0;border-bottom:none">▶ Iniciar</button>
     <button type="button" class="btn ep-only" id="wf-tab-designer" onclick="wfAbrirDesigner()" style="border-radius:6px 6px 0 0;border-bottom:none">🧩 Designer</button>
     <button type="button" class="btn ep-only" id="wf-tab-formularios" onclick="wfNavWorkflow('formularios')" style="border-radius:6px 6px 0 0;border-bottom:none">📝 Formulários</button>
+    <button type="button" class="btn" id="wf-tab-notificacoes" onclick="wfNavWorkflow('notificacoes')" style="border-radius:6px 6px 0 0;border-bottom:none">🔔 Notificações</button>
   </div>
 
   <!-- Painel: Minhas Tarefas -->
@@ -2224,6 +2225,15 @@ Não responda este e-mail.</pre>
       <button type="button" class="btn btn-p" onclick="wfSalvarConfigProcesso()">Salvar configuração</button>
       <button type="button" class="btn" onclick="wfNavWorkflow('iniciar')">Cancelar</button>
     </div>
+  </div>
+
+  <!-- Painel: Notificações -->
+  <!-- Painel: Notificações (lista preenchida por _wfRenderNotifPanel) -->
+  <div id="wf-painel-notificacoes" style="display:none;max-width:640px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <h3 style="margin:0;font-size:17px;color:var(--ink)">Notificações</h3>
+    </div>
+    <div id="wf-notif-lista"></div>
   </div>
 
   <!-- Modal: Editor de Formulário -->

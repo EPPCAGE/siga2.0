@@ -55,6 +55,14 @@
         { "fieldPath": "instancia_id", "order": "ASCENDING" },
         { "fieldPath": "_criado_em", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "wf_notificacoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "destinatario_uid", "order": "ASCENDING" },
+        { "fieldPath": "lida", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -6,17 +6,20 @@
     painelAtual: 'tarefas',
     instanciaAtual: null,
     tarefaAtual: null,
-    formularioAtual: null,       // schema sendo editado no modal de formulário
-    formularioCampos: [],        // campos do formulário sendo editado
-    configProcessoId: null,      // processo sendo configurado
-    configProcessoEtapas: [],    // etapas do processo sendo configurado
-    formularioModelos: [],       // cache dos modelos carregados
+    formularioAtual: null,
+    formularioCampos: [],
+    configProcessoId: null,
+    configProcessoEtapas: [],
+    formularioModelos: [],
     // Designer visual
-    designerModelo: null,        // wf_processo_modelos sendo editado { id, nome, ..., canvas:{nos,arestas} }
-    designerNoSel: null,         // id do nó selecionado
-    designerArestaSel: null,     // id da aresta selecionada
-    designerDrag: null,          // estado do arraste em curso
-    iniciarAba: 'mapeamento',    // aba ativa da tela iniciar
+    designerModelo: null,
+    designerNoSel: null,
+    designerArestaSel: null,
+    designerDrag: null,
+    iniciarAba: 'mapeamento',
+    // Paginação
+    tarefasCursor: null,      // último doc do Firestore para paginação
+    instanciasCursor: null,
   };
 
   function _uid() {
@@ -102,7 +105,7 @@
   }
 
   // ── Navegação interna do módulo ───────────────────────────────────────────
-  const _paineis = ['tarefas','instancias','iniciar','executar','historico','formularios','config-processo','designer'];
+  const _paineis = ['tarefas','instancias','iniciar','executar','historico','formularios','config-processo','designer','notificacoes'];
 
   function wfNavWorkflow(painel) {
     _st.painelAtual = painel;
@@ -124,31 +127,127 @@
       instancias: wfCarregarInstancias,
       iniciar: wfCarregarIniciar,
       formularios: wfCarregarFormularios,
+      notificacoes: _wfRenderNotifPanel,
     };
     carregadores[painel]?.();
   }
 
+  // P2.1 — Badge de notificações não lidas no botão do módulo
+  let _unsubNotifs = null;
+
+  function _wfIniciarBadge() {
+    const uid = _uid();
+    if (!uid || _unsubNotifs) return;
+    const { onSnapshot, where, query, collection } = globalScope.fb();
+    const q = query(
+      collection(_db(), 'wf_notificacoes'),
+      where('destinatario_uid', '==', uid),
+      where('lida', '==', false),
+    );
+    _unsubNotifs = onSnapshot(q, snap => {
+      const count = snap.size;
+      const btn = document.getElementById('nb-workflow');
+      if (!btn) return;
+      let badge = btn.querySelector('.wf-notif-badge');
+      if (count > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'wf-notif-badge';
+          badge.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle';
+          btn.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? '99+' : String(count);
+        _st._notifCount = count;
+        if (_st.painelAtual === 'notificacoes') _wfRenderNotifPanel();
+      } else {
+        badge?.remove();
+        _st._notifCount = 0;
+      }
+    }, () => {}); // ignora erros de permissão silenciosamente
+  }
+
+  async function _wfRenderNotifPanel() {
+    const el = document.getElementById('wf-notif-lista');
+    if (!el || _st.painelAtual !== 'notificacoes') return;
+    const uid = _uid();
+    if (!uid) return;
+    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    try {
+      const { where, limit, query, collection, getDocs } = globalScope.fb();
+      const q = query(
+        collection(_db(), 'wf_notificacoes'),
+        where('destinatario_uid', '==', uid),
+        limit(50),
+      );
+      const snap = await getDocs(q);
+      let notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      notifs.sort((a, b) => {
+        const ta = a._criado_em?.seconds ?? 0;
+        const tb = b._criado_em?.seconds ?? 0;
+        return tb - ta;
+      });
+      if (!notifs.length) {
+        el.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:16px 0">Nenhuma notificação.</div>';
+        return;
+      }
+      el.innerHTML = notifs.map(n => {
+        const ts = n._criado_em?.seconds
+          ? new Date(n._criado_em.seconds * 1000).toLocaleString('pt-BR')
+          : '—';
+        const bg = n.lida ? 'var(--bg)' : 'var(--blue-soft,#eff6ff)';
+        return `<div style="background:${bg};border:1px solid var(--bdr);border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer"
+          onclick="wfMarcarNotifLida('${n.id}','${n.instancia_id || ''}','${n.titulo || ''}','${n.instancia_id || ''}')">
+          <div style="font-weight:600;font-size:13px">${_esc(n.titulo || '')}</div>
+          <div style="font-size:12px;color:var(--ink2);margin-top:2px">${_esc(n.mensagem || '')}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">${ts}</div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      el.innerHTML = `<div style="color:#ef4444;font-size:13px">Erro: ${_esc(e.message)}</div>`;
+    }
+  }
+
+  async function wfMarcarNotifLida(notifId, instanciaId, titulo, id) {
+    try {
+      await _updateDoc('wf_notificacoes', notifId, { lida: true });
+      if (instanciaId) wfAbrirHistorico(instanciaId, titulo || instanciaId, '');
+      else wfNavWorkflow('notificacoes');
+    } catch { wfNavWorkflow('notificacoes'); }
+  }
+
   function rWorkflow() {
+    _wfIniciarBadge();
     wfNavWorkflow(_st.painelAtual || 'tarefas');
   }
 
+  const _WF_PAGE = 20; // itens por página
+
   // ── Tarefas ───────────────────────────────────────────────────────────────
-  async function wfCarregarTarefas() {
+  async function wfCarregarTarefas(acrescentar = false) {
     const el = document.getElementById('wf-lista-tarefas');
     if (!el) return;
-    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    if (!acrescentar) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>'; _st.tarefasCursor = null; }
     try {
       const uid = _uid();
       if (!uid) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Usuário não autenticado.</div>'; return; }
-      const { where } = globalScope.fb();
-      const minhas = await _getAll('wf_tarefa_workflows',
+      const { where, limit, startAfter, query, collection, getDocs } = globalScope.fb();
+      const db = _db();
+
+      // Monta query paginada para tarefas próprias
+      const baseConstraints = [
         where('responsavel_uid', '==', uid),
         where('status', 'in', ['pendente','em_execucao']),
-      );
-      // Tarefas em aberto por perfil (responsavel_uid null) que o usuário pode assumir
+        limit(_WF_PAGE),
+      ];
+      if (_st.tarefasCursor) baseConstraints.push(startAfter(_st.tarefasCursor));
+      const snap = await getDocs(query(collection(db, 'wf_tarefa_workflows'), ...baseConstraints));
+      _st.tarefasCursor = snap.docs[snap.docs.length - 1] || null;
+      const minhas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Tarefas abertas por perfil (sem paginação — geralmente pequeno)
       const perfil = globalScope.usuarioLogado?.perfil;
       let porPerfil = [];
-      if (perfil) {
+      if (perfil && !acrescentar) {
         try {
           const abertas = await _getAll('wf_tarefa_workflows',
             where('papel_alvo', '==', perfil),
@@ -157,16 +256,23 @@
           porPerfil = abertas.filter(t => !t.responsavel_uid);
         } catch (_e) { /* índice opcional */ }
       }
+
       const mapa = {};
+      if (acrescentar) {
+        // Preserva itens já renderizados do perfil e acrescenta novos
+        el.querySelectorAll('[data-tarefa-id]').forEach(el2 => { mapa[el2.dataset.tarefaId] = true; });
+      }
       [...minhas, ...porPerfil].forEach(t => { mapa[t.id] = t; });
-      const tarefas = Object.values(mapa);
+      const tarefas = Object.values(mapa).filter(t => typeof t === 'object');
+
       if (!tarefas.length) {
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhuma tarefa pendente.</div>';
         return;
       }
       const statusLabels = { pendente:'Pendente', em_execucao:'Em execução', concluida:'Concluída', vencida:'Vencida' };
       const statusCores = { pendente:'#3b82f6', em_execucao:'#f59e0b', concluida:'#10b981', vencida:'#ef4444' };
-      el.innerHTML = tarefas.map(t => _card(`
+
+      const cards = tarefas.map(t => `<div data-tarefa-id="${_esc(t.id)}">${_card(`
         <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(t.etapa_nome || t.etapa_modelo_id)}</div>
         <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">${_esc(t.processo_nome || t.instancia_id)}</div>
         ${_badge(statusLabels[t.status] || t.status, statusCores[t.status] || '#6b7280')}
@@ -175,7 +281,12 @@
         <div style="margin-top:10px">
           <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir tarefa</button>
         </div>
-      `)).join('');
+      `)}</div>`).join('');
+
+      const temMais = snap.docs.length === _WF_PAGE;
+      el.innerHTML = cards + (temMais
+        ? `<div style="text-align:center;margin-top:12px"><button type="button" class="btn btn-sm" onclick="wfCarregarTarefas(true)">Carregar mais</button></div>`
+        : '');
     } catch (e) {
       el.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
     }
@@ -388,7 +499,21 @@
         if (instancia.canvas) {
           await _avancarFluxoCanvas(instancia, tarefa.etapa_modelo_id, acao);
         } else {
-          await _avancarFluxo(instancia, tarefa.etapa_modelo_id);
+          await _avancarFluxo(instancia, tarefa.etapa_modelo_id, acao);
+        }
+
+        // P1.3 — Notifica o solicitante quando uma etapa é concluída por outro usuário
+        if (instancia.solicitante_uid && instancia.solicitante_uid !== _uid()) {
+          const ACAO_LABELS2 = globalScope.WF_ACAO_LABELS || {};
+          await _addDoc('wf_notificacoes', {
+            destinatario_uid: instancia.solicitante_uid,
+            tipo: 'etapa_concluida',
+            titulo: `Etapa concluída: ${tarefa.etapa_nome}`,
+            mensagem: `A etapa "${tarefa.etapa_nome}" do processo "${tarefa.processo_nome}" foi ${ACAO_LABELS2[acao] || acao}.`,
+            instancia_id: tarefa.instancia_id,
+            tarefa_id: tarefa.id,
+            lida: false,
+          });
         }
       }
 
@@ -526,7 +651,23 @@
   // Avança fluxo baseado no canvas do modelo
   async function _avancarFluxoCanvas(instancia, noOrigemId, acao) {
     const canvas = instancia.canvas;
-    const prox = _proximoNo(canvas, noOrigemId, acao);
+
+    // Rejeitar/devolver: retorna ao nó anterior (aresta de entrada em noOrigemId)
+    if (acao === 'rejeitar' || acao === 'devolver') {
+      const arestas = canvas.arestas || [];
+      const nos = canvas.nos || [];
+      const arestaEntrada = arestas.find(a => a.destino === noOrigemId);
+      const noAnterior = arestaEntrada ? nos.find(n => n.id === arestaEntrada.origem) : null;
+      if (noAnterior && noAnterior.tipo !== 'inicio') {
+        await _updateDoc('wf_instancia_processos', instancia.id, { no_atual_id: noAnterior.id, etapa_atual_id: noAnterior.id });
+        await _criarTarefasDoNo(instancia, noAnterior);
+        await _registrarHistorico(instancia.id, 'etapa_retornada', _uid(), noAnterior.id, null,
+          `Etapa devolvida para "${noAnterior.nome}".`, { acao });
+        return;
+      }
+    }
+
+    const prox = _proximoNo(canvas, noOrigemId, acao, instancia.dados_consolidados || {});
     if (!prox || prox.tipo === 'fim') {
       await _updateDoc('wf_instancia_processos', instancia.id, {
         status: 'concluido', concluido_em: new Date(), no_atual_id: null, etapa_atual_id: null,
@@ -541,11 +682,23 @@
   }
 
   // Avança para a próxima etapa do snapshot sequencial
-  async function _avancarFluxo(instancia, etapaOrigemId) {
+  async function _avancarFluxo(instancia, etapaOrigemId, acao) {
     const etapas = instancia.snapshot_etapas || [];
     const idx = etapas.findIndex(e => e.id === etapaOrigemId);
-    const proxEtapa = etapas[idx + 1];
 
+    // Rejeitar/devolver: retorna à etapa anterior
+    if (acao === 'rejeitar' || acao === 'devolver') {
+      const etapaAnterior = idx > 0 ? etapas[idx - 1] : null;
+      if (etapaAnterior) {
+        await _updateDoc('wf_instancia_processos', instancia.id, { etapa_atual_id: etapaAnterior.id });
+        await _criarTarefa(instancia, etapaAnterior);
+        await _registrarHistorico(instancia.id, 'etapa_retornada', _uid(), etapaAnterior.id, null,
+          `Etapa devolvida para "${etapaAnterior.nome}".`, { acao });
+        return;
+      }
+    }
+
+    const proxEtapa = etapas[idx + 1];
     if (!proxEtapa) {
       // Última etapa — conclui o processo
       await _updateDoc('wf_instancia_processos', instancia.id, {
@@ -608,28 +761,35 @@
   }
 
   // ── Instâncias ────────────────────────────────────────────────────────────
-  async function wfCarregarInstancias() {
+  async function wfCarregarInstancias(acrescentar = false) {
     const el = document.getElementById('wf-lista-instancias');
     if (!el) return;
-    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    if (!acrescentar) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>'; _st.instanciasCursor = null; }
     try {
       const uid = _uid();
       if (!uid) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Usuário não autenticado.</div>'; return; }
-      const { where } = globalScope.fb();
-      const instancias = (await _getAll('wf_instancia_processos',
-        where('solicitante_uid', '==', uid),
-      )).sort((a, b) => {
+      const { where, limit, startAfter, query, collection, getDocs } = globalScope.fb();
+      const db = _db();
+
+      const constraints = [where('solicitante_uid', '==', uid), limit(_WF_PAGE)];
+      if (_st.instanciasCursor) constraints.push(startAfter(_st.instanciasCursor));
+      const snap = await getDocs(query(collection(db, 'wf_instancia_processos'), ...constraints));
+      _st.instanciasCursor = snap.docs[snap.docs.length - 1] || null;
+
+      let instancias = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      instancias.sort((a, b) => {
         const ta = a._criado_em?.seconds ?? (a._criado_em ? a._criado_em.getTime() / 1000 : 0);
         const tb = b._criado_em?.seconds ?? (b._criado_em ? b._criado_em.getTime() / 1000 : 0);
         return tb - ta;
       });
-      if (!instancias.length) {
+
+      if (!instancias.length && !acrescentar) {
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum processo iniciado ainda.</div>';
         return;
       }
       const statusLabels = { em_andamento:'Em andamento', concluido:'Concluído', cancelado:'Cancelado' };
       const statusCores = { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444' };
-      el.innerHTML = instancias.map(i => {
+      const cards = instancias.map(i => {
         const etapas = i.snapshot_etapas || [];
         const idxAtual = etapas.findIndex(e => e.id === i.etapa_atual_id);
         const pct = etapas.length > 1 && idxAtual >= 0
@@ -655,6 +815,17 @@
           </div>
         `);
       }).join('');
+
+      const temMais = snap.docs.length === _WF_PAGE;
+      const btnMais = temMais ? `<div style="text-align:center;margin-top:12px"><button type="button" class="btn btn-sm" onclick="wfCarregarInstancias(true)">Carregar mais</button></div>` : '';
+
+      if (acrescentar) {
+        const btnAnterior = el.querySelector('.wf-btn-mais');
+        if (btnAnterior) btnAnterior.remove();
+        el.insertAdjacentHTML('beforeend', cards + btnMais);
+      } else {
+        el.innerHTML = cards + btnMais;
+      }
     } catch (e) {
       el.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
     }
@@ -1222,17 +1393,40 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   // Resolve o nó destino a partir de um nó, seguindo arestas (pulando início)
-  function _proximoNo(canvas, noId, acao) {
+  // Avalia uma expressão simples de condição de gateway contra os dados coletados.
+  // Suporta: campo == valor, campo != valor, campo > valor, campo < valor
+  function _avaliarCondicao(condicao, dados) {
+    if (!condicao || !condicao.trim()) return true;
+    try {
+      const m = condicao.match(/^\s*(\w+)\s*(==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
+      if (!m) return true; // condição não reconhecida → passa
+      const [, campo, op, valorStr] = m;
+      const valDados = dados[campo];
+      const valComp = isNaN(valorStr) ? valorStr.replace(/^['"]|['"]$/g, '') : Number(valorStr);
+      switch (op) {
+        case '==': return String(valDados) === String(valComp);
+        case '!=': return String(valDados) !== String(valComp);
+        case '>':  return Number(valDados) > Number(valComp);
+        case '<':  return Number(valDados) < Number(valComp);
+        case '>=': return Number(valDados) >= Number(valComp);
+        case '<=': return Number(valDados) <= Number(valComp);
+        default: return true;
+      }
+    } catch { return true; }
+  }
+
+  function _proximoNo(canvas, noId, acao, dados = {}) {
     const arestas = canvas.arestas || [];
     const nos = canvas.nos || [];
-    // arestas que partem de noId; se acao informada, filtra; senão pega a primeira
-    const candidatas = arestas.filter(a => a.origem === noId && (acao == null || a.acao === acao));
-    const aresta = candidatas[0] || (acao != null ? arestas.find(a => a.origem === noId) : null);
+    // arestas que partem de noId; filtra por ação se informada
+    const candidatas = arestas.filter(a => a.origem === noId && (acao == null || a.acao === acao || !a.acao));
+    // para gateways com condições, usa a primeira cujas condições passem
+    const aresta = candidatas.find(a => _avaliarCondicao(a.condicao, dados))
+      || (acao != null ? arestas.find(a => a.origem === noId) : null);
     if (!aresta) return null;
     const destino = nos.find(n => n.id === aresta.destino);
     if (!destino) return null;
-    // se destino for início (não deveria), segue adiante
-    if (destino.tipo === 'inicio') return _proximoNo(canvas, destino.id, null);
+    if (destino.tipo === 'inicio') return _proximoNo(canvas, destino.id, null, dados);
     return destino;
   }
 
@@ -1604,6 +1798,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfAbrirHistorico,
     wfCancelarInstancia,
     wfConfirmarCancelar,
+    wfMarcarNotifLida,
     // Formulários
     wfCarregarFormularios,
     wfAbrirModalNovoFormulario,
