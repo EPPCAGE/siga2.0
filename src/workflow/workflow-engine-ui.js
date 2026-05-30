@@ -284,7 +284,62 @@
       return `<button type="button" class="${btnClasse(a)}"${style} onclick="wfConcluirTarefa('${a}')">${_esc(ACAO_LABELS[a] || a)}</button>`;
     }).join('') + `<button type="button" class="btn" onclick="wfNavWorkflow('tarefas')">Cancelar</button>`;
 
+    // Inicializa lista de anexos (carrega os já existentes na tarefa)
+    _st._anexosTarefa = (tarefa.anexos || []).slice();
+    _wfRenderAnexos();
+
     wfNavWorkflow('executar');
+  }
+
+  function _wfRenderAnexos() {
+    const lista = document.getElementById('wf-exec-anexos-lista');
+    if (!lista) return;
+    const anexos = _st._anexosTarefa || [];
+    if (!anexos.length) { lista.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Nenhum anexo.</div>'; return; }
+    lista.innerHTML = anexos.map((a, i) => `
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 8px;background:var(--surf2);border-radius:6px;margin-bottom:4px">
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 <a href="${_esc(a.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">${_esc(a.nome)}</a></span>
+        <span style="color:var(--ink3);flex-shrink:0">${_esc(a.tamanho || '')}</span>
+        <button type="button" onclick="wfRemoverAnexo(${i})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:13px;padding:0 2px" aria-label="Remover anexo">✕</button>
+      </div>`).join('');
+  }
+
+  async function wfAnexarArquivos(input) {
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
+    const { storage, storageRef, uploadBytes, getDownloadURL } = globalThis._fb || {};
+    if (!storage) { alert('Armazenamento não disponível.'); return; }
+    const prog = document.getElementById('wf-exec-anexo-progresso');
+    for (const file of files) {
+      if (prog) prog.textContent = `Enviando ${file.name}…`;
+      try {
+        const path = `workflow/${_st.tarefaAtual.instancia_id}/${_st.tarefaAtual.id}/${Date.now()}_${file.name}`;
+        const sref = storageRef(storage, path);
+        await uploadBytes(sref, file);
+        const url = await getDownloadURL(sref);
+        const kb = file.size < 1024 * 1024
+          ? Math.round(file.size / 1024) + ' KB'
+          : (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+        _st._anexosTarefa.push({ nome: file.name, url, path, tamanho: kb });
+        _wfRenderAnexos();
+      } catch (e) {
+        alert(`Erro ao enviar ${file.name}: ${e.message}`);
+      }
+    }
+    if (prog) prog.textContent = '';
+    input.value = '';
+  }
+
+  async function wfRemoverAnexo(idx) {
+    const anexo = (_st._anexosTarefa || [])[idx];
+    if (!anexo) return;
+    if (!confirm(`Remover "${anexo.nome}"?`)) return;
+    const { storage, storageRef: sRef, deleteObject } = globalThis._fb || {};
+    if (storage && anexo.path) {
+      try { await deleteObject(sRef(storage, anexo.path)); } catch (_e) { /* arquivo pode já não existir */ }
+    }
+    _st._anexosTarefa.splice(idx, 1);
+    _wfRenderAnexos();
   }
 
   function proxEtapaLegado(instancia, tarefa) {
@@ -322,6 +377,7 @@
         parecer: obs || null,
         acao_tomada: acao,
         dados_formulario: dadosForm,
+        anexos: _st._anexosTarefa || [],
         concluido_em: new Date(),
       });
 
@@ -559,11 +615,14 @@
     try {
       const uid = _uid();
       if (!uid) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Usuário não autenticado.</div>'; return; }
-      const { where, orderBy } = globalScope.fb();
-      const instancias = await _getAll('wf_instancia_processos',
+      const { where } = globalScope.fb();
+      const instancias = (await _getAll('wf_instancia_processos',
         where('solicitante_uid', '==', uid),
-        orderBy('_criado_em', 'desc'),
-      );
+      )).sort((a, b) => {
+        const ta = a._criado_em?.seconds ?? (a._criado_em ? a._criado_em.getTime() / 1000 : 0);
+        const tb = b._criado_em?.seconds ?? (b._criado_em ? b._criado_em.getTime() / 1000 : 0);
+        return tb - ta;
+      });
       if (!instancias.length) {
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum processo iniciado ainda.</div>';
         return;
@@ -1197,11 +1256,14 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const tl = document.getElementById('wf-hist-timeline');
     tl.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
     try {
-      const { where, orderBy } = globalScope.fb();
-      const eventos = await _getAll('wf_historico_workflows',
+      const { where } = globalScope.fb();
+      const eventos = (await _getAll('wf_historico_workflows',
         where('instancia_id', '==', instanciaId),
-        orderBy('_criado_em', 'asc'),
-      );
+      )).sort((a, b) => {
+        const ta = a._criado_em?.seconds ?? (a._criado_em ? a._criado_em.getTime() / 1000 : 0);
+        const tb = b._criado_em?.seconds ?? (b._criado_em ? b._criado_em.getTime() / 1000 : 0);
+        return ta - tb;
+      });
       const ACAO_LABELS = globalScope.WF_ACAO_LABELS || {};
       const ACAO_COR = globalScope.WF_ACAO_COR || {};
       const PAPEL_LABELS = globalScope.WF_PAPEL_LABELS || {};
@@ -1520,6 +1582,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfCarregarTarefas,
     wfAbrirTarefa,
     wfConcluirTarefa,
+    wfAnexarArquivos,
+    wfRemoverAnexo,
     wfCarregarInstancias,
     wfCarregarProcessosMapeados,
     wfCarregarIniciar,
