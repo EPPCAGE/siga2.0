@@ -658,28 +658,62 @@ exports.wfConcluirTarefaEngine = onCall({ enforceAppCheck: false }, async (reque
 // ---------------------------------------------------------------------------
 exports.wfVerificarSLAs = onSchedule({ schedule: 'every 60 minutes', timeZone: 'America/Sao_Paulo' }, async () => {
   const agora = new Date();
-  const snap = await db.collection('wf_tarefa_workflows')
+  const em2h = new Date(agora.getTime() + 2 * 3600000);
+  const batch = db.batch();
+  const now = FieldValue.serverTimestamp();
+  let processadas = 0;
+
+  // ── 1. Pré-alerta: tarefas que vencem nas próximas 2h ────────────────────
+  const snapPreAlerta = await db.collection('wf_tarefa_workflows')
+    .where('status', 'in', ['pendente', 'em_execucao'])
+    .where('prazo', '>', agora)
+    .where('prazo', '<', em2h)
+    .get();
+
+  for (const docSnap of snapPreAlerta.docs) {
+    const tarefa = { id: docSnap.id, ...docSnap.data() };
+    if (!tarefa.responsavel_uid) continue;
+
+    // Evita duplicata de pré-alerta
+    const jaAlerta = await db.collection('wf_notificacoes')
+      .where('tarefa_id', '==', tarefa.id)
+      .where('tipo', '==', 'sla_alerta')
+      .limit(1)
+      .get();
+    if (!jaAlerta.empty) continue;
+
+    const minutosRestantes = Math.round((tarefa.prazo.toDate() - agora) / 60000);
+    const ref = db.collection('wf_notificacoes').doc();
+    batch.set(ref, {
+      destinatario_uid: tarefa.responsavel_uid,
+      tipo: 'sla_alerta',
+      titulo: `Prazo próximo: ${tarefa.etapa_nome}`,
+      mensagem: `A etapa "${tarefa.etapa_nome}" do processo "${tarefa.processo_nome}" vence em ${minutosRestantes} minutos.`,
+      instancia_id: tarefa.instancia_id,
+      tarefa_id: tarefa.id,
+      lida: false,
+      _criado_em: now,
+    });
+    processadas++;
+  }
+
+  // ── 2. SLA vencido: tarefas com prazo já ultrapassado ────────────────────
+  const snapVencido = await db.collection('wf_tarefa_workflows')
     .where('status', 'in', ['pendente', 'em_execucao'])
     .where('prazo', '<', agora)
     .get();
 
-  if (snap.empty) return;
+  for (const docSnap of snapVencido.docs) {
+    const tarefa = { id: docSnap.id, ...docSnap.data() };
 
-  const batch = db.batch();
-  const now = FieldValue.serverTimestamp();
-
-  for (const doc of snap.docs) {
-    const tarefa = { id: doc.id, ...doc.data() };
-
-    // Evita notificação duplicada: verifica se já existe alerta recente (última hora)
-    const jaNotifSnap = await db.collection('wf_notificacoes')
+    // Evita duplicata de vencido
+    const jaNotif = await db.collection('wf_notificacoes')
       .where('tarefa_id', '==', tarefa.id)
       .where('tipo', '==', 'sla_vencido')
       .limit(1)
       .get();
-    if (!jaNotifSnap.empty) continue;
+    if (!jaNotif.empty) continue;
 
-    // Notifica o responsável
     if (tarefa.responsavel_uid) {
       const ref = db.collection('wf_notificacoes').doc();
       batch.set(ref, {
@@ -694,24 +728,24 @@ exports.wfVerificarSLAs = onSchedule({ schedule: 'every 60 minutes', timeZone: '
       });
     }
 
-    // Escalada: notifica EP buscando usuários com perfil=ep via Auth
-    // (limitado a 1 notificação genérica para evitar sobrecarga)
+    // Escalada para EP
     const escRef = db.collection('wf_notificacoes').doc();
+    const hAtraso = tarefa.prazo?.toDate ? Math.round((agora - tarefa.prazo.toDate()) / 3600000) : '?';
     batch.set(escRef, {
-      destinatario_uid: 'ep_escalada', // sinal para o frontend mostrar ao EP
+      destinatario_uid: 'ep_escalada',
       tipo: 'sla_vencido_escalada',
       titulo: `Escalada SLA: ${tarefa.etapa_nome}`,
-      mensagem: `Tarefa em "${tarefa.processo_nome}" vencida há ${Math.round((agora - tarefa.prazo?.toDate?.()) / 3600000)}h.`,
+      mensagem: `Tarefa em "${tarefa.processo_nome}" vencida há ${hAtraso}h.`,
       instancia_id: tarefa.instancia_id,
       tarefa_id: tarefa.id,
       lida: false,
       _criado_em: now,
     });
 
-    // Marca a tarefa com flag de SLA vencido
-    batch.update(doc.ref, { sla_vencido: true, _atualizado_em: now });
+    batch.update(docSnap.ref, { sla_vencido: true, _atualizado_em: now });
+    processadas++;
   }
 
-  await batch.commit();
-  console.log(`wfVerificarSLAs: ${snap.size} tarefa(s) com SLA vencido processadas.`);
+  if (processadas > 0) await batch.commit();
+  console.log(`wfVerificarSLAs: ${processadas} tarefa(s) processadas (pré-alerta + vencidas).`);
 });

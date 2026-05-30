@@ -105,7 +105,7 @@
   }
 
   // ── Navegação interna do módulo ───────────────────────────────────────────
-  const _paineis = ['tarefas','instancias','iniciar','executar','historico','formularios','config-processo','designer','notificacoes'];
+  const _paineis = ['tarefas','instancias','iniciar','executar','historico','formularios','config-processo','designer','notificacoes','dashboard'];
 
   function wfNavWorkflow(painel) {
     _st.painelAtual = painel;
@@ -128,6 +128,7 @@
       iniciar: wfCarregarIniciar,
       formularios: wfCarregarFormularios,
       notificacoes: _wfRenderNotifPanel,
+      dashboard: wfCarregarDashboard,
     };
     carregadores[painel]?.();
   }
@@ -273,14 +274,29 @@
       const statusLabels = { pendente:'Pendente', em_execucao:'Em execução', concluida:'Concluída', vencida:'Vencida' };
       const statusCores = { pendente:'#3b82f6', em_execucao:'#f59e0b', concluida:'#10b981', vencida:'#ef4444' };
 
-      const cards = tarefas.map(t => `<div data-tarefa-id="${_esc(t.id)}">${_card(`
+      // Filtro client-side
+      const filtroStatus = document.getElementById('wf-filtro-tarefa-status')?.value || '';
+      const filtroTexto = (document.getElementById('wf-filtro-tarefa-texto')?.value || '').toLowerCase();
+      const tarefasFiltradas = tarefas.filter(t => {
+        if (filtroStatus && t.status !== filtroStatus) return false;
+        if (filtroTexto && !(t.etapa_nome || '').toLowerCase().includes(filtroTexto)
+          && !(t.processo_nome || '').toLowerCase().includes(filtroTexto)) return false;
+        return true;
+      });
+
+      if (!tarefasFiltradas.length) {
+        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhuma tarefa encontrada.</div>';
+        return;
+      }
+      const cards = tarefasFiltradas.map(t => `<div data-tarefa-id="${_esc(t.id)}">${_card(`
         <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(t.etapa_nome || t.etapa_modelo_id)}${t.sla_vencido ? ' <span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle">SLA VENCIDO</span>' : ''}</div>
         <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">${_esc(t.processo_nome || t.instancia_id)}</div>
         ${_badge(statusLabels[t.status] || t.status, statusCores[t.status] || '#6b7280')}
         ${_slaInfo(t)}
         ${t.etapa_desc ? `<div style="font-size:12px;color:var(--ink2);margin-top:6px">${_esc(t.etapa_desc)}</div>` : ''}
-        <div style="margin-top:10px">
-          <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir tarefa</button>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir</button>
+          <button type="button" class="btn btn-sm" onclick="wfAbrirDelegacao('${_esc(t.id)}')">Delegar</button>
         </div>
       `)}</div>`).join('');
 
@@ -784,13 +800,23 @@
         return tb - ta;
       });
 
-      if (!instancias.length && !acrescentar) {
-        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum processo iniciado ainda.</div>';
+      // Filtro client-side
+      const filtroInstStatus = document.getElementById('wf-filtro-inst-status')?.value || '';
+      const filtroInstTexto = (document.getElementById('wf-filtro-inst-texto')?.value || '').toLowerCase();
+      const instanciasFiltradas = instancias.filter(i => {
+        if (filtroInstStatus && i.status !== filtroInstStatus) return false;
+        if (filtroInstTexto && !(i.titulo || '').toLowerCase().includes(filtroInstTexto)) return false;
+        return true;
+      });
+
+      if (!instanciasFiltradas.length && !acrescentar) {
+        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum processo encontrado.</div>';
         return;
       }
-      const statusLabels = { em_andamento:'Em andamento', concluido:'Concluído', cancelado:'Cancelado' };
-      const statusCores = { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444' };
-      const cards = instancias.map(i => {
+      const statusLabels = { em_andamento:'Em andamento', concluido:'Concluído', cancelado:'Cancelado', suspenso:'Suspenso' };
+      const statusCores = { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444', suspenso:'#f59e0b' };
+      const podeGerenciar = globalScope.isEP?.() || globalScope.isGestor?.();
+      const cards = instanciasFiltradas.map(i => {
         const etapas = i.snapshot_etapas || [];
         const idxAtual = etapas.findIndex(e => e.id === i.etapa_atual_id);
         const pct = etapas.length > 1 && idxAtual >= 0
@@ -810,9 +836,11 @@
             }).join('')}
           </div>
           <div style="font-size:11px;color:var(--ink3);margin-top:4px">${pct}% concluído</div>` : ''}
-          <div style="margin-top:10px">
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
             <button type="button" class="btn btn-sm" onclick="wfAbrirHistorico('${_esc(i.id)}','${_esc(i.titulo)}','${_esc(i.status)}')">Ver histórico</button>
-            ${i.status === 'em_andamento' && globalScope.isEP?.() ? `<button type="button" class="btn btn-r btn-sm" style="margin-left:6px" onclick="wfConfirmarCancelar('${_esc(i.id)}')">Cancelar</button>` : ''}
+            ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-sm" onclick="wfSuspenderInstancia('${_esc(i.id)}')">Suspender</button>` : ''}
+            ${i.status === 'suspenso' && podeGerenciar ? `<button type="button" class="btn btn-p btn-sm" onclick="wfRetomarInstancia('${_esc(i.id)}')">Retomar</button>` : ''}
+            ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfConfirmarCancelar('${_esc(i.id)}')">Cancelar</button>` : ''}
           </div>
         `);
       }).join('');
@@ -1770,6 +1798,191 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
   }
 
+  // ── P3: Delegação de tarefa ───────────────────────────────────────────────
+
+  function wfAbrirDelegacao(tarefaId) {
+    _st._delegacaoTarefaId = tarefaId;
+    const modal = document.getElementById('wf-modal-delegacao');
+    if (!modal) return;
+    const sel = document.getElementById('wf-delegacao-usuario');
+    if (sel) {
+      const usuarios = globalScope.USUARIOS || [];
+      sel.innerHTML = `<option value="">— Selecione —</option>` +
+        usuarios.filter(u => u.uid || u.id).map(u =>
+          `<option value="${_esc(u.uid || u.id)}">${_esc(u.nome || u.email || u.uid || u.id)}</option>`
+        ).join('');
+    }
+    document.getElementById('wf-delegacao-motivo').value = '';
+    modal.style.display = 'flex';
+  }
+
+  function wfFecharDelegacao() {
+    const modal = document.getElementById('wf-modal-delegacao');
+    if (modal) modal.style.display = 'none';
+    _st._delegacaoTarefaId = null;
+  }
+
+  async function wfConfirmarDelegacao() {
+    const tarefaId = _st._delegacaoTarefaId;
+    if (!tarefaId) return;
+    const novoUid = document.getElementById('wf-delegacao-usuario')?.value;
+    const motivo = document.getElementById('wf-delegacao-motivo')?.value || '';
+    if (!novoUid) { alert('Selecione um usuário.'); return; }
+    try {
+      await _updateDoc('wf_tarefa_workflows', tarefaId, {
+        responsavel_uid: novoUid,
+        status: 'pendente',
+        iniciado_em: null,
+      });
+      // Notifica o novo responsável
+      const tarefa = await _getDoc('wf_tarefa_workflows', tarefaId);
+      if (tarefa) {
+        await _addDoc('wf_notificacoes', {
+          destinatario_uid: novoUid,
+          tipo: 'tarefa_delegada',
+          titulo: `Tarefa delegada: ${tarefa.etapa_nome}`,
+          mensagem: `A tarefa "${tarefa.etapa_nome}" do processo "${tarefa.processo_nome}" foi delegada a você.${motivo ? ` Motivo: ${motivo}` : ''}`,
+          instancia_id: tarefa.instancia_id,
+          tarefa_id: tarefaId,
+          lida: false,
+        });
+        await _registrarHistorico(tarefa.instancia_id, 'tarefa_delegada', _uid(),
+          tarefa.etapa_modelo_id, tarefaId,
+          `Tarefa delegada para usuário ${novoUid}.${motivo ? ` Motivo: ${motivo}` : ''}`,
+          { novoResponsavel: novoUid, motivo });
+      }
+      wfFecharDelegacao();
+      wfCarregarTarefas();
+    } catch (e) {
+      alert('Erro ao delegar: ' + e.message);
+    }
+  }
+
+  // ── P3: Suspender / Retomar instância ────────────────────────────────────
+
+  async function wfSuspenderInstancia(instanciaId) {
+    if (!confirm('Suspender este processo? Ele poderá ser retomado depois.')) return;
+    try {
+      await _updateDoc('wf_instancia_processos', instanciaId, { status: 'suspenso', suspenso_em: new Date() });
+      await _registrarHistorico(instanciaId, 'instancia_suspensa', _uid(), null, null, 'Processo suspenso.', {});
+      wfCarregarInstancias();
+    } catch (e) {
+      alert('Erro ao suspender: ' + e.message);
+    }
+  }
+
+  async function wfRetomarInstancia(instanciaId) {
+    if (!confirm('Retomar este processo?')) return;
+    try {
+      await _updateDoc('wf_instancia_processos', instanciaId, { status: 'em_andamento', suspenso_em: null });
+      await _registrarHistorico(instanciaId, 'instancia_retomada', _uid(), null, null, 'Processo retomado.', {});
+      wfCarregarInstancias();
+    } catch (e) {
+      alert('Erro ao retomar: ' + e.message);
+    }
+  }
+
+  // ── P3: Marcar todas as notificações como lidas ───────────────────────────
+
+  async function wfMarcarTodasLidas() {
+    const uid = _uid();
+    if (!uid) return;
+    try {
+      const { where, query, collection, getDocs, writeBatch, doc } = globalScope.fb();
+      const q = query(
+        collection(_db(), 'wf_notificacoes'),
+        where('destinatario_uid', '==', uid),
+        where('lida', '==', false),
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+      const batch = writeBatch(_db());
+      snap.docs.forEach(d => batch.update(doc(_db(), 'wf_notificacoes', d.id), { lida: true }));
+      await batch.commit();
+      _wfRenderNotifPanel();
+    } catch (e) {
+      alert('Erro: ' + e.message);
+    }
+  }
+
+  // ── P3: Dashboard de métricas ─────────────────────────────────────────────
+
+  async function wfCarregarDashboard() {
+    const el = document.getElementById('wf-dashboard-conteudo');
+    if (!el) return;
+    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    const uid = _uid();
+    if (!uid) return;
+    try {
+      const { where, query, collection, getDocs } = globalScope.fb();
+      const db = _db();
+
+      const [snapMinhas, snapTarefas, snapSlaVencido] = await Promise.all([
+        getDocs(query(collection(db, 'wf_instancia_processos'), where('solicitante_uid', '==', uid))),
+        getDocs(query(collection(db, 'wf_tarefa_workflows'), where('responsavel_uid', '==', uid))),
+        getDocs(query(collection(db, 'wf_tarefa_workflows'),
+          where('responsavel_uid', '==', uid),
+          where('sla_vencido', '==', true),
+        )),
+      ]);
+
+      const instancias = snapMinhas.docs.map(d => d.data());
+      const tarefas = snapTarefas.docs.map(d => d.data());
+
+      const totalInst = instancias.length;
+      const ativas = instancias.filter(i => i.status === 'em_andamento').length;
+      const concluidas = instancias.filter(i => i.status === 'concluido').length;
+      const canceladas = instancias.filter(i => i.status === 'cancelado').length;
+      const suspensas = instancias.filter(i => i.status === 'suspenso').length;
+
+      const tarefasPendentes = tarefas.filter(t => t.status === 'pendente' || t.status === 'em_execucao').length;
+      const tarefasConcluidas = tarefas.filter(t => t.status === 'concluida').length;
+      const tarefasVencidas = snapSlaVencido.size;
+
+      // Tempo médio de conclusão (instâncias concluídas com datas)
+      const temposMed = instancias
+        .filter(i => i.status === 'concluido' && i._criado_em && i.concluido_em)
+        .map(i => {
+          const inicio = i._criado_em?.seconds ? i._criado_em.seconds * 1000 : new Date(i._criado_em).getTime();
+          const fim = i.concluido_em?.seconds ? i.concluido_em.seconds * 1000 : new Date(i.concluido_em).getTime();
+          return (fim - inicio) / 3600000; // horas
+        });
+      const tempoMedH = temposMed.length
+        ? (temposMed.reduce((a, b) => a + b, 0) / temposMed.length).toFixed(1)
+        : null;
+
+      const kpi = (label, valor, cor = 'var(--ink)') =>
+        `<div style="background:var(--surf2);border-radius:10px;padding:16px 20px;text-align:center">
+          <div style="font-size:28px;font-weight:700;color:${cor}">${valor}</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:4px">${label}</div>
+        </div>`;
+
+      el.innerHTML = `
+        <div style="margin-bottom:20px">
+          <div style="font-size:13px;font-weight:600;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Meus Processos</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
+            ${kpi('Total', totalInst)}
+            ${kpi('Em andamento', ativas, '#3b82f6')}
+            ${kpi('Concluídos', concluidas, '#10b981')}
+            ${kpi('Suspensos', suspensas, '#f59e0b')}
+            ${kpi('Cancelados', canceladas, '#ef4444')}
+            ${tempoMedH ? kpi('Tempo médio (h)', tempoMedH) : ''}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Minhas Tarefas</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
+            ${kpi('Pendentes', tarefasPendentes, '#3b82f6')}
+            ${kpi('Concluídas', tarefasConcluidas, '#10b981')}
+            ${kpi('SLA Vencido', tarefasVencidas, '#ef4444')}
+          </div>
+        </div>
+      `;
+    } catch (e) {
+      el.innerHTML = `<div style="color:#ef4444;font-size:13px">Erro ao carregar métricas: ${_esc(e.message)}</div>`;
+    }
+  }
+
   // ── Exposição global ──────────────────────────────────────────────────────
   Object.assign(globalScope, {
     rWorkflow,
@@ -1800,6 +2013,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfCancelarInstancia,
     wfConfirmarCancelar,
     wfMarcarNotifLida,
+    wfMarcarTodasLidas,
+    wfAbrirDelegacao,
+    wfFecharDelegacao,
+    wfConfirmarDelegacao,
+    wfSuspenderInstancia,
+    wfRetomarInstancia,
+    wfCarregarDashboard,
     // Formulários
     wfCarregarFormularios,
     wfAbrirModalNovoFormulario,

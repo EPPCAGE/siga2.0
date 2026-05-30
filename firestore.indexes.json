@@ -79,6 +79,14 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "prazo", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "wf_tarefa_workflows",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "responsavel_uid", "order": "ASCENDING" },
+        { "fieldPath": "sla_vencido", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

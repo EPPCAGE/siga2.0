@@ -2081,10 +2081,20 @@ Não responda este e-mail.</pre>
     <button type="button" class="btn ep-only" id="wf-tab-designer" onclick="wfAbrirDesigner()" style="border-radius:6px 6px 0 0;border-bottom:none">🧩 Designer</button>
     <button type="button" class="btn ep-only" id="wf-tab-formularios" onclick="wfNavWorkflow('formularios')" style="border-radius:6px 6px 0 0;border-bottom:none">📝 Formulários</button>
     <button type="button" class="btn" id="wf-tab-notificacoes" onclick="wfNavWorkflow('notificacoes')" style="border-radius:6px 6px 0 0;border-bottom:none">🔔 Notificações</button>
+    <button type="button" class="btn" id="wf-tab-dashboard" onclick="wfNavWorkflow('dashboard')" style="border-radius:6px 6px 0 0;border-bottom:none">📊 Dashboard</button>
   </div>
 
   <!-- Painel: Minhas Tarefas -->
   <div id="wf-painel-tarefas">
+    <!-- Filtros -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+      <input type="text" class="fi" id="wf-filtro-tarefa-texto" placeholder="Buscar tarefa ou processo…" style="max-width:240px" oninput="wfCarregarTarefas()">
+      <select class="fi" id="wf-filtro-tarefa-status" onchange="wfCarregarTarefas()" style="max-width:160px">
+        <option value="">Todos os status</option>
+        <option value="pendente">Pendente</option>
+        <option value="em_execucao">Em execução</option>
+      </select>
+    </div>
     <div id="wf-lista-tarefas" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
       <div style="color:var(--ink3);font-size:14px">Carregando tarefas…</div>
     </div>
@@ -2092,6 +2102,17 @@ Não responda este e-mail.</pre>
 
   <!-- Painel: Processos Ativos -->
   <div id="wf-painel-instancias" style="display:none">
+    <!-- Filtros -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+      <input type="text" class="fi" id="wf-filtro-inst-texto" placeholder="Buscar processo…" style="max-width:240px" oninput="wfCarregarInstancias()">
+      <select class="fi" id="wf-filtro-inst-status" onchange="wfCarregarInstancias()" style="max-width:180px">
+        <option value="">Todos os status</option>
+        <option value="em_andamento">Em andamento</option>
+        <option value="concluido">Concluído</option>
+        <option value="suspenso">Suspenso</option>
+        <option value="cancelado">Cancelado</option>
+      </select>
+    </div>
     <div id="wf-lista-instancias" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
       <div style="color:var(--ink3);font-size:14px">Carregando…</div>
     </div>
@@ -2230,10 +2251,43 @@ Não responda este e-mail.</pre>
   <!-- Painel: Notificações -->
   <!-- Painel: Notificações (lista preenchida por _wfRenderNotifPanel) -->
   <div id="wf-painel-notificacoes" style="display:none;max-width:640px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
       <h3 style="margin:0;font-size:17px;color:var(--ink)">Notificações</h3>
+      <button type="button" class="btn btn-sm" style="margin-left:auto" onclick="wfMarcarTodasLidas()">Marcar todas como lidas</button>
     </div>
     <div id="wf-notif-lista"></div>
+  </div>
+
+  <!-- Painel: Dashboard de métricas -->
+  <div id="wf-painel-dashboard" style="display:none;max-width:720px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <h3 style="margin:0;font-size:17px;color:var(--ink)">Dashboard</h3>
+    </div>
+    <div id="wf-dashboard-conteudo"></div>
+  </div>
+
+  <!-- Modal: Delegação de tarefa -->
+  <div id="wf-modal-delegacao" class="modal-overlay" style="display:none;align-items:center;justify-content:center">
+    <div class="modal" style="max-width:420px;width:100%">
+      <div class="modal-hd">
+        <span>Delegar tarefa</span>
+        <button type="button" class="modal-x" onclick="wfFecharDelegacao()">✕</button>
+      </div>
+      <div class="modal-bd">
+        <div style="margin-bottom:14px">
+          <label class="lbl" for="wf-delegacao-usuario">Novo responsável</label>
+          <select class="fi" id="wf-delegacao-usuario" style="margin-top:4px"></select>
+        </div>
+        <div>
+          <label class="lbl" for="wf-delegacao-motivo">Motivo (opcional)</label>
+          <textarea class="fi" id="wf-delegacao-motivo" rows="2" placeholder="Justificativa da delegação…" style="margin-top:4px;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="modal-ft" style="display:flex;gap:8px">
+        <button type="button" class="btn btn-p" onclick="wfConfirmarDelegacao()">Confirmar delegação</button>
+        <button type="button" class="btn" onclick="wfFecharDelegacao()">Cancelar</button>
+      </div>
+    </div>
   </div>
 
   <!-- Modal: Editor de Formulário -->
