@@ -703,17 +703,13 @@ function projEsc(s) {
     .replaceAll("'",'&#39;');
 }
 
+// Sanitiza HTML gerado por usuário: strip de event handlers e tags perigosas.
+// Não use para templates de desenvolvedor que contenham handlers (use projSetHtml).
 function projSafeHtml(html) {
   const value = String(html || '');
   if(globalThis.DOMPurify && typeof globalThis.DOMPurify.sanitize === 'function') {
     return globalThis.DOMPurify.sanitize(value, {
-      ADD_ATTR: [
-        'target',
-        'onclick', 'onchange', 'oninput', 'onblur', 'onkeydown',
-        'onmousedown', 'ontouchstart', 'ondblclick',
-        'onmouseover', 'onmouseout',
-        'ondragstart', 'ondragover', 'ondragend', 'ondrop'
-      ],
+      ADD_ATTR: ['target'],
       FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'base'],
       FORBID_ATTR: ['srcdoc'],
       ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
@@ -722,14 +718,21 @@ function projSafeHtml(html) {
   return projEsc(value);
 }
 
+// Renderiza HTML de desenvolvedor (templates internos com event handlers).
+// Só use com strings literais do código — nunca com input do usuário direto.
+function projSetHtml(el, html) {
+  if(!el) return;
+  el.innerHTML = html;
+}
+
 function projSetSafeHtml(el, html) {
   if(!el) return;
   el.innerHTML = projSafeHtml(html);
 }
 
-function projAppendSafeHtml(el, position, html) {
+function projAppendHtml(el, position, html) {
   if(!el) return;
-  el.insertAdjacentHTML(position, projSafeHtml(html));
+  el.insertAdjacentHTML(position, html);
 }
 
 function projNormKey(s) {
@@ -975,7 +978,7 @@ function projRenderInicio() {
       axisInner += `<div class="proj-launchpad-axis-lbl" style="left:${pct}%">${pct}%</div>`;
     }
 
-    projSetSafeHtml(lpContainer, `
+    projSetHtml(lpContainer, `
       <div class="proj-launchpad-wrap">
         <div class="proj-launchpad-grid-bg"></div>
         <div class="proj-launchpad-glow"></div>
@@ -1018,7 +1021,7 @@ function projRenderInicio() {
 
   // 4. Estatísticas
   const statsRow = document.getElementById('proj-stats-row');
-  if(statsRow) projSetSafeHtml(statsRow, `
+  if(statsRow) projSetHtml(statsRow, `
     <div class="proj-stat s-amber">
       <div class="proj-stat-n">${emIdeacaoPlan.length}</div>
       <div class="proj-stat-l">Ideação / Planejamento</div>
@@ -1236,12 +1239,12 @@ function projRenderReunioesDoMes() {
   });
 
   if(todas.length === 0) {
-    projSetSafeHtml(reunEl, '<div style="text-align:center;padding:1.2rem;color:#b0b8cc;font-size:13px">Nenhuma reunião agendada este mês</div>');
+    projSetHtml(reunEl, '<div style="text-align:center;padding:1.2rem;color:#b0b8cc;font-size:13px">Nenhuma reunião agendada este mês</div>');
     return;
   }
 
   todas.sort((a,b) => (a.data || '9999-12-31').localeCompare(b.data || '9999-12-31') || String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
-  projSetSafeHtml(reunEl, todas.map(r => `
+  projSetHtml(reunEl, todas.map(r => `
     <div class="proj-reunion-item ${r.realizada ? 'proj-reunion-done' : ''}" id="reunion-item-${projEsc(r.id)}">
       <div class="proj-reunion-check ${r.realizada ? 'done' : ''}" onclick="projToggleReuniao('${projEsc(r._projeto_id)}','${projEsc(r.id)}')">
         ${r.realizada ? '<svg viewBox="0 0 12 12" fill="none" width="10" height="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
@@ -1315,7 +1318,7 @@ function projRenderPortfolio() {
   const concluidos = PROJETOS.filter(p=>p.status==='concluido' || p.status==='cancelado');
 
   if(ativos.length === 0) {
-    projSetSafeHtml(el, '<div style="text-align:center;padding:3rem;color:#b0b8cc"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhum projeto em andamento</div><div style="font-size:13px">Clique em "Novo Projeto" para começar.</div></div>');
+    projSetHtml(el, '<div style="text-align:center;padding:3rem;color:#b0b8cc"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhum projeto em andamento</div><div style="font-size:13px">Clique em "Novo Projeto" para começar.</div></div>');
   } else {
     // Show only active projects - grouped by program
     let html = '';
@@ -1351,12 +1354,12 @@ function projRenderPortfolio() {
       html += '<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:700;color:#1a2540;margin:1.5rem 0 .8rem">Projetos sem programa</div>';
       html += soltos.map(projRenderProjItem).join('');
     }
-    projSetSafeHtml(el, html);
+    projSetHtml(el, html);
   }
 
   // Link to concluded projects
   if(concluidos.length > 0) {
-    projAppendSafeHtml(el, 'beforeend', `
+    projAppendHtml(el, 'beforeend', `
       <div style="margin-top:2rem;padding-top:1.4rem;border-top:2px solid #eaecf3;text-align:center">
         <button type="button" class="proj-btn" style="font-size:13px;padding:8px 20px" onclick="projGo('concluidos')">
           🏆 Ver Projetos Concluídos (${concluidos.length})
@@ -1386,7 +1389,7 @@ function projRenderConcluidos() {
     html = '<div style="text-align:center;padding:3rem;color:#b0b8cc;font-size:13px">Nenhum projeto concluído ou cancelado.</div>';
   }
   el.textContent = '';
-  projAppendSafeHtml(el, 'beforeend', html);
+  projAppendHtml(el, 'beforeend', html);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1470,7 +1473,7 @@ function projRenderUsuariosPage() {
   const overdue = rows.filter(r => r.overdue);
   const done = rows.filter(r => r.task.concluida);
   const table = rows.length ? `<table class="proj-v9-table"><thead><tr><th>Responsável</th><th>Projeto</th><th>Tarefa</th><th>Fim Prev.</th><th>Status</th><th>%</th></tr></thead><tbody>${rows.map(r => `<tr class="${r.overdue?'proj-user-row-overdue':''}"><td><span class="proj-user-avatar">${projEsc(projUserInitials(r.label))}</span>${projEsc(r.label)}</td><td>${projEsc(r.projectName)}</td><td>${r.task._parentName ? `<span style="color:var(--ink3)">${projEsc(r.task._parentName)} / </span>` : ''}${projEsc(r.task.nome||'Tarefa sem nome')}</td><td>${projEsc(projFormatDate(r.task.dt_fim))}</td><td>${r.overdue ? '<span class="risk-heat risk-alto">Atrasada</span>' : (r.task.concluida ? '<span class="risk-heat risk-baixo">Concluída</span>' : '<span class="risk-heat risk-medio">Em andamento</span>')}</td><td>${Number(r.task.conclusao||0)}%</td></tr>`).join('')}</tbody></table>` : '<div class="proj-v9-chart-card" style="font-size:12px;color:var(--ink3)">Nenhuma tarefa com responsável nos filtros atuais.</div>';
-  projSetSafeHtml(el, `
+  projSetHtml(el, `
     <div class="proj-v9-filter-card">
       <div class="proj-card-t">Filtros</div>
       <div class="proj-v9-filter-grid">
@@ -1660,7 +1663,7 @@ function projRenderPpePage() {
   const el = document.getElementById('proj-ppe-content');
   if(!el) return;
   if(!projCanWriteExec()) {
-    projSetSafeHtml(el, '<div class="proj-ib proj-ib-amber">A aba PPE é exclusiva para usuários EPP. Usuários com acesso apenas de visualização não podem editar ou gerar este relatório.</div>');
+    projSetHtml(el, '<div class="proj-ib proj-ib-amber">A aba PPE é exclusiva para usuários EPP. Usuários com acesso apenas de visualização não podem editar ou gerar este relatório.</div>');
     return;
   }
   const cycle = projPpeSelectedCycle();
@@ -1668,7 +1671,7 @@ function projRenderPpePage() {
   const cycleIdx = cycles.findIndex(c => c.key === cycle);
   const ativos = projPpeActiveProjects();
   const preenchidos = ativos.filter(p => projPpeText(p, cycle).trim()).length;
-  projSetSafeHtml(el, `
+  projSetHtml(el, `
     <div class="proj-ppe-toolbar">
       <div>
         <div class="proj-ppe-title">Metas PPE do próximo ciclo</div>
@@ -1787,10 +1790,10 @@ function projRenderStatusReport() {
   if(!el) return;
   const ativos = PROJETOS.filter(p => p.status === 'ativo');
   if(!ativos.length) {
-    projSetSafeHtml(el, '<div style="text-align:center;padding:2rem;color:#b0b8cc;font-size:13px">Nenhum projeto em andamento encontrado.</div>');
+    projSetHtml(el, '<div style="text-align:center;padding:2rem;color:#b0b8cc;font-size:13px">Nenhum projeto em andamento encontrado.</div>');
     return;
   }
-  projSetSafeHtml(el, `
+  projSetHtml(el, `
     <div class="proj-ib proj-ib-blue">Preencha a observação livre de cada projeto. Esse texto será exibido ao lado do projeto no PDF do Relatório Executivo.</div>
     <div class="proj-status-grid">
       ${ativos.map(p => `
@@ -2313,7 +2316,7 @@ function projRenderReunioesCalendar(container) {
   // Title — static SVG + text
   const titleDiv = document.createElement('div');
   titleDiv.className = 'proj-form-section-title';
-  projSetSafeHtml(titleDiv, '<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1.5" y="3" width="13" height="11.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.5v3M11 1.5v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>');
+  projSetHtml(titleDiv, '<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="1.5" y="3" width="13" height="11.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.5v3M11 1.5v3M1.5 6.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>');
   titleDiv.appendChild(document.createTextNode(' Calendário de Reuniões'));
   section.appendChild(titleDiv);
 
@@ -2434,7 +2437,7 @@ function projRenderReunioesPage() {
   if(!el) return;
 
   // Static form only — no user data in this string
-  projSetSafeHtml(el, `
+  projSetHtml(el, `
     <div class="proj-form-section" style="margin-bottom:1rem">
       <div class="proj-form-section-title">
         <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
@@ -2516,7 +2519,7 @@ function projRenderReunioesPage() {
       card.className = 'proj-card'; card.style.marginBottom = '1rem';
       const hd = document.createElement('div');
       hd.className = 'proj-card-t'; hd.style.cursor = 'pointer';
-      projSetSafeHtml(hd, calSvg);
+      projSetHtml(hd, calSvg);
       hd.addEventListener('click', () => projGoReunioesProj(pId));
       const link = document.createElement('a');
       link.href = 'javascript:void(0)';
@@ -2535,7 +2538,7 @@ function projRenderReunioesPage() {
     card.className = 'proj-card'; card.style.marginBottom = '1rem';
     const hd = document.createElement('div');
     hd.className = 'proj-card-t'; hd.style.cursor = 'pointer';
-    projSetSafeHtml(hd, calSvg);
+    projSetHtml(hd, calSvg);
     hd.addEventListener('click', () => projGoReunioesProj(pId));
     const link = document.createElement('a');
     link.href = 'javascript:void(0)';
@@ -2645,7 +2648,7 @@ function projGoReunioesProj(projId) {
     html += `</div></div>`;
   }
 
-  projSetSafeHtml(el, html);
+  projSetHtml(el, html);
 }
 
 // ── Helper: render a single reunião item ──
@@ -2706,7 +2709,7 @@ function projEditarReuniaoModal(projetoId, reuniaoId) {
 
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem';
-  projSetSafeHtml(modal, `
+  projSetHtml(modal, `
     <div style="background:#fff;border-radius:16px;padding:1.6rem;width:100%;max-width:480px;box-shadow:0 16px 48px rgba(0,0,0,.2)">
       <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#1a2540;margin-bottom:1.2rem">Editar Reunião</div>
       <div class="proj-fg"><label class="proj-fl">Nome<span>*</span></label>
@@ -2784,7 +2787,7 @@ function projRenderNovo() {
   const progSel = document.getElementById('pnovo-programa');
   if(progSel) {
     const ativos = PROGRAMAS.filter(pg => pg.status === 'ativo');
-    projSetSafeHtml(progSel, '<option value="">Sem programa</option>' +
+    projSetHtml(progSel, '<option value="">Sem programa</option>' +
       ativos.map(pg => `<option value="${projEsc(String(pg.id))}">${projEsc(pg.nome)}</option>`).join(''));
     progSel.value = '';
   }
@@ -2888,7 +2891,7 @@ function projRenderDetalhe(p) {
     <div class="proj-tab ${i===0?'on':''}" onclick="projDetalheTab('${f.id}',this)">${f.label}</div>
   `).join('');
 
-  projSetSafeHtml(el, `
+  projSetHtml(el, `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.4rem;flex-wrap:wrap">
       <button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">← Portfólio</button>
       <div style="font-size:28px;cursor:pointer;padding:2px 6px;border-radius:8px;border:1px dashed transparent;transition:all .2s" title="Alterar ícone" onclick="projShowEmojiPicker(${JSON.stringify(String(p.id))})" onmouseover="this.style.borderColor='#1A5DC8';this.style.background='#ebf1fc'" onmouseout="this.style.borderColor='transparent';this.style.background='none'">${p.icone_url ? '<img src="'+projEsc(p.icone_url)+'" style="width:32px;height:32px;object-fit:cover;border-radius:6px">' : projEsc(p.icone_emoji || '📁')}</div>
@@ -2937,11 +2940,11 @@ function projDetalheTab(faseId, tabEl) {
   if(!content) return;
 
   switch(faseId) {
-    case 'aprovacao':    projSetSafeHtml(content, projTabAprovacao(proj)); setTimeout(projPopulateVinculacoes,50); break;
-    case 'ideacao':      projSetSafeHtml(content, projTabIdeacao(proj)); break;
-    case 'planejamento': projSetSafeHtml(content, projTabPlanejamento(proj)); break;
-    case 'execucao':     projSetSafeHtml(content, projTabExecucao(proj)); break;
-    case 'conclusao':    projSetSafeHtml(content, projTabConclusao(proj)); break;
+    case 'aprovacao':    projSetHtml(content, projTabAprovacao(proj)); setTimeout(projPopulateVinculacoes,50); break;
+    case 'ideacao':      projSetHtml(content, projTabIdeacao(proj)); break;
+    case 'planejamento': projSetHtml(content, projTabPlanejamento(proj)); break;
+    case 'execucao':     projSetHtml(content, projTabExecucao(proj)); break;
+    case 'conclusao':    projSetHtml(content, projTabConclusao(proj)); break;
   }
   projApplyProjectReadonly(faseId);
 }
@@ -2970,7 +2973,7 @@ function projApplyProjectReadonly(faseId){
     const msg = projIsLinkedManager()
       ? 'Visualização geral. Este projeto está vinculado ao seu perfil Projetos; você pode editar apenas o cronograma.'
       : 'Seu perfil tem acesso apenas de visualização no SIGA Projetos.';
-    projAppendSafeHtml(content, 'afterbegin', `<div class="proj-readonly-banner">${projEsc(msg)}</div>`);
+    projAppendHtml(content, 'afterbegin', `<div class="proj-readonly-banner">${projEsc(msg)}</div>`);
   }
 }
 
@@ -4103,7 +4106,7 @@ function projOpenTaskNotes(path) {
   const modal = document.createElement('div');
   modal.id = 'proj-task-notes-modal';
   modal.className = 'proj-task-notes-backdrop';
-  projSetSafeHtml(modal, `
+  projSetHtml(modal, `
     <div class="proj-task-notes-card" role="dialog" aria-modal="true" aria-labelledby="proj-task-notes-title">
       <div class="proj-task-notes-head">
         <div>
@@ -4637,7 +4640,7 @@ function progRenderPage() {
   if(!el) return;
 
   if(PROGRAMAS.length === 0) {
-    projSetSafeHtml(el, `
+    projSetHtml(el, `
       <div style="text-align:center;padding:3rem;color:#b0b8cc">
         <div style="font-size:40px;margin-bottom:12px">📂</div>
         <div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhum programa cadastrado</div>
@@ -4695,7 +4698,7 @@ function progRenderPage() {
     </div>
   `;
 
-  projSetSafeHtml(el, renderGrp('Programas Ativos', ativos) + renderGrp('Programas Concluídos', concluidos) + renderGrp('Programas Cancelados', cancelados));
+  projSetHtml(el, renderGrp('Programas Ativos', ativos) + renderGrp('Programas Concluídos', concluidos) + renderGrp('Programas Cancelados', cancelados));
 }
 
 function progAbrirModalNovo() {
@@ -4712,7 +4715,7 @@ function progAbrirModalEditar(id) {
 function _progModal(pg, titulo) {
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
-  projSetSafeHtml(modal, `
+  projSetHtml(modal, `
     <div style="background:#fff;border-radius:16px;padding:1.6rem;width:100%;max-width:540px;box-shadow:0 16px 48px rgba(0,0,0,.2)">
       <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:#1a2540;margin-bottom:1.2rem">${titulo}</div>
       <div class="proj-fg">
@@ -4820,7 +4823,7 @@ function progAbrirDetalhe(id) {
 
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;overflow-y:auto';
-  projSetSafeHtml(modal, `
+  projSetHtml(modal, `
     <div style="background:#fff;border-radius:16px;padding:1.8rem;width:100%;max-width:720px;box-shadow:0 16px 48px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;gap:12px">
         <div style="flex:1;min-width:0">
@@ -5439,12 +5442,12 @@ function projRenderDashV9() {
   const sel = (id,label,arr,val) => `<div class="proj-fg" style="margin:0"><label class="proj-fl">${label}</label><select class="proj-fi" id="${id}" onchange="projRenderDashV9()"><option value="">Todos</option>${arr.map(v=>`<option value="${projEsc(v)}" ${v===val?'selected':''}>${projEsc(v)}</option>`).join('')}</select></div>`;
   const filtrados = projFiltrarProjetosV9(all);
   const filtrosEl = document.getElementById('proj-dash-filtros');
-  if(filtrosEl) projSetSafeHtml(filtrosEl, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros</div><div class="proj-v9-filter-grid">${sel('proj-f-patrocinador','Patrocinador',opts.patrocinador,cur.patrocinador)}${sel('proj-f-objetivo','Objetivo Estratégico',opts.objetivo,cur.objetivo)}${sel('proj-f-macro','Macroprocesso',opts.macro,cur.macro)}${sel('proj-f-divisao','Divisão',opts.divisao,cur.divisao)}</div></div>`);
+  if(filtrosEl) projSetHtml(filtrosEl, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros</div><div class="proj-v9-filter-grid">${sel('proj-f-patrocinador','Patrocinador',opts.patrocinador,cur.patrocinador)}${sel('proj-f-objetivo','Objetivo Estratégico',opts.objetivo,cur.objetivo)}${sel('proj-f-macro','Macroprocesso',opts.macro,cur.macro)}${sel('proj-f-divisao','Divisão',opts.divisao,cur.divisao)}</div></div>`);
 
   const alertasEl = document.getElementById('proj-dash-alertas');
   if(alertasEl) {
     const comAtraso = filtrados.map(p => ({ p, tarefas:projTarefasAtrasadasProjeto(p) })).filter(x => x.tarefas.length);
-    projSetSafeHtml(alertasEl, `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><a href="#" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)" style="font-weight:800;color:var(--blue);text-decoration:none">${projIconHtml(p)} ${projEsc(p.nome)}</a><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`);
+    projSetHtml(alertasEl, `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><a href="#" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)" style="font-weight:800;color:var(--blue);text-decoration:none">${projIconHtml(p)} ${projEsc(p.nome)}</a><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`);
   }
 
   const graficosEl = document.getElementById('proj-dash-graficos');
@@ -5453,7 +5456,7 @@ function projRenderDashV9() {
     const macrosSemProjeto = projUnlinkedValues(PROJ_MACROS, all, p => projDimensoesProjeto(p).macros);
     const objetivosSemProjeto = projUnlinkedValues(PROJ_OBJETIVOS, all, p => projDimensoesProjeto(p).objetivos);
     const indResumo = inds.slice(0,8).map(({p,ind}) => `<div class="proj-v9-mini-ind"><div><strong>${projEsc(ind.nome||'Indicador')}</strong><div style="font-size:11px;color:var(--ink3)">${projEsc(p.nome)}</div></div><div>${projEsc(projIndicadorResumo(ind))}</div></div>`).join('');
-    projSetSafeHtml(graficosEl, `<div class="proj-v9-chart-card"><div class="proj-card-t">Resumo de Indicadores</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div><strong>${filtrados.length}</strong><span> Projetos</span></div><div><strong>${Math.round(filtrados.reduce((a,p)=>a+(p.percentual||0),0)/(filtrados.length||1))}%</strong><span> Média</span></div><div><strong>${inds.length}</strong><span> Indicadores</span></div><div><strong>${filtrados.filter(p=>projTarefasAtrasadasProjeto(p).length).length}</strong><span> Com atraso</span></div></div>${indResumo ? `<div class="proj-v9-mini-list">${indResumo}</div>` : '<div style="font-size:12px;color:var(--ink3);margin-top:.7rem">Nenhum indicador cadastrado nos filtros atuais.</div>'}</div><div class="proj-v9-chart-grid">${projChartBars('Projetos por Macroprocesso', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).macros), {unlinkedLabel:'Ver Macroprocessos sem Projeto vinculado', unlinkedItems:macrosSemProjeto, unlinkedKey:'macroprocessos-sem-projeto'})}${projChartBars('Projetos por Objetivo Estratégico', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).objetivos), {unlinkedLabel:'Ver Objetivos Estratégicos sem Projeto vinculado', unlinkedItems:objetivosSemProjeto, unlinkedKey:'objetivos-sem-projeto'})}${projChartBars('Projetos por Patrocinador', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).patrocinador))}${projChartBars('Projetos por Indicadores', projIndicadoresDashItems(inds))}</div>`);
+    projSetHtml(graficosEl, `<div class="proj-v9-chart-card"><div class="proj-card-t">Resumo de Indicadores</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div><strong>${filtrados.length}</strong><span> Projetos</span></div><div><strong>${Math.round(filtrados.reduce((a,p)=>a+(p.percentual||0),0)/(filtrados.length||1))}%</strong><span> Média</span></div><div><strong>${inds.length}</strong><span> Indicadores</span></div><div><strong>${filtrados.filter(p=>projTarefasAtrasadasProjeto(p).length).length}</strong><span> Com atraso</span></div></div>${indResumo ? `<div class="proj-v9-mini-list">${indResumo}</div>` : '<div style="font-size:12px;color:var(--ink3);margin-top:.7rem">Nenhum indicador cadastrado nos filtros atuais.</div>'}</div><div class="proj-v9-chart-grid">${projChartBars('Projetos por Macroprocesso', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).macros), {unlinkedLabel:'Ver Macroprocessos sem Projeto vinculado', unlinkedItems:macrosSemProjeto, unlinkedKey:'macroprocessos-sem-projeto'})}${projChartBars('Projetos por Objetivo Estratégico', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).objetivos), {unlinkedLabel:'Ver Objetivos Estratégicos sem Projeto vinculado', unlinkedItems:objetivosSemProjeto, unlinkedKey:'objetivos-sem-projeto'})}${projChartBars('Projetos por Patrocinador', projGroupCountWithProjects(filtrados, p => projDimensoesProjeto(p).patrocinador))}${projChartBars('Projetos por Indicadores', projIndicadoresDashItems(inds))}</div>`);
   }
 }
 
@@ -5471,7 +5474,7 @@ function projRenderIndicadoresPage() {
   const macroOpts = projOptionsFromProjetos(projetos, p => projDimensoesProjeto(p).macros).map(v => `<option value="${projEsc(v)}" ${v===fArea?'selected':''}>${projEsc(v)}</option>`).join('');
   const chart = projIndicadoresMetaChart(rows);
   const table = rows.length ? `<table class="proj-v9-table"><thead><tr><th>Projeto</th><th>Indicador</th><th>Meta</th><th>Resultado</th><th>Unidade</th><th></th></tr></thead><tbody>${rows.map(r => `<tr><td>${projEsc(r.p.nome)}</td><td><input class="proj-fi" value="${projEsc(r.ind.nome||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'nome',this.value)"></td><td><input class="proj-fi" type="number" step="0.01" value="${projEsc(r.ind.meta||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'meta',this.value)"></td><td><input class="proj-fi" type="number" step="0.01" value="${projEsc(r.ind.resultado ?? r.ind.atual ?? '')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'resultado',this.value)"></td><td><input class="proj-fi" value="${projEsc(r.ind.unidade||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'unidade',this.value)"></td><td><button type="button" class="proj-btn danger" style="font-size:11px;padding:4px 8px" onclick="projRemoveIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx})">Remover</button></td></tr>`).join('')}</tbody></table>` : '<div class="proj-v9-chart-card" style="font-size:12px;color:var(--ink3)">Nenhum indicador encontrado para os filtros atuais.</div>';
-  projSetSafeHtml(el, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros e edição</div><div class="proj-v9-filter-grid"><div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-ind-filter-proj" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${projetosOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Macroprocesso</label><select class="proj-fi" id="proj-ind-filter-area" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${macroOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Adicionar em projeto</label><select class="proj-fi" id="proj-ind-add-proj"><option value="">Selecione</option>${projetosOpts}</select></div><div style="display:flex;align-items:end"><button type="button" class="proj-btn primary" onclick="projAddIndicadorProjetoGlobal()">+ Indicador</button></div></div></div><div class="proj-v9-bi-grid"><div>${chart}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Indicadores cadastrados</div>${table}</div></div>`);
+  projSetHtml(el, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros e edição</div><div class="proj-v9-filter-grid"><div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-ind-filter-proj" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${projetosOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Macroprocesso</label><select class="proj-fi" id="proj-ind-filter-area" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${macroOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Adicionar em projeto</label><select class="proj-fi" id="proj-ind-add-proj"><option value="">Selecione</option>${projetosOpts}</select></div><div style="display:flex;align-items:end"><button type="button" class="proj-btn primary" onclick="projAddIndicadorProjetoGlobal()">+ Indicador</button></div></div></div><div class="proj-v9-bi-grid"><div>${chart}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Indicadores cadastrados</div>${table}</div></div>`);
 }
 
 function projUpdateIndicadorGlobal(projId, idx, field, value) {
@@ -5761,7 +5764,7 @@ function projRenderEstrategiaPageLegacy() {
   projNormalizeStrategyLists();
   const el = document.getElementById('proj-estrategia-content');
   if(!el) return;
-  projSetSafeHtml(el, `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-card-t">Macroprocessos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Se existir uma versão com prefixo entre colchetes e outra sem, a versão com colchetes é mantida.</div><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div>${projStrategyRelatedHtml('macro', PROJ_MACROS||[])}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Objetivos Estratégicos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Estes dados alimentam o workflow e os gráficos do dashboard.</div><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div>${projStrategyRelatedHtml('objetivo', PROJ_OBJETIVOS||[])}</div></div>`);
+  projSetHtml(el, `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-card-t">Macroprocessos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Se existir uma versão com prefixo entre colchetes e outra sem, a versão com colchetes é mantida.</div><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div>${projStrategyRelatedHtml('macro', PROJ_MACROS||[])}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Objetivos Estratégicos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Estes dados alimentam o workflow e os gráficos do dashboard.</div><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div>${projStrategyRelatedHtml('objetivo', PROJ_OBJETIVOS||[])}</div></div>`);
 }
 
 function projRenderEstrategiaPage() {
@@ -5770,7 +5773,7 @@ function projRenderEstrategiaPage() {
   const el = document.getElementById('proj-estrategia-content');
   if(!el) return;
   const editors = isEP() ? `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Macroprocessos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('macro')">Abrir edição</button></div><div id="proj-strategy-editor-macro" class="proj-strategy-editor-body"><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div></div></div><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Objetivos Estratégicos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('objetivo')">Abrir edição</button></div><div id="proj-strategy-editor-objetivo" class="proj-strategy-editor-body"><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div></div></div></div>` : '';
-  projSetSafeHtml(el, `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'macros')}${editors}`);
+  projSetHtml(el, `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'macros')}${editors}`);
 }
 
 function projSalvarEstrategia(kind) {
@@ -5790,13 +5793,13 @@ function projPopulateVinculacoes() {
   let proj = PROJETOS.find(function(p){return String(p.id)===_projCurrentId;});
   if(!proj) return;
   let ml = document.getElementById('aprov-macro-list');
-  if(ml) projSetSafeHtml(ml, (proj.macroprocessos||[]).map(function(m,i){let v=projCanonicalStrategyValue(m,PROJ_MACROS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:#f0f4ff;border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverMacro('+i+')">✕</button></div>';}).join(''));
+  if(ml) projSetHtml(ml, (proj.macroprocessos||[]).map(function(m,i){let v=projCanonicalStrategyValue(m,PROJ_MACROS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:#f0f4ff;border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverMacro('+i+')">✕</button></div>';}).join(''));
   let ms = document.getElementById('aprov-macro-sel');
-  if(ms) projSetSafeHtml(ms, '<option value="">Selecione...</option>' + PROJ_MACROS.map(function(m){return '<option value="'+projEsc(m)+'">'+projEsc(m)+'</option>';}).join(''));
+  if(ms) projSetHtml(ms, '<option value="">Selecione...</option>' + PROJ_MACROS.map(function(m){return '<option value="'+projEsc(m)+'">'+projEsc(m)+'</option>';}).join(''));
   let ol = document.getElementById('aprov-obj-list');
-  if(ol) projSetSafeHtml(ol, (proj.objetivos_estrategicos||[]).map(function(o,i){let v=projCanonicalStrategyValue(o,PROJ_OBJETIVOS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:var(--teal-l);border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverObj('+i+')">✕</button></div>';}).join(''));
+  if(ol) projSetHtml(ol, (proj.objetivos_estrategicos||[]).map(function(o,i){let v=projCanonicalStrategyValue(o,PROJ_OBJETIVOS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:var(--teal-l);border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverObj('+i+')">✕</button></div>';}).join(''));
   let os = document.getElementById('aprov-obj-sel');
-  if(os) projSetSafeHtml(os, '<option value="">Selecione...</option>' + PROJ_OBJETIVOS.map(function(o){return '<option value="'+projEsc(o)+'">'+projEsc(o)+'</option>';}).join(''));
+  if(os) projSetHtml(os, '<option value="">Selecione...</option>' + PROJ_OBJETIVOS.map(function(o){return '<option value="'+projEsc(o)+'">'+projEsc(o)+'</option>';}).join(''));
 }
 
 function projAddMacroNovo(){if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.'))return;let inp=document.getElementById('aprov-macro-novo');if(!inp||!inp.value.trim()){projToast('Digite o macroprocesso.','#d97706');return;}let v=inp.value.trim();PROJ_MACROS=projNormalizeStrategyList([].concat(PROJ_MACROS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_MACROS);projLoad();let p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(!p.macroprocessos.includes(v))p.macroprocessos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
@@ -5854,5 +5857,5 @@ function projRenderMemorial(p) {
   if(!content) return;
   const licoes = [conc.licoes_data, conc.licoes_participantes, conc.licoes_certo, conc.licoes_melhorar, conc.licoes_ideias].some(Boolean);
   const imgs = projMemorialImagesHtml(conc);
-  projSetSafeHtml(content, `<div class="proj-ph"><div><div class="proj-ph-t">Memorial do Projeto</div><div class="proj-ph-s">${projEsc(p.nome||'Projeto')}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="proj-btn primary" style="font-size:12px;padding:5px 11px" onclick="projAbrirDetalhe('${projEsc(String(p.id))}', true)">Ver Workflow</button><button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">Voltar ao Portfólio</button></div></div><div class="proj-form-section"><div class="proj-form-section-title">Informações Gerais</div><div class="proj-g3"><div><div class="proj-fl">Projeto</div><strong>${projEsc(p.nome||'')}</strong></div><div><div class="proj-fl">Patrocinador</div><strong>${projEsc(p.patrocinador||'Não informado')}</strong></div><div><div class="proj-fl">Gerente</div><strong>${projEsc(p.gerente||'Não informado')}</strong></div></div></div><div class="proj-form-section"><div class="proj-form-section-title">História do Projeto</div><div style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia||'História ainda não registrada.')}</div></div>${projMemorialNewsEmbeds(conc)}<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Imagens do Memorial</div>${imgs}</div>${licoes ? `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Lições Aprendidas</div><div class="proj-g2"><div><div class="proj-fl">Data da reunião</div><strong>${projFormatDate(conc.licoes_data)||'Não informada'}</strong></div><div><div class="proj-fl">Participantes</div><strong>${projEsc(conc.licoes_participantes||'Não informado')}</strong></div></div><div class="proj-g3" style="margin-top:1rem"><div><div class="proj-fl">O que deu certo?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_certo||'')}</div></div><div><div class="proj-fl">O que pode melhorar?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_melhorar||'')}</div></div><div><div class="proj-fl">Sugestões / ideias</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_ideias||'')}</div></div></div></div>` : ''}`);
+  projSetHtml(content, `<div class="proj-ph"><div><div class="proj-ph-t">Memorial do Projeto</div><div class="proj-ph-s">${projEsc(p.nome||'Projeto')}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="proj-btn primary" style="font-size:12px;padding:5px 11px" onclick="projAbrirDetalhe('${projEsc(String(p.id))}', true)">Ver Workflow</button><button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">Voltar ao Portfólio</button></div></div><div class="proj-form-section"><div class="proj-form-section-title">Informações Gerais</div><div class="proj-g3"><div><div class="proj-fl">Projeto</div><strong>${projEsc(p.nome||'')}</strong></div><div><div class="proj-fl">Patrocinador</div><strong>${projEsc(p.patrocinador||'Não informado')}</strong></div><div><div class="proj-fl">Gerente</div><strong>${projEsc(p.gerente||'Não informado')}</strong></div></div></div><div class="proj-form-section"><div class="proj-form-section-title">História do Projeto</div><div style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia||'História ainda não registrada.')}</div></div>${projMemorialNewsEmbeds(conc)}<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Imagens do Memorial</div>${imgs}</div>${licoes ? `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Lições Aprendidas</div><div class="proj-g2"><div><div class="proj-fl">Data da reunião</div><strong>${projFormatDate(conc.licoes_data)||'Não informada'}</strong></div><div><div class="proj-fl">Participantes</div><strong>${projEsc(conc.licoes_participantes||'Não informado')}</strong></div></div><div class="proj-g3" style="margin-top:1rem"><div><div class="proj-fl">O que deu certo?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_certo||'')}</div></div><div><div class="proj-fl">O que pode melhorar?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_melhorar||'')}</div></div><div><div class="proj-fl">Sugestões / ideias</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_ideias||'')}</div></div></div></div>` : ''}`);
 }

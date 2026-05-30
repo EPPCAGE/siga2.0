@@ -1427,11 +1427,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   function _avaliarCondicao(condicao, dados) {
     if (!condicao || !condicao.trim()) return true;
     try {
-      const m = condicao.match(/^\s*(\w+)\s*(==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
-      if (!m) return true; // condição não reconhecida → passa
-      const [, campo, op, valorStr] = m;
+      // Regex linear: sem backtracking — trimEnd separa o valor em seguida
+      const m = condicao.trim().match(/^(\w+)\s*(==|!=|>=|<=|>|<)\s*(\S.*)/);
+      if (!m) return true;
+      const [, campo, op, valorRaw] = m;
+      const valorStr = valorRaw.trimEnd().replace(/^['"]|['"]$/g, '');
       const valDados = dados[campo];
-      const valComp = isNaN(valorStr) ? valorStr.replace(/^['"]|['"]$/g, '') : Number(valorStr);
+      const valComp = isNaN(valorStr) ? valorStr : Number(valorStr);
       switch (op) {
         case '==': return String(valDados) === String(valComp);
         case '!=': return String(valDados) !== String(valComp);
