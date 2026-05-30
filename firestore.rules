@@ -89,24 +89,23 @@ service cloud.firestore {
     // profundidade para acesso direto. A engine valida permissões antes de escrever.
     // ---------------------------------------------------------------------------
 
-    // Modelos de processo: EP/gestor criam e editam; todos autenticados leem publicados.
+    // Modelos de processo, formulários e designer: somente EP cria/edita.
+    // Todos autenticados leem (para poder iniciar workflows publicados).
     match /wf_processo_modelos/{id} {
       allow read: if isAuth();
-      allow write: if isAuth() && (isEP() || request.auth.token.get('perfil','') == 'gestor');
+      allow write: if isAuth() && isEP();
     }
-
-    // Etapas, transições e formulários: mesmas permissões dos modelos.
     match /wf_etapa_modelos/{id} {
       allow read: if isAuth();
-      allow write: if isAuth() && (isEP() || request.auth.token.get('perfil','') == 'gestor');
+      allow write: if isAuth() && isEP();
     }
     match /wf_transicao_fluxos/{id} {
       allow read: if isAuth();
-      allow write: if isAuth() && (isEP() || request.auth.token.get('perfil','') == 'gestor');
+      allow write: if isAuth() && isEP();
     }
     match /wf_formulario_modelos/{id} {
       allow read: if isAuth();
-      allow write: if isAuth() && (isEP() || request.auth.token.get('perfil','') == 'gestor');
+      allow write: if isAuth() && isEP();
     }
 
     // Instâncias: dono lê as próprias; EP/gestor leem todas.
@@ -157,10 +156,10 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lida']);
     }
 
-    // Config por processo: EP/gestor escrevem; autenticados leem.
+    // Config por processo (formulários/SLA): somente EP escreve; autenticados leem.
     match /wf_config_processo/{id} {
       allow read: if isAuth();
-      allow write: if isAuth() && (isEP() || request.auth.token.get('perfil','') == 'gestor');
+      allow write: if isAuth() && isEP();
     }
 
     match /{document=**} {
