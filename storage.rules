@@ -30,6 +30,12 @@ service firebase.storage {
       allow write: if isAuth() && withinSizeLimit();
     }
 
+    // Workflow: qualquer autenticado faz upload de anexos nas tarefas.
+    match /workflow/{allPaths=**} {
+      allow read: if isAuth();
+      allow write: if isAuth() && withinSizeLimit();
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
