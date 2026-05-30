@@ -1126,7 +1126,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div class="fg"><label class="fl" for="usr-perfil">Perfil<span>*</span></label>
       <select class="fi" id="usr-perfil" onchange="onUsrPerfilChg()">
         <option value="ep">EPP</option>
-        <option value="dono">Executor de Processo</option>
+        <option value="dono">Dono do Processo</option>
         <option value="gestor">Gestor / Adjunto</option>
         <option value="gerente_projeto">Projetos</option>
       </select>
@@ -1200,7 +1200,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         </label>
         <div id="aviso-perfis-ind" style="display:flex;flex-direction:column;gap:6px;padding-left:1.2rem;opacity:.4;pointer-events:none">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-ep"> EPP</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-dono"> Executor de Processo</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-dono"> Dono do Processo</label>
         </div>
       </div>
     </div>
@@ -1334,7 +1334,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <select id="ep-perfil-select" onchange="simularPerfil(this.value)" style="width:100%;font-size:11px;padding:3px 6px;border:1px solid var(--bdr);border-radius:var(--r);background:var(--bg2);color:var(--ink);cursor:pointer;font-family:var(--f)">
         <option value="ep">EP CAGE (real)</option>
         <option value="gestor">Gestor</option>
-        <option value="dono">Executor de Processo</option>
+        <option value="dono">Dono do Processo</option>
+        <option value="solicitante">Solicitante</option>
       </select>
     </div>
   </div>
@@ -2075,13 +2076,13 @@ Não responda este e-mail.</pre>
 
   <!-- Sub-navegação interna -->
   <div style="display:flex;gap:4px;border-bottom:1px solid var(--bdr);margin-bottom:1.5rem;padding-bottom:0;flex-wrap:wrap">
-    <button type="button" class="btn" id="wf-tab-tarefas" onclick="wfNavWorkflow('tarefas')" style="border-radius:6px 6px 0 0;border-bottom:none">📋 Minhas Tarefas</button>
-    <button type="button" class="btn" id="wf-tab-instancias" onclick="wfNavWorkflow('instancias')" style="border-radius:6px 6px 0 0;border-bottom:none">🔄 Processos Ativos</button>
-    <button type="button" class="btn" id="wf-tab-iniciar" onclick="wfNavWorkflow('iniciar')" style="border-radius:6px 6px 0 0;border-bottom:none">▶ Iniciar</button>
+    <button type="button" class="btn wf-tab-nao-solicitante" id="wf-tab-tarefas" onclick="wfNavWorkflow('tarefas')" style="border-radius:6px 6px 0 0;border-bottom:none">📋 Minhas Tarefas</button>
+    <button type="button" class="btn" id="wf-tab-instancias" onclick="wfNavWorkflow('instancias')" style="border-radius:6px 6px 0 0;border-bottom:none">🔄 <span id="wf-tab-instancias-label">Processos Ativos</span></button>
+    <button type="button" class="btn" id="wf-tab-iniciar" onclick="wfNavWorkflow('iniciar')" style="border-radius:6px 6px 0 0;border-bottom:none">▶ Nova Solicitação</button>
     <button type="button" class="btn ep-only" id="wf-tab-designer" onclick="wfAbrirDesigner()" style="border-radius:6px 6px 0 0;border-bottom:none">🧩 Designer</button>
     <button type="button" class="btn ep-only" id="wf-tab-formularios" onclick="wfNavWorkflow('formularios')" style="border-radius:6px 6px 0 0;border-bottom:none">📝 Formulários</button>
     <button type="button" class="btn" id="wf-tab-notificacoes" onclick="wfNavWorkflow('notificacoes')" style="border-radius:6px 6px 0 0;border-bottom:none">🔔 Notificações</button>
-    <button type="button" class="btn" id="wf-tab-dashboard" onclick="wfNavWorkflow('dashboard')" style="border-radius:6px 6px 0 0;border-bottom:none">📊 Dashboard</button>
+    <button type="button" class="btn wf-tab-nao-solicitante" id="wf-tab-dashboard" onclick="wfNavWorkflow('dashboard')" style="border-radius:6px 6px 0 0;border-bottom:none">📊 Dashboard</button>
   </div>
 
   <!-- Painel: Minhas Tarefas -->
@@ -2782,8 +2783,8 @@ function simularPerfil(perfil){
     const id=pAtivo.id.replace('page-','');
     go(id,document.getElementById('nb-'+id)||null);
   }
-  const labels={ep:ORG_CONFIG.supportTeamLabel+' (real)',gestor:'Gestor',dono:'Executor de Processo'};
-  const cores={ep:'var(--teal)',gestor:'var(--blue)',dono:'var(--amber)'};
+  const labels={ep:ORG_CONFIG.supportTeamLabel+' (real)',gestor:'Gestor',dono:'Dono do Processo',solicitante:'Solicitante'};
+  const cores={ep:'var(--teal)',gestor:'var(--blue)',dono:'var(--amber)',solicitante:'#0891b2'};
   toast('Perfil: '+labels[perfil], cores[perfil]||'var(--teal)');
 }
 
@@ -4840,17 +4841,31 @@ function aplicarPermissoes(){
   if(nbAud) nbAud.style.display = isEP() ? '' : 'none';
   const nbMeusProc = document.getElementById('nb-meusproc');
   if(nbMeusProc) nbMeusProc.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? '' : 'none';
-  const nbProc = document.getElementById('nb-proc');
-  if(nbProc) nbProc.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
-  const nbTrilhas = document.getElementById('nb-trilhas');
-  if(nbTrilhas) nbTrilhas.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
-  const nbDash = document.getElementById('nb-dash');
-  if(nbDash) nbDash.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
+  const perfil = usuarioLogado?.perfil;
+  const isSolicitante = perfil === 'solicitante';
+
+  // Solicitante: só enxerga arquitetura, FAQ, publicações e workflow
+  const menusSolicitante = new Set(['nb-arq','nb-faq','nb-pub','nb-workflow']);
+  if(isSolicitante){
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      const visivel = menusSolicitante.has(btn.id) || !btn.id.startsWith('nb-');
+      btn.style.display = visivel ? '' : 'none';
+    });
+  } else {
+    const nbProc = document.getElementById('nb-proc');
+    if(nbProc) nbProc.style.display = (perfil==='dono'||perfil==='gestor') ? 'none' : '';
+    const nbTrilhas = document.getElementById('nb-trilhas');
+    if(nbTrilhas) nbTrilhas.style.display = (perfil==='dono'||perfil==='gestor') ? 'none' : '';
+    const nbDash = document.getElementById('nb-dash');
+    if(nbDash) nbDash.style.display = (perfil==='dono'||perfil==='gestor') ? 'none' : '';
+    const nbNotif = document.getElementById('nb-notif');
+    if(nbNotif) nbNotif.style.display = (perfil==='dono'||perfil==='gestor') ? 'none' : '';
+  }
   const nbPainelGestor = document.getElementById('nb-painel-gestor');
-  if(nbPainelGestor) nbPainelGestor.style.display = usuarioLogado?.perfil==='gestor' ? '' : 'none';
-  const nbNotif = document.getElementById('nb-notif');
-  if(nbNotif) nbNotif.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
+  if(nbPainelGestor) nbPainelGestor.style.display = perfil==='gestor' ? '' : 'none';
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
+  // Solicitante não modifica nada — oculta ações de escrita fora do workflow
+  document.querySelectorAll('.write-action').forEach(el=>{ el.style.display=isSolicitante?'none':''; });
 }
 
 function buildArqStatsHTML(f){
