@@ -3412,7 +3412,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   async function _wfRemoverEtapa(etapaId) {
     if (!_wfModeloAtual) return;
     if (!confirm('Remover esta etapa?')) return;
-    const etapas = (_wfModeloAtual.etapas || []).filter(e => e.id !== etapaId);
+    const etapas = _wfEtapas(_wfModeloAtual).filter(e => e.id !== etapaId);
     await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { etapas });
     _wfModeloAtual.etapas = etapas;
     _wfRenderEtapasConfig(_wfModeloAtual);
@@ -3431,7 +3431,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   // Modal dinâmico para edição de etapa
   function wfAbrirModalEtapa(etapaId) {
     if (!_wfModeloAtual) return;
-    const etapas = _wfModeloAtual.etapas || [];
+    const etapas = _wfEtapas(_wfModeloAtual);
     const etapa = etapaId ? etapas.find(e => e.id === etapaId) : null;
     const isNova = !etapa;
     const TIPOS = [['tarefa','Tarefa'],['aprovacao','Aprovação']];
@@ -3468,7 +3468,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const papel = document.getElementById('wf-etapa-papel')?.value || '';
     const formId = document.getElementById('wf-etapa-form')?.value || '';
     const sla = Number(document.getElementById('wf-etapa-sla')?.value || 0);
-    const etapas = [...(_wfModeloAtual.etapas || [])];
+    const etapas = [..._wfEtapas(_wfModeloAtual)];
     const idx = etapaId ? etapas.findIndex(e => e.id === etapaId) : -1;
     const nova = { id: etapaId || `e_${Date.now()}`, nome, tipo, responsavel_papel: papel || null, formulario_id: formId || null, sla_horas: sla };
     if (idx >= 0) etapas[idx] = nova;
