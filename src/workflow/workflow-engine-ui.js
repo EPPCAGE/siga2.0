@@ -110,7 +110,7 @@
   }
 
   // ── Navegação interna do módulo ───────────────────────────────────────────
-  const _paineis = ['tarefas','instancias','solicitacoes','iniciar','executar','historico','formularios','config-processo','designer','notificacoes','equipes'];
+  const _paineis = ['tarefas','instancias','solicitacoes','iniciar','executar','historico','formularios','modelagem','config-modelo','notificacoes','equipes'];
 
   function wfNavWorkflow(painel) {
     _st.painelAtual = painel;
@@ -121,7 +121,7 @@
     const alvo = document.getElementById(`wf-painel-${painel}`);
     if (alvo) alvo.style.display = '';
 
-    const tabIds = ['tarefas','instancias','solicitacoes','iniciar','formularios','designer','equipes'];
+    const tabIds = ['tarefas','instancias','solicitacoes','modelagem','formularios'];
     tabIds.forEach(t => {
       const btn = document.getElementById(`wf-tab-${t}`);
       if (btn) btn.style.fontWeight = t === painel ? '700' : '';
@@ -133,6 +133,7 @@
       solicitacoes: wfCarregarSolicitacoes,
       iniciar: wfCarregarIniciar,
       formularios: wfCarregarFormularios,
+      modelagem: wfCarregarModelos,
       notificacoes: _wfRenderNotifPanel,
       equipes: wfCarregarEquipes,
     };
@@ -1045,12 +1046,22 @@
     else wfCarregarTemplatesPublicados();
   }
 
-  function wfCarregarIniciar() {
-    const sol = globalScope.isSolicitante?.() || globalScope.usuarioLogado?.perfil === 'solicitante';
-    // Solicitante só vê templates publicados, nunca mapeamentos brutos
-    const tabMapeamento = document.getElementById('wf-iniciar-tab-mapeamento');
-    if (tabMapeamento) tabMapeamento.style.display = sol ? 'none' : '';
-    wfIniciarAba(sol ? 'templates' : (_st.iniciarAba || 'mapeamento'));
+  async function wfCarregarIniciar() {
+    const sel = document.getElementById('wf-np-modelo');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Carregando…</option>';
+    try {
+      const { where } = globalScope.fb();
+      const modelos = await _getAll('wf_processo_modelos', where('status', '==', 'publicado'));
+      if (!modelos.length) {
+        sel.innerHTML = '<option value="">Nenhum processo disponível</option>';
+        return;
+      }
+      sel.innerHTML = '<option value="">Selecione o processo a iniciar…</option>' +
+        modelos.map(m => `<option value="${_esc(m.id)}">${_esc(m.nome)}</option>`).join('');
+    } catch (e) {
+      sel.innerHTML = '<option value="">Erro ao carregar processos</option>';
+    }
   }
 
   // Lista de templates publicados
@@ -1405,8 +1416,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const dirtyEl = document.getElementById('wf-bpmn-dirty');
     if (dirtyEl) dirtyEl.style.display = 'none';
 
-    wfNavWorkflow('designer');
-    setTimeout(() => _wfInitModeler(modelo), 150);
+    wfAbrirConfigModelo(modelo.id);
   }
 
   function _wfInitModeler(modelo) {
@@ -2547,7 +2557,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       });
     }
 
-    wfNavWorkflow('config-processo');
+    wfNavWorkflow('config-modelo');
   }
 
   async function wfSalvarConfigProcesso() {
@@ -3134,6 +3144,458 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
   }
 
+  // ── Modelagem: lista de modelos ───────────────────────────────────────────
+  async function wfCarregarModelos() {
+    const el = document.getElementById('wf-lista-modelos');
+    if (!el) return;
+    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    try {
+      const modelos = await _getAll('wf_processo_modelos');
+      if (!modelos.length) {
+        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum modelo criado. Clique em "+ Novo modelo" para começar.</div>';
+        return;
+      }
+      const STATUS_COR = globalScope.WF_STATUS_PROCESSO_MODELO_COR || { rascunho:'#f59e0b', publicado:'#10b981', arquivado:'#6b7280' };
+      const STATUS_LABELS = globalScope.WF_STATUS_PROCESSO_MODELO_LABELS || { rascunho:'Rascunho', publicado:'Publicado', arquivado:'Arquivado' };
+      el.innerHTML = modelos.map(m => {
+        const cor = STATUS_COR[m.status] || '#6b7280';
+        const label = STATUS_LABELS[m.status] || (m.status || '');
+        const etapas = m.etapas || m.canvas?.nos?.filter(n => n.tipo !== 'inicio' && n.tipo !== 'fim') || [];
+        return _card(`
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <div style="font-weight:600;font-size:14px">${_esc(m.nome)}</div>
+                ${_badge(label, cor)}
+              </div>
+              ${m.descricao ? `<div style="font-size:12px;color:var(--ink3);margin-bottom:4px">${_esc(m.descricao)}</div>` : ''}
+              <div style="font-size:11px;color:var(--ink3)">${etapas.length} etapa(s)</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+              <button type="button" class="btn btn-sm" onclick="wfAbrirConfigModelo('${_esc(m.id)}')">Editar</button>
+              ${m.status !== 'publicado' ? `<button type="button" class="btn btn-p btn-sm" onclick="_wfPublicarModeloId('${_esc(m.id)}')">Publicar</button>` : ''}
+            </div>
+          </div>
+        `);
+      }).join('');
+    } catch (e) {
+      el.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
+    }
+  }
+
+  async function wfAbrirModalNovoModelo() {
+    const nome = prompt('Nome do novo processo:');
+    if (!nome?.trim()) return;
+    try {
+      const id = await _addDoc('wf_processo_modelos', {
+        nome: nome.trim(),
+        descricao: '',
+        status: 'rascunho',
+        versao: 1,
+        etapas: [],
+        transicoes: [],
+      });
+      await wfAbrirConfigModelo(id);
+    } catch (e) {
+      alert('Erro ao criar modelo: ' + e.message);
+    }
+  }
+
+  async function wfAbrirConfigModelo(modeloId) {
+    const modelo = await _getDoc('wf_processo_modelos', modeloId);
+    if (!modelo) { alert('Modelo não encontrado.'); return; }
+    _wfModeloAtual = modelo;
+    const tituloEl = document.getElementById('wf-config-titulo');
+    if (tituloEl) tituloEl.textContent = modelo.nome;
+    const statusEl = document.getElementById('wf-config-status-badge');
+    if (statusEl) {
+      const cor = (globalScope.WF_STATUS_PROCESSO_MODELO_COR || {})[modelo.status] || '#6b7280';
+      const label = (globalScope.WF_STATUS_PROCESSO_MODELO_LABELS || {})[modelo.status] || (modelo.status || '');
+      statusEl.textContent = label;
+      statusEl.style.background = cor + '22';
+      statusEl.style.color = cor;
+    }
+    const pubBtn = document.getElementById('wf-btn-publicar');
+    if (pubBtn) pubBtn.style.display = modelo.status === 'rascunho' ? '' : 'none';
+    _wfRenderEtapasConfig(modelo);
+    _wfRenderTransicoesConfig(modelo);
+    _wfRenderArqInfo(modelo);
+    wfNavWorkflow('config-modelo');
+  }
+
+  function _wfEtapas(modelo) {
+    return modelo.etapas?.length
+      ? modelo.etapas
+      : (modelo.canvas?.nos?.filter(n => n.tipo !== 'inicio' && n.tipo !== 'fim') || []);
+  }
+
+  function _wfTransicoes(modelo) {
+    return modelo.transicoes?.length
+      ? modelo.transicoes
+      : (modelo.canvas?.arestas || []);
+  }
+
+  function _wfRenderEtapasConfig(modelo) {
+    const el = document.getElementById('wf-config-etapas');
+    if (!el) return;
+    const etapas = _wfEtapas(modelo);
+    if (!etapas.length) {
+      el.innerHTML = '<div style="color:var(--ink3);font-size:13px;padding:8px 0">Nenhuma etapa adicionada.</div>';
+      return;
+    }
+    const ICONE = globalScope.WF_TIPO_ETAPA_ICONE || { tarefa:'📋', aprovacao:'✅', inicio:'▶', fim:'⏹' };
+    const PAPEL_LABELS = globalScope.WF_PAPEL_ALVO_LABELS || {};
+    el.innerHTML = etapas.map((n, i) => `
+      <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:8px">
+        <span style="font-size:16px">${ICONE[n.tipo || n.label] || '📋'}</span>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${_esc(n.nome || n.label || n.id)}</div>
+          <div style="font-size:11px;color:var(--ink3)">${_esc(n.tipo || 'tarefa')}${n.responsavel_papel ? ' · ' + _esc(PAPEL_LABELS[n.responsavel_papel] || n.responsavel_papel) : ''}${n.sla_horas ? ' · SLA ' + n.sla_horas + 'h' : ''}</div>
+        </div>
+        <button type="button" class="btn btn-sm" onclick="wfAbrirModalEtapa('${_esc(n.id || i)}')">Editar</button>
+        <button type="button" class="btn btn-r btn-sm" onclick="_wfRemoverEtapa('${_esc(n.id || i)}')">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function _wfRenderTransicoesConfig(modelo) {
+    const el = document.getElementById('wf-config-transicoes');
+    if (!el) return;
+    const trans = _wfTransicoes(modelo);
+    const etapas = _wfEtapas(modelo);
+    const nomeNo = id => {
+      const n = etapas.find(e => (e.id || e) === id);
+      return n ? (n.nome || n.label || n.id) : id;
+    };
+    if (!trans.length) {
+      el.innerHTML = '<div style="color:var(--ink3);font-size:13px">Nenhuma transição.</div>';
+      return;
+    }
+    const ACAO_LABELS = globalScope.WF_ACAO_LABELS || {};
+    const CONDICAO_LABELS = { sempre:'Sempre', aprovado:'Aprovado', rejeitado:'Rejeitado' };
+    el.innerHTML = trans.map((t, i) => `
+      <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:13px">
+        <div style="flex:1">
+          <strong>${_esc(nomeNo(t.de || t.origem))}</strong> → <strong>${_esc(nomeNo(t.para || t.destino))}</strong>
+          ${t.condicao && t.condicao !== 'sempre' ? `<span style="color:var(--ink3)"> (${_esc(CONDICAO_LABELS[t.condicao] || t.condicao)})</span>` : ''}
+          ${t.acao ? ` · ${_esc(ACAO_LABELS[t.acao] || t.acao)}` : ''}
+        </div>
+        <button type="button" class="btn btn-r btn-sm" onclick="_wfRemoverTransicao(${i})">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function _wfRenderArqInfo(modelo) {
+    const el = document.getElementById('wf-config-arq-info');
+    if (!el) return;
+    if (modelo.processo_origem_id && modelo.processo_origem_nome) {
+      el.textContent = modelo.processo_origem_nome;
+    } else {
+      el.textContent = 'Nenhum processo vinculado.';
+    }
+  }
+
+  async function _wfRemoverEtapa(etapaId) {
+    if (!_wfModeloAtual) return;
+    if (!confirm('Remover esta etapa?')) return;
+    const etapas = (_wfModeloAtual.etapas || []).filter(e => e.id !== etapaId);
+    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { etapas });
+    _wfModeloAtual.etapas = etapas;
+    _wfRenderEtapasConfig(_wfModeloAtual);
+  }
+
+  async function _wfRemoverTransicao(idx) {
+    if (!_wfModeloAtual) return;
+    if (!confirm('Remover esta transição?')) return;
+    const trans = [...(_wfModeloAtual.transicoes || [])];
+    trans.splice(idx, 1);
+    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { transicoes: trans });
+    _wfModeloAtual.transicoes = trans;
+    _wfRenderTransicoesConfig(_wfModeloAtual);
+  }
+
+  // Modal dinâmico para edição de etapa
+  function wfAbrirModalEtapa(etapaId) {
+    if (!_wfModeloAtual) return;
+    const etapas = _wfModeloAtual.etapas || [];
+    const etapa = etapaId ? etapas.find(e => e.id === etapaId) : null;
+    const isNova = !etapa;
+    const TIPOS = [['tarefa','Tarefa'],['aprovacao','Aprovação']];
+    const PAPEIS = Object.entries(globalScope.WF_PAPEL_ALVO_LABELS || { solicitante:'Próprio solicitante', ep:'Perfil EP', gestor:'Perfil Gestor', dono:'Perfil Dono' });
+    const fms = _st.formularioModelos.length ? _st.formularioModelos : [];
+    _wfAbrirModalDinamico('wf-modal-etapa', `
+      <div class="modal-hd"><span>${isNova ? 'Nova etapa' : 'Editar etapa'}</span><button type="button" class="modal-x" onclick="_wfFecharModalDinamico('wf-modal-etapa')">✕</button></div>
+      <div class="modal-bd">
+        <div style="margin-bottom:14px"><label class="lbl">Nome *</label><input type="text" class="fi" id="wf-etapa-nome" value="${_esc(etapa?.nome || '')}" style="margin-top:4px;width:100%"></div>
+        <div style="margin-bottom:14px"><label class="lbl">Tipo</label><select class="fi" id="wf-etapa-tipo" style="margin-top:4px;width:100%">${TIPOS.map(([v,l])=>`<option value="${v}"${etapa?.tipo===v?' selected':''}>${l}</option>`).join('')}</select></div>
+        <div style="margin-bottom:14px"><label class="lbl">Responsável</label><select class="fi" id="wf-etapa-papel" style="margin-top:4px;width:100%"><option value="">— Não definido —</option>${PAPEIS.map(([v,l])=>`<option value="${v}"${etapa?.responsavel_papel===v?' selected':''}>${_esc(l)}</option>`).join('')}</select></div>
+        <div style="margin-bottom:14px"><label class="lbl">Formulário</label><select class="fi" id="wf-etapa-form" style="margin-top:4px;width:100%"><option value="">— Sem formulário —</option>${fms.map(m=>`<option value="${_esc(m.id)}"${etapa?.formulario_id===m.id?' selected':''}>${_esc(m.titulo||m.nome)}</option>`).join('')}</select></div>
+        <div><label class="lbl">SLA (horas)</label><input type="number" class="fi" id="wf-etapa-sla" min="0" value="${etapa?.sla_horas ?? 0}" style="margin-top:4px;width:100%"></div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-p" onclick="_wfSalvarEtapa('${_esc(etapaId||'')}')">Salvar</button>
+        <button type="button" class="btn" onclick="_wfFecharModalDinamico('wf-modal-etapa')">Cancelar</button>
+      </div>
+    `);
+    if (!fms.length) {
+      _getAll('wf_formulario_modelos').then(list => {
+        _st.formularioModelos = list;
+        const sel = document.getElementById('wf-etapa-form');
+        if (sel) sel.innerHTML = '<option value="">— Sem formulário —</option>' + list.map(m=>`<option value="${_esc(m.id)}"${etapa?.formulario_id===m.id?' selected':''}>${_esc(m.titulo||m.nome)}</option>`).join('');
+      }).catch(() => {});
+    }
+  }
+
+  async function _wfSalvarEtapa(etapaId) {
+    if (!_wfModeloAtual) return;
+    const nome = document.getElementById('wf-etapa-nome')?.value.trim();
+    if (!nome) { alert('Nome é obrigatório.'); return; }
+    const tipo = document.getElementById('wf-etapa-tipo')?.value || 'tarefa';
+    const papel = document.getElementById('wf-etapa-papel')?.value || '';
+    const formId = document.getElementById('wf-etapa-form')?.value || '';
+    const sla = Number(document.getElementById('wf-etapa-sla')?.value || 0);
+    const etapas = [...(_wfModeloAtual.etapas || [])];
+    const idx = etapaId ? etapas.findIndex(e => e.id === etapaId) : -1;
+    const nova = { id: etapaId || `e_${Date.now()}`, nome, tipo, responsavel_papel: papel || null, formulario_id: formId || null, sla_horas: sla };
+    if (idx >= 0) etapas[idx] = nova;
+    else etapas.push(nova);
+    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { etapas });
+    _wfModeloAtual.etapas = etapas;
+    _wfFecharModalDinamico('wf-modal-etapa');
+    _wfRenderEtapasConfig(_wfModeloAtual);
+  }
+
+  function wfAbrirModalTransicao() {
+    if (!_wfModeloAtual) return;
+    const etapas = _wfEtapas(_wfModeloAtual);
+    const nosOpts = etapas.map(e => `<option value="${_esc(e.id)}">${_esc(e.nome||e.label||e.id)}</option>`).join('');
+    const ACOES = Object.entries(globalScope.WF_ACAO_LABELS || { avancar:'Avançar', concluir:'Concluir', aprovar:'Aprovar', rejeitar:'Rejeitar', devolver:'Devolver' });
+    _wfAbrirModalDinamico('wf-modal-transicao', `
+      <div class="modal-hd"><span>Nova transição</span><button type="button" class="modal-x" onclick="_wfFecharModalDinamico('wf-modal-transicao')">✕</button></div>
+      <div class="modal-bd">
+        <div style="margin-bottom:14px"><label class="lbl">De (etapa origem) *</label><select class="fi" id="wf-trans-de" style="margin-top:4px;width:100%"><option value="">Selecione…</option>${nosOpts}</select></div>
+        <div style="margin-bottom:14px"><label class="lbl">Para (etapa destino) *</label><select class="fi" id="wf-trans-para" style="margin-top:4px;width:100%"><option value="">Selecione…</option>${nosOpts}</select></div>
+        <div style="margin-bottom:14px"><label class="lbl">Ação</label><select class="fi" id="wf-trans-acao" style="margin-top:4px;width:100%"><option value="">— Nenhuma —</option>${ACOES.map(([v,l])=>`<option value="${v}">${_esc(l)}</option>`).join('')}</select></div>
+        <div><label class="lbl">Condição</label><select class="fi" id="wf-trans-condicao" style="margin-top:4px;width:100%"><option value="sempre">Sempre</option><option value="aprovado">Aprovado</option><option value="rejeitado">Rejeitado</option></select></div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-p" onclick="_wfSalvarTransicao()">Salvar</button>
+        <button type="button" class="btn" onclick="_wfFecharModalDinamico('wf-modal-transicao')">Cancelar</button>
+      </div>
+    `);
+  }
+
+  async function _wfSalvarTransicao() {
+    if (!_wfModeloAtual) return;
+    const de = document.getElementById('wf-trans-de')?.value;
+    const para = document.getElementById('wf-trans-para')?.value;
+    if (!de || !para) { alert('Selecione a origem e o destino.'); return; }
+    const acao = document.getElementById('wf-trans-acao')?.value || '';
+    const condicao = document.getElementById('wf-trans-condicao')?.value || 'sempre';
+    const trans = [...(_wfModeloAtual.transicoes || []), { id: `t_${Date.now()}`, de, para, acao: acao || null, condicao }];
+    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { transicoes: trans });
+    _wfModeloAtual.transicoes = trans;
+    _wfFecharModalDinamico('wf-modal-transicao');
+    _wfRenderTransicoesConfig(_wfModeloAtual);
+  }
+
+  async function wfAbrirModalVincularArquitetura() {
+    const processos = await _getAll('processos').catch(() => []);
+    const opts = processos.map(p => `<option value="${_esc(p.id)}">${_esc(p.nome)}</option>`).join('');
+    _wfAbrirModalDinamico('wf-modal-arq', `
+      <div class="modal-hd"><span>Vincular processo mapeado</span><button type="button" class="modal-x" onclick="_wfFecharModalDinamico('wf-modal-arq')">✕</button></div>
+      <div class="modal-bd">
+        <label class="lbl">Processo</label>
+        <select class="fi" id="wf-arq-sel" style="margin-top:4px;width:100%"><option value="">Selecione…</option>${opts}</select>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-p" onclick="_wfSalvarVinculoArq()">Vincular</button>
+        <button type="button" class="btn" onclick="_wfFecharModalDinamico('wf-modal-arq')">Cancelar</button>
+      </div>
+    `);
+  }
+
+  async function _wfSalvarVinculoArq() {
+    if (!_wfModeloAtual) return;
+    const sel = document.getElementById('wf-arq-sel');
+    const id = sel?.value;
+    if (!id) { alert('Selecione um processo.'); return; }
+    const opt = sel.options[sel.selectedIndex];
+    const nome = opt?.textContent || id;
+    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { processo_origem_id: id, processo_origem_nome: nome });
+    _wfModeloAtual.processo_origem_id = id;
+    _wfModeloAtual.processo_origem_nome = nome;
+    _wfFecharModalDinamico('wf-modal-arq');
+    _wfRenderArqInfo(_wfModeloAtual);
+  }
+
+  function _wfAbrirModalDinamico(id, html) {
+    let el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      el.className = 'modal-overlay';
+      el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding-top:48px';
+      document.body.appendChild(el);
+    }
+    el.innerHTML = `<div class="modal" style="max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column">${html}</div>`;
+    el.style.display = 'flex';
+  }
+
+  function _wfFecharModalDinamico(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+
+  async function wfPublicarModelo() {
+    if (!_wfModeloAtual) return;
+    const etapas = _wfEtapas(_wfModeloAtual);
+    if (!etapas.length) { alert('Adicione pelo menos uma etapa antes de publicar.'); return; }
+    if (!confirm(`Publicar o modelo "${_wfModeloAtual.nome}"? Após publicado ele estará disponível para iniciar processos.`)) return;
+    try {
+      await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { status: 'publicado' });
+      _wfModeloAtual.status = 'publicado';
+      const statusEl = document.getElementById('wf-config-status-badge');
+      if (statusEl) { statusEl.textContent = 'Publicado'; statusEl.style.background = '#10b98122'; statusEl.style.color = '#10b981'; }
+      const pubBtn = document.getElementById('wf-btn-publicar');
+      if (pubBtn) pubBtn.style.display = 'none';
+      alert('Modelo publicado com sucesso!');
+    } catch (e) {
+      alert('Erro ao publicar: ' + e.message);
+    }
+  }
+
+  async function _wfPublicarModeloId(modeloId) {
+    if (!confirm('Publicar este modelo?')) return;
+    try {
+      await _updateDoc('wf_processo_modelos', modeloId, { status: 'publicado' });
+      wfCarregarModelos();
+    } catch (e) {
+      alert('Erro ao publicar: ' + e.message);
+    }
+  }
+
+  function wfDesignerSimular() {
+    if (!_wfModeloAtual) { alert('Abra um modelo antes de simular.'); return; }
+    const etapas = _wfEtapas(_wfModeloAtual);
+    const trans = _wfTransicoes(_wfModeloAtual);
+    // Monta simulação baseada nas transições condicionais
+    const transCondicionais = trans.filter(t => t.condicao && t.condicao !== 'sempre');
+    const nomeNo = id => {
+      const n = etapas.find(e => e.id === id);
+      return n ? (n.nome || n.label || n.id) : id;
+    };
+    const camposHtml = transCondicionais.length
+      ? transCondicionais.map(t => `
+          <div style="margin-bottom:12px">
+            <label class="lbl" style="font-size:12px">${_esc(nomeNo(t.de))} → ${_esc(nomeNo(t.para))}</label>
+            <select class="fi" data-trans-id="${_esc(t.id)}" style="margin-top:4px;width:100%">
+              <option value="aprovado">Aprovado</option>
+              <option value="rejeitado">Rejeitado</option>
+            </select>
+          </div>
+        `).join('')
+      : '<div style="color:var(--ink3);font-size:13px">Nenhuma condição definida — o fluxo percorre todas as etapas em sequência.</div>';
+
+    const camposEl = document.getElementById('wf-sim-campos');
+    const resultEl = document.getElementById('wf-sim-resultado');
+    if (camposEl) camposEl.innerHTML = camposHtml;
+    if (resultEl) resultEl.innerHTML = '';
+    const modal = document.getElementById('wf-modal-simulacao');
+    if (modal) modal.style.display = 'flex';
+  }
+
+  function wfExecutarSimulacao() {
+    if (!_wfModeloAtual) return;
+    const etapas = _wfEtapas(_wfModeloAtual);
+    const trans = _wfTransicoes(_wfModeloAtual);
+    const condicoes = {};
+    document.querySelectorAll('#wf-sim-campos [data-trans-id]').forEach(sel => {
+      condicoes[sel.dataset.transId] = sel.value;
+    });
+    // Traça caminho sequencial (simplificado)
+    const caminho = [];
+    let visitados = new Set();
+    // Começa pelo primeiro elemento sem predecessores
+    const destinos = new Set(trans.map(t => t.para || t.destino));
+    const inicio = etapas.find(e => !destinos.has(e.id)) || etapas[0];
+    let atual = inicio;
+    while (atual && !visitados.has(atual.id) && caminho.length < 50) {
+      caminho.push(atual);
+      visitados.add(atual.id);
+      const proxTrans = trans.find(t => {
+        if ((t.de || t.origem) !== atual.id) return false;
+        if (!t.condicao || t.condicao === 'sempre') return true;
+        return condicoes[t.id] === t.condicao;
+      });
+      if (!proxTrans) break;
+      atual = etapas.find(e => e.id === (proxTrans.para || proxTrans.destino)) || null;
+    }
+    const resultEl = document.getElementById('wf-sim-resultado');
+    if (!resultEl) return;
+    if (!caminho.length) { resultEl.innerHTML = '<div style="color:var(--ink3);font-size:13px">Nenhum caminho encontrado.</div>'; return; }
+    const ICONE = globalScope.WF_TIPO_ETAPA_ICONE || { tarefa:'📋', aprovacao:'✅' };
+    resultEl.innerHTML = `
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;color:var(--ink3);margin-bottom:8px">Caminho simulado</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        ${caminho.map((e, i) => `
+          ${i > 0 ? '<span style="color:var(--ink3)">→</span>' : ''}
+          <span style="background:var(--blue-l);border:1px solid var(--blue-b);border-radius:20px;padding:4px 12px;font-size:12px">${ICONE[e.tipo]||'📋'} ${_esc(e.nome||e.label||e.id)}</span>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // ── Iniciar processo: wfIniciarProcesso e wfExibirDetalhesModelo ──────────
+  async function wfIniciarProcesso() {
+    const sel = document.getElementById('wf-np-modelo');
+    const id = sel?.value;
+    if (!id) { alert('Selecione um processo para iniciar.'); return; }
+    await wfIniciarDeModelo(id);
+  }
+
+  async function wfExibirDetalhesModelo() {
+    const sel = document.getElementById('wf-np-modelo');
+    const det = document.getElementById('wf-np-detalhes');
+    if (!det) return;
+    const id = sel?.value;
+    if (!id) { det.style.display = 'none'; return; }
+    try {
+      const m = await _getDoc('wf_processo_modelos', id);
+      if (!m) { det.style.display = 'none'; return; }
+      const etapas = _wfEtapas(m);
+      det.innerHTML = `<strong>${_esc(m.nome)}</strong>${m.descricao ? `<p style="margin:6px 0 0;font-size:12px;color:var(--ink3)">${_esc(m.descricao)}</p>` : ''}<p style="margin:6px 0 0;font-size:11px;color:var(--ink3)">${etapas.length} etapa(s)</p>`;
+      det.style.display = '';
+    } catch { det.style.display = 'none'; }
+  }
+
+  // ── Modal de formulário de abertura do processo ───────────────────────────
+  let _wfInicioFormCallback = null;
+
+  function wfCancelarInicioForm() {
+    const modal = document.getElementById('wf-modal-inicio-form');
+    if (modal) modal.style.display = 'none';
+    _wfInicioFormCallback = null;
+  }
+
+  async function wfConfirmarInicioForm() {
+    const formEl = document.getElementById('wf-inicio-form-campos');
+    if (!formEl || !_wfInicioFormCallback) return;
+    // Coleta dados do formulário renderizado
+    const campos = formEl.querySelectorAll('[data-campo-id]');
+    const dados = {};
+    for (const grupo of campos) {
+      const id = grupo.dataset.campoId;
+      const input = grupo.querySelector(`#wf-campo-${id}`);
+      if (!input) continue;
+      dados[id] = input.type === 'checkbox' ? input.checked : input.value.trim();
+    }
+    const modal = document.getElementById('wf-modal-inicio-form');
+    if (modal) modal.style.display = 'none';
+    _wfInicioFormCallback(dados);
+    _wfInicioFormCallback = null;
+  }
+
   // ── Exposição global ──────────────────────────────────────────────────────
   Object.assign(globalScope, {
     rWorkflow,
@@ -3213,6 +3675,29 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     // Config processo
     wfConfigurarProcesso,
     wfSalvarConfigProcesso,
+    // Modelagem nova
+    wfCarregarModelos,
+    wfAbrirModalNovoModelo,
+    wfAbrirConfigModelo,
+    wfPublicarModelo,
+    _wfPublicarModeloId,
+    wfAbrirModalEtapa,
+    _wfSalvarEtapa,
+    _wfRemoverEtapa,
+    wfAbrirModalTransicao,
+    _wfSalvarTransicao,
+    _wfRemoverTransicao,
+    wfAbrirModalVincularArquitetura,
+    _wfSalvarVinculoArq,
+    _wfFecharModalDinamico,
+    wfDesignerSimular,
+    wfExecutarSimulacao,
+    // Iniciar processo (novo)
+    wfIniciarProcesso,
+    wfExibirDetalhesModelo,
+    // Formulário de abertura
+    wfCancelarInicioForm,
+    wfConfirmarInicioForm,
     _st,
   });
 
