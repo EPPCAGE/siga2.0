@@ -1009,6 +1009,7 @@
             ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-sm" onclick="wfSuspenderInstancia('${_esc(i.id)}')">Suspender</button>` : ''}
             ${i.status === 'suspenso' && podeGerenciar ? `<button type="button" class="btn btn-p btn-sm" onclick="wfRetomarInstancia('${_esc(i.id)}')">Retomar</button>` : ''}
             ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfConfirmarCancelar('${_esc(i.id)}')">Cancelar</button>` : ''}
+            ${i.status === 'cancelado' && podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfExcluirInstancia('${_esc(i.id)}')">🗑 Excluir</button>` : ''}
           </div>
         `);
       }).join('');
@@ -1960,68 +1961,55 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   // — Coleta perfis que precisam de atribuição explícita ao iniciar —
   // Retorna array de strings únicas, ex: ['ep', 'gestor']
-  function _wfPerfisParaAtribuir(nos) {
-    const PERFIS_ATRIBUIVEIS = ['ep', 'dono', 'gestor'];
-    const encontrados = new Set();
-    (nos || []).forEach(n => {
-      const p = n.config?.papeis || {};
-      ['executor','revisor','aprovador'].forEach(papel => {
-        if (p[papel] && PERFIS_ATRIBUIVEIS.includes(p[papel])) encontrados.add(p[papel]);
-      });
-    });
-    return [...encontrados];
-  }
-
-  // Abre modal de atribuição; chama callback(atribuicoes) ou null se cancelado
-  function _wfAbrirModalAtribuicao(perfisNecessarios, nomeModelo, callback) {
+  // Abre modal de vinculação de equipe; chama callback({ grupo_id, grupo_nome }) ou null se cancelado
+  async function _wfAbrirModalAtribuicao(nomeModelo, callback) {
     const el = document.getElementById('wf-modal-atribuicao');
     if (!el) { callback({}); return; }
-    const lista = document.getElementById('wf-modal-atrib-lista');
     const titulo = document.getElementById('wf-modal-atrib-titulo');
-    if (titulo) titulo.textContent = `Atribuir responsáveis — ${_esc(nomeModelo)}`;
+    if (titulo) titulo.textContent = `Vincular equipe — ${_esc(nomeModelo)}`;
 
-    const PERFIL_LABELS_LOCAL = { ep: 'Equipe de Processos (EP)', dono: 'Dono do Processo', gestor: 'Gestor / Adjunto' };
-    // Normaliza campo uid (pode ser 'uid' ou 'id') e nome (pode ser 'nome' ou 'name')
-    const _uid_u = u => u.uid || u.id || '';
-    const _nome_u = u => u.nome || u.name || '';
-    const usuariosFiltrados = (globalScope.USUARIOS || []).filter(u => _uid_u(u) && _nome_u(u));
+    const sel = document.getElementById('wf-atrib-sel-equipe');
+    const membrosDiv = document.getElementById('wf-atrib-equipe-membros');
+    if (sel) sel.innerHTML = '<option value="">— carregando… —</option>';
 
-    lista.innerHTML = perfisNecessarios.map(perf => {
-      const todos = usuariosFiltrados;
-      const comPerfil = todos.filter(u => {
-        const p = globalScope.getPerfisUsuario ? globalScope.getPerfisUsuario(u) : (u.perfis || (u.perfil ? [u.perfil] : []));
-        return p.includes(perf);
-      });
-      // Se nenhum usuário tem o perfil, exibe todos como fallback
-      const fonte = comPerfil.length ? comPerfil : todos;
-      const aviso = comPerfil.length === 0 && todos.length
-        ? `<div style="font-size:11px;color:var(--amber,#b45309);margin-top:4px">⚠ Nenhum usuário cadastrado com este perfil — selecione qualquer responsável.</div>`
-        : '';
-      const opts = fonte.map(u => `<option value="${_esc(_uid_u(u))}">${_esc(_nome_u(u))}</option>`).join('');
-      return `<div style="margin-bottom:14px">
-        <label class="lbl" style="display:block;margin-bottom:4px">${_esc(PERFIL_LABELS_LOCAL[perf] || perf)}</label>
-        <select class="fi" id="wf-atrib-sel-${_esc(perf)}">${opts || '<option value="">— sem usuários cadastrados —</option>'}</select>
-        ${aviso}
-      </div>`;
-    }).join('');
+    const { getDocs, collection, query, orderBy } = globalScope.fb();
+    const snap = await getDocs(query(collection(_db(), 'wf_grupos'), orderBy('nome')));
+    const grupos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (sel) {
+      if (grupos.length) {
+        sel.innerHTML = `<option value="">— selecione uma equipe —</option>` +
+          grupos.map(g => `<option value="${_esc(g.id)}">${_esc(g.nome)}</option>`).join('');
+      } else {
+        sel.innerHTML = '<option value="">— nenhuma equipe cadastrada —</option>';
+      }
+      sel.onchange = () => {
+        const g = grupos.find(x => x.id === sel.value);
+        if (!g || !membrosDiv) return;
+        const nomes = (g.membros_email || []).map(email => {
+          const u = (globalScope.USUARIOS || []).find(x => x.email === email);
+          return u ? _esc(u.nome || email) : _esc(email);
+        });
+        membrosDiv.textContent = nomes.length ? `Membros: ${nomes.join(', ')}` : 'Sem membros cadastrados.';
+      };
+    }
 
     el.style.display = 'flex';
-    // armazena callback no elemento para uso no confirmar/cancelar
     el._atribCallback = callback;
-    el._atribPerfis = perfisNecessarios;
+    el._atribGrupos = grupos;
   }
 
   function wfConfirmarAtribuicao() {
     const el = document.getElementById('wf-modal-atribuicao');
     if (!el) return;
-    const perfis = el._atribPerfis || [];
-    const atribuicoes = {};
-    for (const perf of perfis) {
-      const sel = document.getElementById(`wf-atrib-sel-${perf}`);
-      if (sel?.value) atribuicoes[perf] = sel.value;
-    }
+    const sel = document.getElementById('wf-atrib-sel-equipe');
+    const grupos = el._atribGrupos || [];
+    const grupoId = sel?.value || null;
+    const grupo = grupos.find(g => g.id === grupoId) || null;
     el.style.display = 'none';
-    if (typeof el._atribCallback === 'function') el._atribCallback(atribuicoes);
+    if (typeof el._atribCallback === 'function') {
+      el._atribCallback(grupoId ? { grupo_id: grupoId, grupo_nome: grupo?.nome || grupoId } : {});
+    }
   }
 
   function wfCancelarAtribuicao() {
@@ -2044,11 +2032,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const primeira = _proximoNo(modelo.canvas, inicio.id, null);
     if (!primeira) { alert('Modelo sem etapa após o início.'); return; }
 
-    // Verifica se há perfis que precisam de atribuição explícita
-    const perfisNecessarios = _wfPerfisParaAtribuir(nos);
-
-    const _prosseguir = async (atribuicoes) => {
-      if (atribuicoes === null) return; // cancelado
+    const _prosseguir = async (vinculo) => {
+      if (vinculo === null) return; // cancelado
       const titulo = `${modelo.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
       try {
         const anoAtual = new Date().getFullYear();
@@ -2063,7 +2048,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           etapa_atual_id: primeira.id,
           solicitante_uid: uid,
           ultimo_executor_uid: null,
-          atribuicoes: Object.keys(atribuicoes).length ? atribuicoes : null,
+          grupo_id: vinculo.grupo_id || null,
+          grupo_nome: vinculo.grupo_nome || null,
           canvas: modelo.canvas,
           snapshot_etapas: nos.filter(n => n.tipo === 'tarefa' || n.tipo === 'aprovacao')
             .map(n => ({ id: n.id, nome: n.nome, tipo: n.tipo })),
@@ -2071,8 +2057,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           concluido_em: null,
         });
         await _registrarHistorico(instanciaId, 'instancia_criada', uid, null, null,
-          `Workflow "${modelo.nome}" iniciado a partir de template.`, { modelo_id: modelo.id });
-        const instObj = { id: instanciaId, titulo, processo_id: modelo.processo_origem_id, solicitante_uid: uid, atribuicoes };
+          `Workflow "${modelo.nome}" iniciado a partir de template.`, { modelo_id: modelo.id, grupo_id: vinculo.grupo_id || null });
+        const instObj = { id: instanciaId, titulo, processo_id: modelo.processo_origem_id, solicitante_uid: uid, grupo_id: vinculo.grupo_id || null };
         await _criarTarefasDoNo(instObj, primeira);
         alert(`Workflow iniciado! Etapa "${primeira.nome}" criada.`);
         wfNavWorkflow(globalScope.isSolicitante?.() ? 'instancias' : 'tarefas');
@@ -2081,11 +2067,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       }
     };
 
-    if (perfisNecessarios.length) {
-      _wfAbrirModalAtribuicao(perfisNecessarios, modelo.nome, _prosseguir);
-    } else {
-      _prosseguir({});
-    }
+    _wfAbrirModalAtribuicao(modelo.nome, _prosseguir);
   }
 
   // ── Motor de Regras ───────────────────────────────────────────────────────
@@ -2294,6 +2276,28 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (!_st.instanciaAtual) return;
     await wfConfirmarCancelar(_st.instanciaAtual.id);
     wfNavWorkflow('instancias');
+  }
+
+  async function wfExcluirInstancia(instanciaId) {
+    if (!confirm('Excluir permanentemente esta instância cancelada? Esta ação não pode ser desfeita.')) return;
+    const { deleteDoc, doc, getDocs, query, collection, where } = globalScope.fb();
+    try {
+      // Remove tarefas vinculadas
+      const tarefas = await _queryDocs('wf_tarefa_workflows',
+        where('instancia_id', '==', instanciaId)
+      );
+      const historicos = await _queryDocs('wf_historico_workflows',
+        where('instancia_id', '==', instanciaId)
+      );
+      const batch = (globalScope.fb().writeBatch)(_db());
+      tarefas.forEach(t => batch.delete(doc(_db(), 'wf_tarefa_workflows', t.id)));
+      historicos.forEach(h => batch.delete(doc(_db(), 'wf_historico_workflows', h.id)));
+      batch.delete(doc(_db(), 'wf_instancia_processos', instanciaId));
+      await batch.commit();
+      wfCarregarInstancias();
+    } catch (e) {
+      alert('Erro ao excluir: ' + e.message);
+    }
   }
 
   // ── Formulários ───────────────────────────────────────────────────────────
@@ -3161,6 +3165,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfDesignerPublicar,
     wfAbrirHistorico,
     wfCancelarInstancia,
+    wfExcluirInstancia,
     wfConfirmarCancelar,
     wfCarregarComentarios,
     wfResponderComentario,
