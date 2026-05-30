@@ -1924,6 +1924,27 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     return semSelecao + legado + opts;
   }
 
+  function _wfCampoMetaAresta(arestaId, campoId) {
+    const campos = _wfCamposDaOrigemDaAresta(arestaId) || [];
+    return campos.find(c => (c.id || c.label) === campoId) || null;
+  }
+
+  function _wfOptsValorAresta(arestaId, campoId, valorAtual) {
+    const meta = _wfCampoMetaAresta(arestaId, campoId);
+    if (!meta) return null;
+    let opcoes = [];
+    if (meta.tipo === 'select' && Array.isArray(meta.opcoes)) {
+      opcoes = meta.opcoes.map(o => String(o || '').trim()).filter(Boolean);
+    } else if (meta.tipo === 'checkbox') {
+      opcoes = ['sim', 'nao'];
+    }
+    if (!opcoes.length) return null;
+
+    const base = `<option value="__ANY__"${(!valorAtual || valorAtual === '__ANY__') ? ' selected' : ''}>qualquer valor</option>`;
+    const opts = opcoes.map(v => `<option value="${_esc(v)}"${valorAtual === v ? ' selected' : ''}>${_esc(v)}</option>`).join('');
+    return base + opts;
+  }
+
   function _wfRenderCondicoes(arestaId) {
     const el = document.getElementById(`wf-aresta-conds-${arestaId}`);
     if (!el) return;
@@ -1932,7 +1953,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Sem condições — saída livre.</div>';
       return;
     }
-    el.innerHTML = conds.map((c, i) => `
+    el.innerHTML = conds.map((c, i) => {
+      const valorOpts = _wfOptsValorAresta(arestaId, c.campo || '', c.valor || '');
+      const valorInput = valorOpts
+        ? `<select class="fi" style="font-size:11px" onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'valor',this.value)">${valorOpts}</select>`
+        : `<input type="text" class="fi" placeholder="valor" value="${_esc(c.valor || '')}" style="font-size:11px"
+          oninput="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'valor',this.value)">`;
+      return `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:4px;margin-bottom:6px;align-items:center">
         <select class="fi" style="font-size:11px"
           onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'campo',this.value)">
@@ -1942,11 +1969,11 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'operador',this.value)">
           ${_WF_OPS_LABELS.map(op => `<option value="${_esc(op)}"${c.operador === op ? ' selected' : ''}>${_esc(op)}</option>`).join('')}
         </select>
-        <input type="text" class="fi" placeholder="valor" value="${_esc(c.valor || '')}" style="font-size:11px"
-          oninput="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'valor',this.value)">
+        ${valorInput}
         <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 4px"
           onclick="wfDesignerRemoveCondicao('${_esc(arestaId)}',${i})">✕</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   function wfDesignerAddCondicao(arestaId) {
@@ -1963,7 +1990,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function wfDesignerUpdateCondicao(arestaId, idx, chave, valor) {
     const cond = _wfConfigNos[arestaId]?.condicoes?.[idx];
-    if (cond) { cond[chave] = valor; _wfMarcarDesignerSujo(); }
+    if (!cond) return;
+    cond[chave] = valor;
+    if (chave === 'campo') {
+      cond.valor = '';
+      _wfRenderCondicoes(arestaId);
+    }
+    _wfMarcarDesignerSujo();
   }
 
   function wfDesignerArestaPadrao(arestaId, val) {
@@ -1987,13 +2020,22 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
 
     const optsCampos = (valorAtual, idx) => {
-      const opts = _wfOptsCampos(noId, valorAtual || '');
-      if (opts !== null) {
+      const campos = _wfCamposDoFormulario(noId);
+      const semSelecao = '<option value="">— selecione um campo —</option>';
+      if (!campos.length) {
         return `<select class="fi" style="font-size:11px"
-          onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${idx},'campo',this.value)">${opts}</select>`;
+          onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${idx},'campo',this.value)">${semSelecao}<option value="" disabled>Nenhum campo disponível no formulário</option></select>`;
       }
-      return `<input type="text" class="fi" style="font-size:11px" placeholder="campo" value="${_esc(valorAtual || '')}"
-        oninput="wfDesignerAcaoCondUpdate('${_esc(noId)}',${idx},'campo',this.value)">`;
+      const hasAtual = campos.some(c => (c.id || c.label) === valorAtual);
+      const opts = campos.map(c => {
+        const val = c.id || c.label;
+        return `<option value="${_esc(val)}"${val === valorAtual ? ' selected' : ''}>${_esc(c.label || c.id || val)}</option>`;
+      }).join('');
+      const legado = valorAtual && !hasAtual
+        ? `<option value="${_esc(valorAtual)}" selected>${_esc(valorAtual)} (legado)</option>`
+        : '';
+      return `<select class="fi" style="font-size:11px"
+          onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${idx},'campo',this.value)">${semSelecao}${legado}${opts}</select>`;
     };
 
     el.innerHTML = lista.map((r, i) => `
@@ -2362,6 +2404,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function _avaliarCondicaoObj(cond, dados) {
     if (!cond || !cond.campo) return true;
+    if (cond.valor === '__ANY__') return true;
     const fn = _WF_OPS[cond.operador];
     if (!fn) return true;
     try { return fn(dados[cond.campo], cond.valor); } catch { return true; }
