@@ -11,6 +11,7 @@
     configProcessoId: null,
     configProcessoEtapas: [],
     formularioModelos: [],
+    formularioOrigem: null,
     // Designer visual
     designerModelo: null,
     designerNoSel: null,
@@ -2413,6 +2414,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   ];
 
   async function wfAbrirModalNovoFormulario(formularioId) {
+    _st.formularioOrigem = arguments.length > 1 ? arguments[1] : null;
     let schema = null;
     if (formularioId) {
       schema = await _getDoc('wf_formulario_modelos', formularioId);
@@ -2515,6 +2517,25 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   function wfFecharModalFormulario() {
     const overlay = document.getElementById('wf-modal-formulario');
     if (overlay) overlay.style.display = 'none';
+    _st.formularioOrigem = null;
+  }
+
+  function _wfAtualizarSelectFormularioEtapa(formularioSelecionadoId) {
+    const sel = document.getElementById('wf-etapa-form');
+    if (!sel) return;
+    const valorAtual = formularioSelecionadoId || sel.value || '';
+    sel.innerHTML = '<option value="">— Sem formulário —</option>'
+      + (_st.formularioModelos || []).map(m => `<option value="${_esc(m.id)}">${_esc(m.titulo || m.nome)}</option>`).join('');
+    if (valorAtual) sel.value = valorAtual;
+    _wfAtualizarAcoesFormularioEtapa();
+  }
+
+  function _wfAtualizarAcoesFormularioEtapa() {
+    const sel = document.getElementById('wf-etapa-form');
+    const btnEditar = document.getElementById('wf-etapa-form-editar');
+    if (!btnEditar) return;
+    const formularioId = sel?.value || '';
+    btnEditar.disabled = !formularioId;
   }
 
   async function wfSalvarFormulario() {
@@ -2531,6 +2552,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
     try {
       const schema = _st.formularioAtual;
+      let formularioSalvoId = schema.id || null;
       if (schema.id) {
         await _updateDoc('wf_formulario_modelos', schema.id, {
           titulo,
@@ -2538,12 +2560,21 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           versao: (schema.versao || 1) + 1,
         });
       } else {
-        await _addDoc('wf_formulario_modelos', {
+        formularioSalvoId = await _addDoc('wf_formulario_modelos', {
           titulo,
           campos,
           versao: 1,
         });
       }
+
+      try {
+        _st.formularioModelos = await _getAll('wf_formulario_modelos');
+      } catch (_e) { /* no-op */ }
+
+      if (_st.formularioOrigem === 'etapa') {
+        _wfAtualizarSelectFormularioEtapa(formularioSalvoId || schema.id || '');
+      }
+
       wfFecharModalFormulario();
       wfCarregarFormularios();
     } catch (e) {
@@ -3456,7 +3487,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <div style="margin-bottom:14px"><label class="lbl">Nome *</label><input type="text" class="fi" id="wf-etapa-nome" value="${_esc(etapa?.nome || '')}" style="margin-top:4px;width:100%"></div>
         <div style="margin-bottom:14px"><label class="lbl">Tipo</label><select class="fi" id="wf-etapa-tipo" style="margin-top:4px;width:100%">${TIPOS.map(([v,l])=>`<option value="${v}"${etapa?.tipo===v?' selected':''}>${l}</option>`).join('')}</select></div>
         <div style="margin-bottom:14px"><label class="lbl">Responsável</label><select class="fi" id="wf-etapa-papel" style="margin-top:4px;width:100%"><option value="">— Não definido —</option>${PAPEIS.map(([v,l])=>`<option value="${v}"${(etapa?.responsavel_papel || cfgEtapa?.papeis?.executor || '')===v?' selected':''}>${_esc(l)}</option>`).join('')}</select></div>
-        <div style="margin-bottom:14px"><label class="lbl">Formulário</label><select class="fi" id="wf-etapa-form" style="margin-top:4px;width:100%"><option value="">— Sem formulário —</option>${fms.map(m=>`<option value="${_esc(m.id)}"${(etapa?.formulario_id || cfgEtapa?.formulario_id || '')===m.id?' selected':''}>${_esc(m.titulo||m.nome)}</option>`).join('')}</select></div>
+        <div style="margin-bottom:14px"><label class="lbl">Formulário</label><select class="fi" id="wf-etapa-form" onchange="_wfAtualizarAcoesFormularioEtapa()" style="margin-top:4px;width:100%"><option value="">— Sem formulário —</option>${fms.map(m=>`<option value="${_esc(m.id)}"${(etapa?.formulario_id || cfgEtapa?.formulario_id || '')===m.id?' selected':''}>${_esc(m.titulo||m.nome)}</option>`).join('')}</select><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn btn-sm" onclick="wfAbrirModalNovoFormulario(null,'etapa')">+ Novo formulário</button><button type="button" class="btn btn-sm" id="wf-etapa-form-editar" onclick="wfAbrirModalNovoFormulario(document.getElementById('wf-etapa-form')?.value || null,'etapa')">Editar formulário</button></div></div>
         <div><label class="lbl">SLA (horas)</label><input type="number" class="fi" id="wf-etapa-sla" min="0" value="${etapa?.sla_horas ?? cfgEtapa?.sla_horas ?? 0}" style="margin-top:4px;width:100%"></div>
       </div>
       <div class="modal-ft">
@@ -3464,11 +3495,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <button type="button" class="btn" onclick="_wfFecharModalDinamico('wf-modal-etapa')">Cancelar</button>
       </div>
     `);
+    _wfAtualizarAcoesFormularioEtapa();
     if (!fms.length) {
       _getAll('wf_formulario_modelos').then(list => {
         _st.formularioModelos = list;
         const sel = document.getElementById('wf-etapa-form');
         if (sel) sel.innerHTML = '<option value="">— Sem formulário —</option>' + list.map(m=>`<option value="${_esc(m.id)}"${etapa?.formulario_id===m.id?' selected':''}>${_esc(m.titulo||m.nome)}</option>`).join('');
+        _wfAtualizarAcoesFormularioEtapa();
       }).catch(() => {});
     }
   }
