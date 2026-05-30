@@ -1569,9 +1569,27 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   async function wfConfirmarCancelar(instanciaId) {
     const motivo = prompt('Motivo do cancelamento:');
     if (motivo === null) return;
+    const { where, writeBatch, doc } = globalScope.fb();
+
+    // Cancela tarefas abertas da instância em batch
+    const tarefasAbertas = await _getAll('wf_tarefa_workflows',
+      where('instancia_id', '==', instanciaId),
+      where('status', '==', 'pendente'),
+    );
+    if (tarefasAbertas.length) {
+      const batch = writeBatch(_db());
+      tarefasAbertas.forEach(t => {
+        batch.update(doc(_db(), 'wf_tarefa_workflows', t.id), {
+          status: 'cancelada',
+          cancelada_em: new Date(),
+        });
+      });
+      await batch.commit();
+    }
+
     await _updateDoc('wf_instancia_processos', instanciaId, { status: 'cancelado', concluido_em: new Date() });
     await _registrarHistorico(instanciaId, 'instancia_cancelada', _uid(),
-      null, null, `Processo cancelado. Motivo: ${motivo}`, { motivo });
+      null, null, `Processo cancelado. Motivo: ${motivo}`, { motivo, tarefas_canceladas: tarefasAbertas.length });
     wfCarregarInstancias();
   }
 
