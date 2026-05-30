@@ -143,6 +143,7 @@ service cloud.firestore {
         request.auth.token.get('perfil','') == 'gestor' ||
         resource.data.responsavel_uid == request.auth.uid
       );
+      allow delete: if isAuth() && (isEP() || request.auth.token.get('perfil','') == 'gestor');
     }
 
     // Histórico: imutável — autenticados criam, ninguém deleta/atualiza.
