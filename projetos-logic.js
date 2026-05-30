@@ -720,19 +720,43 @@ function projSafeHtml(html) {
 
 // Renderiza HTML de desenvolvedor (templates internos com event handlers).
 // Só use com strings literais do código — nunca com input do usuário direto.
+function projHtmlFragment(html) {
+  const range = document.createRange();
+  range.selectNode(document.body || document.documentElement);
+  return range.createContextualFragment(String(html || ''));
+}
+
 function projSetHtml(el, html) {
   if(!el) return;
-  el.innerHTML = html;
+  el.replaceChildren(projHtmlFragment(html));
 }
 
 function projSetSafeHtml(el, html) {
   if(!el) return;
-  el.innerHTML = projSafeHtml(html);
+  el.replaceChildren(projHtmlFragment(projSafeHtml(html)));
 }
 
 function projAppendHtml(el, position, html) {
   if(!el) return;
-  el.insertAdjacentHTML(position, html);
+  const fragment = projHtmlFragment(html);
+  switch(position) {
+    case 'beforebegin': {
+      if (el.parentNode) el.parentNode.insertBefore(fragment, el);
+      break;
+    }
+    case 'afterbegin':
+      el.insertBefore(fragment, el.firstChild);
+      break;
+    case 'beforeend':
+      el.appendChild(fragment);
+      break;
+    case 'afterend': {
+      if (el.parentNode) el.parentNode.insertBefore(fragment, el.nextSibling);
+      break;
+    }
+    default:
+      el.appendChild(fragment);
+  }
 }
 
 function projNormKey(s) {

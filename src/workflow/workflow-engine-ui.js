@@ -3264,6 +3264,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
             <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
               <button type="button" class="btn btn-sm" onclick="wfAbrirConfigModelo('${_esc(m.id)}')">Editar</button>
               ${m.status !== 'publicado' ? `<button type="button" class="btn btn-p btn-sm" onclick="_wfPublicarModeloId('${_esc(m.id)}')">Publicar</button>` : ''}
+              <button type="button" class="btn btn-r btn-sm" onclick="wfExcluirModelo('${_esc(m.id)}')">Excluir</button>
             </div>
           </div>
         `);
@@ -3288,6 +3289,28 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       await wfAbrirConfigModelo(id);
     } catch (e) {
       alert('Erro ao criar modelo: ' + e.message);
+    }
+  }
+
+  async function wfExcluirModelo(modeloId) {
+    if (!modeloId) return;
+    if (!confirm('Excluir este modelo? Esta ação não pode ser desfeita.')) return;
+    try {
+      const { where } = globalScope.fb();
+      const instancias = await _getAll('wf_instancia_processos', where('modelo_id', '==', modeloId));
+      const emUso = instancias.filter(i => !i.excluida && i.status !== 'cancelado');
+      if (emUso.length) {
+        alert('Este modelo possui instâncias ativas e não pode ser excluído.');
+        return;
+      }
+      await _deleteDoc('wf_processo_modelos', modeloId);
+      if (_wfModeloAtual?.id === modeloId) {
+        _wfModeloAtual = null;
+        wfNavWorkflow('modelagem');
+      }
+      wfCarregarModelos();
+    } catch (e) {
+      alert('Erro ao excluir modelo: ' + e.message);
     }
   }
 
@@ -3770,6 +3793,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     // Modelagem nova
     wfCarregarModelos,
     wfAbrirModalNovoModelo,
+    wfExcluirModelo,
     wfAbrirConfigModelo,
     wfPublicarModelo,
     _wfPublicarModeloId,
