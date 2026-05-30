@@ -487,21 +487,16 @@
     const parecerHint = document.getElementById('wf-exec-parecer-hint');
     if (parecerHint) parecerHint.style.display = tarefa.exige_parecer ? '' : 'none';
 
-    // Botões de ação baseados nas ações disponíveis do papel
-    const acoesEl = document.getElementById('wf-exec-acoes');
-    const acoes = (tarefa.acoes_disponiveis && tarefa.acoes_disponiveis.length)
-      ? tarefa.acoes_disponiveis
-      : (proxEtapaLegado(instancia, tarefa) ? ['avancar'] : ['concluir']);
-    const ACAO_LABELS = globalScope.WF_ACAO_LABELS || {};
-    const ACAO_COR = globalScope.WF_ACAO_COR || {};
-    const btnClasse = (a) => a === 'rejeitar' ? 'btn btn-r'
-      : a === 'aprovar' || a === 'avancar' || a === 'concluir' ? 'btn btn-p' : 'btn';
-    acoesEl.innerHTML = acoes.map(a => {
-      const cor = ACAO_COR[a];
-      const style = (a === 'devolver' || a === 'solicitar_ajuste') && cor
-        ? ` style="background:${cor};color:#fff;border-color:${cor}"` : '';
-      return `<button type="button" class="${btnClasse(a)}"${style} onclick="wfConcluirTarefa('${a}')">${_esc(ACAO_LABELS[a] || a)}</button>`;
-    }).join('') + `<button type="button" class="btn" onclick="wfNavWorkflow('tarefas')">Cancelar</button>`;
+    // Botões de ação dinâmicos: variam conforme os valores atuais do formulário.
+    _wfRenderAcoesExecucao(instancia, tarefa, _wfColetarDadosParciaisExecucao());
+    if (formContainer) {
+      formContainer.addEventListener('input', () => {
+        _wfRenderAcoesExecucao(instancia, tarefa, _wfColetarDadosParciaisExecucao());
+      });
+      formContainer.addEventListener('change', () => {
+        _wfRenderAcoesExecucao(instancia, tarefa, _wfColetarDadosParciaisExecucao());
+      });
+    }
 
     // Inicializa lista de anexos (carrega os já existentes na tarefa)
     _st._anexosTarefa = (tarefa.anexos || []).slice();
@@ -589,6 +584,64 @@
     const etapas = instancia?.snapshot_etapas || [];
     const idx = etapas.findIndex(e => e.id === tarefa.etapa_modelo_id);
     return etapas[idx + 1] || null;
+  }
+
+  function _wfColetarDadosParciaisExecucao() {
+    const root = document.querySelector('#wf-exec-formulario .wf-form');
+    if (!root) return {};
+    const grupos = root.querySelectorAll('[data-campo-id]');
+    const dados = {};
+    grupos.forEach((grupo) => {
+      const id = grupo.dataset.campoId;
+      if (!id) return;
+      const input = grupo.querySelector(`#wf-campo-${id}`);
+      if (!input) return;
+      dados[id] = input.type === 'checkbox' ? !!input.checked : (input.value ?? '');
+    });
+    return dados;
+  }
+
+  function _wfAcoesVisiveisExecucao(instancia, tarefa, dadosParciais) {
+    const base = (tarefa.acoes_disponiveis && tarefa.acoes_disponiveis.length)
+      ? tarefa.acoes_disponiveis
+      : (proxEtapaLegado(instancia, tarefa) ? ['avancar'] : ['concluir']);
+    if (!instancia?.canvas) return base;
+
+    const arestas = (instancia.canvas.arestas || []).filter(a => a.origem === tarefa.etapa_modelo_id);
+    if (!arestas.length) return base;
+
+    const dados = { ...(instancia.dados_consolidados || {}), ...(dadosParciais || {}) };
+    return base.filter((acao) => {
+      if (acao === 'devolver' || acao === 'rejeitar') {
+        const regrasDaAcao = arestas.filter(a => a.acao === acao);
+        if (!regrasDaAcao.length) return true;
+        const padrao = regrasDaAcao.find(a => a.padrao);
+        const passou = regrasDaAcao.find(a =>
+          a.condicoes && a.condicoes.length
+            ? _avaliarCondicoes(a.condicoes, a.operador_logico, dados)
+            : _avaliarCondicao(a.condicao, dados)
+        );
+        return !!(passou || padrao);
+      }
+      return !!_proximoNo(instancia.canvas, tarefa.etapa_modelo_id, acao, dados);
+    });
+  }
+
+  function _wfRenderAcoesExecucao(instancia, tarefa, dadosParciais) {
+    const acoesEl = document.getElementById('wf-exec-acoes');
+    if (!acoesEl) return;
+    const acoes = _wfAcoesVisiveisExecucao(instancia, tarefa, dadosParciais);
+    const ACAO_LABELS = globalScope.WF_ACAO_LABELS || {};
+    const ACAO_COR = globalScope.WF_ACAO_COR || {};
+    const btnClasse = (a) => a === 'rejeitar' ? 'btn btn-r'
+      : a === 'aprovar' || a === 'avancar' || a === 'concluir' ? 'btn btn-p' : 'btn';
+
+    acoesEl.innerHTML = acoes.map(a => {
+      const cor = ACAO_COR[a];
+      const style = (a === 'devolver' || a === 'solicitar_ajuste') && cor
+        ? ` style="background:${cor};color:#fff;border-color:${cor}"` : '';
+      return `<button type="button" class="${btnClasse(a)}"${style} onclick="wfConcluirTarefa('${a}')">${_esc(ACAO_LABELS[a] || a)}</button>`;
+    }).join('') + `<button type="button" class="btn" onclick="wfNavWorkflow('tarefas')">Cancelar</button>`;
   }
 
   async function wfConcluirTarefa(acao) {
@@ -1803,9 +1856,32 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     try {
       const reg = _wfModeler.get('elementRegistry');
       const aresta = reg?.get(arestaId);
-      const origemId = aresta?.source?.id || aresta?.businessObject?.sourceRef?.id || null;
-      if (!origemId) return [];
-      return _wfCamposDoFormulario(origemId);
+      const origemEl = aresta?.source || reg?.get(aresta?.businessObject?.sourceRef?.id || '');
+      if (!origemEl) return [];
+
+      // Caso comum: a seta sai de uma atividade com formulário.
+      const camposDiretos = _wfCamposDoFormulario(origemEl.id);
+      if (camposDiretos.length) return camposDiretos;
+
+      // Caso gateway: procura recursivamente para trás a primeira atividade com formulário.
+      const visitados = new Set();
+      const fila = [origemEl];
+      while (fila.length) {
+        const atual = fila.shift();
+        if (!atual || visitados.has(atual.id)) continue;
+        visitados.add(atual.id);
+
+        const campos = _wfCamposDoFormulario(atual.id);
+        if (campos.length) return campos;
+
+        const incoming = atual.incoming || [];
+        incoming.forEach((flow) => {
+          const prev = flow?.source || reg?.get(flow?.businessObject?.sourceRef?.id || '');
+          if (prev && !visitados.has(prev.id)) fila.push(prev);
+        });
+      }
+
+      return [];
     } catch (_e) {
       return [];
     }
