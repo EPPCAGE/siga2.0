@@ -1720,7 +1720,11 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         ${acaoChk('solicitar_ajuste','Solicitar ajuste')}
       </div>
       <label class="lbl" style="font-size:11px">Formulário dinâmico</label>
-      <select class="fi" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerCampoCfg('${_esc(id)}','formulario_id',this.value||null)">${formOpts}</select>
+      <select class="fi" id="wf-designer-form-${_esc(id)}" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerCampoCfg('${_esc(id)}','formulario_id',this.value||null);_wfAtualizarAcoesFormularioNo('${_esc(id)}')">${formOpts}</select>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:-2px;margin-bottom:8px">
+        <button type="button" class="btn btn-sm" onclick="wfAbrirModalNovoFormulario(null,'designer:${_esc(id)}')">+ Novo formulário</button>
+        <button type="button" class="btn btn-sm" id="wf-designer-form-editar-${_esc(id)}" onclick="wfAbrirModalNovoFormulario(document.getElementById('wf-designer-form-${_esc(id)}')?.value || null,'designer:${_esc(id)}')">Editar formulário</button>
+      </div>
       <label class="lbl" style="font-size:11px">SLA (horas úteis · 0 = sem prazo)</label>
       <input type="number" class="fi" min="0" value="${_esc(String(cfg.sla_horas || 0))}" style="margin-top:2px;margin-bottom:8px" oninput="wfDesignerCampoCfg('${_esc(id)}','sla_horas',Number(this.value)||0)">
       <label class="lbl" style="font-size:11px">Instruções ao executor</label>
@@ -1750,6 +1754,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           placeholder="Ex: Etapa {{etapa.nome}} iniciada. Prazo: {{prazo}}."
           oninput="wfDesignerCampoCfg('${_esc(id)}','comentario_automatico',this.value)">${_esc(cfg.comentario_automatico || '')}</textarea>
       </div>`;
+    _wfAtualizarAcoesFormularioNo(id);
     _wfRenderCamposCond(id);
   }
 
@@ -1781,6 +1786,36 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   const _WF_OPS_LABELS = ['=','!=','>','<','>=','<=','contém','não contém','vazio','não vazio'];
 
+  function _wfCamposDaOrigemDaAresta(arestaId) {
+    if (!_wfModeler) return [];
+    try {
+      const reg = _wfModeler.get('elementRegistry');
+      const aresta = reg?.get(arestaId);
+      const origemId = aresta?.source?.id || aresta?.businessObject?.sourceRef?.id || null;
+      if (!origemId) return [];
+      return _wfCamposDoFormulario(origemId);
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function _wfOptsCamposAresta(arestaId, valorAtual) {
+    const campos = _wfCamposDaOrigemDaAresta(arestaId);
+    const semSelecao = '<option value="">— selecione um campo —</option>';
+    if (!campos.length) {
+      return semSelecao + '<option value="" disabled>Nenhum campo disponível no formulário da etapa de origem</option>';
+    }
+    const hasAtual = campos.some(c => (c.id || c.label) === valorAtual);
+    const opts = campos.map(c => {
+      const val = c.id || c.label;
+      return `<option value="${_esc(val)}"${val === valorAtual ? ' selected' : ''}>${_esc(c.label || c.id || val)}</option>`;
+    }).join('');
+    const legado = valorAtual && !hasAtual
+      ? `<option value="${_esc(valorAtual)}" selected>${_esc(valorAtual)} (legado)</option>`
+      : '';
+    return semSelecao + legado + opts;
+  }
+
   function _wfRenderCondicoes(arestaId) {
     const el = document.getElementById(`wf-aresta-conds-${arestaId}`);
     if (!el) return;
@@ -1791,8 +1826,10 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
     el.innerHTML = conds.map((c, i) => `
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:4px;margin-bottom:6px;align-items:center">
-        <input type="text" class="fi" placeholder="campo" value="${_esc(c.campo || '')}" style="font-size:11px"
-          oninput="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'campo',this.value)">
+        <select class="fi" style="font-size:11px"
+          onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'campo',this.value)">
+          ${_wfOptsCamposAresta(arestaId, c.campo || '')}
+        </select>
         <select class="fi" style="font-size:11px"
           onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'operador',this.value)">
           ${_WF_OPS_LABELS.map(op => `<option value="${_esc(op)}"${c.operador === op ? ' selected' : ''}>${_esc(op)}</option>`).join('')}
@@ -2538,6 +2575,26 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     btnEditar.disabled = !formularioId;
   }
 
+  function _wfAtualizarSelectFormularioNo(noId, formularioSelecionadoId) {
+    const sel = document.getElementById(`wf-designer-form-${noId}`);
+    if (!sel) return;
+    const valorAntes = sel.value || '';
+    const valorAtual = formularioSelecionadoId || valorAntes || '';
+    sel.innerHTML = '<option value="">— Sem formulário —</option>'
+      + (_st.formularioModelos || []).map(m => `<option value="${_esc(m.id)}">${_esc(m.titulo || m.nome)}</option>`).join('');
+    if (valorAtual) sel.value = valorAtual;
+    const valorDepois = sel.value || '';
+    if (valorDepois !== valorAntes) wfDesignerCampoCfg(noId, 'formulario_id', valorDepois || null);
+    _wfAtualizarAcoesFormularioNo(noId);
+  }
+
+  function _wfAtualizarAcoesFormularioNo(noId) {
+    const sel = document.getElementById(`wf-designer-form-${noId}`);
+    const btnEditar = document.getElementById(`wf-designer-form-editar-${noId}`);
+    if (!btnEditar) return;
+    btnEditar.disabled = !(sel?.value || '');
+  }
+
   async function wfSalvarFormulario() {
     const titulo = document.getElementById('wf-modal-form-titulo').value.trim();
     if (!titulo) { alert('Informe o título do formulário.'); return; }
@@ -2573,6 +2630,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
       if (_st.formularioOrigem === 'etapa') {
         _wfAtualizarSelectFormularioEtapa(formularioSalvoId || schema.id || '');
+      } else if ((_st.formularioOrigem || '').startsWith('designer:')) {
+        const noId = _st.formularioOrigem.slice('designer:'.length);
+        _wfAtualizarSelectFormularioNo(noId, formularioSalvoId || schema.id || '');
       }
 
       wfFecharModalFormulario();
@@ -3413,6 +3473,11 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <button type="button" class="btn btn-r btn-sm" onclick="event.stopPropagation();_wfRemoverEtapa('${_esc(n.id || i)}')" title="Excluir etapa">✕</button>
       </div>
     `).join('');
+
+    // Defesa extra: remove qualquer botão residual de edição nessa lista.
+    Array.from(el.querySelectorAll('button')).forEach((btn) => {
+      if ((btn.textContent || '').trim().toLowerCase().includes('editar')) btn.remove();
+    });
   }
 
   function _wfRenderTransicoesConfig(modelo) {
@@ -3856,6 +3921,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfAbrirModalNovoFormulario,
     wfFecharModalFormulario,
     wfSalvarFormulario,
+    _wfAtualizarAcoesFormularioEtapa,
+    _wfAtualizarAcoesFormularioNo,
     _wfAdicionarCampo,
     _wfRenderizarCamposEditor,
     _wfAtualizarCampo,
