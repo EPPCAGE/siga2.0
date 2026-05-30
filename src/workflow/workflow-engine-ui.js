@@ -6,17 +6,20 @@
     painelAtual: 'tarefas',
     instanciaAtual: null,
     tarefaAtual: null,
-    formularioAtual: null,       // schema sendo editado no modal de formulário
-    formularioCampos: [],        // campos do formulário sendo editado
-    configProcessoId: null,      // processo sendo configurado
-    configProcessoEtapas: [],    // etapas do processo sendo configurado
-    formularioModelos: [],       // cache dos modelos carregados
+    formularioAtual: null,
+    formularioCampos: [],
+    configProcessoId: null,
+    configProcessoEtapas: [],
+    formularioModelos: [],
     // Designer visual
-    designerModelo: null,        // wf_processo_modelos sendo editado { id, nome, ..., canvas:{nos,arestas} }
-    designerNoSel: null,         // id do nó selecionado
-    designerArestaSel: null,     // id da aresta selecionada
-    designerDrag: null,          // estado do arraste em curso
-    iniciarAba: 'mapeamento',    // aba ativa da tela iniciar
+    designerModelo: null,
+    designerNoSel: null,
+    designerArestaSel: null,
+    designerDrag: null,
+    iniciarAba: 'mapeamento',
+    // Paginação
+    tarefasCursor: null,      // último doc do Firestore para paginação
+    instanciasCursor: null,
   };
 
   function _uid() {
@@ -102,7 +105,7 @@
   }
 
   // ── Navegação interna do módulo ───────────────────────────────────────────
-  const _paineis = ['tarefas','instancias','iniciar','executar','historico','formularios','config-processo','designer'];
+  const _paineis = ['tarefas','instancias','iniciar','executar','historico','formularios','config-processo','designer','notificacoes','dashboard'];
 
   function wfNavWorkflow(painel) {
     _st.painelAtual = painel;
@@ -124,31 +127,129 @@
       instancias: wfCarregarInstancias,
       iniciar: wfCarregarIniciar,
       formularios: wfCarregarFormularios,
+      notificacoes: _wfRenderNotifPanel,
+      dashboard: wfCarregarDashboard,
     };
     carregadores[painel]?.();
   }
 
+  // P2.1 — Badge de notificações não lidas no botão do módulo
+  let _unsubNotifs = null;
+
+  function _wfIniciarBadge() {
+    const uid = _uid();
+    if (!uid || _unsubNotifs) return;
+    const { onSnapshot, where, query, collection, or } = globalScope.fb();
+    const isEP = globalScope.isEP?.();
+    // EP também recebe notificações de escalada SLA
+    const constraints = isEP && or
+      ? [or(where('destinatario_uid', '==', uid), where('destinatario_uid', '==', 'ep_escalada')), where('lida', '==', false)]
+      : [where('destinatario_uid', '==', uid), where('lida', '==', false)];
+    const q = query(collection(_db(), 'wf_notificacoes'), ...constraints);
+    _unsubNotifs = onSnapshot(q, snap => {
+      const count = snap.size;
+      const btn = document.getElementById('nb-workflow');
+      if (!btn) return;
+      let badge = btn.querySelector('.wf-notif-badge');
+      if (count > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'wf-notif-badge';
+          badge.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle';
+          btn.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? '99+' : String(count);
+        _st._notifCount = count;
+        if (_st.painelAtual === 'notificacoes') _wfRenderNotifPanel();
+      } else {
+        badge?.remove();
+        _st._notifCount = 0;
+      }
+    }, () => {}); // ignora erros de permissão silenciosamente
+  }
+
+  async function _wfRenderNotifPanel() {
+    const el = document.getElementById('wf-notif-lista');
+    if (!el || _st.painelAtual !== 'notificacoes') return;
+    const uid = _uid();
+    if (!uid) return;
+    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    try {
+      const { where, limit, query, collection, getDocs } = globalScope.fb();
+      const q = query(
+        collection(_db(), 'wf_notificacoes'),
+        where('destinatario_uid', '==', uid),
+        limit(50),
+      );
+      const snap = await getDocs(q);
+      let notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      notifs.sort((a, b) => {
+        const ta = a._criado_em?.seconds ?? 0;
+        const tb = b._criado_em?.seconds ?? 0;
+        return tb - ta;
+      });
+      if (!notifs.length) {
+        el.innerHTML = '<div style="color:var(--ink3);font-size:14px;padding:16px 0">Nenhuma notificação.</div>';
+        return;
+      }
+      el.innerHTML = notifs.map(n => {
+        const ts = n._criado_em?.seconds
+          ? new Date(n._criado_em.seconds * 1000).toLocaleString('pt-BR')
+          : '—';
+        const bg = n.lida ? 'var(--bg)' : 'var(--blue-soft,#eff6ff)';
+        return `<div style="background:${bg};border:1px solid var(--bdr);border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer"
+          onclick="wfMarcarNotifLida('${n.id}','${n.instancia_id || ''}','${n.titulo || ''}','${n.instancia_id || ''}')">
+          <div style="font-weight:600;font-size:13px">${_esc(n.titulo || '')}</div>
+          <div style="font-size:12px;color:var(--ink2);margin-top:2px">${_esc(n.mensagem || '')}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">${ts}</div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      el.innerHTML = `<div style="color:#ef4444;font-size:13px">Erro: ${_esc(e.message)}</div>`;
+    }
+  }
+
+  async function wfMarcarNotifLida(notifId, instanciaId, titulo, id) {
+    try {
+      await _updateDoc('wf_notificacoes', notifId, { lida: true });
+      if (instanciaId) wfAbrirHistorico(instanciaId, titulo || instanciaId, '');
+      else wfNavWorkflow('notificacoes');
+    } catch { wfNavWorkflow('notificacoes'); }
+  }
+
   function rWorkflow() {
+    _wfIniciarBadge();
     wfNavWorkflow(_st.painelAtual || 'tarefas');
   }
 
+  const _WF_PAGE = 20; // itens por página
+
   // ── Tarefas ───────────────────────────────────────────────────────────────
-  async function wfCarregarTarefas() {
+  async function wfCarregarTarefas(acrescentar = false) {
     const el = document.getElementById('wf-lista-tarefas');
     if (!el) return;
-    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    if (!acrescentar) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>'; _st.tarefasCursor = null; }
     try {
       const uid = _uid();
       if (!uid) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Usuário não autenticado.</div>'; return; }
-      const { where } = globalScope.fb();
-      const minhas = await _getAll('wf_tarefa_workflows',
+      const { where, limit, startAfter, query, collection, getDocs } = globalScope.fb();
+      const db = _db();
+
+      // Monta query paginada para tarefas próprias
+      const baseConstraints = [
         where('responsavel_uid', '==', uid),
         where('status', 'in', ['pendente','em_execucao']),
-      );
-      // Tarefas em aberto por perfil (responsavel_uid null) que o usuário pode assumir
+        limit(_WF_PAGE),
+      ];
+      if (_st.tarefasCursor) baseConstraints.push(startAfter(_st.tarefasCursor));
+      const snap = await getDocs(query(collection(db, 'wf_tarefa_workflows'), ...baseConstraints));
+      _st.tarefasCursor = snap.docs[snap.docs.length - 1] || null;
+      const minhas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Tarefas abertas por perfil (sem paginação — geralmente pequeno)
       const perfil = globalScope.usuarioLogado?.perfil;
       let porPerfil = [];
-      if (perfil) {
+      if (perfil && !acrescentar) {
         try {
           const abertas = await _getAll('wf_tarefa_workflows',
             where('papel_alvo', '==', perfil),
@@ -157,25 +258,52 @@
           porPerfil = abertas.filter(t => !t.responsavel_uid);
         } catch (_e) { /* índice opcional */ }
       }
+
       const mapa = {};
+      if (acrescentar) {
+        // Preserva itens já renderizados do perfil e acrescenta novos
+        el.querySelectorAll('[data-tarefa-id]').forEach(el2 => { mapa[el2.dataset.tarefaId] = true; });
+      }
       [...minhas, ...porPerfil].forEach(t => { mapa[t.id] = t; });
-      const tarefas = Object.values(mapa);
+      const tarefas = Object.values(mapa).filter(t => typeof t === 'object');
+
       if (!tarefas.length) {
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhuma tarefa pendente.</div>';
         return;
       }
       const statusLabels = { pendente:'Pendente', em_execucao:'Em execução', concluida:'Concluída', vencida:'Vencida' };
       const statusCores = { pendente:'#3b82f6', em_execucao:'#f59e0b', concluida:'#10b981', vencida:'#ef4444' };
-      el.innerHTML = tarefas.map(t => _card(`
-        <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(t.etapa_nome || t.etapa_modelo_id)}</div>
+
+      // Filtro client-side
+      const filtroStatus = document.getElementById('wf-filtro-tarefa-status')?.value || '';
+      const filtroTexto = (document.getElementById('wf-filtro-tarefa-texto')?.value || '').toLowerCase();
+      const tarefasFiltradas = tarefas.filter(t => {
+        if (filtroStatus && t.status !== filtroStatus) return false;
+        if (filtroTexto && !(t.etapa_nome || '').toLowerCase().includes(filtroTexto)
+          && !(t.processo_nome || '').toLowerCase().includes(filtroTexto)) return false;
+        return true;
+      });
+
+      if (!tarefasFiltradas.length) {
+        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhuma tarefa encontrada.</div>';
+        return;
+      }
+      const cards = tarefasFiltradas.map(t => `<div data-tarefa-id="${_esc(t.id)}">${_card(`
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(t.etapa_nome || t.etapa_modelo_id)}${t.sla_vencido ? ' <span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle">SLA VENCIDO</span>' : ''}</div>
         <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">${_esc(t.processo_nome || t.instancia_id)}</div>
         ${_badge(statusLabels[t.status] || t.status, statusCores[t.status] || '#6b7280')}
         ${_slaInfo(t)}
         ${t.etapa_desc ? `<div style="font-size:12px;color:var(--ink2);margin-top:6px">${_esc(t.etapa_desc)}</div>` : ''}
-        <div style="margin-top:10px">
-          <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir tarefa</button>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir</button>
+          <button type="button" class="btn btn-sm" onclick="wfAbrirDelegacao('${_esc(t.id)}')">Delegar</button>
         </div>
-      `)).join('');
+      `)}</div>`).join('');
+
+      const temMais = snap.docs.length === _WF_PAGE;
+      el.innerHTML = cards + (temMais
+        ? `<div style="text-align:center;margin-top:12px"><button type="button" class="btn btn-sm" onclick="wfCarregarTarefas(true)">Carregar mais</button></div>`
+        : '');
     } catch (e) {
       el.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
     }
@@ -388,7 +516,21 @@
         if (instancia.canvas) {
           await _avancarFluxoCanvas(instancia, tarefa.etapa_modelo_id, acao);
         } else {
-          await _avancarFluxo(instancia, tarefa.etapa_modelo_id);
+          await _avancarFluxo(instancia, tarefa.etapa_modelo_id, acao);
+        }
+
+        // P1.3 — Notifica o solicitante quando uma etapa é concluída por outro usuário
+        if (instancia.solicitante_uid && instancia.solicitante_uid !== _uid()) {
+          const ACAO_LABELS2 = globalScope.WF_ACAO_LABELS || {};
+          await _addDoc('wf_notificacoes', {
+            destinatario_uid: instancia.solicitante_uid,
+            tipo: 'etapa_concluida',
+            titulo: `Etapa concluída: ${tarefa.etapa_nome}`,
+            mensagem: `A etapa "${tarefa.etapa_nome}" do processo "${tarefa.processo_nome}" foi ${ACAO_LABELS2[acao] || acao}.`,
+            instancia_id: tarefa.instancia_id,
+            tarefa_id: tarefa.id,
+            lida: false,
+          });
         }
       }
 
@@ -526,7 +668,23 @@
   // Avança fluxo baseado no canvas do modelo
   async function _avancarFluxoCanvas(instancia, noOrigemId, acao) {
     const canvas = instancia.canvas;
-    const prox = _proximoNo(canvas, noOrigemId, acao);
+
+    // Rejeitar/devolver: retorna ao nó anterior (aresta de entrada em noOrigemId)
+    if (acao === 'rejeitar' || acao === 'devolver') {
+      const arestas = canvas.arestas || [];
+      const nos = canvas.nos || [];
+      const arestaEntrada = arestas.find(a => a.destino === noOrigemId);
+      const noAnterior = arestaEntrada ? nos.find(n => n.id === arestaEntrada.origem) : null;
+      if (noAnterior && noAnterior.tipo !== 'inicio') {
+        await _updateDoc('wf_instancia_processos', instancia.id, { no_atual_id: noAnterior.id, etapa_atual_id: noAnterior.id });
+        await _criarTarefasDoNo(instancia, noAnterior);
+        await _registrarHistorico(instancia.id, 'etapa_retornada', _uid(), noAnterior.id, null,
+          `Etapa devolvida para "${noAnterior.nome}".`, { acao });
+        return;
+      }
+    }
+
+    const prox = _proximoNo(canvas, noOrigemId, acao, instancia.dados_consolidados || {});
     if (!prox || prox.tipo === 'fim') {
       await _updateDoc('wf_instancia_processos', instancia.id, {
         status: 'concluido', concluido_em: new Date(), no_atual_id: null, etapa_atual_id: null,
@@ -541,11 +699,23 @@
   }
 
   // Avança para a próxima etapa do snapshot sequencial
-  async function _avancarFluxo(instancia, etapaOrigemId) {
+  async function _avancarFluxo(instancia, etapaOrigemId, acao) {
     const etapas = instancia.snapshot_etapas || [];
     const idx = etapas.findIndex(e => e.id === etapaOrigemId);
-    const proxEtapa = etapas[idx + 1];
 
+    // Rejeitar/devolver: retorna à etapa anterior
+    if (acao === 'rejeitar' || acao === 'devolver') {
+      const etapaAnterior = idx > 0 ? etapas[idx - 1] : null;
+      if (etapaAnterior) {
+        await _updateDoc('wf_instancia_processos', instancia.id, { etapa_atual_id: etapaAnterior.id });
+        await _criarTarefa(instancia, etapaAnterior);
+        await _registrarHistorico(instancia.id, 'etapa_retornada', _uid(), etapaAnterior.id, null,
+          `Etapa devolvida para "${etapaAnterior.nome}".`, { acao });
+        return;
+      }
+    }
+
+    const proxEtapa = etapas[idx + 1];
     if (!proxEtapa) {
       // Última etapa — conclui o processo
       await _updateDoc('wf_instancia_processos', instancia.id, {
@@ -608,28 +778,45 @@
   }
 
   // ── Instâncias ────────────────────────────────────────────────────────────
-  async function wfCarregarInstancias() {
+  async function wfCarregarInstancias(acrescentar = false) {
     const el = document.getElementById('wf-lista-instancias');
     if (!el) return;
-    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    if (!acrescentar) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>'; _st.instanciasCursor = null; }
     try {
       const uid = _uid();
       if (!uid) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Usuário não autenticado.</div>'; return; }
-      const { where } = globalScope.fb();
-      const instancias = (await _getAll('wf_instancia_processos',
-        where('solicitante_uid', '==', uid),
-      )).sort((a, b) => {
+      const { where, limit, startAfter, query, collection, getDocs } = globalScope.fb();
+      const db = _db();
+
+      const constraints = [where('solicitante_uid', '==', uid), limit(_WF_PAGE)];
+      if (_st.instanciasCursor) constraints.push(startAfter(_st.instanciasCursor));
+      const snap = await getDocs(query(collection(db, 'wf_instancia_processos'), ...constraints));
+      _st.instanciasCursor = snap.docs[snap.docs.length - 1] || null;
+
+      let instancias = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      instancias.sort((a, b) => {
         const ta = a._criado_em?.seconds ?? (a._criado_em ? a._criado_em.getTime() / 1000 : 0);
         const tb = b._criado_em?.seconds ?? (b._criado_em ? b._criado_em.getTime() / 1000 : 0);
         return tb - ta;
       });
-      if (!instancias.length) {
-        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum processo iniciado ainda.</div>';
+
+      // Filtro client-side
+      const filtroInstStatus = document.getElementById('wf-filtro-inst-status')?.value || '';
+      const filtroInstTexto = (document.getElementById('wf-filtro-inst-texto')?.value || '').toLowerCase();
+      const instanciasFiltradas = instancias.filter(i => {
+        if (filtroInstStatus && i.status !== filtroInstStatus) return false;
+        if (filtroInstTexto && !(i.titulo || '').toLowerCase().includes(filtroInstTexto)) return false;
+        return true;
+      });
+
+      if (!instanciasFiltradas.length && !acrescentar) {
+        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum processo encontrado.</div>';
         return;
       }
-      const statusLabels = { em_andamento:'Em andamento', concluido:'Concluído', cancelado:'Cancelado' };
-      const statusCores = { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444' };
-      el.innerHTML = instancias.map(i => {
+      const statusLabels = { em_andamento:'Em andamento', concluido:'Concluído', cancelado:'Cancelado', suspenso:'Suspenso' };
+      const statusCores = { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444', suspenso:'#f59e0b' };
+      const podeGerenciar = globalScope.isEP?.() || globalScope.isGestor?.();
+      const cards = instanciasFiltradas.map(i => {
         const etapas = i.snapshot_etapas || [];
         const idxAtual = etapas.findIndex(e => e.id === i.etapa_atual_id);
         const pct = etapas.length > 1 && idxAtual >= 0
@@ -649,12 +836,25 @@
             }).join('')}
           </div>
           <div style="font-size:11px;color:var(--ink3);margin-top:4px">${pct}% concluído</div>` : ''}
-          <div style="margin-top:10px">
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
             <button type="button" class="btn btn-sm" onclick="wfAbrirHistorico('${_esc(i.id)}','${_esc(i.titulo)}','${_esc(i.status)}')">Ver histórico</button>
-            ${i.status === 'em_andamento' && globalScope.isEP?.() ? `<button type="button" class="btn btn-r btn-sm" style="margin-left:6px" onclick="wfConfirmarCancelar('${_esc(i.id)}')">Cancelar</button>` : ''}
+            ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-sm" onclick="wfSuspenderInstancia('${_esc(i.id)}')">Suspender</button>` : ''}
+            ${i.status === 'suspenso' && podeGerenciar ? `<button type="button" class="btn btn-p btn-sm" onclick="wfRetomarInstancia('${_esc(i.id)}')">Retomar</button>` : ''}
+            ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfConfirmarCancelar('${_esc(i.id)}')">Cancelar</button>` : ''}
           </div>
         `);
       }).join('');
+
+      const temMais = snap.docs.length === _WF_PAGE;
+      const btnMais = temMais ? `<div style="text-align:center;margin-top:12px"><button type="button" class="btn btn-sm" onclick="wfCarregarInstancias(true)">Carregar mais</button></div>` : '';
+
+      if (acrescentar) {
+        const btnAnterior = el.querySelector('.wf-btn-mais');
+        if (btnAnterior) btnAnterior.remove();
+        el.insertAdjacentHTML('beforeend', cards + btnMais);
+      } else {
+        el.innerHTML = cards + btnMais;
+      }
     } catch (e) {
       el.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
     }
@@ -1222,17 +1422,40 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   // Resolve o nó destino a partir de um nó, seguindo arestas (pulando início)
-  function _proximoNo(canvas, noId, acao) {
+  // Avalia uma expressão simples de condição de gateway contra os dados coletados.
+  // Suporta: campo == valor, campo != valor, campo > valor, campo < valor
+  function _avaliarCondicao(condicao, dados) {
+    if (!condicao || !condicao.trim()) return true;
+    try {
+      const m = condicao.match(/^\s*(\w+)\s*(==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
+      if (!m) return true; // condição não reconhecida → passa
+      const [, campo, op, valorStr] = m;
+      const valDados = dados[campo];
+      const valComp = isNaN(valorStr) ? valorStr.replace(/^['"]|['"]$/g, '') : Number(valorStr);
+      switch (op) {
+        case '==': return String(valDados) === String(valComp);
+        case '!=': return String(valDados) !== String(valComp);
+        case '>':  return Number(valDados) > Number(valComp);
+        case '<':  return Number(valDados) < Number(valComp);
+        case '>=': return Number(valDados) >= Number(valComp);
+        case '<=': return Number(valDados) <= Number(valComp);
+        default: return true;
+      }
+    } catch { return true; }
+  }
+
+  function _proximoNo(canvas, noId, acao, dados = {}) {
     const arestas = canvas.arestas || [];
     const nos = canvas.nos || [];
-    // arestas que partem de noId; se acao informada, filtra; senão pega a primeira
-    const candidatas = arestas.filter(a => a.origem === noId && (acao == null || a.acao === acao));
-    const aresta = candidatas[0] || (acao != null ? arestas.find(a => a.origem === noId) : null);
+    // arestas que partem de noId; filtra por ação se informada
+    const candidatas = arestas.filter(a => a.origem === noId && (acao == null || a.acao === acao || !a.acao));
+    // para gateways com condições, usa a primeira cujas condições passem
+    const aresta = candidatas.find(a => _avaliarCondicao(a.condicao, dados))
+      || (acao != null ? arestas.find(a => a.origem === noId) : null);
     if (!aresta) return null;
     const destino = nos.find(n => n.id === aresta.destino);
     if (!destino) return null;
-    // se destino for início (não deveria), segue adiante
-    if (destino.tipo === 'inicio') return _proximoNo(canvas, destino.id, null);
+    if (destino.tipo === 'inicio') return _proximoNo(canvas, destino.id, null, dados);
     return destino;
   }
 
@@ -1291,6 +1514,14 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     } catch (e) {
       tl.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
     }
+
+    // Carrega comentários
+    await wfCarregarComentarios(instanciaId);
+    // Reseta campo de comentário
+    const areaComent = document.getElementById('wf-hist-comentario-texto');
+    if (areaComent) areaComent.value = '';
+    wfCancelarResposta();
+
     wfNavWorkflow('historico');
   }
 
@@ -1575,6 +1806,395 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
   }
 
+  // ── P3: Thread de comentários ─────────────────────────────────────────────
+
+  async function wfCarregarComentarios(instanciaId) {
+    const el = document.getElementById('wf-hist-comentarios');
+    if (!el) return;
+    el.innerHTML = '<div style="color:var(--ink3);font-size:13px">Carregando comentários…</div>';
+    try {
+      const { where } = globalScope.fb();
+      const comentarios = (await _getAll('wf_comentarios',
+        where('instancia_id', '==', instanciaId),
+      )).sort((a, b) => {
+        const ta = a._criado_em?.seconds ?? 0;
+        const tb = b._criado_em?.seconds ?? 0;
+        return ta - tb;
+      });
+
+      const nomeUsuario = (uid) => {
+        if (!uid) return '—';
+        const u = (globalScope.USUARIOS || []).find(x => x.uid === uid || x.id === uid);
+        return u?.nome || u?.email || uid;
+      };
+
+      // Agrupa raízes e respostas
+      const raizes = comentarios.filter(c => !c.respondendo_a);
+      const respostasPor = {};
+      comentarios.filter(c => c.respondendo_a).forEach(c => {
+        if (!respostasPor[c.respondendo_a]) respostasPor[c.respondendo_a] = [];
+        respostasPor[c.respondendo_a].push(c);
+      });
+
+      const renderComentario = (c, nivel = 0) => {
+        const ts = c._criado_em?.seconds
+          ? new Date(c._criado_em.seconds * 1000).toLocaleString('pt-BR') : '—';
+        const respostas = respostasPor[c.id] || [];
+        const indent = nivel > 0 ? 'border-left:3px solid var(--bdr);margin-left:20px;padding-left:12px;' : '';
+        return `
+          <div style="${indent}margin-bottom:10px" data-comentario-id="${_esc(c.id)}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-weight:600;font-size:13px">${_esc(nomeUsuario(c.autor_uid))}</span>
+              <span style="font-size:11px;color:var(--ink3)">${ts}</span>
+              ${nivel === 0 ? `<button type="button" class="btn btn-sm" style="margin-left:auto;font-size:11px;padding:2px 8px"
+                onclick="wfResponderComentario('${_esc(c.id)}','${_esc(nomeUsuario(c.autor_uid))}')">Responder</button>` : ''}
+            </div>
+            <div style="font-size:13px;color:var(--ink);white-space:pre-wrap">${_esc(c.texto)}</div>
+            ${respostas.map(r => renderComentario(r, nivel + 1)).join('')}
+          </div>`;
+      };
+
+      el.innerHTML = raizes.length
+        ? raizes.map(c => renderComentario(c)).join('')
+        : '<div style="color:var(--ink3);font-size:13px">Nenhum comentário ainda.</div>';
+    } catch (e) {
+      el.innerHTML = `<div style="color:#ef4444;font-size:13px">Erro: ${_esc(e.message)}</div>`;
+    }
+  }
+
+  function wfResponderComentario(comentarioId, nomeAutor) {
+    _st._respondendoA = comentarioId;
+    const area = document.getElementById('wf-hist-comentario-texto');
+    if (area) { area.placeholder = `Respondendo a ${nomeAutor}…`; area.focus(); }
+    const badge = document.getElementById('wf-hist-respondendo-badge');
+    if (badge) {
+      badge.style.display = 'flex';
+      const span = badge.querySelector('span');
+      if (span) span.textContent = `↩ Respondendo a ${nomeAutor}`;
+    }
+  }
+
+  function wfCancelarResposta() {
+    _st._respondendoA = null;
+    const area = document.getElementById('wf-hist-comentario-texto');
+    if (area) area.placeholder = 'Escreva um comentário…';
+    const badge = document.getElementById('wf-hist-respondendo-badge');
+    if (badge) badge.style.display = 'none';
+  }
+
+  async function wfEnviarComentario() {
+    if (!_st.instanciaAtual?.id) return;
+    const area = document.getElementById('wf-hist-comentario-texto');
+    const texto = area?.value?.trim();
+    if (!texto) return;
+    try {
+      await _addDoc('wf_comentarios', {
+        instancia_id: _st.instanciaAtual.id,
+        autor_uid: _uid(),
+        texto,
+        respondendo_a: _st._respondendoA || null,
+      });
+      area.value = '';
+      wfCancelarResposta();
+      await wfCarregarComentarios(_st.instanciaAtual.id);
+    } catch (e) {
+      alert('Erro ao enviar comentário: ' + e.message);
+    }
+  }
+
+  // ── P3: Exportação do histórico ────────────────────────────────────────────
+
+  async function wfExportarHistoricoCSV() {
+    if (!_st.instanciaAtual?.id) return;
+    try {
+      const { where } = globalScope.fb();
+      const eventos = (await _getAll('wf_historico_workflows',
+        where('instancia_id', '==', _st.instanciaAtual.id),
+      )).sort((a, b) => (a._criado_em?.seconds ?? 0) - (b._criado_em?.seconds ?? 0));
+
+      const nomeUsuario = (uid) => {
+        if (!uid) return '';
+        const u = (globalScope.USUARIOS || []).find(x => x.uid === uid || x.id === uid);
+        return u?.nome || u?.email || uid;
+      };
+
+      const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const linhas = [
+        ['Data/Hora', 'Evento', 'Usuário', 'Etapa', 'Ação', 'Parecer', 'Descrição'].map(esc).join(','),
+        ...eventos.map(h => {
+          const ts = h._criado_em?.seconds
+            ? new Date(h._criado_em.seconds * 1000).toLocaleString('pt-BR') : '';
+          const d = h.dados || {};
+          return [ts, h.tipo_evento, nomeUsuario(h.usuario_uid), h.etapa_id || '',
+            d.acao || '', d.parecer || '', h.descricao || ''].map(esc).join(',');
+        }),
+      ];
+      const bom = '﻿'; // BOM para Excel reconhecer UTF-8
+      const blob = new Blob([bom + linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `historico_${_st.instanciaAtual.id}_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Erro ao exportar: ' + e.message);
+    }
+  }
+
+  async function wfExportarHistoricoPDF() {
+    if (!_st.instanciaAtual?.id) return;
+    try {
+      const { where } = globalScope.fb();
+      const [eventos, comentarios] = await Promise.all([
+        _getAll('wf_historico_workflows', where('instancia_id', '==', _st.instanciaAtual.id)),
+        _getAll('wf_comentarios', where('instancia_id', '==', _st.instanciaAtual.id)),
+      ]);
+      eventos.sort((a, b) => (a._criado_em?.seconds ?? 0) - (b._criado_em?.seconds ?? 0));
+      comentarios.sort((a, b) => (a._criado_em?.seconds ?? 0) - (b._criado_em?.seconds ?? 0));
+
+      const nomeUsuario = (uid) => {
+        if (!uid) return '—';
+        const u = (globalScope.USUARIOS || []).find(x => x.uid === uid || x.id === uid);
+        return u?.nome || u?.email || uid;
+      };
+      const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const ts = s => s?.seconds ? new Date(s.seconds * 1000).toLocaleString('pt-BR') : '—';
+
+      const linhasEventos = eventos.map(h => {
+        const d = h.dados || {};
+        return `<tr>
+          <td>${esc(ts(h._criado_em))}</td>
+          <td>${esc(h.tipo_evento)}</td>
+          <td>${esc(nomeUsuario(h.usuario_uid))}</td>
+          <td>${esc(h.descricao || '')}</td>
+          <td>${esc(d.acao || '')}</td>
+          <td>${esc(d.parecer || '')}</td>
+        </tr>`;
+      }).join('');
+
+      const linhasComentarios = comentarios.map(c =>
+        `<tr><td>${esc(ts(c._criado_em))}</td><td>${esc(nomeUsuario(c.autor_uid))}</td><td>${esc(c.texto)}</td></tr>`
+      ).join('');
+
+      const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+        <title>Histórico — ${esc(_st.instanciaAtual.titulo || _st.instanciaAtual.id)}</title>
+        <style>
+          body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 24px; }
+          h1 { font-size: 16px; margin-bottom: 4px; }
+          .sub { color: #666; font-size: 11px; margin-bottom: 20px; }
+          table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
+          th { background: #f3f4f6; text-align: left; padding: 6px 8px; font-size: 11px; border-bottom: 2px solid #e5e7eb; }
+          td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+          h2 { font-size: 13px; margin: 20px 0 8px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head><body>
+        <h1>Histórico do Processo</h1>
+        <div class="sub">${esc(_st.instanciaAtual.titulo || _st.instanciaAtual.id)} · Exportado em ${new Date().toLocaleString('pt-BR')}</div>
+        <h2>Eventos</h2>
+        <table><thead><tr><th>Data/Hora</th><th>Evento</th><th>Usuário</th><th>Descrição</th><th>Ação</th><th>Parecer</th></tr></thead>
+        <tbody>${linhasEventos}</tbody></table>
+        ${comentarios.length ? `<h2>Comentários</h2>
+        <table><thead><tr><th>Data/Hora</th><th>Autor</th><th>Comentário</th></tr></thead>
+        <tbody>${linhasComentarios}</tbody></table>` : ''}
+      </body></html>`;
+
+      const win = window.open('', '_blank');
+      if (!win) { alert('Permita pop-ups para exportar PDF.'); return; }
+      win.document.write(html);
+      win.document.close();
+      win.onload = () => { win.focus(); win.print(); };
+    } catch (e) {
+      alert('Erro ao gerar PDF: ' + e.message);
+    }
+  }
+
+  // ── P3: Delegação de tarefa ───────────────────────────────────────────────
+
+  function wfAbrirDelegacao(tarefaId) {
+    _st._delegacaoTarefaId = tarefaId;
+    const modal = document.getElementById('wf-modal-delegacao');
+    if (!modal) return;
+    const sel = document.getElementById('wf-delegacao-usuario');
+    if (sel) {
+      const usuarios = globalScope.USUARIOS || [];
+      sel.innerHTML = `<option value="">— Selecione —</option>` +
+        usuarios.filter(u => u.uid || u.id).map(u =>
+          `<option value="${_esc(u.uid || u.id)}">${_esc(u.nome || u.email || u.uid || u.id)}</option>`
+        ).join('');
+    }
+    document.getElementById('wf-delegacao-motivo').value = '';
+    modal.style.display = 'flex';
+  }
+
+  function wfFecharDelegacao() {
+    const modal = document.getElementById('wf-modal-delegacao');
+    if (modal) modal.style.display = 'none';
+    _st._delegacaoTarefaId = null;
+  }
+
+  async function wfConfirmarDelegacao() {
+    const tarefaId = _st._delegacaoTarefaId;
+    if (!tarefaId) return;
+    const novoUid = document.getElementById('wf-delegacao-usuario')?.value;
+    const motivo = document.getElementById('wf-delegacao-motivo')?.value || '';
+    if (!novoUid) { alert('Selecione um usuário.'); return; }
+    try {
+      await _updateDoc('wf_tarefa_workflows', tarefaId, {
+        responsavel_uid: novoUid,
+        status: 'pendente',
+        iniciado_em: null,
+      });
+      // Notifica o novo responsável
+      const tarefa = await _getDoc('wf_tarefa_workflows', tarefaId);
+      if (tarefa) {
+        await _addDoc('wf_notificacoes', {
+          destinatario_uid: novoUid,
+          tipo: 'tarefa_delegada',
+          titulo: `Tarefa delegada: ${tarefa.etapa_nome}`,
+          mensagem: `A tarefa "${tarefa.etapa_nome}" do processo "${tarefa.processo_nome}" foi delegada a você.${motivo ? ` Motivo: ${motivo}` : ''}`,
+          instancia_id: tarefa.instancia_id,
+          tarefa_id: tarefaId,
+          lida: false,
+        });
+        await _registrarHistorico(tarefa.instancia_id, 'tarefa_delegada', _uid(),
+          tarefa.etapa_modelo_id, tarefaId,
+          `Tarefa delegada para usuário ${novoUid}.${motivo ? ` Motivo: ${motivo}` : ''}`,
+          { novoResponsavel: novoUid, motivo });
+      }
+      wfFecharDelegacao();
+      wfCarregarTarefas();
+    } catch (e) {
+      alert('Erro ao delegar: ' + e.message);
+    }
+  }
+
+  // ── P3: Suspender / Retomar instância ────────────────────────────────────
+
+  async function wfSuspenderInstancia(instanciaId) {
+    if (!confirm('Suspender este processo? Ele poderá ser retomado depois.')) return;
+    try {
+      await _updateDoc('wf_instancia_processos', instanciaId, { status: 'suspenso', suspenso_em: new Date() });
+      await _registrarHistorico(instanciaId, 'instancia_suspensa', _uid(), null, null, 'Processo suspenso.', {});
+      wfCarregarInstancias();
+    } catch (e) {
+      alert('Erro ao suspender: ' + e.message);
+    }
+  }
+
+  async function wfRetomarInstancia(instanciaId) {
+    if (!confirm('Retomar este processo?')) return;
+    try {
+      await _updateDoc('wf_instancia_processos', instanciaId, { status: 'em_andamento', suspenso_em: null });
+      await _registrarHistorico(instanciaId, 'instancia_retomada', _uid(), null, null, 'Processo retomado.', {});
+      wfCarregarInstancias();
+    } catch (e) {
+      alert('Erro ao retomar: ' + e.message);
+    }
+  }
+
+  // ── P3: Marcar todas as notificações como lidas ───────────────────────────
+
+  async function wfMarcarTodasLidas() {
+    const uid = _uid();
+    if (!uid) return;
+    try {
+      const { where, query, collection, getDocs, writeBatch, doc } = globalScope.fb();
+      const q = query(
+        collection(_db(), 'wf_notificacoes'),
+        where('destinatario_uid', '==', uid),
+        where('lida', '==', false),
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+      const batch = writeBatch(_db());
+      snap.docs.forEach(d => batch.update(doc(_db(), 'wf_notificacoes', d.id), { lida: true }));
+      await batch.commit();
+      _wfRenderNotifPanel();
+    } catch (e) {
+      alert('Erro: ' + e.message);
+    }
+  }
+
+  // ── P3: Dashboard de métricas ─────────────────────────────────────────────
+
+  async function wfCarregarDashboard() {
+    const el = document.getElementById('wf-dashboard-conteudo');
+    if (!el) return;
+    el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>';
+    const uid = _uid();
+    if (!uid) return;
+    try {
+      const { where, query, collection, getDocs } = globalScope.fb();
+      const db = _db();
+
+      const [snapMinhas, snapTarefas, snapSlaVencido] = await Promise.all([
+        getDocs(query(collection(db, 'wf_instancia_processos'), where('solicitante_uid', '==', uid))),
+        getDocs(query(collection(db, 'wf_tarefa_workflows'), where('responsavel_uid', '==', uid))),
+        getDocs(query(collection(db, 'wf_tarefa_workflows'),
+          where('responsavel_uid', '==', uid),
+          where('sla_vencido', '==', true),
+        )),
+      ]);
+
+      const instancias = snapMinhas.docs.map(d => d.data());
+      const tarefas = snapTarefas.docs.map(d => d.data());
+
+      const totalInst = instancias.length;
+      const ativas = instancias.filter(i => i.status === 'em_andamento').length;
+      const concluidas = instancias.filter(i => i.status === 'concluido').length;
+      const canceladas = instancias.filter(i => i.status === 'cancelado').length;
+      const suspensas = instancias.filter(i => i.status === 'suspenso').length;
+
+      const tarefasPendentes = tarefas.filter(t => t.status === 'pendente' || t.status === 'em_execucao').length;
+      const tarefasConcluidas = tarefas.filter(t => t.status === 'concluida').length;
+      const tarefasVencidas = snapSlaVencido.size;
+
+      // Tempo médio de conclusão (instâncias concluídas com datas)
+      const temposMed = instancias
+        .filter(i => i.status === 'concluido' && i._criado_em && i.concluido_em)
+        .map(i => {
+          const inicio = i._criado_em?.seconds ? i._criado_em.seconds * 1000 : new Date(i._criado_em).getTime();
+          const fim = i.concluido_em?.seconds ? i.concluido_em.seconds * 1000 : new Date(i.concluido_em).getTime();
+          return (fim - inicio) / 3600000; // horas
+        });
+      const tempoMedH = temposMed.length
+        ? (temposMed.reduce((a, b) => a + b, 0) / temposMed.length).toFixed(1)
+        : null;
+
+      const kpi = (label, valor, cor = 'var(--ink)') =>
+        `<div style="background:var(--surf2);border-radius:10px;padding:16px 20px;text-align:center">
+          <div style="font-size:28px;font-weight:700;color:${cor}">${valor}</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:4px">${label}</div>
+        </div>`;
+
+      el.innerHTML = `
+        <div style="margin-bottom:20px">
+          <div style="font-size:13px;font-weight:600;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Meus Processos</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
+            ${kpi('Total', totalInst)}
+            ${kpi('Em andamento', ativas, '#3b82f6')}
+            ${kpi('Concluídos', concluidas, '#10b981')}
+            ${kpi('Suspensos', suspensas, '#f59e0b')}
+            ${kpi('Cancelados', canceladas, '#ef4444')}
+            ${tempoMedH ? kpi('Tempo médio (h)', tempoMedH) : ''}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Minhas Tarefas</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
+            ${kpi('Pendentes', tarefasPendentes, '#3b82f6')}
+            ${kpi('Concluídas', tarefasConcluidas, '#10b981')}
+            ${kpi('SLA Vencido', tarefasVencidas, '#ef4444')}
+          </div>
+        </div>
+      `;
+    } catch (e) {
+      el.innerHTML = `<div style="color:#ef4444;font-size:13px">Erro ao carregar métricas: ${_esc(e.message)}</div>`;
+    }
+  }
+
   // ── Exposição global ──────────────────────────────────────────────────────
   Object.assign(globalScope, {
     rWorkflow,
@@ -1604,6 +2224,20 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfAbrirHistorico,
     wfCancelarInstancia,
     wfConfirmarCancelar,
+    wfCarregarComentarios,
+    wfResponderComentario,
+    wfCancelarResposta,
+    wfEnviarComentario,
+    wfExportarHistoricoCSV,
+    wfExportarHistoricoPDF,
+    wfMarcarNotifLida,
+    wfMarcarTodasLidas,
+    wfAbrirDelegacao,
+    wfFecharDelegacao,
+    wfConfirmarDelegacao,
+    wfSuspenderInstancia,
+    wfRetomarInstancia,
+    wfCarregarDashboard,
     // Formulários
     wfCarregarFormularios,
     wfAbrirModalNovoFormulario,
