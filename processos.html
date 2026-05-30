@@ -42,7 +42,7 @@
 <!-- Firebase -->
 <script type="module">
   import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getFirestore, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, startAt, endBefore, limitToLast } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { getFirestore, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
   import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
@@ -69,7 +69,7 @@
       const auth = getAuth(app);
       const storage = getStorage(app);
       const functions = getFunctions(app);
-      globalThis._fb = { db, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, startAt, endBefore, limitToLast, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, functions, httpsCallable, FIREBASE_CONFIG };
+      globalThis._fb = { db, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, functions, httpsCallable, FIREBASE_CONFIG };
       globalThis._fbReady = true;
       console.info('Firebase conectado');
     } catch(e) {
@@ -1126,7 +1126,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div class="fg"><label class="fl" for="usr-perfil">Perfil<span>*</span></label>
       <select class="fi" id="usr-perfil" onchange="onUsrPerfilChg()">
         <option value="ep">EPP</option>
-        <option value="dono">Dono do Processo</option>
+        <option value="dono">Executor de Processo</option>
         <option value="gestor">Gestor / Adjunto</option>
         <option value="gerente_projeto">Projetos</option>
       </select>
@@ -1200,7 +1200,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         </label>
         <div id="aviso-perfis-ind" style="display:flex;flex-direction:column;gap:6px;padding-left:1.2rem;opacity:.4;pointer-events:none">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-ep"> EPP</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-dono"> Dono do Processo</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-dono"> Executor de Processo</label>
         </div>
       </div>
     </div>
@@ -1306,9 +1306,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M10 2v3h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
     Publicações
   </button>
-  <button type="button" class="nav-btn" onclick="go('workflow',this)" id="nb-workflow">
+  <button type="button" class="nav-btn ep-only" onclick="go('workflow',this)" id="nb-workflow">
     <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="5" height="4" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1" y="10" width="5" height="4" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="10" y="6" width="5" height="4" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M6 4h2a2 2 0 012 2v2M6 12h2a2 2 0 002-2v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-    Workflow <span style="font-size:9px;opacity:.6;font-weight:400">(beta)</span>
+    Workflow
   </button>
   <button type="button" class="nav-btn" onclick="go('notificacoes',this)" id="nb-notif">
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a5 5 0 00-5 5v3l-1 2h12l-1-2V7a5 5 0 00-5-5z" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -1334,8 +1334,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <select id="ep-perfil-select" onchange="simularPerfil(this.value)" style="width:100%;font-size:11px;padding:3px 6px;border:1px solid var(--bdr);border-radius:var(--r);background:var(--bg2);color:var(--ink);cursor:pointer;font-family:var(--f)">
         <option value="ep">EP CAGE (real)</option>
         <option value="gestor">Gestor</option>
-        <option value="dono">Dono do Processo</option>
-        <option value="solicitante">Solicitante</option>
+        <option value="dono">Executor de Processo</option>
       </select>
     </div>
   </div>
@@ -2065,35 +2064,35 @@ Não responda este e-mail.</pre>
 </div></div>
 
 <!-- ===== WORKFLOW ===== -->
-<div id="page-workflow" class="page"><div style="padding:2rem">
+<div id="page-workflow" class="page ep-only"><div style="padding:2rem">
   <div class="ph">
     <div>
       <div class="ph-t">Workflow</div>
-      <div class="ph-s">Execute processos institucionais já mapeados como workflows rastreáveis com histórico e SLA</div>
+      <div class="ph-s">Modele e execute processos institucionais como workflows com formulários, SLA e histórico</div>
     </div>
-    <button type="button" class="btn btn-p" onclick="wfNavWorkflow('iniciar')">▶ Iniciar processo</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-p" id="wf-btn-novo-modelo" onclick="wfAbrirModalNovoModelo()">+ Novo modelo</button>
+      <button type="button" class="btn" id="wf-btn-iniciar" onclick="wfNavWorkflow('iniciar')">▶ Iniciar processo</button>
+    </div>
   </div>
 
   <!-- Sub-navegação interna -->
-  <div style="display:flex;gap:4px;border-bottom:1px solid var(--bdr);margin-bottom:1.5rem;padding-bottom:0;flex-wrap:wrap">
-    <button type="button" class="btn wf-tab-nao-solicitante" id="wf-tab-tarefas" onclick="wfNavWorkflow('tarefas')" style="border-radius:6px 6px 0 0;border-bottom:none">📋 Minhas Tarefas</button>
-    <button type="button" class="btn" id="wf-tab-instancias" onclick="wfNavWorkflow('instancias')" style="border-radius:6px 6px 0 0;border-bottom:none">🔄 <span id="wf-tab-instancias-label">Processos Ativos</span></button>
-    <button type="button" class="btn" id="wf-tab-iniciar" onclick="wfNavWorkflow('iniciar')" style="border-radius:6px 6px 0 0;border-bottom:none">▶ Nova Solicitação</button>
-    <button type="button" class="btn ep-only" id="wf-tab-designer" onclick="wfAbrirDesigner()" style="border-radius:6px 6px 0 0;border-bottom:none">🧩 Designer</button>
+  <div style="display:flex;gap:4px;border-bottom:1px solid var(--bdr);margin-bottom:1.5rem;padding-bottom:0">
+    <button type="button" class="btn" id="wf-tab-tarefas" onclick="wfNavWorkflow('tarefas')" style="border-radius:6px 6px 0 0;border-bottom:none">📋 Minhas Tarefas</button>
+    <button type="button" class="btn" id="wf-tab-instancias" onclick="wfNavWorkflow('instancias')" style="border-radius:6px 6px 0 0;border-bottom:none">🔄 Ativos</button>
+    <button type="button" class="btn" id="wf-tab-solicitacoes" onclick="wfNavWorkflow('solicitacoes')" style="border-radius:6px 6px 0 0;border-bottom:none">📬 Minhas Solicitações</button>
+    <button type="button" class="btn ep-only" id="wf-tab-modelagem" onclick="wfNavWorkflow('modelagem')" style="border-radius:6px 6px 0 0;border-bottom:none">🗂️ Modelagem</button>
     <button type="button" class="btn ep-only" id="wf-tab-formularios" onclick="wfNavWorkflow('formularios')" style="border-radius:6px 6px 0 0;border-bottom:none">📝 Formulários</button>
-    <button type="button" class="btn wf-tab-nao-solicitante" id="wf-tab-notificacoes" onclick="wfNavWorkflow('notificacoes')" style="border-radius:6px 6px 0 0;border-bottom:none">🔔 Notificações</button>
-    <button type="button" class="btn ep-only" id="wf-tab-equipes" onclick="wfNavWorkflow('equipes')" style="border-radius:6px 6px 0 0;border-bottom:none">👥 Equipes</button>
   </div>
 
   <!-- Painel: Minhas Tarefas -->
   <div id="wf-painel-tarefas">
-    <!-- Filtros -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-      <input type="text" class="fi" id="wf-filtro-tarefa-texto" placeholder="Buscar tarefa ou processo…" style="max-width:240px" oninput="wfCarregarTarefas()">
-      <select class="fi" id="wf-filtro-tarefa-status" onchange="wfCarregarTarefas()" style="max-width:160px">
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <select id="wf-filtro-status" class="fi" onchange="wfCarregarTarefas()" style="max-width:180px">
         <option value="">Todos os status</option>
         <option value="pendente">Pendente</option>
-        <option value="em_execucao">Em execução</option>
+        <option value="em_execucao">Em Execução</option>
+        <option value="vencida">Vencida</option>
       </select>
     </div>
     <div id="wf-lista-tarefas" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
@@ -2103,110 +2102,157 @@ Não responda este e-mail.</pre>
 
   <!-- Painel: Processos Ativos -->
   <div id="wf-painel-instancias" style="display:none">
-    <!-- Filtros -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-      <input type="text" class="fi" id="wf-filtro-inst-texto" placeholder="Buscar processo…" style="max-width:240px" oninput="wfCarregarInstancias()">
-      <select class="fi" id="wf-filtro-inst-status" onchange="wfCarregarInstancias()" style="max-width:180px">
-        <option value="">Todos os status</option>
-        <option value="em_andamento">Em andamento</option>
-        <option value="concluido">Concluído</option>
-        <option value="suspenso">Suspenso</option>
-        <option value="cancelado">Cancelado</option>
-      </select>
-    </div>
     <div id="wf-lista-instancias" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
       <div style="color:var(--ink3);font-size:14px">Carregando…</div>
     </div>
   </div>
 
-  <!-- Painel: Iniciar — abas mapeamento × templates -->
-  <div id="wf-painel-iniciar" style="display:none">
-    <div style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap">
-      <button type="button" class="btn btn-sm" id="wf-iniciar-tab-mapeamento" onclick="wfIniciarAba('mapeamento')">A partir de mapeamento</button>
-      <button type="button" class="btn btn-sm" id="wf-iniciar-tab-templates" onclick="wfIniciarAba('templates')">Templates publicados</button>
+  <!-- Painel: Minhas Solicitações (processos que eu abri) -->
+  <div id="wf-painel-solicitacoes" style="display:none">
+    <div class="ib ibb" style="margin-bottom:16px;font-size:13px">
+      Processos que você iniciou — acompanhe o status e em quais mãos estão.
     </div>
-
-    <div id="wf-iniciar-aba-mapeamento">
-      <div class="ib ibb" style="margin-bottom:16px">
-        Selecione um processo já mapeado. Use "Importar e configurar" para abrir o designer visual, ou "Iniciar direto" para execução sequencial simples (TO BE quando disponível, senão AS IS).
-      </div>
-      <div id="wf-lista-mapeamentos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
-        <div style="color:var(--ink3);font-size:14px">Carregando processos mapeados…</div>
-      </div>
-    </div>
-
-    <div id="wf-iniciar-aba-templates" style="display:none">
-      <div class="ib ibb" style="margin-bottom:16px">
-        Templates de workflow publicados no designer. Clique em "Iniciar" para criar uma nova instância.
-      </div>
-      <div id="wf-lista-templates" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">
-        <div style="color:var(--ink3);font-size:14px">Carregando templates…</div>
-      </div>
+    <div id="wf-lista-solicitacoes" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+      <div style="color:var(--ink3);font-size:14px">Carregando…</div>
     </div>
   </div>
 
-  <!-- Painel: Designer visual de fluxo (EP only) -->
-  <div id="wf-painel-designer" style="display:none">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-      <button type="button" class="btn" onclick="wfNavWorkflow('iniciar')">← Voltar</button>
-      <input type="text" class="fi" id="wf-designer-nome" placeholder="Nome do workflow" style="max-width:280px">
-      <input type="text" class="fi" id="wf-designer-desc" placeholder="Descrição (opcional)" style="flex:1;min-width:200px">
-      <button type="button" class="btn btn-p btn-sm" onclick="wfDesignerSalvar()">Salvar</button>
-      <button type="button" class="btn btn-sm" onclick="wfDesignerPublicar()">Publicar</button>
+  <!-- Painel: Iniciar Processo -->
+  <div id="wf-painel-iniciar" style="display:none;max-width:520px">
+    <div class="card" style="padding:20px">
+      <div style="margin-bottom:14px">
+        <label class="lbl">Processo</label>
+        <select id="wf-np-modelo" class="fi" onchange="wfExibirDetalhesModelo()" style="width:100%;margin-top:4px">
+          <option value="">Selecione o processo a iniciar…</option>
+        </select>
+      </div>
+      <div id="wf-np-detalhes" style="display:none;background:var(--blue-l);border:1px solid var(--blue-b);border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:var(--ink)"></div>
+      <div style="margin-bottom:14px">
+        <label class="lbl">Título (opcional)</label>
+        <input type="text" id="wf-np-titulo" class="fi" placeholder="Deixe em branco para gerar automaticamente" style="width:100%;margin-top:4px">
+      </div>
+      <button type="button" class="btn btn-p" onclick="wfIniciarProcesso()">Iniciar Processo</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start">
-      <!-- Canvas bpmn.js -->
-      <div class="bpmn-wrap" style="position:relative;height:70vh">
-        <div id="wf-bpmn-canvas" class="bpmn-canvas" style="height:100%"></div>
-        <div id="wf-bpmn-loading" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,.7);align-items:center;justify-content:center;font-size:14px;color:var(--ink3)">Carregando…</div>
-        <div id="wf-bpmn-dirty" style="display:none;position:absolute;top:8px;right:8px;background:#f59e0b;color:#fff;font-size:11px;padding:2px 8px;border-radius:99px">Não salvo</div>
+  </div>
+
+  <!-- Painel: Modelagem -->
+  <div id="wf-painel-modelagem" style="display:none">
+    <div id="wf-lista-modelos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+      <div style="color:var(--ink3);font-size:14px">Carregando…</div>
+    </div>
+  </div>
+
+  <!-- Painel: Config Modelo (etapas e transições) -->
+  <div id="wf-painel-config-modelo" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <button type="button" class="btn" onclick="wfNavWorkflow('modelagem')">← Voltar</button>
+      <h3 id="wf-config-titulo" style="margin:0;font-size:17px;color:var(--ink)"></h3>
+      <span id="wf-config-status-badge" style="padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600"></span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button type="button" class="btn btn-sm" onclick="wfDesignerSimular()">▶ Simular</button>
+        <button type="button" class="btn btn-p" id="wf-btn-publicar" onclick="wfPublicarModelo()" style="display:none">Publicar</button>
       </div>
-      <!-- Config do nó selecionado -->
-      <div class="card" id="wf-designer-config" style="padding:14px;max-height:70vh;overflow-y:auto">
-        <div style="color:var(--ink3);font-size:13px">Selecione um elemento para configurar.</div>
+    </div>
+    <!-- Processo mapeado vinculado -->
+    <div style="background:var(--blue-l);border:1px solid var(--blue-b);border-radius:8px;padding:14px;margin-bottom:20px;max-width:680px">
+      <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:6px">Processo mapeado vinculado</div>
+      <div id="wf-config-arq-info" style="font-size:13px;color:var(--ink)">Nenhum processo vinculado.</div>
+      <button type="button" class="btn btn-sm" style="margin-top:8px" onclick="wfAbrirModalVincularArquitetura()">Vincular processo existente</button>
+    </div>
+    <div style="max-width:680px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <strong style="font-size:14px">Etapas do Fluxo</strong>
+        <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirModalEtapa()">+ Etapa</button>
       </div>
+      <div id="wf-config-etapas" style="margin-bottom:20px"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <strong style="font-size:14px">Transições</strong>
+        <button type="button" class="btn btn-sm" onclick="wfAbrirModalTransicao()">+ Transição</button>
+      </div>
+      <div id="wf-config-transicoes" style="font-size:13px;color:var(--ink3)">Nenhuma transição.</div>
+    </div>
+  </div>
+
+  <!-- Painel: Formulários -->
+  <div id="wf-painel-formularios" style="display:none">
+    <div id="wf-lista-formularios" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+      <div style="color:var(--ink3);font-size:14px">Carregando…</div>
     </div>
   </div>
 
   <!-- Painel: Executar Tarefa -->
-  <div id="wf-painel-executar" style="display:none;max-width:680px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-      <button type="button" class="btn" onclick="wfNavWorkflow('tarefas')">← Voltar</button>
-      <h3 id="wf-exec-titulo" style="margin:0;font-size:17px;color:var(--ink)" aria-live="polite">Executar tarefa</h3>
-    </div>
-    <div class="card" style="padding:20px">
-      <div id="wf-exec-papel" style="margin-bottom:10px"></div>
-      <div id="wf-exec-progresso"></div>
-      <div id="wf-exec-instrucoes" style="background:var(--blue-l);border-radius:6px;padding:12px;font-size:13px;color:var(--blue);margin-bottom:16px;display:none"></div>
-      <div id="wf-exec-dados-anteriores" style="display:none;margin-bottom:16px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Dados registrados nas etapas anteriores</div>
-        <div id="wf-exec-dados-anteriores-conteudo"></div>
-        <hr style="margin:12px 0;border-color:var(--bdr)">
+  <div id="wf-painel-executar" style="display:none;max-width:720px">
+    <!-- Cabeçalho da tarefa -->
+    <div class="wf-exec-header">
+      <button type="button" class="btn btn-sm" onclick="wfNavWorkflow('tarefas')" style="flex-shrink:0">← Voltar</button>
+      <div class="wf-exec-header-info">
+        <div id="wf-exec-processo-nome" style="font-size:11px;color:var(--ink3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px"></div>
+        <h3 id="wf-exec-titulo" style="margin:0;font-size:18px;font-weight:700;color:var(--ink)" aria-live="polite">Executar tarefa</h3>
       </div>
+      <div id="wf-exec-sla-badge" style="flex-shrink:0"></div>
+    </div>
+
+    <!-- Meta info: papel, responsável, progresso -->
+    <div class="card" style="padding:14px 18px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div id="wf-exec-papel" style="flex:1;min-width:120px"></div>
+        <div id="wf-exec-responsavel" style="font-size:12px;color:var(--ink3)"></div>
+      </div>
+      <div id="wf-exec-progresso" style="margin-top:12px"></div>
+      <div id="wf-exec-instrucoes" style="background:var(--blue-l);border:1px solid var(--blue-b);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--blue);margin-top:12px;display:none;line-height:1.6"></div>
+    </div>
+
+    <!-- Dados de etapas anteriores (collapsible) -->
+    <div id="wf-exec-dados-anteriores" style="display:none;margin-bottom:16px">
+      <details>
+        <summary style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;padding:6px 0">Ver dados das etapas anteriores</summary>
+        <div id="wf-exec-dados-anteriores-conteudo" style="padding:10px 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px"></div>
+      </details>
+    </div>
+
+    <!-- Formulário da etapa -->
+    <div class="card" style="padding:20px;margin-bottom:16px">
       <div id="wf-exec-formulario"></div>
-      <!-- Anexos da etapa -->
-      <div style="margin-top:14px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:6px">Anexos</div>
+
+      <!-- Anexos -->
+      <div id="wf-exec-anexos-section" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--bdr)">
+        <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Anexos</div>
         <div id="wf-exec-anexos-lista" style="margin-bottom:8px"></div>
-        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--blue)">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--blue);padding:5px 10px;border:1px dashed var(--blue-b);border-radius:7px;background:var(--blue-l)">
           <input type="file" id="wf-exec-anexo-input" multiple style="display:none" onchange="wfAnexarArquivos(this)">
-          <span style="padding:4px 10px;border:1px dashed var(--blue);border-radius:6px">+ Anexar documento</span>
+          + Anexar documento
         </label>
         <div id="wf-exec-anexo-progresso" style="font-size:11px;color:var(--ink3);margin-top:4px"></div>
       </div>
-      <div style="margin-top:14px">
-        <label class="lbl" for="wf-exec-obs">Parecer / justificativa</label>
-        <span id="wf-exec-parecer-hint" style="display:none;font-size:11px;color:var(--red);margin-left:6px">obrigatório</span>
-        <textarea id="wf-exec-obs" class="fi" rows="3" style="width:100%;margin-top:4px;resize:vertical"></textarea>
+    </div>
+
+    <!-- Parecer / justificativa -->
+    <div class="card" style="padding:16px 20px;margin-bottom:16px" id="wf-exec-parecer-card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3)">Parecer / Observação</span>
+        <span id="wf-exec-parecer-hint" style="display:none;font-size:11px;color:var(--red);font-weight:600">● obrigatório</span>
       </div>
-      <div id="wf-exec-acoes" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"></div>
+      <textarea id="wf-exec-obs" class="fi" rows="3" placeholder="Descreva a decisão tomada, justificativas ou observações relevantes para esta etapa…" style="resize:vertical"></textarea>
+    </div>
+
+    <!-- Ações -->
+    <div class="wf-exec-acoes-bar">
+      <div id="wf-exec-acoes" style="display:flex;gap:8px;flex-wrap:wrap;flex:1"></div>
+    </div>
+
+    <!-- Histórico inline (collapsible) -->
+    <div style="margin-top:20px" id="wf-exec-historico-section">
+      <details>
+        <summary style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;padding:6px 0">Histórico do processo</summary>
+        <div id="wf-exec-historico-lista" style="margin-top:8px;padding-left:16px;border-left:2px solid var(--bdr)"></div>
+      </details>
     </div>
 
     <!-- Thread de comentários da etapa -->
     <div style="margin-top:20px">
-      <strong style="font-size:13px">Comentários desta etapa</strong>
-      <div id="wf-exec-comentarios" style="margin-top:12px"></div>
-      <div style="margin-top:12px">
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:12px">Comentários desta etapa</div>
+      <div id="wf-exec-comentarios" style="margin-bottom:12px"></div>
+      <div>
         <div id="wf-exec-respondendo-badge" style="display:none;font-size:11px;color:var(--blue);margin-bottom:4px;align-items:center;gap:6px">
           <span></span>
           <button type="button" onclick="wfCancelarResposta()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:12px">✕</button>
@@ -2219,16 +2265,12 @@ Não responda este e-mail.</pre>
     </div>
   </div>
 
-  <!-- Painel: Histórico da instância -->
-  <div id="wf-painel-historico" style="display:none;max-width:680px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+  <!-- Painel: Histórico -->
+  <div id="wf-painel-historico" style="display:none;max-width:640px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
       <button type="button" class="btn" onclick="wfNavWorkflow('instancias')">← Voltar</button>
-      <h3 id="wf-hist-titulo" style="margin:0;font-size:17px;color:var(--ink)" aria-live="polite">Histórico</h3>
-      <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-        <button type="button" class="btn btn-sm" onclick="wfExportarHistoricoCSV()">⬇ CSV</button>
-        <button type="button" class="btn btn-sm" onclick="wfExportarHistoricoPDF()">⬇ PDF</button>
-        <button type="button" class="btn btn-r btn-sm" id="wf-hist-btn-cancelar" onclick="wfCancelarInstancia()" style="display:none">Cancelar processo</button>
-      </div>
+      <h3 id="wf-hist-titulo" style="margin:0;font-size:17px;color:var(--ink)"></h3>
+      <button type="button" class="btn btn-r btn-sm" id="wf-hist-btn-cancelar" onclick="wfCancelarInstancia()" style="display:none;margin-left:auto">Cancelar processo</button>
     </div>
     <div class="card" style="padding:16px;margin-bottom:16px">
       <div id="wf-hist-resumo"></div>
@@ -2237,186 +2279,46 @@ Não responda este e-mail.</pre>
     <div id="wf-hist-timeline" style="margin-top:12px;padding-left:20px;border-left:2px solid var(--bdr)">
       <div style="color:var(--ink3);font-size:14px">Carregando…</div>
     </div>
-
-    <!-- Comentários por etapa (agrupados na timeline) -->
-    <div style="margin-top:24px">
-      <strong style="font-size:13px">Comentários por etapa</strong>
-      <div id="wf-hist-comentarios-por-etapa" style="margin-top:12px"></div>
-    </div>
   </div>
 
-  <!-- Painel: Formulários (EP only) -->
-  <div id="wf-painel-formularios" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div>
-        <div style="font-size:15px;font-weight:600">Modelos de formulário</div>
-        <div style="font-size:12px;color:var(--ink3)">Crie schemas reutilizáveis para coleta de dados em etapas de workflow</div>
-      </div>
-      <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirModalNovoFormulario()">+ Formulário</button>
-    </div>
-    <div id="wf-lista-formularios" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-      <div style="color:var(--ink3);font-size:14px">Carregando…</div>
-    </div>
-  </div>
-
-  <!-- Painel: Configurar Processo -->
-  <div id="wf-painel-config-processo" style="display:none;max-width:720px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-      <button type="button" class="btn" onclick="wfNavWorkflow('iniciar')">← Voltar</button>
-      <h3 id="wf-config-proc-titulo" style="margin:0;font-size:17px;color:var(--ink)" aria-live="polite">Configurar processo</h3>
-    </div>
-    <div class="ib ibb" style="margin-bottom:16px">
-      Associe um formulário e defina o SLA (em horas) para cada etapa do processo. Deixe em branco para usar os padrões do mapeamento.
-    </div>
-    <div id="wf-config-proc-etapas"></div>
-    <div style="margin-top:16px;display:flex;gap:8px">
-      <button type="button" class="btn btn-p" onclick="wfSalvarConfigProcesso()">Salvar configuração</button>
-      <button type="button" class="btn" onclick="wfNavWorkflow('iniciar')">Cancelar</button>
-    </div>
-  </div>
-
-  <!-- Painel: Notificações -->
-  <!-- Painel: Notificações (lista preenchida por _wfRenderNotifPanel) -->
-  <div id="wf-painel-notificacoes" style="display:none;max-width:640px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-      <h3 style="margin:0;font-size:17px;color:var(--ink)">Notificações</h3>
-      <button type="button" class="btn btn-sm" style="margin-left:auto" onclick="wfMarcarTodasLidas()">Marcar todas como lidas</button>
-    </div>
-    <div id="wf-notif-lista"></div>
-  </div>
-
-  <!-- Painel: Equipes e grupos -->
-  <div id="wf-painel-equipes" style="display:none">
-    <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
-      <button type="button" class="btn btn-sm" id="wf-equipes-tab-grupos" onclick="wfEquipesAba('grupos')">🗂 Grupos / Equipes</button>
-      <button type="button" class="btn btn-sm" id="wf-equipes-tab-usuarios" onclick="wfEquipesAba('usuarios')">👤 Usuários</button>
-    </div>
-
-    <!-- Seção: Grupos -->
-    <div id="wf-equipes-sec-grupos">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-        <div>
-          <div style="font-size:15px;font-weight:600">Grupos / Equipes</div>
-          <div style="font-size:12px;color:var(--ink3)">Gerencie grupos e membros para atribuição de filas de trabalho</div>
-        </div>
-        <button type="button" class="btn btn-p btn-sm ep-only" onclick="wfAbrirModalGrupo()">+ Novo grupo</button>
-      </div>
-      <div id="wf-lista-grupos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-        <div style="color:var(--ink3);font-size:14px">Carregando…</div>
-      </div>
-    </div>
-
-    <!-- Seção: Usuários -->
-    <div id="wf-equipes-sec-usuarios" style="display:none">
-      <div style="margin-bottom:16px">
-        <div style="font-size:15px;font-weight:600">Usuários do sistema</div>
-        <div style="font-size:12px;color:var(--ink3)">Perfil e grupos de cada usuário</div>
-      </div>
-      <div id="wf-lista-equipes-usuarios"></div>
-    </div>
-  </div>
-
-  <!-- Modal: Criar/Editar Grupo -->
-  <!-- Modal: Criar / Editar grupo de equipe -->
-  <div id="wf-modal-grupo" class="modal-overlay" style="display:none;align-items:center;justify-content:center">
-    <div class="modal" style="max-width:500px;width:100%">
+  <!-- Modal: Formulário de abertura do processo -->
+  <div id="wf-modal-inicio-form" class="modal-overlay" style="display:none;align-items:flex-start;padding-top:32px">
+    <div class="modal" style="max-width:580px;width:100%;max-height:88vh">
       <div class="modal-hd">
-        <span id="wf-modal-grupo-titulo">Novo grupo</span>
-        <button type="button" class="modal-x" onclick="wfFecharModalGrupo()">✕</button>
-      </div>
-      <div class="modal-bd">
-        <div style="margin-bottom:16px">
-          <label class="lbl" for="wf-grupo-nome">Nome da equipe *</label>
-          <input type="text" class="fi" id="wf-grupo-nome" placeholder="Ex.: Fila Jurídica, Equipe de Análise…">
-        </div>
-        <div style="margin-bottom:16px">
-          <label class="lbl" for="wf-grupo-descricao">Descrição</label>
-          <textarea class="fi" id="wf-grupo-descricao" rows="2" placeholder="Qual a finalidade desta equipe?"></textarea>
-        </div>
         <div>
-          <label class="lbl">Membros</label>
-          <p style="font-size:12px;color:var(--ink3);margin-bottom:8px">Selecione quem faz parte desta equipe. Qualquer membro poderá assumir tarefas atribuídas a ela.</p>
-          <div id="wf-grupo-membros-lista" style="max-height:240px;overflow-y:auto;border:1px solid var(--bdr);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:2px;background:var(--surf2)"></div>
+          <div id="wf-inicio-form-titulo" style="font-size:15px;font-weight:600;color:var(--ink)">Formulário de abertura</div>
+          <div id="wf-inicio-form-subtitulo" style="font-size:12px;color:var(--ink3);margin-top:2px;font-weight:400;font-family:var(--f)"></div>
         </div>
-      </div>
-      <div class="modal-ft">
-        <button type="button" class="btn btn-p" onclick="wfSalvarGrupo()">Salvar equipe</button>
-        <button type="button" class="btn" onclick="wfFecharModalGrupo()">Cancelar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Delegação de tarefa -->
-  <div id="wf-modal-delegacao" class="modal-overlay" style="display:none;align-items:center;justify-content:center">
-    <div class="modal" style="max-width:420px;width:100%">
-      <div class="modal-hd">
-        <span>Delegar tarefa</span>
-        <button type="button" class="modal-x" onclick="wfFecharDelegacao()">✕</button>
-      </div>
-      <div class="modal-bd">
-        <div style="margin-bottom:16px">
-          <label class="lbl" for="wf-delegacao-usuario">Novo responsável</label>
-          <select class="fi" id="wf-delegacao-usuario"></select>
-        </div>
-        <div>
-          <label class="lbl" for="wf-delegacao-motivo">Motivo (opcional)</label>
-          <textarea class="fi" id="wf-delegacao-motivo" rows="3" placeholder="Justificativa da delegação…"></textarea>
-        </div>
-      </div>
-      <div class="modal-ft">
-        <button type="button" class="btn btn-p" onclick="wfConfirmarDelegacao()">Confirmar delegação</button>
-        <button type="button" class="btn" onclick="wfFecharDelegacao()">Cancelar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Vincular equipe ao iniciar workflow -->
-  <div id="wf-modal-atribuicao" class="modal-overlay" style="display:none;align-items:center;justify-content:center">
-    <div class="modal" style="max-width:460px;width:100%">
-      <div class="modal-hd">
-        <span id="wf-modal-atrib-titulo">Vincular equipe ao fluxo</span>
-        <button type="button" class="modal-x" onclick="wfCancelarAtribuicao()">✕</button>
-      </div>
-      <div class="modal-bd">
-        <p style="font-size:13px;color:var(--ink3);margin-bottom:18px;line-height:1.6">
-          Selecione a equipe responsável por executar esta instância. As tarefas serão criadas na fila da equipe — qualquer membro poderá assumir.
-        </p>
-        <div>
-          <label class="lbl" for="wf-atrib-sel-equipe">Equipe responsável</label>
-          <select class="fi" id="wf-atrib-sel-equipe">
-            <option value="">— carregando equipes… —</option>
-          </select>
-          <div id="wf-atrib-equipe-membros" class="wf-equipe-preview"></div>
-        </div>
-      </div>
-      <div class="modal-ft">
-        <button type="button" class="btn btn-p" onclick="wfConfirmarAtribuicao()">Iniciar workflow</button>
-        <button type="button" class="btn" onclick="wfCancelarAtribuicao()">Cancelar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Editor de Formulário -->
-  <div id="wf-modal-formulario" class="modal-overlay" style="display:none;align-items:flex-start;padding-top:32px">
-    <div class="modal" style="max-width:620px;width:100%;max-height:88vh">
-      <div class="modal-hd">
-        <span>Editor de formulário</span>
-        <button type="button" class="modal-x" onclick="wfFecharModalFormulario()">✕</button>
+        <button type="button" class="modal-x" onclick="wfCancelarInicioForm()">✕</button>
       </div>
       <div class="modal-bd" style="overflow-y:auto;flex:1">
-        <div style="margin-bottom:20px">
-          <label class="lbl" for="wf-modal-form-titulo">Título do formulário</label>
-          <input type="text" class="fi" id="wf-modal-form-titulo" placeholder="Ex.: Formulário de solicitação de serviço">
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3)">Campos</span>
-          <button type="button" class="btn btn-p btn-sm" onclick="_wfAdicionarCampo()">+ Adicionar campo</button>
-        </div>
-        <div id="wf-modal-form-campos"></div>
+        <p style="font-size:13px;color:var(--ink3);margin-bottom:16px;line-height:1.6">Preencha as informações abaixo para iniciar o processo. Esses dados estarão disponíveis para todos os responsáveis ao longo do fluxo.</p>
+        <div id="wf-inicio-form-campos"></div>
       </div>
       <div class="modal-ft">
-        <button type="button" class="btn btn-p" onclick="wfSalvarFormulario()">Salvar formulário</button>
-        <button type="button" class="btn" onclick="wfFecharModalFormulario()">Cancelar</button>
+        <button type="button" class="btn btn-p" onclick="wfConfirmarInicioForm()">Iniciar processo</button>
+        <button type="button" class="btn" onclick="wfCancelarInicioForm()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Simulação de fluxo -->
+  <div id="wf-modal-simulacao" class="modal-overlay" style="display:none;align-items:flex-start;padding-top:32px">
+    <div class="modal" style="max-width:560px;width:100%;max-height:88vh">
+      <div class="modal-hd">
+        <span>Simulação de fluxo</span>
+        <button type="button" class="modal-x" onclick="document.getElementById('wf-modal-simulacao').style.display='none'">✕</button>
+      </div>
+      <div class="modal-bd" style="overflow-y:auto;flex:1">
+        <p style="font-size:13px;color:var(--ink3);margin-bottom:14px;line-height:1.6">
+          Informe valores para os campos condicionais e veja o caminho que o fluxo percorreria.
+        </p>
+        <div id="wf-sim-campos"></div>
+        <div id="wf-sim-resultado" style="margin-top:16px"></div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-p" onclick="wfExecutarSimulacao()">▶ Traçar caminho</button>
+        <button type="button" class="btn" onclick="document.getElementById('wf-modal-simulacao').style.display='none'">Fechar</button>
       </div>
     </div>
   </div>
@@ -2862,8 +2764,8 @@ function simularPerfil(perfil){
     const id=pAtivo.id.replace('page-','');
     go(id,document.getElementById('nb-'+id)||null);
   }
-  const labels={ep:ORG_CONFIG.supportTeamLabel+' (real)',gestor:'Gestor',dono:'Dono do Processo',solicitante:'Solicitante'};
-  const cores={ep:'var(--teal)',gestor:'var(--blue)',dono:'var(--amber)',solicitante:'#0891b2'};
+  const labels={ep:ORG_CONFIG.supportTeamLabel+' (real)',gestor:'Gestor',dono:'Executor de Processo'};
+  const cores={ep:'var(--teal)',gestor:'var(--blue)',dono:'var(--amber)'};
   toast('Perfil: '+labels[perfil], cores[perfil]||'var(--teal)');
 }
 
@@ -4920,31 +4822,17 @@ function aplicarPermissoes(){
   if(nbAud) nbAud.style.display = isEP() ? '' : 'none';
   const nbMeusProc = document.getElementById('nb-meusproc');
   if(nbMeusProc) nbMeusProc.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? '' : 'none';
-  const perfil = usuarioLogado?.perfil;
-  const isSolicitante = perfil === 'solicitante';
-
-  // Solicitante: só enxerga arquitetura, FAQ, publicações e workflow
-  const menusSolicitante = new Set(['nb-arq','nb-faq','nb-pub','nb-workflow']);
-  if(isSolicitante){
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-      const visivel = menusSolicitante.has(btn.id) || !btn.id.startsWith('nb-');
-      btn.style.display = visivel ? '' : 'none';
-    });
-  } else {
-    const nbProc = document.getElementById('nb-proc');
-    if(nbProc) nbProc.style.display = (perfil==='dono'||perfil==='gestor') ? 'none' : '';
-    const nbTrilhas = document.getElementById('nb-trilhas');
-    if(nbTrilhas) nbTrilhas.style.display = (perfil==='dono'||perfil==='gestor') ? 'none' : '';
-    const nbDash = document.getElementById('nb-dash');
-    if(nbDash) nbDash.style.display = (perfil==='dono'||perfil==='gestor') ? 'none' : '';
-    const nbNotif = document.getElementById('nb-notif');
-    if(nbNotif) nbNotif.style.display = (perfil==='dono'||perfil==='gestor') ? 'none' : '';
-  }
+  const nbProc = document.getElementById('nb-proc');
+  if(nbProc) nbProc.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
+  const nbTrilhas = document.getElementById('nb-trilhas');
+  if(nbTrilhas) nbTrilhas.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
+  const nbDash = document.getElementById('nb-dash');
+  if(nbDash) nbDash.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
   const nbPainelGestor = document.getElementById('nb-painel-gestor');
-  if(nbPainelGestor) nbPainelGestor.style.display = perfil==='gestor' ? '' : 'none';
+  if(nbPainelGestor) nbPainelGestor.style.display = usuarioLogado?.perfil==='gestor' ? '' : 'none';
+  const nbNotif = document.getElementById('nb-notif');
+  if(nbNotif) nbNotif.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
-  // Solicitante não modifica nada — oculta ações de escrita fora do workflow
-  document.querySelectorAll('.write-action').forEach(el=>{ el.style.display=isSolicitante?'none':''; });
 }
 
 function buildArqStatsHTML(f){
