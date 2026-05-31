@@ -495,9 +495,12 @@
     return tarefasFiltradas.map((t) => {
       const eFila = t._eFila || (!t.responsavel_uid && !!t.grupo_id);
       const eDisponivel = !t.responsavel_uid && !t.grupo_id;
-      const badgeFila = eFila
-        ? `${_badge('👥 Fila: ' + (t._nomeGrupo || t.grupo_id), '#1e3a5f')} `
-        : (eDisponivel ? `${_badge('📋 Dispon\xEDvel', '#4b5563')} ` : '');
+      let badgeFila = '';
+      if (eFila) {
+        badgeFila = `${_badge('👥 Fila: ' + (t._nomeGrupo || t.grupo_id), '#1e3a5f')} `;
+      } else if (eDisponivel) {
+        badgeFila = `${_badge('📋 Dispon\xEDvel', '#4b5563')} `;
+      }
       const botoesAcao = (eFila || eDisponivel)
         ? `<button type="button" class="btn btn-p btn-sm" onclick="wfAssumirTarefa('${_esc(t.id)}')">Assumir</button>`
         : `<button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir</button>
@@ -591,93 +594,117 @@
     }
   }
 
+  async function _wfMarcarTarefaEmExecucaoSeNecessario(tarefaId, tarefa) {
+    if (tarefa.status !== 'pendente') return;
+    const patch = { status: 'em_execucao', iniciado_em: new Date() };
+    if (!tarefa.responsavel_uid) {
+      patch.responsavel_uid = _uid();
+      tarefa.responsavel_uid = _uid();
+    }
+    await _updateDoc('wf_tarefa_workflows', tarefaId, patch);
+  }
+
+  function _wfPrepararTelaExecucaoTarefa(tarefa) {
+    document.getElementById('wf-exec-titulo').textContent = tarefa.etapa_nome || tarefa.etapa_modelo_id;
+    document.getElementById('wf-exec-obs').value = '';
+    document.getElementById('wf-exec-formulario').innerHTML = '';
+    const instrDiv = document.getElementById('wf-exec-instrucoes');
+    if (!tarefa.etapa_desc) {
+      instrDiv.style.display = 'none';
+      return;
+    }
+    instrDiv.textContent = tarefa.etapa_desc;
+    instrDiv.style.display = '';
+  }
+
+  function _wfRenderDadosAnterioresExecucao(instancia) {
+    const dadosAntEl = document.getElementById('wf-exec-dados-anteriores');
+    const dadosAntConteudo = document.getElementById('wf-exec-dados-anteriores-conteudo');
+    const dadosEntradas = Object.entries(instancia?.dados_consolidados ?? {}).filter(([, valor]) => valor !== undefined && valor !== '');
+    if (dadosEntradas.length === 0) {
+      dadosAntEl.style.display = 'none';
+      return;
+    }
+    dadosAntConteudo.innerHTML = dadosEntradas.map(([campo, valor]) =>
+      `<div style="font-size:12px;margin-bottom:4px"><strong>${_esc(campo)}:</strong> ${_esc(String(valor))}</div>`
+    ).join('');
+    dadosAntEl.style.display = '';
+  }
+
+  function _wfHtmlProgressoExecucao(etapas, idxAtual, tarefa) {
+    if (etapas.length <= 1) return '';
+    const barras = etapas.map((etapa, idx) => {
+      let bg = 'var(--bdr)';
+      if (idx < idxAtual) bg = '#10b981';
+      else if (idx === idxAtual) bg = '#3b82f6';
+      return `<div style="height:4px;flex:1;border-radius:2px;background:${bg}" title="${_esc(etapa.nome)}"></div>`;
+    }).join('');
+    return `<div style="font-size:12px;color:var(--ink3);margin-bottom:12px">Etapa ${idxAtual + 1} de ${etapas.length}: <strong>${_esc(tarefa.etapa_nome || tarefa.etapa_modelo_id)}</strong></div>
+         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">${barras}</div>`;
+  }
+
+  function _wfRenderProgressoExecucao(instancia, tarefa) {
+    const etapas = instancia?.snapshot_etapas || [];
+    const idxAtual = etapas.findIndex(e => e.id === tarefa.etapa_modelo_id);
+    document.getElementById('wf-exec-progresso').innerHTML = _wfHtmlProgressoExecucao(etapas, idxAtual, tarefa);
+  }
+
+  function _wfRenderPapelExecucao(tarefa) {
+    const papelEl = document.getElementById('wf-exec-papel');
+    if (!papelEl) return;
+    papelEl.innerHTML = tarefa.papel_responsavel
+      ? `Seu papel: ${_badge(globalScope.WF_PAPEL_LABELS?.[tarefa.papel_responsavel] || tarefa.papel_responsavel, '#6366f1')}`
+      : '';
+  }
+
+  async function _wfFormularioIdExecucaoTarefa(tarefa) {
+    if (tarefa.formulario_id) return tarefa.formulario_id;
+    const configProc = await _getDoc('wf_config_processo', tarefa.processo_id);
+    return configProc?.etapas?.[tarefa.etapa_modelo_id]?.formulario_id || null;
+  }
+
+  async function _wfCarregarFormularioExecucaoTarefa(tarefa, formContainer) {
+    try {
+      const formularioId = await _wfFormularioIdExecucaoTarefa(tarefa);
+      if (!formularioId) return;
+      const schema = await _getDoc('wf_formulario_modelos', formularioId);
+      if (!schema) return;
+      if (typeof globalScope.wfRenderizarFormulario !== 'function') {
+        formContainer.innerHTML = '<p class="text-danger small">Módulo de formulários não carregado. Recarregue a página ou contate o suporte.</p>';
+        return;
+      }
+      const formEl = globalScope.wfRenderizarFormulario(schema, tarefa.dados_formulario ?? {});
+      formContainer.appendChild(formEl);
+      _st.tarefaAtual._campos = schema.campos ?? [];
+    } catch (e) {
+      console.warn('[WF] Falha ao carregar formulário da tarefa:', e?.message || e);
+    }
+  }
+
+  function _wfVincularAtualizacaoAcoesExecucao(formContainer, instancia, tarefa) {
+    if (!formContainer) return;
+    const atualizar = () => _wfRenderAcoesExecucao(instancia, tarefa, _wfColetarDadosParciaisExecucao());
+    formContainer.addEventListener('input', atualizar);
+    formContainer.addEventListener('change', atualizar);
+  }
+
   async function wfAbrirTarefa(tarefaId) {
     const tarefa = await _getDoc('wf_tarefa_workflows', tarefaId);
     if (!tarefa) { alert('Tarefa não encontrada.'); return; }
     _st.tarefaAtual = tarefa;
 
-    if (tarefa.status === 'pendente') {
-      const patch = { status: 'em_execucao', iniciado_em: new Date() };
-      // Assume a tarefa se estava aberta por perfil
-      if (!tarefa.responsavel_uid) { patch.responsavel_uid = _uid(); tarefa.responsavel_uid = _uid(); }
-      await _updateDoc('wf_tarefa_workflows', tarefaId, patch);
-    }
-
-    document.getElementById('wf-exec-titulo').textContent = tarefa.etapa_nome || tarefa.etapa_modelo_id;
-    document.getElementById('wf-exec-obs').value = '';
-    document.getElementById('wf-exec-formulario').innerHTML = '';
-
-    // Instrucoes / descrição da etapa do mapeamento
-    const instrDiv = document.getElementById('wf-exec-instrucoes');
-    if (tarefa.etapa_desc) {
-      instrDiv.textContent = tarefa.etapa_desc;
-      instrDiv.style.display = '';
-    } else {
-      instrDiv.style.display = 'none';
-    }
+    await _wfMarcarTarefaEmExecucaoSeNecessario(tarefaId, tarefa);
+    _wfPrepararTelaExecucaoTarefa(tarefa);
 
     // Dados já coletados nas etapas anteriores
     const instancia = await _getDoc('wf_instancia_processos', tarefa.instancia_id);
-    const dadosAntEl = document.getElementById('wf-exec-dados-anteriores');
-    const dadosAntConteudo = document.getElementById('wf-exec-dados-anteriores-conteudo');
-    const dados = instancia?.dados_consolidados ?? {};
-    const dadosEntradas = Object.entries(dados).filter(([, v]) => v !== undefined && v !== '');
-    if (dadosEntradas.length) {
-      dadosAntConteudo.innerHTML = dadosEntradas.map(([k, v]) =>
-        `<div style="font-size:12px;margin-bottom:4px"><strong>${_esc(k)}:</strong> ${_esc(String(v))}</div>`
-      ).join('');
-      dadosAntEl.style.display = '';
-    } else {
-      dadosAntEl.style.display = 'none';
-    }
-
-    // Progresso do fluxo
-    const etapas = instancia?.snapshot_etapas || [];
-    const idxAtual = etapas.findIndex(e => e.id === tarefa.etapa_modelo_id);
-    document.getElementById('wf-exec-progresso').innerHTML = etapas.length > 1
-      ? `<div style="font-size:12px;color:var(--ink3);margin-bottom:12px">Etapa ${idxAtual + 1} de ${etapas.length}: <strong>${_esc(tarefa.etapa_nome || tarefa.etapa_modelo_id)}</strong></div>
-         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">${etapas.map((e, i) => {
-           const ativa = i === idxAtual;
-           const concluida = i < idxAtual;
-           let bg = 'var(--bdr)';
-           if (concluida) bg = '#10b981';
-           else if (ativa) bg = '#3b82f6';
-           return `<div style="height:4px;flex:1;border-radius:2px;background:${bg}" title="${_esc(e.nome)}"></div>`;
-         }).join('')}</div>`
-      : '';
-
-    // Papel do usuário nessa etapa
-    const papelEl = document.getElementById('wf-exec-papel');
-    if (papelEl) {
-      papelEl.innerHTML = tarefa.papel_responsavel
-        ? `Seu papel: ${_badge(globalScope.WF_PAPEL_LABELS?.[tarefa.papel_responsavel] || tarefa.papel_responsavel, '#6366f1')}`
-        : '';
-    }
+    _wfRenderDadosAnterioresExecucao(instancia);
+    _wfRenderProgressoExecucao(instancia, tarefa);
+    _wfRenderPapelExecucao(tarefa);
 
     // Carrega formulário: do nó (tarefa.formulario_id) ou da config do processo
     const formContainer = document.getElementById('wf-exec-formulario');
-    try {
-      let formularioId = tarefa.formulario_id || null;
-      if (!formularioId) {
-        const configProc = await _getDoc('wf_config_processo', tarefa.processo_id);
-        formularioId = configProc?.etapas?.[tarefa.etapa_modelo_id]?.formulario_id || null;
-      }
-      if (formularioId) {
-        const schema = await _getDoc('wf_formulario_modelos', formularioId);
-        if (schema) {
-          if (typeof globalScope.wfRenderizarFormulario === 'function') {
-            const valoresIniciais = tarefa.dados_formulario ?? {};
-            const formEl = globalScope.wfRenderizarFormulario(schema, valoresIniciais);
-            formContainer.appendChild(formEl);
-            _st.tarefaAtual._campos = schema.campos ?? [];
-          } else {
-            formContainer.innerHTML = '<p class="text-danger small">Módulo de formulários não carregado. Recarregue a página ou contate o suporte.</p>';
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[WF] Falha ao carregar formulário da tarefa:', e?.message || e);
-    }
+    await _wfCarregarFormularioExecucaoTarefa(tarefa, formContainer);
 
     // Indica obrigatoriedade de parecer
     const parecerHint = document.getElementById('wf-exec-parecer-hint');
@@ -685,14 +712,7 @@
 
     // Botões de ação dinâmicos: variam conforme os valores atuais do formulário.
     _wfRenderAcoesExecucao(instancia, tarefa, _wfColetarDadosParciaisExecucao());
-    if (formContainer) {
-      formContainer.addEventListener('input', () => {
-        _wfRenderAcoesExecucao(instancia, tarefa, _wfColetarDadosParciaisExecucao());
-      });
-      formContainer.addEventListener('change', () => {
-        _wfRenderAcoesExecucao(instancia, tarefa, _wfColetarDadosParciaisExecucao());
-      });
-    }
+    _wfVincularAtualizacaoAcoesExecucao(formContainer, instancia, tarefa);
 
     // Inicializa lista de anexos (carrega os já existentes na tarefa)
     _st._anexosTarefa = (tarefa.anexos || []).slice();
@@ -2006,8 +2026,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const fixosHtml = Object.entries(fixos).map(([valor, label]) =>
       `<option value="${valor}"${(sel || '') === valor ? ' selected' : ''}>${_esc(label)}</option>`
     ).join('');
+    const usuariosOptions = usuarios.map(u => `<option value="${_esc(u.email)}"${(sel || '') === u.email ? ' selected' : ''}>${_esc(u.nome || u.email)}</option>`).join('');
     const usuariosHtml = usuarios.length
-      ? `<optgroup label="Usuário específico">${usuarios.map(u => `<option value="${_esc(u.email)}"${(sel || '') === u.email ? ' selected' : ''}>${_esc(u.nome || u.email)}</option>`).join('')}</optgroup>`
+      ? `<optgroup label="Usuário específico">${usuariosOptions}</optgroup>`
       : '';
     return fixosHtml + usuariosHtml;
   }
@@ -2067,6 +2088,17 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   function _wfRenderPainelGatewayXor(el, painel, id, nome) {
     if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
     const tipo = el?.type || '';
+    const rotasHtml = (el.outgoing || []).map((saida) => {
+      const cfgSaida = _wfConfigNos[saida.id] ?? {};
+      const destino = saida.target?.businessObject?.name || saida.target?.id || '?';
+      let regra = 'sem regra definida';
+      if (cfgSaida.padrao) regra = 'quando nenhuma outra regra bater';
+      else if (cfgSaida.condicoes?.length) {
+        const separador = (cfgSaida.operador_logico || 'AND') === 'OR' ? ' ou ' : ' e ';
+        regra = cfgSaida.condicoes.map(_wfCondicaoLegivel).join(separador);
+      }
+      return `<div class="wf-route-card"><div class="wf-route-title">Vai para ${_esc(destino)}</div><div class="wf-route-sub">Seguir por este caminho ${_esc(regra)}. Clique na seta correspondente no gráfico para editar a regra.</div></div>`;
+    }).join('') || '<div class="wf-guide-note">Este gateway ainda não tem saídas configuradas.</div>';
     painel.innerHTML = `
       <div class="wf-guide-panel">
         <div class="wf-guide-head">
@@ -2083,17 +2115,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         </div>
         <div class="wf-guide-card wf-guide-card-full">
           <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Caminhos possíveis</div></div>
-          <div class="wf-route-list">${(el.outgoing || []).map((saida) => {
-            const cfgSaida = _wfConfigNos[saida.id] ?? {};
-            const destino = saida.target?.businessObject?.name || saida.target?.id || '?';
-            let regra = 'sem regra definida';
-            if (cfgSaida.padrao) regra = 'quando nenhuma outra regra bater';
-            else if (cfgSaida.condicoes?.length) {
-              const separador = (cfgSaida.operador_logico || 'AND') === 'OR' ? ' ou ' : ' e ';
-              regra = cfgSaida.condicoes.map(_wfCondicaoLegivel).join(separador);
-            }
-            return `<div class="wf-route-card"><div class="wf-route-title">Vai para ${_esc(destino)}</div><div class="wf-route-sub">Seguir por este caminho ${_esc(regra)}. Clique na seta correspondente no gráfico para editar a regra.</div></div>`;
-          }).join('') || '<div class="wf-guide-note">Este gateway ainda não tem saídas configuradas.</div>'}</div>
+          <div class="wf-route-list">${rotasHtml}</div>
         </div>
         <div class="wf-guide-note">A resposta é dada por quem executou a etapa anterior. As opções possíveis vêm dos campos do formulário dessa etapa.</div>
         ${_wfPainelSalvarHtml('Salve para manter o nome e as decisões deste gateway no modelo.')}
@@ -2152,7 +2174,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       <textarea class="fi" rows="2" style="margin-top:2px;margin-bottom:10px;resize:vertical" placeholder="Ex: Sua solicitação foi concluída com sucesso. Use {{processo.titulo}}, {{solicitante.nome}}…" oninput="wfDesignerCampoCfg('${_esc(id)}','mensagem_fim',this.value)">${_esc(cfg.mensagem_fim || '')}</textarea>
       <label class="lbl" style="font-size:11px">Notificar também (além do solicitante)</label>
       <select class="fi" style="margin-top:2px" onchange="wfDesignerCampoCfg('${_esc(id)}','notificar_fim',this.value)">
-        <option value="" ${!cfg.notificar_fim ? 'selected' : ''}>Somente o solicitante</option>
+        <option value="" ${cfg.notificar_fim ? '' : 'selected'}>Somente o solicitante</option>
         <option value="ep" ${cfg.notificar_fim === 'ep' ? 'selected' : ''}>EP também</option>
         <option value="gestor" ${cfg.notificar_fim === 'gestor' ? 'selected' : ''}>Gestor também</option>
         <option value="todos" ${cfg.notificar_fim === 'todos' ? 'selected' : ''}>EP + Gestor + solicitante</option>
@@ -2322,7 +2344,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       el.style.display = avancado ? '' : 'none';
     });
     const opLog = painel.querySelector('select[onchange*="operador_logico"]');
-    if (opLog && !avancado) opLog.value = 'AND';
+    if (!opLog || avancado) return;
+    opLog.value = 'AND';
   }
 
   function _wfCondicaoLegivel(c) {
@@ -2333,7 +2356,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function _wfPapelLegivel(valor) {
     if (!valor) return 'Não definido';
-    const labels = globalScope.WF_PAPEL_ALVO_LABELS || {
+    const labels = globalScope.WF_PAPEL_ALVO_LABELS ?? {
       solicitante: 'Próprio solicitante',
       gestor_solicitante: 'Gestor do solicitante',
       gestor_executor: 'Gestor do executor anterior',
@@ -3089,6 +3112,25 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
   }
 
+  function _wfMembrosGrupoTexto(grupo, usuarios) {
+    const emails = grupo.membros_email || [];
+    if (emails.length === 0) return '<em style="color:var(--ink3)">Sem membros</em>';
+    return emails.map((email) => {
+      const u = usuarios.find(x => x.email === email);
+      return _esc(u ? (u.nome || email) : email);
+    }).join(', ');
+  }
+
+  function _wfAcoesGrupoHtml(grupo, isEp) {
+    if (!isEp) return '';
+    const grupoId = _esc(grupo._id || grupo.id);
+    return `
+          <div style="display:flex;gap:6px;margin-top:10px">
+            <button type="button" class="btn btn-sm" onclick="wfAbrirModalGrupo('${grupoId}')">Editar</button>
+            <button type="button" class="btn btn-sm" style="color:var(--red,#dc2626)" onclick="wfExcluirGrupo('${grupoId}')">Excluir</button>
+          </div>`;
+  }
+
   function _wfAtualizarResumoEquipeAtribuicao(grupos, grupoId, membrosDiv) {
     if (!membrosDiv) return;
     const grupo = grupos.find(x => x.id === grupoId);
@@ -3100,15 +3142,20 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       const u = (globalScope.USUARIOS || []).find(x => x.email === email);
       return _esc(u?.nome || email);
     });
-    membrosDiv.innerHTML = nomes.length
-      ? `<strong>${nomes.length} membro${nomes.length > 1 ? 's' : ''}:</strong> ${nomes.join(', ')}`
-      : 'Nenhum membro cadastrado nesta equipe.';
+    if (nomes.length === 0) {
+      membrosDiv.innerHTML = 'Nenhum membro cadastrado nesta equipe.';
+      membrosDiv.classList.add('vis');
+      return;
+    }
+    const sufixo = nomes.length > 1 ? 's' : '';
+    membrosDiv.innerHTML = `<strong>${nomes.length} membro${sufixo}:</strong> ${nomes.join(', ')}`;
     membrosDiv.classList.add('vis');
   }
 
   function _wfOpcoesGruposAtribuicao(grupos) {
     if (!grupos.length) return '<option value="">— nenhuma equipe cadastrada —</option>';
-    return `<option value="">— selecione uma equipe —</option>${grupos.map(g => `<option value="${_esc(g.id)}">${_esc(g.nome)}</option>`).join('')}`;
+    const opcoes = grupos.map(g => `<option value="${_esc(g.id)}">${_esc(g.nome)}</option>`).join('');
+    return `<option value="">— selecione uma equipe —</option>${opcoes}`;
   }
 
   // — Coleta perfis que precisam de atribuição explícita ao iniciar —
@@ -3243,7 +3290,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   function _avaliarCondicoes(condicoes, operadorLogico, dados) {
-    if (!condicoes || !condicoes.length) return true;
+    if (!(condicoes?.length)) return true;
     const isOR = (operadorLogico || 'AND').toUpperCase() === 'OR';
     return isOR
       ? condicoes.some(c  => _avaliarCondicaoObj(c, dados))
@@ -3359,17 +3406,18 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       const ACAO_COR = globalScope.WF_ACAO_COR;
       const PAPEL_LABELS = globalScope.WF_PAPEL_LABELS;
       tl.innerHTML = eventos.length ? eventos.map(h => {
-        const ts = h._criado_em?.toDate
-          ? h._criado_em.toDate().toLocaleString('pt-BR')
-          : (h._criado_em?.seconds ? new Date(h._criado_em.seconds * 1000).toLocaleString('pt-BR') : '—');
+        let ts = '—';
+        if (h._criado_em?.toDate) ts = h._criado_em.toDate().toLocaleString('pt-BR');
+        else if (h._criado_em?.seconds) ts = new Date(h._criado_em.seconds * 1000).toLocaleString('pt-BR');
         const d = h.dados ?? {};
         const usuario = _wfNomeUsuario(h.usuario_uid, null);
         const acaoBadge = d.acao ? _badge(ACAO_LABELS?.[d.acao] || d.acao, ACAO_COR?.[d.acao] || '#6b7280') : '';
         const papelTxt = d.papel ? `<span style="font-size:11px;color:var(--ink3)"> · ${_esc(PAPEL_LABELS?.[d.papel] || d.papel)}</span>` : '';
         const parecer = d.parecer ? `<div style="font-size:12px;color:var(--ink2);margin-top:4px;font-style:italic">"${_esc(d.parecer)}"</div>` : '';
+        const usuarioTxt = usuario ? ` · ${_esc(usuario)}` : '';
         return `<div style="position:relative;margin-bottom:16px;padding-left:16px">
           <div style="position:absolute;left:-5px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid #fff;box-shadow:0 0 0 2px var(--blue)"></div>
-          <div style="font-size:11px;color:var(--ink3)">${_esc(ts)}${usuario ? ` · ${_esc(usuario)}` : ''}${papelTxt}</div>
+          <div style="font-size:11px;color:var(--ink3)">${_esc(ts)}${usuarioTxt}${papelTxt}</div>
           <div style="font-size:13px;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${_esc(h.descricao || h.tipo_evento)} ${acaoBadge}</div>
           ${parecer}
         </div>`;
@@ -3387,7 +3435,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           whereC('instancia_id', '==', instanciaId),
         )).sort((a, b) => (a._criado_em?.seconds ?? 0) - (b._criado_em?.seconds ?? 0));
 
-        if (!todosComentarios.length) {
+        if (todosComentarios.length === 0) {
           elComentPorEtapa.innerHTML = '<div style="color:var(--ink3);font-size:13px">Nenhum comentário registrado.</div>';
         } else {
           // Agrupa por etapa_nome (ou etapa_id)
@@ -4100,16 +4148,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       const usuarios = globalScope.USUARIOS || [];
       el.innerHTML = grupos.map(g => {
         const emails = g.membros_email || [];
-        const membros = emails
-          .map(email => {
-            const u = usuarios.find(x => x.email === email);
-            return _esc(u ? (u.nome || email) : email);
-          }).join(', ') || '<em style="color:var(--ink3)">Sem membros</em>';
-        const acoes = isEp ? `
-          <div style="display:flex;gap:6px;margin-top:10px">
-            <button type="button" class="btn btn-sm" onclick="wfAbrirModalGrupo('${_esc(g._id || g.id)}')">Editar</button>
-            <button type="button" class="btn btn-sm" style="color:var(--red,#dc2626)" onclick="wfExcluirGrupo('${_esc(g._id || g.id)}')">Excluir</button>
-          </div>` : '';
+        const membros = _wfMembrosGrupoTexto(g, usuarios);
+        const acoes = _wfAcoesGrupoHtml(g, isEp);
         return `<div style="background:var(--surf2);border-radius:10px;padding:16px">
           <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(g.nome || '(sem nome)')}</div>
           ${g.descricao ? `<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">${_esc(g.descricao)}</div>` : ''}
@@ -4140,7 +4180,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       .sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email));
 
     const PERFIL_LABEL = { ep:'EP', dono:'Dono', gestor:'Gestor', solicitante:'Solicitante', gerente_projeto:'Gerente' };
-    if (!usuarios.length) {
+    if (usuarios.length === 0) {
       membrosEl.innerHTML = '<div style="color:var(--ink3);font-size:12px;padding:8px">Nenhum usuário cadastrado.</div>';
     } else {
       membrosEl.innerHTML = usuarios.map(u => {
@@ -4224,7 +4264,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       const grupos = await _getAll('wf_grupos');
       const LABELS = globalScope.PERFIL_LABELS;
 
-      if (!usuarios.length) {
+      if (usuarios.length === 0) {
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum usuário encontrado. Verifique se o sistema está carregado.</div>';
         return;
       }
@@ -4330,7 +4370,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
               <button type="button" class="btn btn-sm" onclick="wfAbrirConfigModelo('${_esc(m.id)}')">Editar</button>
-              ${m.status !== 'publicado' ? `<button type="button" class="btn btn-p btn-sm" onclick="_wfPublicarModeloId('${_esc(m.id)}')">Publicar</button>` : ''}
+              ${m.status === 'publicado' ? '' : `<button type="button" class="btn btn-p btn-sm" onclick="_wfPublicarModeloId('${_esc(m.id)}')">Publicar</button>`}
               <button type="button" class="btn btn-r btn-sm" onclick="wfExcluirModelo('${_esc(m.id)}')">Excluir</button>
             </div>
           </div>
@@ -4551,22 +4591,17 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   function _wfCamposModeloParaSimulacao(modelo) {
     const out = {};
     const cfgNos = modelo?.id === _wfModeloAtual?.id ? _wfConfigNos : (modelo?.config_nos ?? {});
+    const registrarCampo = (condicao) => {
+      if (condicao?.campo == null || out[condicao.campo]) return;
+      out[condicao.campo] = { id: condicao.campo, label: condicao.campo, tipo: 'texto', opcoes: [] };
+    };
     for (const id of Object.keys(cfgNos)) {
       const cfg = cfgNos[id] ?? {};
-      const camposReferenciados = [
-        ...(cfg.condicoes ?? []),
-        ...((cfg.acoes_condicionais ?? []).map(c => ({ campo: c.campo }))),
-      ];
-      for (const condicao of camposReferenciados) {
-        if (condicao?.campo == null || out[condicao.campo]) continue;
-        out[condicao.campo] = { id: condicao.campo, label: condicao.campo, tipo: 'texto', opcoes: [] };
-      }
-      for (const campoCondicional of (cfg.campos_condicionais ?? [])) {
-        for (const condicao of (campoCondicional.condicoes ?? [])) {
-          if (condicao?.campo == null || out[condicao.campo]) continue;
-          out[condicao.campo] = { id: condicao.campo, label: condicao.campo, tipo: 'texto', opcoes: [] };
-        }
-      }
+      (cfg.condicoes ?? []).forEach(registrarCampo);
+      (cfg.acoes_condicionais ?? []).forEach(c => registrarCampo({ campo: c.campo }));
+      (cfg.campos_condicionais ?? []).forEach((campoCondicional) => {
+        (campoCondicional.condicoes ?? []).forEach(registrarCampo);
+      });
       const form = (_st.formularioModelos || []).find(f => f.id === cfg.formulario_id);
       for (const campo of (form?.campos || [])) {
         const fid = campo.id || campo.label;
