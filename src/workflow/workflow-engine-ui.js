@@ -324,7 +324,9 @@
         badge?.remove();
         _st._notifCount = 0;
       }
-    }, () => {}); // ignora erros de permissão silenciosamente
+    }, (error_) => {
+      _wfReportarErroNaoCritico('falha ao observar notificacoes do workflow', error_);
+    });
   }
 
   async function _wfRenderNotifPanel() {
@@ -397,140 +399,119 @@
 
   const _WF_PAGE = 20; // itens por página
 
-  // ── Tarefas ───────────────────────────────────────────────────────────────
-  async function wfCarregarTarefas(acrescentar = false) {
-    const el = document.getElementById('wf-lista-tarefas');
-    if (!el) return;
-    if (!acrescentar) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Carregando…</div>'; _st.tarefasCursor = null; }
+  function _wfMensagemLista(el, mensagem) {
+    if (el) el.innerHTML = `<div style="color:var(--ink3);font-size:14px">${mensagem}</div>`;
+  }
+
+  async function _wfCarregarMinhasTarefas(uid) {
+    const { where, limit, startAfter, query, collection, getDocs } = globalScope.fb();
+    const constraints = [
+      where('responsavel_uid', '==', uid),
+      where('status', 'in', ['pendente', 'em_execucao']),
+      limit(_WF_PAGE),
+    ];
+    if (_st.tarefasCursor) constraints.push(startAfter(_st.tarefasCursor));
+    const snap = await getDocs(query(collection(_db(), 'wf_tarefa_workflows'), ...constraints));
+    _st.tarefasCursor = snap.docs[snap.docs.length - 1] || null;
+    return snap;
+  }
+
+  async function _wfCarregarTarefasPorPerfil(perfil) {
+    if (!perfil) return [];
     try {
-      const uid = _uid();
-      if (!uid) { el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Usuário não autenticado.</div>'; return; }
-      const { where, limit, startAfter, query, collection, getDocs } = globalScope.fb();
-      const db = _db();
+      const abertas = await _getAll('wf_tarefa_workflows',
+        globalScope.fb().where('papel_alvo', '==', perfil),
+        globalScope.fb().where('status', 'in', ['pendente', 'em_execucao']),
+      );
+      return abertas.filter(t => !t.responsavel_uid);
+    } catch (error_) {
+      if (!_wfErroConsultaOpcional(error_)) throw error_;
+      _wfReportarErroNaoCritico('consulta opcional de tarefas por perfil', error_);
+      return [];
+    }
+  }
 
-      // Monta query paginada para tarefas próprias
-      const baseConstraints = [
-        where('responsavel_uid', '==', uid),
-        where('status', 'in', ['pendente','em_execucao']),
-        limit(_WF_PAGE),
-      ];
-      if (_st.tarefasCursor) baseConstraints.push(startAfter(_st.tarefasCursor));
-      const snap = await getDocs(query(collection(db, 'wf_tarefa_workflows'), ...baseConstraints));
-      _st.tarefasCursor = snap.docs[snap.docs.length - 1] || null;
-      const minhas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  async function _wfGarantirMeusGrupos(acrescentar) {
+    if (_st.meusGrupos || acrescentar) return;
+    try {
+      const email = globalScope.usuarioLogado?.email || '';
+      _st.meusGrupos = email
+        ? await _getAll('wf_grupos', globalScope.fb().where('membros_email', 'array-contains', email))
+        : [];
+    } catch (error_) {
+      _wfReportarErroNaoCritico('consulta de grupos do usuario', error_);
+      _st.meusGrupos = [];
+    }
+  }
 
-      // Tarefas abertas por perfil (sem paginação — geralmente pequeno)
-      const perfil = globalScope.usuarioLogado?.perfil;
-      let porPerfil = [];
-      if (perfil && !acrescentar) {
-        try {
-          const abertas = await _getAll('wf_tarefa_workflows',
-            where('papel_alvo', '==', perfil),
-            where('status', 'in', ['pendente','em_execucao']),
-          );
-          porPerfil = abertas.filter(t => !t.responsavel_uid);
-        } catch (error_) {
-          if (!_wfErroConsultaOpcional(error_)) throw error_;
-          _wfReportarErroNaoCritico('consulta opcional de tarefas por perfil', error_);
-        }
+  async function _wfCarregarTarefasDeGrupo(acrescentar) {
+    if (acrescentar) return [];
+    const tarefasGrupo = [];
+    for (const grupo of (_st.meusGrupos || [])) {
+      try {
+        const tarefas = await _getAll('wf_tarefa_workflows',
+          globalScope.fb().where('grupo_id', '==', grupo.id),
+          globalScope.fb().where('status', '==', 'pendente'),
+        );
+        tarefas.filter(t => !t.responsavel_uid).forEach((tarefa) => {
+          tarefa._nomeGrupo = grupo.nome || grupo.id;
+          tarefa._eFila = true;
+          tarefasGrupo.push(tarefa);
+        });
+      } catch (error_) {
+        if (!_wfErroConsultaOpcional(error_)) throw error_;
+        _wfReportarErroNaoCritico(`consulta opcional de tarefas do grupo ${grupo.id}`, error_);
       }
+    }
+    return tarefasGrupo;
+  }
 
-      // Tarefas de fila de grupo (membership por email — identificador estável em USUARIOS)
-      if (!_st.meusGrupos && !acrescentar) {
-        try {
-          const email = globalScope.usuarioLogado?.email || '';
-          const gs = email
-            ? await _getAll('wf_grupos', where('membros_email', 'array-contains', email))
-            : [];
-          _st.meusGrupos = gs;
-        } catch (error_) {
-          _wfReportarErroNaoCritico('consulta de grupos do usuario', error_);
-          _st.meusGrupos = [];
-        }
-      }
-      const tarefasGrupo = [];
-      if (!acrescentar) {
-        for (const g of (_st.meusGrupos || [])) {
-          try {
-            const tgs = await _getAll('wf_tarefa_workflows',
-              where('grupo_id', '==', g.id),
-              where('status', '==', 'pendente'),
-            );
-            tgs.filter(t => !t.responsavel_uid).forEach(t => {
-              t._nomeGrupo = g.nome || g.id;
-              t._eFila = true;
-              tarefasGrupo.push(t);
-            });
-          } catch (error_) {
-            if (!_wfErroConsultaOpcional(error_)) throw error_;
-            _wfReportarErroNaoCritico(`consulta opcional de tarefas do grupo ${g.id}`, error_);
-          }
-        }
-      }
-
-      const mapa = {};
-      if (acrescentar) {
-        el.querySelectorAll('[data-tarefa-id]').forEach(el2 => { mapa[el2.dataset.tarefaId] = true; });
-      }
-      [...minhas, ...porPerfil, ...tarefasGrupo].forEach(t => { mapa[t.id] = t; });
-      const tarefas = Object.values(mapa).filter(t => typeof t === 'object');
-
-      if (!tarefas.length) {
-        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhuma tarefa pendente.</div>';
-        return;
-      }
-      const statusLabels = { pendente:'Pendente', em_execucao:'Em execução', concluida:'Concluída', vencida:'Vencida' };
-      const statusCores = { pendente:'#3b82f6', em_execucao:'#f59e0b', concluida:'#10b981', vencida:'#ef4444' };
-      const perfilAtual = globalScope.usuarioLogado?.perfil;
-      const podeGerenciar = perfilAtual === 'ep' || perfilAtual === 'gestor';
-
-      // Filtro client-side
-      const filtroStatus = document.getElementById('wf-filtro-tarefa-status')?.value || '';
-      const filtroTexto = (document.getElementById('wf-filtro-tarefa-texto')?.value || '').toLowerCase();
-      const tarefasFiltradas = tarefas.filter(t => {
-        if (filtroStatus && t.status !== filtroStatus) return false;
-        if (filtroTexto && !(t.etapa_nome || '').toLowerCase().includes(filtroTexto)
-          && !(t.processo_nome || '').toLowerCase().includes(filtroTexto)) return false;
-        return true;
+  function _wfMesclarTarefas(acrescentar, el, colecoes) {
+    const mapa = {};
+    if (acrescentar) {
+      el.querySelectorAll('[data-tarefa-id]').forEach((item) => {
+        mapa[item.dataset.tarefaId] = true;
       });
+    }
+    colecoes.flat().forEach((tarefa) => {
+      mapa[tarefa.id] = tarefa;
+    });
+    return Object.values(mapa).filter(tarefa => typeof tarefa === 'object');
+  }
 
-      if (!tarefasFiltradas.length) {
-        el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhuma tarefa encontrada.</div>';
-        return;
-      }
-      const renderer = _renderer();
-      const cards = renderer
-        ? renderer.renderTarefasCards(tarefasFiltradas, {
-          esc: _esc,
-          badge: _badge,
-          slaInfo: _slaInfo,
-          statusLabels,
-          statusCores,
-          podeGerenciar,
-        })
-        : tarefasFiltradas.map(t => {
-        const eFila = t._eFila || (!t.responsavel_uid && !!t.grupo_id);
-        const eDisponivel = !t.responsavel_uid && !t.grupo_id;
-        let badgeFila = '';
-        if (eFila) {
-          badgeFila = `${_badge('👥 Fila: ' + (t._nomeGrupo || t.grupo_id), '#1e3a5f')} `;
-        } else if (eDisponivel) {
-          badgeFila = `${_badge('📋 Dispon\xEDvel', '#4b5563')} `;
-        }
-        const botoesAcao = (eFila || eDisponivel)
-          ? `<button type="button" class="btn btn-p btn-sm" onclick="wfAssumirTarefa('${_esc(t.id)}')">Assumir</button>`
-          : `<button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir</button>
+  function _wfFiltrarTarefas(tarefas) {
+    const filtroStatus = document.getElementById('wf-filtro-tarefa-status')?.value || '';
+    const filtroTexto = (document.getElementById('wf-filtro-tarefa-texto')?.value || '').toLowerCase();
+    return tarefas.filter((tarefa) => {
+      const combinaStatus = !filtroStatus || tarefa.status === filtroStatus;
+      const nomeEtapa = (tarefa.etapa_nome || '').toLowerCase();
+      const nomeProcesso = (tarefa.processo_nome || '').toLowerCase();
+      const combinaTexto = !filtroTexto || nomeEtapa.includes(filtroTexto) || nomeProcesso.includes(filtroTexto);
+      return combinaStatus && combinaTexto;
+    });
+  }
+
+  function _wfRenderCardsTarefasFallback(tarefasFiltradas, podeGerenciar, statusLabels, statusCores) {
+    return tarefasFiltradas.map((t) => {
+      const eFila = t._eFila || (!t.responsavel_uid && !!t.grupo_id);
+      const eDisponivel = !t.responsavel_uid && !t.grupo_id;
+      const badgeFila = eFila
+        ? `${_badge('👥 Fila: ' + (t._nomeGrupo || t.grupo_id), '#1e3a5f')} `
+        : (eDisponivel ? `${_badge('📋 Dispon\xEDvel', '#4b5563')} ` : '');
+      const botoesAcao = (eFila || eDisponivel)
+        ? `<button type="button" class="btn btn-p btn-sm" onclick="wfAssumirTarefa('${_esc(t.id)}')">Assumir</button>`
+        : `<button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir</button>
           <button type="button" class="btn btn-sm" onclick="wfAbrirDelegacao('${_esc(t.id)}')">Delegar</button>`;
-        const slaBadge = t.sla_vencido
-          ? ' <span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle">SLA VENCIDO</span>'
-          : '';
-        const etapaDescHtml = t.etapa_desc
-          ? `<div style="font-size:12px;color:var(--ink2);margin-top:6px">${_esc(t.etapa_desc)}</div>`
-          : '';
-        const excluirHtml = podeGerenciar
-          ? `<button type="button" class="btn btn-r btn-sm" onclick="wfExcluirTarefa('${_esc(t.id)}')">Excluir</button>`
-          : '';
-        const conteudoCard = `
+      const slaBadge = t.sla_vencido
+        ? ' <span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle">SLA VENCIDO</span>'
+        : '';
+      const etapaDescHtml = t.etapa_desc
+        ? `<div style="font-size:12px;color:var(--ink2);margin-top:6px">${_esc(t.etapa_desc)}</div>`
+        : '';
+      const excluirHtml = podeGerenciar
+        ? `<button type="button" class="btn btn-r btn-sm" onclick="wfExcluirTarefa('${_esc(t.id)}')">Excluir</button>`
+        : '';
+      const conteudoCard = `
         <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(t.etapa_nome || t.etapa_modelo_id)}${slaBadge}</div>
         <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">${_esc(t.processo_nome || t.instancia_id)}</div>
         ${_badge(statusLabels[t.status] || t.status, statusCores[t.status] || '#6b7280')} ${badgeFila}
@@ -541,8 +522,65 @@
           ${excluirHtml}
         </div>
       `;
-        return `<div data-tarefa-id="${_esc(t.id)}">${_card(conteudoCard)}</div>`;
-      }).join('');
+      return `<div data-tarefa-id="${_esc(t.id)}">${_card(conteudoCard)}</div>`;
+    }).join('');
+  }
+
+  function _wfRenderCardsTarefas(tarefasFiltradas, podeGerenciar) {
+    const statusLabels = { pendente: 'Pendente', em_execucao: 'Em execução', concluida: 'Concluída', vencida: 'Vencida' };
+    const statusCores = { pendente: '#3b82f6', em_execucao: '#f59e0b', concluida: '#10b981', vencida: '#ef4444' };
+    const renderer = _renderer();
+    if (renderer) {
+      return renderer.renderTarefasCards(tarefasFiltradas, {
+        esc: _esc,
+        badge: _badge,
+        slaInfo: _slaInfo,
+        statusLabels,
+        statusCores,
+        podeGerenciar,
+      });
+    }
+    return _wfRenderCardsTarefasFallback(tarefasFiltradas, podeGerenciar, statusLabels, statusCores);
+  }
+
+  // ── Tarefas ───────────────────────────────────────────────────────────────
+  async function wfCarregarTarefas(acrescentar = false) {
+    const el = document.getElementById('wf-lista-tarefas');
+    if (!el) return;
+    if (!acrescentar) {
+      _wfMensagemLista(el, 'Carregando…');
+      _st.tarefasCursor = null;
+    }
+    try {
+      const uid = _uid();
+      if (!uid) {
+        _wfMensagemLista(el, 'Usuário não autenticado.');
+        return;
+      }
+
+      const snap = await _wfCarregarMinhasTarefas(uid);
+      const minhas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const perfil = globalScope.usuarioLogado?.perfil;
+      const porPerfil = perfil && !acrescentar ? await _wfCarregarTarefasPorPerfil(perfil) : [];
+      await _wfGarantirMeusGrupos(acrescentar);
+      const tarefasGrupo = await _wfCarregarTarefasDeGrupo(acrescentar);
+      const tarefas = _wfMesclarTarefas(acrescentar, el, [minhas, porPerfil, tarefasGrupo]);
+
+      if (!tarefas.length) {
+        _wfMensagemLista(el, 'Nenhuma tarefa pendente.');
+        return;
+      }
+      const perfilAtual = globalScope.usuarioLogado?.perfil;
+      const podeGerenciar = perfilAtual === 'ep' || perfilAtual === 'gestor';
+
+      const tarefasFiltradas = _wfFiltrarTarefas(tarefas);
+
+      if (!tarefasFiltradas.length) {
+        _wfMensagemLista(el, 'Nenhuma tarefa encontrada.');
+        return;
+      }
+      const cards = _wfRenderCardsTarefas(tarefasFiltradas, podeGerenciar);
 
       const temMais = snap.docs.length === _WF_PAGE;
       el.innerHTML = cards + (temMais
@@ -582,7 +620,7 @@
     const instancia = await _getDoc('wf_instancia_processos', tarefa.instancia_id);
     const dadosAntEl = document.getElementById('wf-exec-dados-anteriores');
     const dadosAntConteudo = document.getElementById('wf-exec-dados-anteriores-conteudo');
-    const dados = instancia?.dados_consolidados || {};
+    const dados = instancia?.dados_consolidados ?? {};
     const dadosEntradas = Object.entries(dados).filter(([, v]) => v !== undefined && v !== '');
     if (dadosEntradas.length) {
       dadosAntConteudo.innerHTML = dadosEntradas.map(([k, v]) =>
@@ -611,9 +649,8 @@
     // Papel do usuário nessa etapa
     const papelEl = document.getElementById('wf-exec-papel');
     if (papelEl) {
-      const labels = globalScope.WF_PAPEL_LABELS || {};
       papelEl.innerHTML = tarefa.papel_responsavel
-        ? `Seu papel: ${_badge(labels[tarefa.papel_responsavel] || tarefa.papel_responsavel, '#6366f1')}`
+        ? `Seu papel: ${_badge(globalScope.WF_PAPEL_LABELS?.[tarefa.papel_responsavel] || tarefa.papel_responsavel, '#6366f1')}`
         : '';
     }
 
@@ -629,10 +666,10 @@
         const schema = await _getDoc('wf_formulario_modelos', formularioId);
         if (schema) {
           if (typeof globalScope.wfRenderizarFormulario === 'function') {
-            const valoresIniciais = tarefa.dados_formulario || {};
+            const valoresIniciais = tarefa.dados_formulario ?? {};
             const formEl = globalScope.wfRenderizarFormulario(schema, valoresIniciais);
             formContainer.appendChild(formEl);
-            _st.tarefaAtual._campos = schema.campos || [];
+            _st.tarefaAtual._campos = schema.campos ?? [];
           } else {
             formContainer.innerHTML = '<p class="text-danger small">Módulo de formulários não carregado. Recarregue a página ou contate o suporte.</p>';
           }
@@ -704,16 +741,19 @@
   async function wfAnexarArquivos(input) {
     const files = Array.from(input.files || []);
     if (!files.length) return;
-    const { storage, storageRef, uploadBytes, getDownloadURL } = globalScope.fb?.() || {};
-    if (!storage) { alert('Armazenamento não disponível.'); return; }
+    const fb = globalScope.fb?.();
+    if (!(fb?.storage && fb.storageRef && fb.uploadBytes && fb.getDownloadURL)) {
+      alert('Armazenamento não disponível.');
+      return;
+    }
     const prog = document.getElementById('wf-exec-anexo-progresso');
     for (const file of files) {
       if (prog) prog.textContent = `Enviando ${file.name}…`;
       try {
         const path = `workflow/${_st.tarefaAtual.instancia_id}/${_st.tarefaAtual.id}/${Date.now()}_${file.name}`;
-        const sref = storageRef(storage, path);
-        await uploadBytes(sref, file);
-        const url = await getDownloadURL(sref);
+        const sref = fb.storageRef(fb.storage, path);
+        await fb.uploadBytes(sref, file);
+        const url = await fb.getDownloadURL(sref);
         const kb = file.size < 1024 * 1024
           ? Math.round(file.size / 1024) + ' KB'
           : (file.size / (1024 * 1024)).toFixed(1) + ' MB';
@@ -731,10 +771,10 @@
     const anexo = (_st._anexosTarefa || [])[idx];
     if (!anexo) return;
     if (!confirm(`Remover "${anexo.nome}"?`)) return;
-    const { storage, storageRef: sRef, deleteObject } = globalScope.fb?.() || {};
-    if (storage && anexo.path) {
+    const fb = globalScope.fb?.();
+    if (fb?.storage && fb.storageRef && fb.deleteObject && anexo.path) {
       try {
-        await deleteObject(sRef(storage, anexo.path));
+        await fb.deleteObject(fb.storageRef(fb.storage, anexo.path));
       } catch (error_) {
         if (!_wfErroStorageIgnoravel(error_)) throw error_;
         _wfReportarErroNaoCritico(`remocao de anexo inexistente ${anexo.path}`, error_);
@@ -765,7 +805,7 @@
     return dados;
   }
 
-  function _wfAcoesVisiveisExecucao(instancia, tarefa, dadosParciais) {
+  function _wfAcoesVisiveisExecucao(instancia, tarefa, dadosParciais = {}) {
     const acoesDisponiveis = tarefa.acoes_disponiveis;
     let base = ['concluir'];
     if (acoesDisponiveis?.length) {
@@ -778,7 +818,7 @@
     const arestas = (instancia.canvas.arestas || []).filter(a => a.origem === tarefa.etapa_modelo_id);
     if (!arestas.length) return base;
 
-    const dados = { ...(instancia.dados_consolidados || {}), ...(dadosParciais || {}) };
+    const dados = { ...instancia.dados_consolidados, ...dadosParciais };
     const noAtual = (instancia.canvas?.nos || []).find(n => n.id === tarefa.etapa_modelo_id);
     const regrasAcoes = noAtual?.config?.acoes_condicionais || [];
 
@@ -812,8 +852,6 @@
     const acoesEl = document.getElementById('wf-exec-acoes');
     if (!acoesEl) return;
     const acoes = _wfAcoesVisiveisExecucao(instancia, tarefa, dadosParciais);
-    const ACAO_LABELS = globalScope.WF_ACAO_LABELS || {};
-    const ACAO_COR = globalScope.WF_ACAO_COR || {};
     const btnClasse = (a) => {
       if (a === 'rejeitar') return 'btn btn-r';
       if (a === 'aprovar' || a === 'avancar' || a === 'concluir') return 'btn btn-p';
@@ -821,79 +859,93 @@
     };
 
     acoesEl.innerHTML = acoes.map(a => {
-      const cor = ACAO_COR[a];
+      const cor = globalScope.WF_ACAO_COR?.[a];
       const style = (a === 'devolver' || a === 'solicitar_ajuste') && cor
         ? ` style="background:${cor};color:#fff;border-color:${cor}"` : '';
-      return `<button type="button" class="${btnClasse(a)}"${style} onclick="wfConcluirTarefa('${a}')">${_esc(ACAO_LABELS[a] || a)}</button>`;
+      return `<button type="button" class="${btnClasse(a)}"${style} onclick="wfConcluirTarefa('${a}')">${_esc(globalScope.WF_ACAO_LABELS?.[a] || a)}</button>`;
     }).join('') + `<button type="button" class="btn" onclick="wfNavWorkflow('tarefas')">Cancelar</button>`;
+  }
+
+  function _wfValidarConclusaoTarefa(tarefa, acao, obs) {
+    const exigeParecer = tarefa.exige_parecer || acao === 'rejeitar' || acao === 'devolver';
+    if (exigeParecer && !obs) {
+      alert('É obrigatório informar um parecer/justificativa para esta ação.');
+      return false;
+    }
+    return true;
+  }
+
+  function _wfColetarDadosConclusaoTarefa(tarefa, acao) {
+    const dadosForm = {};
+    const formContainer = document.querySelector('#wf-exec-formulario .wf-form');
+    if (!(formContainer && _st.tarefaAtual._campos && acao !== 'rejeitar')) return dadosForm;
+    const resultado = globalScope.wfColetarDadosFormulario(formContainer, _st.tarefaAtual._campos);
+    if (!resultado.valido) return null;
+    Object.assign(dadosForm, resultado.dados);
+    return dadosForm;
+  }
+
+  async function _wfAtualizarTarefaConcluida(tarefa, acao, obs, dadosForm) {
+    await _updateDoc('wf_tarefa_workflows', tarefa.id, {
+      status: 'concluida',
+      observacao: obs,
+      parecer: obs || null,
+      acao_tomada: acao,
+      dados_formulario: dadosForm,
+      anexos: _st._anexosTarefa || [],
+      concluido_em: new Date(),
+    });
+  }
+
+  async function _wfNotificarSolicitanteConclusao(instancia, tarefa, acao) {
+    if (!instancia.solicitante_uid || instancia.solicitante_uid === _uid()) return;
+    await _addDoc('wf_notificacoes', {
+      destinatario_uid: instancia.solicitante_uid,
+      tipo: 'etapa_concluida',
+      titulo: `Etapa concluída: ${tarefa.etapa_nome}`,
+      mensagem: `A etapa "${tarefa.etapa_nome}" do processo "${tarefa.processo_nome}" foi ${globalScope.WF_ACAO_LABELS?.[acao] || acao}.`,
+      instancia_id: tarefa.instancia_id,
+      tarefa_id: tarefa.id,
+      lida: false,
+    });
+  }
+
+  async function _wfProcessarInstanciaConclusao(tarefa, acao, dadosForm) {
+    const instancia = await _getDoc('wf_instancia_processos', tarefa.instancia_id);
+    if (!instancia) return;
+    const merged = { ...instancia.dados_consolidados, ...dadosForm };
+    await _updateDoc('wf_instancia_processos', tarefa.instancia_id, {
+      dados_consolidados: merged,
+      ultimo_executor_uid: _uid(),
+    });
+    if (instancia.canvas) {
+      await _avancarFluxoCanvas(instancia, tarefa.etapa_modelo_id, acao);
+    } else {
+      await _avancarFluxo(instancia, tarefa.etapa_modelo_id, acao);
+    }
+    await _wfNotificarSolicitanteConclusao(instancia, tarefa, acao);
+  }
+
+  async function _wfRegistrarHistoricoConclusao(tarefa, acao, obs) {
+    await _registrarHistorico(tarefa.instancia_id, 'tarefa_concluida', _uid(),
+      tarefa.etapa_modelo_id, tarefa.id,
+      `Etapa "${tarefa.etapa_nome || tarefa.etapa_modelo_id}" — ${globalScope.WF_ACAO_LABELS?.[acao] || acao}.`,
+      { acao, papel: tarefa.papel_responsavel || null, parecer: obs || null });
   }
 
   async function wfConcluirTarefa(acao) {
     if (!_st.tarefaAtual) return;
     const tarefa = _st.tarefaAtual;
-    acao = acao || tarefa.acoes_disponiveis?.[0] || 'avancar';
+    acao = acao ?? tarefa.acoes_disponiveis?.[0] ?? 'avancar';
     const obs = (document.getElementById('wf-exec-obs')?.value || '').trim();
-    const dadosForm = {};
-
-    // Parecer obrigatório?
-    const exigeParecer = tarefa.exige_parecer || acao === 'rejeitar' || acao === 'devolver';
-    if (exigeParecer && !obs) {
-      alert('É obrigatório informar um parecer/justificativa para esta ação.');
-      return;
-    }
-
-    // Coleta campos do formulário se existir (só em ações de avanço/aprovação)
-    const formContainer = document.querySelector('#wf-exec-formulario .wf-form');
-    if (formContainer && _st.tarefaAtual._campos && acao !== 'rejeitar') {
-      const resultado = globalScope.wfColetarDadosFormulario(formContainer, _st.tarefaAtual._campos);
-      if (!resultado.valido) return;
-      Object.assign(dadosForm, resultado.dados);
-    }
+    if (!_wfValidarConclusaoTarefa(tarefa, acao, obs)) return;
+    const dadosForm = _wfColetarDadosConclusaoTarefa(tarefa, acao);
+    if (dadosForm == null) return;
 
     try {
-      await _updateDoc('wf_tarefa_workflows', tarefa.id, {
-        status: 'concluida',
-        observacao: obs,
-        parecer: obs || null,
-        acao_tomada: acao,
-        dados_formulario: dadosForm,
-        anexos: _st._anexosTarefa || [],
-        concluido_em: new Date(),
-      });
-
-      const instancia = await _getDoc('wf_instancia_processos', tarefa.instancia_id);
-      if (instancia) {
-        const merged = { ...(instancia.dados_consolidados || {}), ...dadosForm };
-        await _updateDoc('wf_instancia_processos', tarefa.instancia_id, {
-          dados_consolidados: merged,
-          ultimo_executor_uid: _uid(),
-        });
-        if (instancia.canvas) {
-          await _avancarFluxoCanvas(instancia, tarefa.etapa_modelo_id, acao);
-        } else {
-          await _avancarFluxo(instancia, tarefa.etapa_modelo_id, acao);
-        }
-
-        // P1.3 — Notifica o solicitante quando uma etapa é concluída por outro usuário
-        if (instancia.solicitante_uid && instancia.solicitante_uid !== _uid()) {
-          const ACAO_LABELS2 = globalScope.WF_ACAO_LABELS || {};
-          await _addDoc('wf_notificacoes', {
-            destinatario_uid: instancia.solicitante_uid,
-            tipo: 'etapa_concluida',
-            titulo: `Etapa concluída: ${tarefa.etapa_nome}`,
-            mensagem: `A etapa "${tarefa.etapa_nome}" do processo "${tarefa.processo_nome}" foi ${ACAO_LABELS2[acao] || acao}.`,
-            instancia_id: tarefa.instancia_id,
-            tarefa_id: tarefa.id,
-            lida: false,
-          });
-        }
-      }
-
-      const ACAO_LABELS = globalScope.WF_ACAO_LABELS || {};
-      await _registrarHistorico(tarefa.instancia_id, 'tarefa_concluida', _uid(),
-        tarefa.etapa_modelo_id, tarefa.id,
-        `Etapa "${tarefa.etapa_nome || tarefa.etapa_modelo_id}" — ${ACAO_LABELS[acao] || acao}.`,
-        { acao, papel: tarefa.papel_responsavel || null, parecer: obs || null });
+      await _wfAtualizarTarefaConcluida(tarefa, acao, obs, dadosForm);
+      await _wfProcessarInstanciaConclusao(tarefa, acao, dadosForm);
+      await _wfRegistrarHistoricoConclusao(tarefa, acao, obs);
 
       wfNavWorkflow('tarefas');
     } catch (e) {
@@ -938,23 +990,9 @@
     return valorPapel;
   }
 
-  // Cria as tarefas de um nó do canvas, uma por papel preenchido
-  async function _criarTarefasDoNo(instancia, no) {
-    const cfg = no.config || {};
-    const papeis = cfg.papeis || {};
-    const acoesNo = cfg.acoes?.length ? cfg.acoes : ['avancar'];
-    const prazo = cfg.sla_horas > 0 ? new Date(Date.now() + cfg.sla_horas * 3600000) : null;
-    const acoesAprovador = acoesNo.filter(a => a !== 'avancar');
-
-    const mapaPapelAcoes = {
-      executor: acoesNo,
-      revisor: ['avancar'],
-      aprovador: acoesAprovador.length ? acoesAprovador : ['aprovar','rejeitar'],
-    };
-
-    const criados = [];
+  function _wfContextoNotificacaoNo(instancia, no, prazo) {
     const prazoStr = prazo ? prazo.toLocaleDateString('pt-BR') : 'sem prazo';
-    const ctxNotif = {
+    return {
       processo: {
         titulo: instancia.titulo,
         id: instancia.id,
@@ -964,145 +1002,150 @@
       solicitante: { nome: (globalScope.USUARIOS || []).find(u => u.uid === instancia.solicitante_uid)?.nome || '' },
       prazo: prazoStr,
     };
-    const tituloNotif = _interpolarTemplate(no.config?.titulo_notificacao || 'Nova etapa: {{etapa.nome}}', ctxNotif);
-    const msgNotif = _interpolarTemplate(
-      no.config?.mensagem_notificacao || 'Processo "{{processo.titulo}}" — etapa "{{etapa.nome}}" aguarda sua ação.',
-      ctxNotif,
-    );
+  }
+
+  function _wfMensagensNotificacaoNo(no, ctxNotif) {
+    return {
+      titulo: _interpolarTemplate(no.config?.titulo_notificacao || 'Nova etapa: {{etapa.nome}}', ctxNotif),
+      mensagem: _interpolarTemplate(
+        no.config?.mensagem_notificacao || 'Processo "{{processo.titulo}}" — etapa "{{etapa.nome}}" aguarda sua ação.',
+        ctxNotif,
+      ),
+    };
+  }
+
+  async function _wfCriarNotificacaoTarefa(destinatarioUid, titulo, mensagem, instanciaId, tarefaId) {
+    if (!destinatarioUid) return;
+    await _addDoc('wf_notificacoes', {
+      destinatario_uid: destinatarioUid,
+      tipo: 'tarefa_criada',
+      titulo,
+      mensagem,
+      instancia_id: instanciaId,
+      tarefa_id: tarefaId,
+      lida: false,
+    });
+  }
+
+  async function _wfCriarTarefaNo(instancia, no, cfg, prazo, papel, papelAlvo, acoesDisp) {
+    const uidResp = _resolverPapel(papelAlvo, instancia);
+    const grupoId = papelAlvo.startsWith('grupo:') ? papelAlvo.slice(6) : null;
+    const tarefaId = await _addDoc('wf_tarefa_workflows', {
+      instancia_id: instancia.id,
+      processo_nome: instancia.titulo,
+      processo_id: instancia.processo_id || null,
+      etapa_modelo_id: no.id,
+      etapa_nome: no.nome,
+      etapa_desc: cfg.instrucoes || null,
+      etapa_tipo: no.tipo,
+      responsavel_uid: uidResp,
+      papel_responsavel: papel,
+      papel_alvo: papelAlvo,
+      grupo_id: grupoId,
+      acoes_disponiveis: acoesDisp,
+      acao_tomada: null,
+      parecer: null,
+      exige_parecer: !!cfg.exige_parecer,
+      formulario_id: cfg.formulario_id || null,
+      status: 'pendente',
+      prazo,
+      dados_formulario: {},
+      observacao: null,
+    });
+    return { tarefaId, uidResp };
+  }
+
+  async function _wfNotificarGrupoDaTarefa(tarefaId, titulo, mensagem, instanciaId) {
+    const tarefaDoc = await _getDoc('wf_tarefa_workflows', tarefaId);
+    const papelAlvoTarefa = tarefaDoc?.papel_alvo || '';
+    if (!papelAlvoTarefa.startsWith('grupo:')) return;
+    const grupoId = papelAlvoTarefa.slice(6);
+    try {
+      const grupo = await _getDoc('wf_grupos', grupoId);
+      for (const email of (grupo?.membros_email || [])) {
+        const u = (globalScope.USUARIOS || []).find(x => x.email === email);
+        const destUid = u?.uid || (email === globalScope.usuarioLogado?.email ? _uid() : null);
+        if (!destUid) continue;
+        await _wfCriarNotificacaoTarefa(destUid, titulo, mensagem, instanciaId, tarefaId);
+      }
+    } catch (error_) {
+      _wfReportarErroNaoCritico(`grupo ${grupoId} nao encontrado para notificacao`, error_);
+    }
+  }
+
+  async function _wfCriarComentarioAutomaticoNo(cfg, criados, instancia, no, ctxNotif) {
+    if (!(cfg.comentario_automatico && criados.length)) return;
+    const textoAuto = _interpolarTemplate(cfg.comentario_automatico, ctxNotif);
+    if (!textoAuto.trim()) return;
+    await _addDoc('wf_comentarios', {
+      tarefa_id: criados[0],
+      instancia_id: instancia.id,
+      etapa_id: no.id,
+      etapa_nome: no.nome,
+      autor_uid: 'sistema',
+      texto: textoAuto,
+      respondendo_a: null,
+    });
+  }
+
+  async function _wfNotificarCientesNo(cientes, instancia, no) {
+    for (const ciente of cientes) {
+      const uidC = _resolverPapel(ciente, instancia);
+      if (!uidC) continue;
+      await _addDoc('wf_notificacoes', {
+        destinatario_uid: uidC,
+        tipo: 'tarefa_criada',
+        titulo: `Ciência: ${no.nome}`,
+        mensagem: `Processo "${instancia.titulo}" chegou à etapa "${no.nome}".`,
+        instancia_id: instancia.id,
+        lida: false,
+      });
+    }
+  }
+
+  async function _wfCriarTarefaPadraoSolicitante(instancia, no, cfg, prazo, acoesNo, tituloNotif, msgNotif) {
+    const { tarefaId, uidResp } = await _wfCriarTarefaNo(instancia, no, cfg, prazo, 'executor', 'solicitante', acoesNo);
+    await _wfCriarNotificacaoTarefa(uidResp, tituloNotif, msgNotif, instancia.id, tarefaId);
+    return tarefaId;
+  }
+
+  // Cria as tarefas de um nó do canvas, uma por papel preenchido
+  async function _criarTarefasDoNo(instancia, no) {
+    const cfg = no.config ?? {};
+    const papeis = cfg.papeis ?? {};
+    const acoesNo = cfg.acoes?.length ? cfg.acoes : ['avancar'];
+    const prazo = cfg.sla_horas > 0 ? new Date(Date.now() + cfg.sla_horas * 3600000) : null;
+    const acoesAprovador = acoesNo.filter(a => a !== 'avancar');
+
+    const mapaPapelAcoes = {
+      executor: acoesNo,
+      revisor: ['avancar'],
+      aprovador: acoesAprovador.length ? acoesAprovador : ['aprovar', 'rejeitar'],
+    };
+
+    const criados = [];
+    const ctxNotif = _wfContextoNotificacaoNo(instancia, no, prazo);
+    const { titulo: tituloNotif, mensagem: msgNotif } = _wfMensagensNotificacaoNo(no, ctxNotif);
 
     for (const papel of ['executor','revisor','aprovador']) {
       const valor = papeis[papel];
       if (!valor) continue;
-      const uidResp = _resolverPapel(valor, instancia);
       const acoesDisp = mapaPapelAcoes[papel];
-      const grupoId = valor.startsWith('grupo:') ? valor.slice(6) : null;
-      const tarefaId = await _addDoc('wf_tarefa_workflows', {
-        instancia_id: instancia.id,
-        processo_nome: instancia.titulo,
-        processo_id: instancia.processo_id || null,
-        etapa_modelo_id: no.id,
-        etapa_nome: no.nome,
-        etapa_desc: cfg.instrucoes || null,
-        etapa_tipo: no.tipo,
-        responsavel_uid: uidResp,
-        papel_responsavel: papel,
-        papel_alvo: valor,
-        grupo_id: grupoId,
-        acoes_disponiveis: acoesDisp,
-        acao_tomada: null,
-        parecer: null,
-        exige_parecer: !!cfg.exige_parecer,
-        formulario_id: cfg.formulario_id || null,
-        status: 'pendente',
-        prazo,
-        dados_formulario: {},
-        observacao: null,
-      });
-      if (uidResp) {
-        await _addDoc('wf_notificacoes', {
-          destinatario_uid: uidResp,
-          tipo: 'tarefa_criada',
-          titulo: tituloNotif,
-          mensagem: msgNotif,
-          instancia_id: instancia.id,
-          tarefa_id: tarefaId,
-          lida: false,
-        });
-      }
+      const { tarefaId, uidResp } = await _wfCriarTarefaNo(instancia, no, cfg, prazo, papel, valor, acoesDisp);
+      await _wfCriarNotificacaoTarefa(uidResp, tituloNotif, msgNotif, instancia.id, tarefaId);
       criados.push(tarefaId);
     }
-    // Notificações para grupos: busca membros e notifica cada um
+
     for (const tarefaId of criados) {
-      const tarefaDoc = await _getDoc('wf_tarefa_workflows', tarefaId);
-      const papelAlvoTarefa = tarefaDoc?.papel_alvo || '';
-      if (papelAlvoTarefa.startsWith('grupo:')) {
-        const grupoId = papelAlvoTarefa.slice(6);
-        try {
-          const grupo = await _getDoc('wf_grupos', grupoId);
-          // membros_email: notifica quem tiver uid resolvível em USUARIOS
-          for (const email of (grupo?.membros_email || [])) {
-            const u = (globalScope.USUARIOS || []).find(x => x.email === email);
-            const destUid = u?.uid || (email === globalScope.usuarioLogado?.email ? _uid() : null);
-            if (!destUid) continue;
-            await _addDoc('wf_notificacoes', {
-              destinatario_uid: destUid,
-              tipo: 'tarefa_criada',
-              titulo: tituloNotif,
-              mensagem: msgNotif,
-              instancia_id: instancia.id,
-              tarefa_id: tarefaId,
-              lida: false,
-            });
-          }
-        } catch (error_) {
-          _wfReportarErroNaoCritico(`grupo ${grupoId} nao encontrado para notificacao`, error_);
-        }
-      }
+      await _wfNotificarGrupoDaTarefa(tarefaId, tituloNotif, msgNotif, instancia.id);
     }
 
-    // Comentário automático: cria no primeiro tarefa criada (se configurado)
-    if (cfg.comentario_automatico && criados.length) {
-      const textoAuto = _interpolarTemplate(cfg.comentario_automatico, ctxNotif);
-      if (textoAuto.trim()) {
-        await _addDoc('wf_comentarios', {
-          tarefa_id: criados[0],
-          instancia_id: instancia.id,
-          etapa_id: no.id,
-          etapa_nome: no.nome,
-          autor_uid: 'sistema',
-          texto: textoAuto,
-          respondendo_a: null,
-        });
-      }
-    }
+    await _wfCriarComentarioAutomaticoNo(cfg, criados, instancia, no, ctxNotif);
 
-    // cientes
-    const cientes = papeis.ciente || [];
-    for (const c of cientes) {
-      const uidC = _resolverPapel(c, instancia);
-      if (uidC) {
-        await _addDoc('wf_notificacoes', {
-          destinatario_uid: uidC,
-          tipo: 'tarefa_criada',
-          titulo: `Ciência: ${no.nome}`,
-          mensagem: `Processo "${instancia.titulo}" chegou à etapa "${no.nome}".`,
-          instancia_id: instancia.id,
-          lida: false,
-        });
-      }
-    }
-    // Nenhum papel configurado: cria tarefa de executor para o solicitante via o mesmo caminho
+    await _wfNotificarCientesNo(papeis.ciente || [], instancia, no);
+
     if (!criados.length) {
-      papeis.executor = 'solicitante';
-      const uidResp = _resolverPapel('solicitante', instancia);
-      const tarefaId = await _addDoc('wf_tarefa_workflows', {
-        instancia_id: instancia.id,
-        processo_nome: instancia.titulo,
-        processo_id: instancia.processo_id || null,
-        etapa_modelo_id: no.id,
-        etapa_nome: no.nome,
-        etapa_desc: cfg.instrucoes || null,
-        etapa_tipo: no.tipo,
-        responsavel_uid: uidResp,
-        papel_responsavel: 'executor',
-        papel_alvo: 'solicitante',
-        acoes_disponiveis: acoesNo,
-        acao_tomada: null, parecer: null,
-        exige_parecer: !!cfg.exige_parecer,
-        formulario_id: cfg.formulario_id || null,
-        status: 'pendente', prazo, dados_formulario: {}, observacao: null,
-      });
-      if (uidResp) {
-        await _addDoc('wf_notificacoes', {
-          destinatario_uid: uidResp,
-          tipo: 'tarefa_criada',
-          titulo: tituloNotif,
-          mensagem: msgNotif,
-          instancia_id: instancia.id,
-          tarefa_id: tarefaId,
-          lida: false,
-        });
-      }
+      const tarefaId = await _wfCriarTarefaPadraoSolicitante(instancia, no, cfg, prazo, acoesNo, tituloNotif, msgNotif);
       criados.push(tarefaId);
     }
     return criados;
@@ -1127,7 +1170,7 @@
       }
     }
 
-    const prox = _proximoNoExecutavel(canvas, noOrigemId, acao, instancia.dados_consolidados || {});
+    const prox = _proximoNoExecutavel(canvas, noOrigemId, acao, instancia.dados_consolidados ?? {});
     if (!prox || prox.tipo === 'fim') {
       await _updateDoc('wf_instancia_processos', instancia.id, {
         status: 'concluido', concluido_em: new Date(), no_atual_id: null, etapa_atual_id: null,
@@ -1216,7 +1259,7 @@
       etapa_id: etapaId || null,
       tarefa_id: tarefaId || null,
       descricao,
-      dados: dados || {},
+      dados: dados ?? {},
     });
   }
 
@@ -1354,6 +1397,7 @@
       sel.innerHTML = '<option value="">Selecione o processo a iniciar…</option>' +
         modelos.map(m => `<option value="${_esc(m.id)}">${_esc(m.nome)}</option>`).join('');
     } catch (e) {
+      _wfReportarErroNaoCritico('carregamento de processos publicados para inicio', e);
       sel.innerHTML = '<option value="">Erro ao carregar processos</option>';
     }
   }
@@ -1389,6 +1433,7 @@
         `);
       }).join('');
     } catch (e) {
+      _wfReportarErroNaoCritico('carregamento de templates publicados', e);
       el.innerHTML = `<div style="color:var(--red);font-size:14px">${_esc(e.message)}</div>`;
     }
   }
@@ -1463,7 +1508,7 @@
     let configEtapas = {};
     try {
       const configProc = await _getDoc('wf_config_processo', processoId);
-      configEtapas = configProc?.etapas || {};
+      configEtapas = configProc?.etapas ?? {};
     } catch (error_) {
       _wfReportarErroNaoCritico(`configuracao de processo ${processoId}`, error_);
     }
@@ -1471,7 +1516,7 @@
     // Monta snapshot das etapas com os dados do mapeamento
     const snapshotEtapas = etapasExec.map((e, i) => {
       const etapaId = `${processoId}_${e.id || i}`;
-      const etapaConf = configEtapas[etapaId] || {};
+      const etapaConf = configEtapas[etapaId] ?? {};
       return {
         id: etapaId,
         nome: e.nome || `Etapa ${i + 1}`,
@@ -1551,7 +1596,9 @@
     _wfAutosaveTimer = setTimeout(() => {
       _wfAutosaveTimer = null;
       if (!_wfTemAlteracoesPendentes()) return;
-      wfDesignerSalvar({ silent: true, source: 'autosave' }).catch(() => {});
+      wfDesignerSalvar({ silent: true, source: 'autosave' }).catch((error_) => {
+        _wfReportarErroNaoCritico('falha no autosave do workflow', error_);
+      });
     }, 1200);
   }
 
@@ -1584,16 +1631,15 @@
     const arestas = els
       .filter(e => e.type === 'bpmn:SequenceFlow')
       .map(e => {
-        const cfgAresta = _wfConfigNos[e.id] || {};
         return {
           id: e.id,
           origem: e.source?.id,
           destino: e.target?.id,
           acao: e.businessObject?.name || 'avancar',
           label: e.businessObject?.name || 'Avançar',
-          condicoes: cfgAresta.condicoes || [],
-          operador_logico: cfgAresta.operador_logico || 'AND',
-          padrao: cfgAresta.padrao || false,
+          condicoes: _wfConfigNos[e.id]?.condicoes || [],
+          operador_logico: _wfConfigNos[e.id]?.operador_logico || 'AND',
+          padrao: _wfConfigNos[e.id]?.padrao || false,
         };
       });
     return { nos, arestas };
@@ -1877,7 +1923,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     _wfModeloAtual = modelo;
     // Carrega config dos nós em memória
     Object.keys(_wfConfigNos).forEach(k => delete _wfConfigNos[k]);
-    Object.assign(_wfConfigNos, modelo.config_nos || {});
+    Object.assign(_wfConfigNos, modelo.config_nos ?? {});
 
     if (!_st.formularioModelos.length) {
       try {
@@ -1935,249 +1981,212 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     });
   }
 
-  // — Painel de configuração do elemento selecionado —
-  function _wfRenderConfigPanel(el) {
-    const painel = document.getElementById('wf-designer-config');
-    if (!painel) return;
+  function _wfTipoConfigElemento(tipo) {
+    if (tipo === 'bpmn:SequenceFlow') return 'aresta';
+    if (tipo === 'bpmn:ExclusiveGateway' || tipo === 'bpmn:InclusiveGateway') return 'gateway_xor';
+    if (tipo === 'bpmn:ParallelGateway') return 'gateway_and';
+    if (tipo === 'bpmn:StartEvent') return 'inicio';
+    if (tipo === 'bpmn:EndEvent') return 'fim';
+    if (tipo === 'bpmn:IntermediateCatchEvent' || tipo === 'bpmn:IntermediateThrowEvent') return 'intermediario';
+    if (tipo === 'bpmn:Task' || tipo === 'bpmn:UserTask' || tipo === 'bpmn:ManualTask' || tipo === 'bpmn:ServiceTask') return 'tarefa';
+    return null;
+  }
 
-    const tipo = el?.type || '';
-
-    // Tipos configuráveis
-    const eTarefa = tipo === 'bpmn:Task' || tipo === 'bpmn:UserTask' ||
-                    tipo === 'bpmn:ManualTask' || tipo === 'bpmn:ServiceTask';
-    const eGatewayXOR = tipo === 'bpmn:ExclusiveGateway' || tipo === 'bpmn:InclusiveGateway';
-    const eGatewayAND = tipo === 'bpmn:ParallelGateway';
-    const eAresta     = tipo === 'bpmn:SequenceFlow';
-    const eInicio     = tipo === 'bpmn:StartEvent';
-    const eFim        = tipo === 'bpmn:EndEvent';
-    const eIntermediario = tipo === 'bpmn:IntermediateCatchEvent' || tipo === 'bpmn:IntermediateThrowEvent';
-
-    const eConfiguravel = eTarefa || eGatewayXOR || eGatewayAND || eAresta || eInicio || eFim || eIntermediario;
-    if (!eConfiguravel) {
-      painel.style.display = 'none'; return;
-    }
-
-    painel.style.display = '';
-    const id = el.id;
-    const nome = _esc(el.businessObject?.name || '');
-
-    // ── SequenceFlow: condições de saída de gateway ────────────────────────────
-    if (eAresta) {
-      if (!_wfConfigNos[id]) _wfConfigNos[id] = { condicoes: [], operador_logico: 'AND', padrao: false };
-      const cfg = _wfConfigNos[id];
-      const origem = _wfNoPorId(el.source?.id || el.businessObject?.sourceRef?.id || '');
-      const destino = _wfNoPorId(el.target?.id || el.businessObject?.targetRef?.id || '');
-      painel.innerHTML = `
-        <div class="wf-guide-panel">
-          <div class="wf-guide-head">
-            <div>
-              <div class="wf-guide-eyebrow">Regra de saída</div>
-              <div class="wf-guide-title">${_esc(origem?.nome || 'Etapa')} -> ${_esc(destino?.nome || 'Destino')}</div>
-              <div class="wf-guide-sub">Defina quando este caminho deve ser usado depois que a etapa anterior for respondida.</div>
-            </div>
-            <span class="wf-guide-badge">${cfg.padrao ? 'Saída padrão' : 'Saída condicional'}</span>
-          </div>
-          <div class="wf-guide-grid">
-            <div class="wf-guide-card">
-              <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quando seguir por aqui?</div></div>
-              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:10px">
-                <input type="checkbox" id="wf-aresta-padrao-${_esc(id)}" ${cfg.padrao ? 'checked' : ''}
-                  onchange="wfDesignerArestaPadrao('${_esc(id)}',this.checked)">
-                Usar este caminho quando nenhuma outra regra for atendida
-              </label>
-              <div id="wf-aresta-conds-wrap-${_esc(id)}" style="${cfg.padrao ? 'opacity:.4;pointer-events:none' : ''}">
-                <div class="wf-guide-row" style="margin-bottom:8px">
-                  <span class="wf-mini-help">As regras abaixo devem ocorrer</span>
-                  <select class="fi" style="width:auto;padding:2px 6px;font-size:11px"
-                    onchange="wfDesignerCampoCfg('${_esc(id)}','operador_logico',this.value)">
-                    <option value="AND" ${cfg.operador_logico !== 'OR' ? 'selected' : ''}>todas juntas</option>
-                    <option value="OR"  ${cfg.operador_logico === 'OR'  ? 'selected' : ''}>qualquer uma</option>
-                  </select>
-                </div>
-                <div id="wf-aresta-conds-${_esc(id)}" style="margin-bottom:8px"></div>
-                <button type="button" class="btn btn-sm" onclick="wfDesignerAddCondicao('${_esc(id)}')">+ Adicionar regra</button>
-              </div>
-            </div>
-            <div class="wf-guide-card">
-              <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quais respostas existem?</div></div>
-              ${_wfCamposOrigemResumoHtml(id)}
-            </div>
-          </div>
-          ${_wfPainelSalvarHtml('Salve para manter esta regra de saída vinculada ao fluxo.')}
-        </div>`;
-      _wfRenderCondicoes(id);
-      _wfRenderAssistenteAresta(id, painel);
-      _wfAplicarModoPainel();
-      return;
-    }
-
-    // ── Gateway XOR / OR: só nome e resumo das saídas ─────────────────────────
-    if (eGatewayXOR) {
-      if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
-      painel.innerHTML = `
-        <div class="wf-guide-panel">
-          <div class="wf-guide-head">
-            <div>
-              <div class="wf-guide-eyebrow">Decisão do fluxo</div>
-              <div class="wf-guide-title">${nome || 'Gateway de decisão'}</div>
-              <div class="wf-guide-sub">Aqui você enxerga claramente para onde o fluxo vai dependendo da resposta dada na etapa anterior.</div>
-            </div>
-            <span class="wf-guide-badge">${tipo === 'bpmn:InclusiveGateway' ? 'Escolhe uma ou mais saídas' : 'Escolhe uma saída'}</span>
-          </div>
-          <div class="wf-guide-card wf-guide-card-full">
-            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Nome da decisão</div></div>
-            <input type="text" class="fi" style="margin-top:2px" value="${nome}"
-              oninput="wfDesignerCampoCfg('${_esc(id)}','_nome',this.value);wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
-          </div>
-          <div class="wf-guide-card wf-guide-card-full">
-            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Caminhos possíveis</div></div>
-            <div class="wf-route-list">${(el.outgoing || []).map((s) => {
-              const cfgS = _wfConfigNos[s.id] || {};
-              const destino = s.target?.businessObject?.name || s.target?.id || '?';
-              let regra = 'sem regra definida';
-              if (cfgS.padrao) {
-                regra = 'quando nenhuma outra regra bater';
-              } else if (cfgS.condicoes?.length) {
-                const separador = (cfgS.operador_logico || 'AND') === 'OR' ? ' ou ' : ' e ';
-                regra = cfgS.condicoes.map(_wfCondicaoLegivel).join(separador);
-              }
-              return `<div class="wf-route-card"><div class="wf-route-title">Vai para ${_esc(destino)}</div><div class="wf-route-sub">Seguir por este caminho ${_esc(regra)}. Clique na seta correspondente no gráfico para editar a regra.</div></div>`;
-            }).join('') || '<div class="wf-guide-note">Este gateway ainda não tem saídas configuradas.</div>'}</div>
-          </div>
-          <div class="wf-guide-note">A resposta é dada por quem executou a etapa anterior. As opções possíveis vêm dos campos do formulário dessa etapa.</div>
-          ${_wfPainelSalvarHtml('Salve para manter o nome e as decisões deste gateway no modelo.')}
-        </div>`;
-      _wfRenderMapaDecisao(id, painel);
-      _wfAplicarModoPainel();
-      return;
-    }
-
-    // ── Gateway AND (Paralelo): informativo ───────────────────────────────────
-    if (eGatewayAND) {
-      painel.innerHTML = `
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Gateway Paralelo (AND)</div>
-        <label class="lbl" style="font-size:11px">Nome / rótulo</label>
-        <input type="text" class="fi" style="margin-top:2px;margin-bottom:12px" value="${nome}"
-          oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
-        <div style="font-size:12px;padding:10px;background:var(--surf2);border-radius:6px;color:var(--ink2);line-height:1.5">
-          <strong>Como funciona:</strong><br>
-          • <strong>Divisão (split):</strong> todas as saídas são ativadas simultaneamente.<br>
-          • <strong>Junção (join):</strong> aguarda a conclusão de todos os caminhos paralelos antes de prosseguir.<br>
-          Não requer configuração de condições.
-        </div>`;
-      _wfAplicarModoPainel();
-      return;
-    }
-
-    // ── Evento de Início ─────────────────────────────────────────────────────
-    if (eInicio) {
-      if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
-      const cfg = _wfConfigNos[id];
-      painel.innerHTML = `
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Início</div>
-        <label class="lbl" style="font-size:11px">Nome</label>
-        <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
-          oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
-        <label class="lbl" style="font-size:11px">Tipo de disparo</label>
-        <select class="fi" style="margin-top:2px;margin-bottom:10px"
-          onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_disparo',this.value)">
-          <option value="manual"   ${(cfg.tipo_disparo||'manual')==='manual'    ? 'selected':''}>Manual — usuário inicia pelo sistema</option>
-          <option value="agendado" ${cfg.tipo_disparo==='agendado' ? 'selected':''}>Agendado — trigger externo / cron</option>
-          <option value="evento"   ${cfg.tipo_disparo==='evento'   ? 'selected':''}>Evento — gerado por outro processo</option>
-        </select>
-        <label class="lbl" style="font-size:11px">Descrição / orientação ao solicitante</label>
-        <textarea class="fi" rows="3" style="margin-top:2px;resize:vertical"
-          placeholder="Descreva quando e como este processo deve ser iniciado…"
-          oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>
-        ${_wfPainelSalvarHtml('Salve para manter as regras deste evento de início no modelo.')}`;
-      _wfAplicarModoPainel();
-      return;
-    }
-
-    // ── Evento de Fim ────────────────────────────────────────────────────────
-    if (eFim) {
-      if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
-      const cfg = _wfConfigNos[id];
-      painel.innerHTML = `
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Fim</div>
-        <label class="lbl" style="font-size:11px">Nome</label>
-        <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
-          oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
-        <label class="lbl" style="font-size:11px">Tipo</label>
-        <select class="fi" style="margin-top:2px;margin-bottom:10px"
-          onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_fim',this.value)">
-          <option value="normal"     ${(cfg.tipo_fim||'normal')==='normal'     ? 'selected':''}>Normal — processo concluído</option>
-          <option value="cancelado"  ${cfg.tipo_fim==='cancelado'  ? 'selected':''}>Cancelado — processo encerrado sem conclusão</option>
-          <option value="erro"       ${cfg.tipo_fim==='erro'       ? 'selected':''}>Erro — falha no processo</option>
-        </select>
-        <label class="lbl" style="font-size:11px">Mensagem ao solicitante (opcional)</label>
-        <textarea class="fi" rows="2" style="margin-top:2px;margin-bottom:10px;resize:vertical"
-          placeholder="Ex: Sua solicitação foi concluída com sucesso. Use {{processo.titulo}}, {{solicitante.nome}}…"
-          oninput="wfDesignerCampoCfg('${_esc(id)}','mensagem_fim',this.value)">${_esc(cfg.mensagem_fim || '')}</textarea>
-        <label class="lbl" style="font-size:11px">Notificar também (além do solicitante)</label>
-        <select class="fi" style="margin-top:2px"
-          onchange="wfDesignerCampoCfg('${_esc(id)}','notificar_fim',this.value)">
-          <option value=""         ${!cfg.notificar_fim ? 'selected':''}>Somente o solicitante</option>
-          <option value="ep"       ${cfg.notificar_fim==='ep'       ? 'selected':''}>EP também</option>
-          <option value="gestor"   ${cfg.notificar_fim==='gestor'   ? 'selected':''}>Gestor também</option>
-          <option value="todos"    ${cfg.notificar_fim==='todos'    ? 'selected':''}>EP + Gestor + solicitante</option>
-        </select>
-        ${_wfPainelSalvarHtml('Salve para manter as mensagens e notificações deste evento de fim.')}`;
-      _wfAplicarModoPainel();
-      return;
-    }
-
-    // ── Evento Intermediário ─────────────────────────────────────────────────
-    if (eIntermediario) {
-      if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
-      const cfg = _wfConfigNos[id];
-      painel.innerHTML = `
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento Intermediário</div>
-        <label class="lbl" style="font-size:11px">Nome</label>
-        <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
-          oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
-        <label class="lbl" style="font-size:11px">Tipo</label>
-        <select class="fi" style="margin-top:2px;margin-bottom:10px"
-          onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_evento',this.value)">
-          <option value="mensagem" ${(cfg.tipo_evento||'mensagem')==='mensagem' ? 'selected':''}>Mensagem / notificação</option>
-          <option value="timer"    ${cfg.tipo_evento==='timer'    ? 'selected':''}>Timer / aguardar tempo</option>
-          <option value="sinal"    ${cfg.tipo_evento==='sinal'    ? 'selected':''}>Sinal externo</option>
-        </select>
-        <label class="lbl" style="font-size:11px">Descrição</label>
-        <textarea class="fi" rows="2" style="margin-top:2px;resize:vertical"
-          oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>
-        ${_wfPainelSalvarHtml('Salve para manter este evento intermediário configurado no fluxo.')}`;
-      _wfAplicarModoPainel();
-      return;
-    }
-
-    // ── Tarefa / Atividade ────────────────────────────────────────────────────
-    const cfg = _wfConfigNos[id] || _configPadrao();
-    _wfConfigNos[id] = cfg;
-    const papeis = cfg.papeis || {};
-    const acoes = cfg.acoes || [];
-
-    const alvoOpts = (sel) => {
-      const fixos = {
-        '':                   '— Ninguém —',
-        'solicitante':        'Próprio solicitante',
-        'gestor_solicitante': 'Gestor do solicitante',
-        'gestor_executor':    'Gestor do executor anterior',
-        'ep':                 'Perfil EP',
-        'gestor':             'Perfil Gestor',
-        'dono':               'Perfil Dono',
-      };
-      const usuarios = (globalScope.USUARIOS || []).filter(u => u.email);
-      return Object.entries(fixos).map(([v, l]) =>
-        `<option value="${v}"${(sel || '') === v ? ' selected' : ''}>${_esc(l)}</option>`
-      ).join('') + (usuarios.length ? `<optgroup label="Usuário específico">${
-        usuarios.map(u => `<option value="${_esc(u.email)}"${(sel || '') === u.email ? ' selected' : ''}>${_esc(u.nome || u.email)}</option>`).join('')
-      }</optgroup>` : '');
+  function _wfAlvoOptsPapel(sel) {
+    const fixos = {
+      '': '— Ninguém —',
+      solicitante: 'Próprio solicitante',
+      gestor_solicitante: 'Gestor do solicitante',
+      gestor_executor: 'Gestor do executor anterior',
+      ep: 'Perfil EP',
+      gestor: 'Perfil Gestor',
+      dono: 'Perfil Dono',
     };
-    const formOpts = '<option value="">— Sem formulário —</option>' +
+    const usuarios = (globalScope.USUARIOS || []).filter(u => u.email);
+    const fixosHtml = Object.entries(fixos).map(([valor, label]) =>
+      `<option value="${valor}"${(sel || '') === valor ? ' selected' : ''}>${_esc(label)}</option>`
+    ).join('');
+    const usuariosHtml = usuarios.length
+      ? `<optgroup label="Usuário específico">${usuarios.map(u => `<option value="${_esc(u.email)}"${(sel || '') === u.email ? ' selected' : ''}>${_esc(u.nome || u.email)}</option>`).join('')}</optgroup>`
+      : '';
+    return fixosHtml + usuariosHtml;
+  }
+
+  function _wfFormOptsNo(cfg) {
+    return '<option value="">— Sem formulário —</option>' +
       (_st.formularioModelos || []).map(m =>
         `<option value="${_esc(m.id)}"${cfg.formulario_id === m.id ? ' selected' : ''}>${_esc(m.titulo)}</option>`).join('');
+  }
 
+  function _wfRenderPainelAresta(el, painel, id) {
+    if (!_wfConfigNos[id]) _wfConfigNos[id] = { condicoes: [], operador_logico: 'AND', padrao: false };
+    const cfg = _wfConfigNos[id];
+    const origem = _wfNoPorId(el.source?.id || el.businessObject?.sourceRef?.id || '');
+    const destino = _wfNoPorId(el.target?.id || el.businessObject?.targetRef?.id || '');
+    painel.innerHTML = `
+      <div class="wf-guide-panel">
+        <div class="wf-guide-head">
+          <div>
+            <div class="wf-guide-eyebrow">Regra de saída</div>
+            <div class="wf-guide-title">${_esc(origem?.nome || 'Etapa')} -> ${_esc(destino?.nome || 'Destino')}</div>
+            <div class="wf-guide-sub">Defina quando este caminho deve ser usado depois que a etapa anterior for respondida.</div>
+          </div>
+          <span class="wf-guide-badge">${cfg.padrao ? 'Saída padrão' : 'Saída condicional'}</span>
+        </div>
+        <div class="wf-guide-grid">
+          <div class="wf-guide-card">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quando seguir por aqui?</div></div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:10px">
+              <input type="checkbox" id="wf-aresta-padrao-${_esc(id)}" ${cfg.padrao ? 'checked' : ''} onchange="wfDesignerArestaPadrao('${_esc(id)}',this.checked)">
+              Usar este caminho quando nenhuma outra regra for atendida
+            </label>
+            <div id="wf-aresta-conds-wrap-${_esc(id)}" style="${cfg.padrao ? 'opacity:.4;pointer-events:none' : ''}">
+              <div class="wf-guide-row" style="margin-bottom:8px">
+                <span class="wf-mini-help">As regras abaixo devem ocorrer</span>
+                <select class="fi" style="width:auto;padding:2px 6px;font-size:11px" onchange="wfDesignerCampoCfg('${_esc(id)}','operador_logico',this.value)">
+                  <option value="AND" ${cfg.operador_logico !== 'OR' ? 'selected' : ''}>todas juntas</option>
+                  <option value="OR" ${cfg.operador_logico === 'OR' ? 'selected' : ''}>qualquer uma</option>
+                </select>
+              </div>
+              <div id="wf-aresta-conds-${_esc(id)}" style="margin-bottom:8px"></div>
+              <button type="button" class="btn btn-sm" onclick="wfDesignerAddCondicao('${_esc(id)}')">+ Adicionar regra</button>
+            </div>
+          </div>
+          <div class="wf-guide-card">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quais respostas existem?</div></div>
+            ${_wfCamposOrigemResumoHtml(id)}
+          </div>
+        </div>
+        ${_wfPainelSalvarHtml('Salve para manter esta regra de saída vinculada ao fluxo.')}
+      </div>`;
+    _wfRenderCondicoes(id);
+    _wfRenderAssistenteAresta(id, painel);
+    _wfAplicarModoPainel();
+  }
+
+  function _wfRenderPainelGatewayXor(el, painel, id, nome) {
+    if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
+    const tipo = el?.type || '';
+    painel.innerHTML = `
+      <div class="wf-guide-panel">
+        <div class="wf-guide-head">
+          <div>
+            <div class="wf-guide-eyebrow">Decisão do fluxo</div>
+            <div class="wf-guide-title">${nome || 'Gateway de decisão'}</div>
+            <div class="wf-guide-sub">Aqui você enxerga claramente para onde o fluxo vai dependendo da resposta dada na etapa anterior.</div>
+          </div>
+          <span class="wf-guide-badge">${tipo === 'bpmn:InclusiveGateway' ? 'Escolhe uma ou mais saídas' : 'Escolhe uma saída'}</span>
+        </div>
+        <div class="wf-guide-card wf-guide-card-full">
+          <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Nome da decisão</div></div>
+          <input type="text" class="fi" style="margin-top:2px" value="${nome}" oninput="wfDesignerCampoCfg('${_esc(id)}','_nome',this.value)">
+        </div>
+        <div class="wf-guide-card wf-guide-card-full">
+          <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Caminhos possíveis</div></div>
+          <div class="wf-route-list">${(el.outgoing || []).map((saida) => {
+            const cfgSaida = _wfConfigNos[saida.id] ?? {};
+            const destino = saida.target?.businessObject?.name || saida.target?.id || '?';
+            let regra = 'sem regra definida';
+            if (cfgSaida.padrao) regra = 'quando nenhuma outra regra bater';
+            else if (cfgSaida.condicoes?.length) {
+              const separador = (cfgSaida.operador_logico || 'AND') === 'OR' ? ' ou ' : ' e ';
+              regra = cfgSaida.condicoes.map(_wfCondicaoLegivel).join(separador);
+            }
+            return `<div class="wf-route-card"><div class="wf-route-title">Vai para ${_esc(destino)}</div><div class="wf-route-sub">Seguir por este caminho ${_esc(regra)}. Clique na seta correspondente no gráfico para editar a regra.</div></div>`;
+          }).join('') || '<div class="wf-guide-note">Este gateway ainda não tem saídas configuradas.</div>'}</div>
+        </div>
+        <div class="wf-guide-note">A resposta é dada por quem executou a etapa anterior. As opções possíveis vêm dos campos do formulário dessa etapa.</div>
+        ${_wfPainelSalvarHtml('Salve para manter o nome e as decisões deste gateway no modelo.')}
+      </div>`;
+    _wfRenderMapaDecisao(id, painel);
+    _wfAplicarModoPainel();
+  }
+
+  function _wfRenderPainelGatewayAnd(painel, id, nome) {
+    painel.innerHTML = `
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Gateway Paralelo (AND)</div>
+      <label class="lbl" style="font-size:11px">Nome / rótulo</label>
+      <input type="text" class="fi" style="margin-top:2px;margin-bottom:12px" value="${nome}" oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
+      <div style="font-size:12px;padding:10px;background:var(--surf2);border-radius:6px;color:var(--ink2);line-height:1.5">
+        <strong>Como funciona:</strong><br>
+        • <strong>Divisão (split):</strong> todas as saídas são ativadas simultaneamente.<br>
+        • <strong>Junção (join):</strong> aguarda a conclusão de todos os caminhos paralelos antes de prosseguir.<br>
+        Não requer configuração de condições.
+      </div>`;
+    _wfAplicarModoPainel();
+  }
+
+  function _wfRenderPainelInicio(painel, id, nome) {
+    if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
+    const cfg = _wfConfigNos[id];
+    painel.innerHTML = `
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Início</div>
+      <label class="lbl" style="font-size:11px">Nome</label>
+      <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}" oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
+      <label class="lbl" style="font-size:11px">Tipo de disparo</label>
+      <select class="fi" style="margin-top:2px;margin-bottom:10px" onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_disparo',this.value)">
+        <option value="manual" ${(cfg.tipo_disparo || 'manual') === 'manual' ? 'selected' : ''}>Manual — usuário inicia pelo sistema</option>
+        <option value="agendado" ${cfg.tipo_disparo === 'agendado' ? 'selected' : ''}>Agendado — trigger externo / cron</option>
+        <option value="evento" ${cfg.tipo_disparo === 'evento' ? 'selected' : ''}>Evento — gerado por outro processo</option>
+      </select>
+      <label class="lbl" style="font-size:11px">Descrição / orientação ao solicitante</label>
+      <textarea class="fi" rows="3" style="margin-top:2px;resize:vertical" placeholder="Descreva quando e como este processo deve ser iniciado…" oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>
+      ${_wfPainelSalvarHtml('Salve para manter as regras deste evento de início no modelo.')}`;
+    _wfAplicarModoPainel();
+  }
+
+  function _wfRenderPainelFim(painel, id, nome) {
+    if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
+    const cfg = _wfConfigNos[id];
+    painel.innerHTML = `
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Fim</div>
+      <label class="lbl" style="font-size:11px">Nome</label>
+      <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}" oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
+      <label class="lbl" style="font-size:11px">Tipo</label>
+      <select class="fi" style="margin-top:2px;margin-bottom:10px" onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_fim',this.value)">
+        <option value="normal" ${(cfg.tipo_fim || 'normal') === 'normal' ? 'selected' : ''}>Normal — processo concluído</option>
+        <option value="cancelado" ${cfg.tipo_fim === 'cancelado' ? 'selected' : ''}>Cancelado — processo encerrado sem conclusão</option>
+        <option value="erro" ${cfg.tipo_fim === 'erro' ? 'selected' : ''}>Erro — falha no processo</option>
+      </select>
+      <label class="lbl" style="font-size:11px">Mensagem ao solicitante (opcional)</label>
+      <textarea class="fi" rows="2" style="margin-top:2px;margin-bottom:10px;resize:vertical" placeholder="Ex: Sua solicitação foi concluída com sucesso. Use {{processo.titulo}}, {{solicitante.nome}}…" oninput="wfDesignerCampoCfg('${_esc(id)}','mensagem_fim',this.value)">${_esc(cfg.mensagem_fim || '')}</textarea>
+      <label class="lbl" style="font-size:11px">Notificar também (além do solicitante)</label>
+      <select class="fi" style="margin-top:2px" onchange="wfDesignerCampoCfg('${_esc(id)}','notificar_fim',this.value)">
+        <option value="" ${!cfg.notificar_fim ? 'selected' : ''}>Somente o solicitante</option>
+        <option value="ep" ${cfg.notificar_fim === 'ep' ? 'selected' : ''}>EP também</option>
+        <option value="gestor" ${cfg.notificar_fim === 'gestor' ? 'selected' : ''}>Gestor também</option>
+        <option value="todos" ${cfg.notificar_fim === 'todos' ? 'selected' : ''}>EP + Gestor + solicitante</option>
+      </select>
+      ${_wfPainelSalvarHtml('Salve para manter as mensagens e notificações deste evento de fim.')}`;
+    _wfAplicarModoPainel();
+  }
+
+  function _wfRenderPainelIntermediario(painel, id, nome) {
+    if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
+    const cfg = _wfConfigNos[id];
+    painel.innerHTML = `
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento Intermediário</div>
+      <label class="lbl" style="font-size:11px">Nome</label>
+      <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}" oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
+      <label class="lbl" style="font-size:11px">Tipo</label>
+      <select class="fi" style="margin-top:2px;margin-bottom:10px" onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_evento',this.value)">
+        <option value="mensagem" ${(cfg.tipo_evento || 'mensagem') === 'mensagem' ? 'selected' : ''}>Mensagem / notificação</option>
+        <option value="timer" ${cfg.tipo_evento === 'timer' ? 'selected' : ''}>Timer / aguardar tempo</option>
+        <option value="sinal" ${cfg.tipo_evento === 'sinal' ? 'selected' : ''}>Sinal externo</option>
+      </select>
+      <label class="lbl" style="font-size:11px">Descrição</label>
+      <textarea class="fi" rows="2" style="margin-top:2px;resize:vertical" oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>
+      ${_wfPainelSalvarHtml('Salve para manter este evento intermediário configurado no fluxo.')}`;
+    _wfAplicarModoPainel();
+  }
+
+  function _wfRenderPainelTarefa(painel, id, nome) {
+    const cfg = _wfConfigNos[id] || _configPadrao();
+    _wfConfigNos[id] = cfg;
+    const papeis = cfg.papeis ?? {};
+    const acoes = cfg.acoes ?? [];
+    const formOpts = _wfFormOptsNo(cfg);
+    const labelsAcao = globalScope.WF_ACAO_LABELS;
     painel.innerHTML = `
       <div class="wf-guide-panel">
         <div class="wf-guide-head">
@@ -2192,7 +2201,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           <div class="wf-guide-card">
             <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quem faz esta etapa?</div></div>
             <div class="wf-guide-stack">
-              <div class="wf-guide-kv"><div class="wf-guide-k">Responsável principal</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','executor',this.value)">${alvoOpts(papeis.executor)}</select></div>
+              <div class="wf-guide-kv"><div class="wf-guide-k">Responsável principal</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','executor',this.value)">${_wfAlvoOptsPapel(papeis.executor)}</select></div>
               <div class="wf-guide-kv"><div class="wf-guide-k">Prazo</div><input type="number" class="fi" min="0" value="${_esc(String(cfg.sla_horas || 0))}" style="margin-top:4px" oninput="wfDesignerCampoCfg('${_esc(id)}','sla_horas',Number(this.value)||0)"><div class="wf-mini-help">Informe em horas úteis. Use 0 quando não houver prazo.</div></div>
             </div>
           </div>
@@ -2216,7 +2225,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           </div>
           <div class="wf-guide-card wf-guide-card-full">
             <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">O que pode acontecer depois?</div><div class="wf-guide-card-sub">Marque as ações que o usuário poderá escolher ao concluir esta etapa. Use o gateway para decidir aprovar/avançar por respostas do formulário; <strong>rejeitar</strong> e <strong>devolver</strong> retornam para a etapa anterior.</div></div>
-            <div class="wf-guide-row" style="margin-bottom:10px">${['avancar','aprovar','rejeitar','devolver','solicitar_ajuste'].map(a => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:6px 10px;border:1px solid var(--bdr);border-radius:999px;background:var(--surf2)"><input type="checkbox" ${acoes.includes(a) ? 'checked' : ''} onchange="wfDesignerToggleAcao('${_esc(id)}','${a}',this.checked)"> ${_esc((globalScope.WF_ACAO_LABELS||{})[a] || a)}</label>`).join('')}</div>
+            <div class="wf-guide-row" style="margin-bottom:10px">${['avancar','aprovar','rejeitar','devolver','solicitar_ajuste'].map(a => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:6px 10px;border:1px solid var(--bdr);border-radius:999px;background:var(--surf2)"><input type="checkbox" ${acoes.includes(a) ? 'checked' : ''} onchange="wfDesignerToggleAcao('${_esc(id)}','${a}',this.checked)"> ${_esc(labelsAcao?.[a] || a)}</label>`).join('')}</div>
             ${_wfRotasResumoHtml(id)}
           </div>
           <div class="wf-guide-card wf-guide-card-full">
@@ -2239,8 +2248,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
             <div class="wf-guide-grid">
               <div class="wf-guide-card">
                 <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Papéis adicionais</div></div>
-                <div class="wf-guide-kv"><div class="wf-guide-k">Revisor</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','revisor',this.value)">${alvoOpts(papeis.revisor)}</select></div>
-                <div class="wf-guide-kv" style="margin-top:10px"><div class="wf-guide-k">Aprovador</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','aprovador',this.value)">${alvoOpts(papeis.aprovador)}</select></div>
+                <div class="wf-guide-kv"><div class="wf-guide-k">Revisor</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','revisor',this.value)">${_wfAlvoOptsPapel(papeis.revisor)}</select></div>
+                <div class="wf-guide-kv" style="margin-top:10px"><div class="wf-guide-k">Aprovador</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','aprovador',this.value)">${_wfAlvoOptsPapel(papeis.aprovador)}</select></div>
               </div>
               <div class="wf-guide-card">
                 <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Mensagens automáticas</div></div>
@@ -2257,6 +2266,31 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     _wfRenderAcoesCond(id);
     _wfRenderCamposCond(id);
     _wfAplicarModoPainel();
+  }
+
+  // — Painel de configuração do elemento selecionado —
+  function _wfRenderConfigPanel(el) {
+    const painel = document.getElementById('wf-designer-config');
+    if (!painel) return;
+    const tipoConfig = _wfTipoConfigElemento(el?.type || '');
+    if (!tipoConfig) {
+      painel.style.display = 'none';
+      return;
+    }
+
+    painel.style.display = '';
+    const id = el.id;
+    const nome = _esc(el.businessObject?.name || '');
+    const renderers = {
+      aresta: () => _wfRenderPainelAresta(el, painel, id),
+      gateway_xor: () => _wfRenderPainelGatewayXor(el, painel, id, nome),
+      gateway_and: () => _wfRenderPainelGatewayAnd(painel, id, nome),
+      inicio: () => _wfRenderPainelInicio(painel, id, nome),
+      fim: () => _wfRenderPainelFim(painel, id, nome),
+      intermediario: () => _wfRenderPainelIntermediario(painel, id, nome),
+      tarefa: () => _wfRenderPainelTarefa(painel, id, nome),
+    };
+    renderers[tipoConfig]?.();
   }
 
   function wfDesignerSetMode(modo) {
@@ -2342,7 +2376,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   function _wfResumoResponsavelNo(noId) {
-    const cfg = _wfConfigNos[noId] || {};
+    const cfg = _wfConfigNos[noId] ?? {};
     const papel = cfg.papeis?.executor || cfg.responsavel_papel || '';
     return _wfPapelLegivel(papel);
   }
@@ -2361,15 +2395,18 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function _wfRotasResumoHtml(noId) {
     const arestas = _wfArestasSaida(noId);
-    const cfgNo = _wfConfigNos[noId] || {};
+    const cfgNo = _wfConfigNos[noId] ?? {};
     const acoesEspeciais = (cfgNo.acoes || []).filter(a => a === 'rejeitar' || a === 'devolver');
+    const labelsAcao = globalScope.WF_ACAO_LABELS;
     const avisoEspecial = acoesEspeciais.length
-      ? `<div class="wf-guide-note">Os botões <strong>${_esc(acoesEspeciais.map(a => (globalScope.WF_ACAO_LABELS || {})[a] || a).join(' e '))}</strong> retornam para a etapa anterior e <strong>não usam</strong> as saídas do gateway.</div>`
+      ? `<div class="wf-guide-note">Os botões <strong>${_esc(acoesEspeciais.map(a => labelsAcao?.[a] || a).join(' e '))}</strong> retornam para a etapa anterior e <strong>não usam</strong> as saídas do gateway.</div>`
       : '';
     if (!arestas.length) return `${avisoEspecial}<div class="wf-guide-note">Esta etapa ainda não tem saída definida no fluxo.</div>`;
     return `${avisoEspecial}<div class="wf-route-list">${arestas.map((a) => {
-      const cfgAresta = _wfConfigNos[a.id] || {};
+      const cfgAresta = _wfConfigNos[a.id] ?? {};
       const destino = _wfNoPorId(a.destino);
+      const nomeDestino = destino?.nome || a.destino || 'Destino';
+      const tituloAcao = labelsAcao?.[a.acao] || a.acao;
       let regra = 'sem condição específica';
       if (cfgAresta.padrao) {
         regra = 'quando nenhuma outra condição for atendida';
@@ -2377,7 +2414,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         const separador = (cfgAresta.operador_logico || 'AND') === 'OR' ? ' ou ' : ' e ';
         regra = cfgAresta.condicoes.map(_wfCondicaoLegivel).join(separador);
       }
-      return `<div class="wf-route-card"><div class="wf-route-title">${_esc((globalScope.WF_ACAO_LABELS || {})[a.acao] || a.acao)} -> ${_esc(destino?.nome || a.destino || 'Destino')}</div><div class="wf-route-sub">Vai para <strong>${_esc(destino?.nome || a.destino || 'sem destino')}</strong> e depois fica com <strong>${_esc(_wfResumoResponsavelNo(destino?.id || ''))}</strong>. Regra: ${_esc(regra)}.</div></div>`;
+      return `<div class="wf-route-card"><div class="wf-route-title">${_esc(tituloAcao)} -> ${_esc(nomeDestino)}</div><div class="wf-route-sub">Vai para <strong>${_esc(nomeDestino)}</strong> e depois fica com <strong>${_esc(_wfResumoResponsavelNo(destino?.id || ''))}</strong>. Regra: ${_esc(regra)}.</div></div>`;
     }).join('')}</div>`;
   }
 
@@ -2417,7 +2454,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   function _wfRenderAssistenteAresta(arestaId, painel) {
-    const cfg = _wfConfigNos[arestaId] || {};
+    const cfg = _wfConfigNos[arestaId] ?? {};
     let frase = 'Sempre seguir por este caminho.';
     if (cfg.padrao) {
       frase = 'Se nenhuma condição for atendida, seguir por este caminho.';
@@ -2438,7 +2475,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       const el = reg?.get(noId);
       if (!el) return;
       const saidas = (el.outgoing || []).map((s) => {
-        const cfg = _wfConfigNos[s.id] || {};
+        const cfg = _wfConfigNos[s.id] ?? {};
         const alvo = s.target?.businessObject?.name || s.target?.id || '?';
         let regra = 'sempre';
         if (cfg.padrao) {
@@ -2498,11 +2535,14 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   function wfDesignerCampoCfg(noId, campo, valor) {
     if (!_wfConfigNos[noId]) _wfConfigNos[noId] = _configPadrao();
     _wfConfigNos[noId][campo] = valor;
+    if (campo === '_nome') {
+      wfDesignerAtualizarRotulo(noId, valor);
+    }
     _wfMarcarDesignerSujo();
   }
   function wfDesignerPapel(noId, papel, valor) {
     if (!_wfConfigNos[noId]) _wfConfigNos[noId] = _configPadrao();
-    _wfConfigNos[noId].papeis = _wfConfigNos[noId].papeis || {};
+    _wfConfigNos[noId].papeis ??= {};
     _wfConfigNos[noId].papeis[papel] = valor || null;
     _wfMarcarDesignerSujo();
   }
@@ -2713,7 +2753,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       return `<select class="fi" style="font-size:11px"
           onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${idx},'campo',this.value)">${semSelecao}${legado}${opts}</select>`;
     };
-    const labelsAcao = globalScope.WF_ACAO_LABELS || {};
+    const labelsAcao = globalScope.WF_ACAO_LABELS;
     const renderAcaoLabel = (acao) => labelsAcao[acao] || acao || 'ação';
     const renderOperadores = (operadorAtual) => _WF_OPS_LABELS.map(op =>
       `<option value="${_esc(op)}"${(operadorAtual || '=') === op ? ' selected' : ''}>${_esc(op)}</option>`
@@ -2722,24 +2762,27 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       `<option value="${_esc(a)}"${acaoAtual === a ? ' selected' : ''}>${_esc(renderAcaoLabel(a))}</option>`
     ).join('');
 
-    el.innerHTML = `<div class="wf-logic-list">${lista.map((r, i) => `
+    el.innerHTML = `<div class="wf-logic-list">${lista.map((r, i) => {
+      const htmlValor = _wfEditorValorSugestoesHtml({
+        valorAtual: r.valor || '',
+        opcoes: _wfOpcoesValorMeta(_wfCampoMetaNo(noId, r.campo || '')),
+        placeholder: 'escolha uma opção ou digite um valor',
+        selectOnChange: `wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'valor',this.value)`,
+        inputOnInput: `wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'valor',this.value)`,
+      });
+      return `
       <div class="wf-logic-card">
         <div class="wf-logic-sentence">Mostrar o botão <strong>${_esc(renderAcaoLabel(r.acao))}</strong> quando:</div>
         <div class="wf-logic-actions" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;align-items:center">
           ${optsCampos(r.campo || '', i)}
           <select class="fi" style="font-size:11px" onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'operador',this.value)">${renderOperadores(r.operador)}</select>
-          ${_wfEditorValorSugestoesHtml({
-            valorAtual: r.valor || '',
-            opcoes: _wfOpcoesValorMeta(_wfCampoMetaNo(noId, r.campo || '')),
-            placeholder: 'escolha uma opção ou digite um valor',
-            selectOnChange: `wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'valor',this.value)`,
-            inputOnInput: `wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'valor',this.value)`,
-          })}
+          ${htmlValor}
           <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 4px" onclick="wfDesignerAcaoCondRemove('${_esc(noId)}',${i})">✕</button>
         </div>
         <div class="wf-logic-actions"><select class="fi" style="font-size:11px;max-width:220px" onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'acao',this.value)">${renderAcoes(r.acao)}</select></div>
       </div>
-    `).join('')}</div>`;
+    `;
+    }).join('')}</div>`;
   }
 
   function wfDesignerAddAcaoCond(noId) {
@@ -2815,18 +2858,23 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       if (acao === 'obrigatorio') return 'Tornar obrigatório';
       return 'Tornar opcional';
     };
-    el.innerHTML = `<div class="wf-logic-list">${lista.map((cc, i) => `
+    el.innerHTML = `<div class="wf-logic-list">${lista.map((cc, i) => {
+      const opcoesAcao = ['mostrar', 'ocultar', 'obrigatorio', 'opcional']
+        .map(a => `<option value="${a}"${cc.acao === a ? ' selected' : ''}>${a}</option>`)
+        .join('');
+      return `
       <div class="wf-logic-card">
         <div class="wf-logic-sentence">${renderCampoCondAcao(cc.acao)} o campo:</div>
         <div class="wf-logic-actions">
           ${optsAfetado(cc.campo_id || '').replaceAll('__IDX__', String(i))}
-          <select class="fi" style="width:auto;font-size:11px" onchange="wfDesignerCampoCondUpdate('${_esc(noId)}',${i},'acao',this.value)">${['mostrar','ocultar','obrigatorio','opcional'].map(a => `<option value="${a}"${cc.acao === a ? ' selected' : ''}>${a}</option>`).join('')}</select>
+          <select class="fi" style="width:auto;font-size:11px" onchange="wfDesignerCampoCondUpdate('${_esc(noId)}',${i},'acao',this.value)">${opcoesAcao}</select>
           <select class="fi" style="width:auto;font-size:11px" onchange="wfDesignerCampoCondUpdate('${_esc(noId)}',${i},'operador_logico',this.value)"><option value="AND"${(cc.operador_logico || 'AND') === 'AND' ? ' selected' : ''}>se todas as regras ocorrerem</option><option value="OR"${cc.operador_logico === 'OR' ? ' selected' : ''}>se qualquer regra ocorrer</option></select>
           <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444" onclick="wfDesignerCampoCondRemove('${_esc(noId)}',${i})">✕</button>
         </div>
         <div id="wf-campo-cond-conds-${_esc(noId)}-${i}" style="margin-bottom:4px"></div>
         <button type="button" class="btn btn-sm" style="font-size:10px" onclick="wfDesignerCampoCondAddCond('${_esc(noId)}',${i})">+ Adicionar condição</button>
-      </div>`).join('')}</div>`;
+      </div>`;
+    }).join('')}</div>`;
     lista.forEach((_, i) => _wfRenderCampoCondConds(noId, i));
   }
 
@@ -2916,7 +2964,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   function _avaliarCamposCondicionais(camposCondicionais, dadosForm) {
     const res = {};
     (camposCondicionais || []).forEach(cc => {
-      const passa = _avaliarCondicoes(cc.condicoes, cc.operador_logico, dadosForm || {});
+      const passa = _avaliarCondicoes(cc.condicoes, cc.operador_logico, dadosForm);
       if (!res[cc.campo_id]) res[cc.campo_id] = { visivel: true, obrigatorio: false };
       switch (cc.acao) {
         case 'mostrar':      res[cc.campo_id].visivel     =  passa; break;
@@ -2975,7 +3023,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const canvas = (_wfModeloAtual?.id && modelo?.id === _wfModeloAtual?.id && _wfModeler)
       ? _wfSyncCanvas()
       : (modelo?.canvas || { nos: [], arestas: [] });
-    const cfgNos = (modelo?.id === _wfModeloAtual?.id) ? _wfConfigNos : (modelo?.config_nos || {});
+    const cfgNos = (modelo?.id === _wfModeloAtual?.id) ? _wfConfigNos : (modelo?.config_nos ?? {});
     const nos = canvas.nos || [];
     const arestas = canvas.arestas || [];
     const inicios = nos.filter(n => n.tipo === 'inicio');
@@ -2988,7 +3036,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     nos.filter(n => n.tipo === 'aprovacao').forEach((g) => {
       const saidas = arestas.filter(a => a.origem === g.id);
       if (saidas.length < 2) erros.push(`Gateway "${g.nome || g.id}" precisa de pelo menos duas saídas.`);
-      const padrao = saidas.filter(a => (cfgNos[a.id] || {}).padrao);
+      const padrao = saidas.filter(a => cfgNos[a.id]?.padrao);
       if (!padrao.length && saidas.length) {
         avisos.push(`Gateway "${g.nome || g.id}" sem saída padrão.`);
         autoFixes.push({ tipo: 'gateway_default', gatewayId: g.id, arestaId: saidas[0].id });
@@ -3024,8 +3072,44 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   // Mantém stubs das funções antigas expostas para não quebrar chamadas inline
-  function wfDesignerCampoNo() {}
-  function wfDesignerRemoverArestaSel() {}
+  function wfDesignerRemoverArestaSel() {
+    if (!(_wfModeler && _st.designerArestaSel)) return;
+    try {
+      const elementRegistry = _wfModeler.get('elementRegistry');
+      const modeling = _wfModeler.get('modeling');
+      const element = elementRegistry?.get(_st.designerArestaSel);
+      if (!(modeling && element)) return;
+      modeling.removeElements([element]);
+      delete _wfConfigNos[_st.designerArestaSel];
+      _st.designerArestaSel = null;
+      _wfMarcarDesignerSujo();
+      _wfRenderConfigPanel(null);
+    } catch (error_) {
+      _wfReportarErroNaoCritico('remocao da aresta selecionada', error_);
+    }
+  }
+
+  function _wfAtualizarResumoEquipeAtribuicao(grupos, grupoId, membrosDiv) {
+    if (!membrosDiv) return;
+    const grupo = grupos.find(x => x.id === grupoId);
+    if (!grupo) {
+      membrosDiv.classList.remove('vis');
+      return;
+    }
+    const nomes = (grupo.membros_email || []).map((email) => {
+      const u = (globalScope.USUARIOS || []).find(x => x.email === email);
+      return _esc(u?.nome || email);
+    });
+    membrosDiv.innerHTML = nomes.length
+      ? `<strong>${nomes.length} membro${nomes.length > 1 ? 's' : ''}:</strong> ${nomes.join(', ')}`
+      : 'Nenhum membro cadastrado nesta equipe.';
+    membrosDiv.classList.add('vis');
+  }
+
+  function _wfOpcoesGruposAtribuicao(grupos) {
+    if (!grupos.length) return '<option value="">— nenhuma equipe cadastrada —</option>';
+    return `<option value="">— selecione uma equipe —</option>${grupos.map(g => `<option value="${_esc(g.id)}">${_esc(g.nome)}</option>`).join('')}`;
+  }
 
   // — Coleta perfis que precisam de atribuição explícita ao iniciar —
   // Retorna array de strings únicas, ex: ['ep', 'gestor']
@@ -3045,25 +3129,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const grupos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     if (sel) {
-      if (grupos.length) {
-        sel.innerHTML = `<option value="">— selecione uma equipe —</option>` +
-          grupos.map(g => `<option value="${_esc(g.id)}">${_esc(g.nome)}</option>`).join('');
-      } else {
-        sel.innerHTML = '<option value="">— nenhuma equipe cadastrada —</option>';
-      }
-      sel.onchange = () => {
-        const g = grupos.find(x => x.id === sel.value);
-        if (!membrosDiv) return;
-        if (!g) { membrosDiv.classList.remove('vis'); return; }
-        const nomes = (g.membros_email || []).map(email => {
-          const u = (globalScope.USUARIOS || []).find(x => x.email === email);
-          return _esc(u?.nome || email);
-        });
-        membrosDiv.innerHTML = nomes.length
-          ? `<strong>${nomes.length} membro${nomes.length > 1 ? 's' : ''}:</strong> ${nomes.join(', ')}`
-          : 'Nenhum membro cadastrado nesta equipe.';
-        membrosDiv.classList.add('vis');
-      };
+      sel.innerHTML = _wfOpcoesGruposAtribuicao(grupos);
+      sel.onchange = () => _wfAtualizarResumoEquipeAtribuicao(grupos, sel.value, membrosDiv);
     }
 
     el.style.display = 'flex';
@@ -3078,9 +3145,14 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const grupos = el._atribGrupos || [];
     const grupoId = sel?.value || null;
     const grupo = grupos.find(g => g.id === grupoId) || null;
+    const payload = {};
+    if (grupoId) {
+      payload.grupo_id = grupoId;
+      payload.grupo_nome = grupo?.nome || grupoId;
+    }
     el.style.display = 'none';
     if (typeof el._atribCallback === 'function') {
-      el._atribCallback(grupoId ? { grupo_id: grupoId, grupo_nome: grupo?.nome || grupoId } : {});
+      el._atribCallback(payload);
     }
   }
 
@@ -3089,6 +3161,34 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (!el) return;
     el.style.display = 'none';
     if (typeof el._atribCallback === 'function') el._atribCallback(null);
+  }
+
+  async function _wfCriarInstanciaDeModelo(modelo, primeira, uid, vinculo) {
+    const titulo = `${modelo.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
+    const anoAtual = new Date().getFullYear();
+    const instanciaId = await _addDoc('wf_instancia_processos', {
+      processo_id: modelo.processo_origem_id || null,
+      modelo_id: modelo.id,
+      processo_nome: modelo.nome,
+      titulo,
+      numero: `${anoAtual}-${Date.now().toString().slice(-6)}`,
+      status: 'em_andamento',
+      no_atual_id: primeira.id,
+      etapa_atual_id: primeira.id,
+      solicitante_uid: uid,
+      ultimo_executor_uid: null,
+      grupo_id: vinculo.grupo_id || null,
+      grupo_nome: vinculo.grupo_nome || null,
+      canvas: modelo.canvas,
+      snapshot_etapas: (modelo.canvas?.nos || [])
+        .filter(n => n.tipo === 'tarefa' || n.tipo === 'aprovacao')
+        .map(n => ({ id: n.id, nome: n.nome, tipo: n.tipo })),
+      dados_consolidados: {},
+      concluido_em: null,
+    });
+    await _registrarHistorico(instanciaId, 'instancia_criada', uid, null, null,
+      `Workflow "${modelo.nome}" iniciado a partir de template.`, { modelo_id: modelo.id, grupo_id: vinculo.grupo_id || null });
+    return { instanciaId, titulo };
   }
 
   // — Iniciar uma instância a partir de um modelo do designer —
@@ -3104,32 +3204,10 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const primeira = _proximoNoExecutavel(modelo.canvas, inicio.id, null);
     if (!primeira) { alert('Modelo sem etapa após o início.'); return; }
 
-    const _prosseguir = async (vinculo) => {
-      if (vinculo === null) return; // cancelado
-      const titulo = `${modelo.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
+    _wfAbrirModalAtribuicao(modelo.nome, async (vinculo) => {
+      if (vinculo === null) return;
       try {
-        const anoAtual = new Date().getFullYear();
-        const instanciaId = await _addDoc('wf_instancia_processos', {
-          processo_id: modelo.processo_origem_id || null,
-          modelo_id: modelo.id,
-          processo_nome: modelo.nome,
-          titulo,
-          numero: `${anoAtual}-${Date.now().toString().slice(-6)}`,
-          status: 'em_andamento',
-          no_atual_id: primeira.id,
-          etapa_atual_id: primeira.id,
-          solicitante_uid: uid,
-          ultimo_executor_uid: null,
-          grupo_id: vinculo.grupo_id || null,
-          grupo_nome: vinculo.grupo_nome || null,
-          canvas: modelo.canvas,
-          snapshot_etapas: nos.filter(n => n.tipo === 'tarefa' || n.tipo === 'aprovacao')
-            .map(n => ({ id: n.id, nome: n.nome, tipo: n.tipo })),
-          dados_consolidados: {},
-          concluido_em: null,
-        });
-        await _registrarHistorico(instanciaId, 'instancia_criada', uid, null, null,
-          `Workflow "${modelo.nome}" iniciado a partir de template.`, { modelo_id: modelo.id, grupo_id: vinculo.grupo_id || null });
+        const { instanciaId, titulo } = await _wfCriarInstanciaDeModelo(modelo, primeira, uid, vinculo);
         const instObj = { id: instanciaId, titulo, processo_id: modelo.processo_origem_id, solicitante_uid: uid, grupo_id: vinculo.grupo_id || null };
         await _criarTarefasDoNo(instObj, primeira);
         alert(`Workflow iniciado! Etapa "${primeira.nome}" criada.`);
@@ -3137,9 +3215,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       } catch (e) {
         alert('Erro ao iniciar: ' + e.message);
       }
-    };
-
-    _wfAbrirModalAtribuicao(modelo.nome, _prosseguir);
+    });
   }
 
   // ── Motor de Regras ───────────────────────────────────────────────────────
@@ -3279,17 +3355,17 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         const tb = b._criado_em?.seconds ?? (b._criado_em ? b._criado_em.getTime() / 1000 : 0);
         return ta - tb;
       });
-      const ACAO_LABELS = globalScope.WF_ACAO_LABELS || {};
-      const ACAO_COR = globalScope.WF_ACAO_COR || {};
-      const PAPEL_LABELS = globalScope.WF_PAPEL_LABELS || {};
+      const ACAO_LABELS = globalScope.WF_ACAO_LABELS;
+      const ACAO_COR = globalScope.WF_ACAO_COR;
+      const PAPEL_LABELS = globalScope.WF_PAPEL_LABELS;
       tl.innerHTML = eventos.length ? eventos.map(h => {
         const ts = h._criado_em?.toDate
           ? h._criado_em.toDate().toLocaleString('pt-BR')
           : (h._criado_em?.seconds ? new Date(h._criado_em.seconds * 1000).toLocaleString('pt-BR') : '—');
-        const d = h.dados || {};
+        const d = h.dados ?? {};
         const usuario = _wfNomeUsuario(h.usuario_uid, null);
-        const acaoBadge = d.acao ? _badge(ACAO_LABELS[d.acao] || d.acao, ACAO_COR[d.acao] || '#6b7280') : '';
-        const papelTxt = d.papel ? `<span style="font-size:11px;color:var(--ink3)"> · ${_esc(PAPEL_LABELS[d.papel] || d.papel)}</span>` : '';
+        const acaoBadge = d.acao ? _badge(ACAO_LABELS?.[d.acao] || d.acao, ACAO_COR?.[d.acao] || '#6b7280') : '';
+        const papelTxt = d.papel ? `<span style="font-size:11px;color:var(--ink3)"> · ${_esc(PAPEL_LABELS?.[d.papel] || d.papel)}</span>` : '';
         const parecer = d.parecer ? `<div style="font-size:12px;color:var(--ink2);margin-top:4px;font-style:italic">"${_esc(d.parecer)}"</div>` : '';
         return `<div style="position:relative;margin-bottom:16px;padding-left:16px">
           <div style="position:absolute;left:-5px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid #fff;box-shadow:0 0 0 2px var(--blue)"></div>
@@ -3746,7 +3822,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         ...eventos.map(h => {
           const ts = h._criado_em?.seconds
             ? new Date(h._criado_em.seconds * 1000).toLocaleString('pt-BR') : '';
-          const d = h.dados || {};
+          const d = h.dados ?? {};
           return [ts, h.tipo_evento, _wfNomeUsuario(h.usuario_uid, ''), h.etapa_id || '',
             d.acao || '', d.parecer || '', h.descricao || ''].map(esc).join(',');
         }),
@@ -3785,7 +3861,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       const ts = s => s?.seconds ? new Date(s.seconds * 1000).toLocaleString('pt-BR') : '—';
 
       const linhasEventos = eventos.map(h => {
-        const d = h.dados || {};
+        const d = h.dados ?? {};
         return `<tr>
           <td>${esc(ts(h._criado_em))}</td>
           <td>${esc(h.tipo_evento)}</td>
@@ -4146,7 +4222,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       // USUARIOS é a fonte correta — carregado de config/usuarios via fbLoad()
       const usuarios = (globalScope.USUARIOS || []).filter(u => u.email);
       const grupos = await _getAll('wf_grupos');
-      const LABELS = globalScope.PERFIL_LABELS || {};
+      const LABELS = globalScope.PERFIL_LABELS;
 
       if (!usuarios.length) {
         el.innerHTML = '<div style="color:var(--ink3);font-size:14px">Nenhum usuário encontrado. Verifique se o sistema está carregado.</div>';
@@ -4340,8 +4416,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (tituloEl) tituloEl.textContent = modelo.nome;
     const statusEl = document.getElementById('wf-config-status-badge');
     if (statusEl) {
-      const cor = (globalScope.WF_STATUS_PROCESSO_MODELO_COR || {})[modelo.status] || '#6b7280';
-      const label = (globalScope.WF_STATUS_PROCESSO_MODELO_LABELS || {})[modelo.status] || (modelo.status || '');
+      const cor = globalScope.WF_STATUS_PROCESSO_MODELO_COR?.[modelo.status] || '#6b7280';
+      const label = globalScope.WF_STATUS_PROCESSO_MODELO_LABELS?.[modelo.status] || (modelo.status || '');
       statusEl.textContent = label;
       statusEl.style.background = cor + '22';
       statusEl.style.color = cor;
@@ -4474,36 +4550,55 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function _wfCamposModeloParaSimulacao(modelo) {
     const out = {};
-    const cfgNos = modelo?.id === _wfModeloAtual?.id ? _wfConfigNos : (modelo?.config_nos || {});
-    Object.keys(cfgNos).forEach((id) => {
-      const cfg = cfgNos[id] || {};
-      [
-        ...(cfg.condicoes || []),
-        ...((cfg.acoes_condicionais || []).map(c => ({ campo: c.campo }))),
-      ].forEach((c) => {
-        if (!c?.campo || out[c.campo]) return;
-        out[c.campo] = { id: c.campo, label: c.campo, tipo: 'texto', opcoes: [] };
-      });
-      (cfg.campos_condicionais || []).forEach((cc) => {
-        (cc.condicoes || []).forEach((c) => {
-          if (!c?.campo || out[c.campo]) return;
-          out[c.campo] = { id: c.campo, label: c.campo, tipo: 'texto', opcoes: [] };
-        });
-      });
-      const formId = cfg.formulario_id;
-      const form = (_st.formularioModelos || []).find(f => f.id === formId);
-      (form?.campos || []).forEach((campo) => {
+    const cfgNos = modelo?.id === _wfModeloAtual?.id ? _wfConfigNos : (modelo?.config_nos ?? {});
+    for (const id of Object.keys(cfgNos)) {
+      const cfg = cfgNos[id] ?? {};
+      const camposReferenciados = [
+        ...(cfg.condicoes ?? []),
+        ...((cfg.acoes_condicionais ?? []).map(c => ({ campo: c.campo }))),
+      ];
+      for (const condicao of camposReferenciados) {
+        if (condicao?.campo == null || out[condicao.campo]) continue;
+        out[condicao.campo] = { id: condicao.campo, label: condicao.campo, tipo: 'texto', opcoes: [] };
+      }
+      for (const campoCondicional of (cfg.campos_condicionais ?? [])) {
+        for (const condicao of (campoCondicional.condicoes ?? [])) {
+          if (condicao?.campo == null || out[condicao.campo]) continue;
+          out[condicao.campo] = { id: condicao.campo, label: condicao.campo, tipo: 'texto', opcoes: [] };
+        }
+      }
+      const form = (_st.formularioModelos || []).find(f => f.id === cfg.formulario_id);
+      for (const campo of (form?.campos || [])) {
         const fid = campo.id || campo.label;
-        if (!fid) return;
+        if (!fid) continue;
         out[fid] = {
           id: fid,
           label: campo.label || fid,
           tipo: campo.tipo || 'texto',
           opcoes: campo.opcoes || [],
         };
-      });
-    });
+      }
+    }
     return Object.values(out);
+  }
+
+  function _wfCampoHtmlSimulacao(campo) {
+    const options = campo.tipo === 'select' && campo.opcoes?.length
+      ? `<select class="fi" data-sim-campo="${_esc(campo.id)}" style="margin-top:4px;width:100%">
+              <option value="">(vazio)</option>
+              ${campo.opcoes.map(o => `<option value="${_esc(o)}">${_esc(o)}</option>`).join('')}
+            </select>`
+      : `<input class="fi" data-sim-campo="${_esc(campo.id)}" style="margin-top:4px;width:100%" placeholder="Valor de ${_esc(campo.label)}">`;
+    return `<div style="margin-bottom:12px"><label class="lbl" style="font-size:12px">${_esc(campo.label)}</label>${options}</div>`;
+  }
+
+  function _wfAcaoHtmlSimulacao(no) {
+    const cfg = _wfConfigNos[no.id] ?? {};
+    const acoes = cfg.acoes?.length ? cfg.acoes : ['avancar'];
+    const labelsAcao = globalScope.WF_ACAO_LABELS;
+    const opcoesAcao = acoes.map(a => `<option value="${_esc(a)}">${_esc(labelsAcao?.[a] || a)}</option>`).join('');
+    return `<div style="margin-bottom:12px"><label class="lbl" style="font-size:12px">Ação escolhida na etapa ${_esc(no.nome || no.id)}</label>
+      <select class="fi" data-sim-acao="${_esc(no.id)}" style="margin-top:4px;width:100%">${opcoesAcao}</select></div>`;
   }
 
   function wfDesignerSimular() {
@@ -4512,22 +4607,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const campos = _wfCamposModeloParaSimulacao(_wfModeloAtual);
     const nosExecutaveis = (canvas.nos || []).filter(n => n.tipo === 'tarefa' || n.tipo === 'aprovacao');
     const camposHtml = [
-      ...(campos.length ? campos.map(c => {
-        const options = c.tipo === 'select' && c.opcoes?.length
-          ? `<select class="fi" data-sim-campo="${_esc(c.id)}" style="margin-top:4px;width:100%">
-              <option value="">(vazio)</option>
-              ${c.opcoes.map(o => `<option value="${_esc(o)}">${_esc(o)}</option>`).join('')}
-            </select>`
-          : `<input class="fi" data-sim-campo="${_esc(c.id)}" style="margin-top:4px;width:100%" placeholder="Valor de ${_esc(c.label)}">`;
-        return `<div style="margin-bottom:12px"><label class="lbl" style="font-size:12px">${_esc(c.label)}</label>${options}</div>`;
-      }) : ['<div style="color:var(--ink3);font-size:13px">Nenhum campo condicional identificado no modelo.</div>']),
-      ...nosExecutaveis.map(n => {
-        const cfg = _wfConfigNos[n.id] || {};
-        const acoes = cfg.acoes?.length ? cfg.acoes : ['avancar'];
-        const opcoesAcao = acoes.map(a => `<option value="${_esc(a)}">${_esc((globalScope.WF_ACAO_LABELS||{})[a] || a)}</option>`).join('');
-        return `<div style="margin-bottom:12px"><label class="lbl" style="font-size:12px">Ação escolhida na etapa ${_esc(n.nome || n.id)}</label>
-          <select class="fi" data-sim-acao="${_esc(n.id)}" style="margin-top:4px;width:100%">${opcoesAcao}</select></div>`;
-      }),
+      ...(campos.length ? campos.map(_wfCampoHtmlSimulacao) : ['<div style="color:var(--ink3);font-size:13px">Nenhum campo condicional identificado no modelo.</div>']),
+      ...nosExecutaveis.map(_wfAcaoHtmlSimulacao),
     ].join('');
 
     const camposEl = document.getElementById('wf-sim-campos');
