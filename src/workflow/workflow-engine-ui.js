@@ -8,12 +8,11 @@
     tarefaAtual: null,
     formularioAtual: null,
     formularioCampos: [],
-    configProcessoId: null,
-    configProcessoEtapas: [],
     formularioModelos: [],
     formularioOrigem: null,
     // Designer visual
     designerModelo: null,
+    designerModo: 'simples',
     designerNoSel: null,
     designerArestaSel: null,
     designerDrag: null,
@@ -42,41 +41,158 @@
     return doc(_db(), colNome, id);
   }
 
+  function _wfDevLocalAtivo() {
+    try {
+      const host = (globalScope.location?.hostname || '').toLowerCase();
+      const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+      const qp = new URLSearchParams(globalScope.location?.search || '');
+      return isLocal && qp.get('dev_nologin') === '1';
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function _wfErroPermissao(error_) {
+    const msg = String(error_?.message || error_ || '');
+    return /Missing or insufficient permissions/i.test(msg) || error_?.code === 'permission-denied';
+  }
+
+  function _wfCacheKey(colNome) {
+    return `siga_wf_local_${colNome}`;
+  }
+
+  function _wfPodeUsarCacheLocal(colNome) {
+    return _wfDevLocalAtivo() && /^wf_/.test(String(colNome || ''));
+  }
+
+  function _wfLerColecaoLocal(colNome) {
+    if (!_wfPodeUsarCacheLocal(colNome)) return [];
+    try {
+      const raw = globalScope.localStorage?.getItem(_wfCacheKey(colNome));
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function _wfSalvarColecaoLocal(colNome, docs) {
+    if (!_wfPodeUsarCacheLocal(colNome)) return;
+    try {
+      globalScope.localStorage?.setItem(_wfCacheKey(colNome), JSON.stringify(Array.isArray(docs) ? docs : []));
+    } catch (_e) {
+      // storage indisponivel
+    }
+  }
+
+  function _wfAplicarConstraintsLocal(docs, queryConstraints) {
+    if (!Array.isArray(queryConstraints) || !queryConstraints.length) return docs;
+    return docs.filter((doc) => queryConstraints.every((constraint) => {
+      const field = constraint?.field;
+      const op = constraint?.op;
+      if (!field || op !== '==') return true;
+      return doc?.[field] === constraint?.value;
+    }));
+  }
+
+  function _wfNovoIdLocal(colNome) {
+    const prefixo = String(colNome || 'wf').replace(/[^a-z0-9_]/gi, '').toLowerCase();
+    return `${prefixo}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  }
+
   async function _getAll(colNome, ...queryConstraints) {
     const { getDocs, query } = globalScope.fb();
     const q = queryConstraints.length
       ? query(_col(colNome), ...queryConstraints)
       : _col(colNome);
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error_) {
+      if (_wfPodeUsarCacheLocal(colNome) && _wfErroPermissao(error_)) {
+        return _wfAplicarConstraintsLocal(_wfLerColecaoLocal(colNome), queryConstraints);
+      }
+      throw error_;
+    }
   }
 
   async function _getDoc(colNome, id) {
     const { getDoc } = globalScope.fb();
-    const snap = await getDoc(_docRef(colNome, id));
-    if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() };
+    try {
+      const snap = await getDoc(_docRef(colNome, id));
+      if (!snap.exists()) return null;
+      return { id: snap.id, ...snap.data() };
+    } catch (error_) {
+      if (_wfPodeUsarCacheLocal(colNome) && _wfErroPermissao(error_)) {
+        return _wfLerColecaoLocal(colNome).find((doc) => doc?.id === id) || null;
+      }
+      throw error_;
+    }
   }
 
   async function _addDoc(colNome, dados) {
     const { addDoc } = globalScope.fb();
-    const ref = await addDoc(_col(colNome), { ...dados, _criado_em: new Date() });
-    return ref.id;
+    try {
+      const ref = await addDoc(_col(colNome), { ...dados, _criado_em: new Date() });
+      return ref.id;
+    } catch (error_) {
+      if (_wfPodeUsarCacheLocal(colNome) && _wfErroPermissao(error_)) {
+        const docs = _wfLerColecaoLocal(colNome);
+        const id = _wfNovoIdLocal(colNome);
+        docs.push({ id, ...dados, _criado_em: new Date().toISOString() });
+        _wfSalvarColecaoLocal(colNome, docs);
+        return id;
+      }
+      throw error_;
+    }
   }
 
   async function _updateDoc(colNome, id, dados) {
     const { updateDoc } = globalScope.fb();
-    await updateDoc(_docRef(colNome, id), { ...dados, _atualizado_em: new Date() });
+    try {
+      await updateDoc(_docRef(colNome, id), { ...dados, _atualizado_em: new Date() });
+    } catch (error_) {
+      if (_wfPodeUsarCacheLocal(colNome) && _wfErroPermissao(error_)) {
+        const docs = _wfLerColecaoLocal(colNome);
+        const idx = docs.findIndex((doc) => doc?.id === id);
+        if (idx >= 0) {
+          docs[idx] = { ...docs[idx], ...dados, _atualizado_em: new Date().toISOString() };
+          _wfSalvarColecaoLocal(colNome, docs);
+          return;
+        }
+      }
+      throw error_;
+    }
   }
 
   async function _setDoc(colNome, id, dados) {
     const { setDoc } = globalScope.fb();
-    await setDoc(_docRef(colNome, id), { ...dados, _atualizado_em: new Date() }, { merge: true });
+    try {
+      await setDoc(_docRef(colNome, id), { ...dados, _atualizado_em: new Date() }, { merge: true });
+    } catch (error_) {
+      if (_wfPodeUsarCacheLocal(colNome) && _wfErroPermissao(error_)) {
+        const docs = _wfLerColecaoLocal(colNome);
+        const idx = docs.findIndex((doc) => doc?.id === id);
+        if (idx >= 0) docs[idx] = { ...docs[idx], ...dados, _atualizado_em: new Date().toISOString() };
+        else docs.push({ id, ...dados, _atualizado_em: new Date().toISOString() });
+        _wfSalvarColecaoLocal(colNome, docs);
+        return;
+      }
+      throw error_;
+    }
   }
 
   async function _deleteDoc(colNome, id) {
     const { deleteDoc } = globalScope.fb();
-    await deleteDoc(_docRef(colNome, id));
+    try {
+      await deleteDoc(_docRef(colNome, id));
+    } catch (error_) {
+      if (_wfPodeUsarCacheLocal(colNome) && _wfErroPermissao(error_)) {
+        _wfSalvarColecaoLocal(colNome, _wfLerColecaoLocal(colNome).filter((doc) => doc?.id !== id));
+        return;
+      }
+      throw error_;
+    }
   }
 
   // ── Helpers de UI ─────────────────────────────────────────────────────────
@@ -635,7 +751,7 @@
         );
         return !!(passou || padrao);
       }
-      return !!_proximoNo(instancia.canvas, tarefa.etapa_modelo_id, acao, dados);
+      return !!_proximoNoExecutavel(instancia.canvas, tarefa.etapa_modelo_id, acao, dados);
     });
   }
 
@@ -952,7 +1068,7 @@
       }
     }
 
-    const prox = _proximoNo(canvas, noOrigemId, acao, instancia.dados_consolidados || {});
+    const prox = _proximoNoExecutavel(canvas, noOrigemId, acao, instancia.dados_consolidados || {});
     if (!prox || prox.tipo === 'fim') {
       await _updateDoc('wf_instancia_processos', instancia.id, {
         status: 'concluido', concluido_em: new Date(), no_atual_id: null, etapa_atual_id: null,
@@ -1245,7 +1361,6 @@
             <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
               <button type="button" class="btn btn-p btn-sm" onclick="wfIniciarDeProcesso('${_esc(p.id)}')">Iniciar direto</button>
               ${isEp ? `<button type="button" class="btn btn-sm" onclick="wfImportarMapeamento('${_esc(p.id)}')">Importar e configurar</button>` : ''}
-              ${isEp ? `<button type="button" class="btn btn-sm" onclick="wfConfigurarProcesso('${_esc(p.id)}')">Formulários/SLA</button>` : ''}
             </div>
           </div>
         `);
@@ -1337,6 +1452,42 @@
   let _wfModeler = null;
   const _wfConfigNos = {};  // { [bpmnId]: config }
   let _wfModeloAtual = null;
+  let _wfDesignerDirty = false;
+  let _wfAutosaveTimer = null;
+  let _wfAutosaveEmCurso = false;
+
+  function _wfLimparAutosavePendente() {
+    if (_wfAutosaveTimer) {
+      clearTimeout(_wfAutosaveTimer);
+      _wfAutosaveTimer = null;
+    }
+  }
+
+  function _wfTemAlteracoesPendentes() {
+    return !!_wfDesignerDirty;
+  }
+
+  function _wfAtualizarIndicadorSujo(ativo) {
+    _wfDesignerDirty = !!ativo;
+    const d = document.getElementById('wf-bpmn-dirty');
+    if (d) d.style.display = ativo ? 'inline' : 'none';
+  }
+
+  function _wfAgendarAutosave() {
+    if (!_wfModeler || !_wfModeloAtual || _wfAutosaveEmCurso) return;
+    _wfLimparAutosavePendente();
+    _wfAutosaveTimer = setTimeout(() => {
+      _wfAutosaveTimer = null;
+      if (!_wfTemAlteracoesPendentes()) return;
+      wfDesignerSalvar({ silent: true, source: 'autosave' }).catch(() => {});
+    }, 1200);
+  }
+
+  globalScope.addEventListener('beforeunload', (event) => {
+    if (!_wfTemAlteracoesPendentes()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 
   function _bpmnTipoToWf(t) {
     if (t === 'bpmn:StartEvent') return 'inicio';
@@ -1386,8 +1537,38 @@
       versao: 1,
       processo_origem_id: null,
       fluxo_origem: null,
+      bpmn_xml: _wfBpmnInicial(),
       canvas: { nos: [], arestas: [] },
     };
+  }
+
+  function _wfBpmnInicial() {
+    return globalScope.BPMN_DEFAULT || `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://ep.cage">
+  <process id="proc1" isExecutable="true">
+    <startEvent id="start" name="Início"/>
+    <endEvent id="end" name="Fim"/>
+    <sequenceFlow id="f1" sourceRef="start" targetRef="end"/>
+  </process>
+  <bpmndi:BPMNDiagram id="d1"><bpmndi:BPMNPlane bpmnElement="proc1">
+    <bpmndi:BPMNShape bpmnElement="start"><omgdc:Bounds x="160" y="200" width="36" height="36"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="end"><omgdc:Bounds x="500" y="200" width="36" height="36"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="f1"><omgdi:waypoint x="196" y="218"/><omgdi:waypoint x="500" y="218"/></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</definitions>`;
+  }
+
+  function _wfPrepararCamposCabecalhoDesigner(modelo) {
+    const nomeEl = document.getElementById('wf-designer-nome');
+    if (nomeEl) {
+      nomeEl.value = modelo?.nome || '';
+      nomeEl.oninput = () => _wfMarcarDesignerSujo();
+    }
+    const descEl = document.getElementById('wf-designer-desc');
+    if (descEl) {
+      descEl.value = modelo?.descricao || '';
+      descEl.oninput = () => _wfMarcarDesignerSujo();
+    }
   }
 
   function _wfConfigNosDoBpmn(bpmnXml) {
@@ -1517,6 +1698,89 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     };
   }
 
+  const _WF_TEMPLATE_CATALOG = [
+    { id: 'vazio', nome: 'Em branco', descricao: 'Fluxo vazio para desenhar do zero.' },
+    { id: 'aprovacao_binaria', nome: 'Aprovação binária', descricao: 'Sim/Não com caminho de ajuste.' },
+    { id: 'triagem_prioridade', nome: 'Triagem por prioridade', descricao: 'Classifica urgente/normal e direciona.' },
+    { id: 'aprovacao_com_retrabalho', nome: 'Aprovação com retrabalho', descricao: 'Inclui devolução para correção.' },
+  ];
+
+  function _wfTemplateCardHtml() {
+    return _WF_TEMPLATE_CATALOG
+      .map(t => `<option value="${_esc(t.id)}">${_esc(t.nome)} — ${_esc(t.descricao)}</option>`)
+      .join('');
+  }
+
+  function _wfBpmnFromTemplate(templateId) {
+    if (templateId === 'triagem_prioridade') {
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://ep.cage">
+  <process id="proc1" isExecutable="false">
+    <startEvent id="start" name="Início"/>
+    <userTask id="triagem" name="Triagem"/>
+    <exclusiveGateway id="gw_prioridade" name="Prioridade?"/>
+    <userTask id="atendimento_urgente" name="Atendimento Urgente"/>
+    <userTask id="atendimento_normal" name="Atendimento Normal"/>
+    <endEvent id="fim" name="Fim"/>
+    <sequenceFlow id="f0" sourceRef="start" targetRef="triagem"/>
+    <sequenceFlow id="f1" sourceRef="triagem" targetRef="gw_prioridade"/>
+    <sequenceFlow id="f2" sourceRef="gw_prioridade" targetRef="atendimento_urgente" name="urgente"/>
+    <sequenceFlow id="f3" sourceRef="gw_prioridade" targetRef="atendimento_normal" name="normal"/>
+    <sequenceFlow id="f4" sourceRef="atendimento_urgente" targetRef="fim"/>
+    <sequenceFlow id="f5" sourceRef="atendimento_normal" targetRef="fim"/>
+  </process>
+</definitions>`;
+    }
+    if (templateId === 'aprovacao_com_retrabalho') {
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://ep.cage">
+  <process id="proc1" isExecutable="false">
+    <startEvent id="start" name="Início"/>
+    <userTask id="elaboracao" name="Elaboração"/>
+    <userTask id="revisao" name="Revisão"/>
+    <exclusiveGateway id="gw_aprovacao" name="Aprovado?"/>
+    <userTask id="ajustes" name="Ajustes"/>
+    <userTask id="publicacao" name="Publicação"/>
+    <endEvent id="fim" name="Fim"/>
+    <sequenceFlow id="f0" sourceRef="start" targetRef="elaboracao"/>
+    <sequenceFlow id="f1" sourceRef="elaboracao" targetRef="revisao"/>
+    <sequenceFlow id="f2" sourceRef="revisao" targetRef="gw_aprovacao"/>
+    <sequenceFlow id="f3" sourceRef="gw_aprovacao" targetRef="publicacao" name="aprovar"/>
+    <sequenceFlow id="f4" sourceRef="gw_aprovacao" targetRef="ajustes" name="devolver"/>
+    <sequenceFlow id="f5" sourceRef="ajustes" targetRef="revisao" name="reenviar"/>
+    <sequenceFlow id="f6" sourceRef="publicacao" targetRef="fim"/>
+  </process>
+</definitions>`;
+    }
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" targetNamespace="http://ep.cage">
+  <process id="proc1" isExecutable="false">
+    <startEvent id="start" name="Início"/>
+    <userTask id="analise" name="Análise"/>
+    <exclusiveGateway id="gw_decisao" name="Aprovado?"/>
+    <userTask id="finalizacao" name="Finalização"/>
+    <userTask id="devolucao" name="Devolução para ajuste"/>
+    <endEvent id="fim" name="Fim"/>
+    <sequenceFlow id="f0" sourceRef="start" targetRef="analise"/>
+    <sequenceFlow id="f1" sourceRef="analise" targetRef="gw_decisao"/>
+    <sequenceFlow id="f2" sourceRef="gw_decisao" targetRef="finalizacao" name="aprovar"/>
+    <sequenceFlow id="f3" sourceRef="gw_decisao" targetRef="devolucao" name="devolver"/>
+    <sequenceFlow id="f4" sourceRef="finalizacao" targetRef="fim"/>
+    <sequenceFlow id="f5" sourceRef="devolucao" targetRef="fim"/>
+  </process>
+</definitions>`;
+  }
+
+  function _wfAjustarTemplateConfigNos(templateId, configNos) {
+    if (templateId === 'aprovacao_binaria' || templateId === 'aprovacao_com_retrabalho') {
+      if (configNos.gw_decisao) configNos.gw_decisao.acoes = ['aprovar', 'devolver'];
+      if (configNos.gw_aprovacao) configNos.gw_aprovacao.acoes = ['aprovar', 'devolver'];
+    }
+    if (templateId === 'triagem_prioridade' && configNos.gw_prioridade) {
+      configNos.gw_prioridade.acoes = ['avancar'];
+    }
+  }
+
   async function wfAbrirDesigner(modeloId) {
     const modelo = modeloId ? await _getDoc('wf_processo_modelos', modeloId) : _novoModeloVazio();
     if (!modelo) { alert('Modelo não encontrado.'); return; }
@@ -1530,12 +1794,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       try { _st.formularioModelos = await _getAll('wf_formulario_modelos'); } catch (_e) { /* */ }
     }
 
-    const nomeEl = document.getElementById('wf-designer-nome');
-    if (nomeEl) nomeEl.value = modelo.nome || '';
-    const descEl = document.getElementById('wf-designer-desc');
-    if (descEl) descEl.value = modelo.descricao || '';
-    const dirtyEl = document.getElementById('wf-bpmn-dirty');
-    if (dirtyEl) dirtyEl.style.display = 'none';
+    _wfPrepararCamposCabecalhoDesigner(modelo);
+    _wfLimparAutosavePendente();
+    _wfAtualizarIndicadorSujo(false);
 
     wfAbrirConfigModelo(modelo.id);
   }
@@ -1556,8 +1817,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     _wfModeler = new BpmnJS({ container: '#wf-bpmn-canvas' });
 
     _wfModeler.on('commandStack.changed', () => {
-      const d = document.getElementById('wf-bpmn-dirty');
-      if (d) d.style.display = 'inline';
+      _wfMarcarDesignerSujo();
     });
 
     _wfModeler.on('selection.changed', ({ newSelection }) => {
@@ -1565,7 +1825,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       _wfRenderConfigPanel(el);
     });
 
-    const xml = modelo.bpmn_xml || (typeof BPMN_DEFAULT !== 'undefined' ? BPMN_DEFAULT : '');
+    const xml = (modelo?.bpmn_xml && String(modelo.bpmn_xml).trim()) ? modelo.bpmn_xml : _wfBpmnInicial();
     _wfModeler.importXML(xml).then(() => {
       if (loadingEl) loadingEl.style.display = 'none';
       if (canvasEl) canvasEl.style.display = '';
@@ -1604,27 +1864,49 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (eAresta) {
       if (!_wfConfigNos[id]) _wfConfigNos[id] = { condicoes: [], operador_logico: 'AND', padrao: false };
       const cfg = _wfConfigNos[id];
+      const origem = _wfNoPorId(el.source?.id || el.businessObject?.sourceRef?.id || '');
+      const destino = _wfNoPorId(el.target?.id || el.businessObject?.targetRef?.id || '');
       painel.innerHTML = `
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Condição de saída</div>
-        <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--ink)">${nome || _esc(id)}</div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:10px">
-          <input type="checkbox" id="wf-aresta-padrao-${_esc(id)}" ${cfg.padrao ? 'checked' : ''}
-            onchange="wfDesignerArestaPadrao('${_esc(id)}',this.checked)">
-          Saída padrão (else — quando nenhuma outra condição bater)
-        </label>
-        <div id="wf-aresta-conds-wrap-${_esc(id)}" style="${cfg.padrao ? 'opacity:.4;pointer-events:none' : ''}">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <span style="font-size:12px;font-weight:600;color:var(--ink2)">Condições</span>
-            <select class="fi" style="width:auto;padding:2px 6px;font-size:11px"
-              onchange="wfDesignerCampoCfg('${_esc(id)}','operador_logico',this.value)">
-              <option value="AND" ${cfg.operador_logico !== 'OR' ? 'selected' : ''}>Todas (AND)</option>
-              <option value="OR"  ${cfg.operador_logico === 'OR'  ? 'selected' : ''}>Qualquer (OR)</option>
-            </select>
+        <div class="wf-guide-panel">
+          <div class="wf-guide-head">
+            <div>
+              <div class="wf-guide-eyebrow">Regra de saída</div>
+              <div class="wf-guide-title">${_esc(origem?.nome || 'Etapa')} -> ${_esc(destino?.nome || 'Destino')}</div>
+              <div class="wf-guide-sub">Defina quando este caminho deve ser usado depois que a etapa anterior for respondida.</div>
+            </div>
+            <span class="wf-guide-badge">${cfg.padrao ? 'Saída padrão' : 'Saída condicional'}</span>
           </div>
-          <div id="wf-aresta-conds-${_esc(id)}" style="margin-bottom:8px"></div>
-          <button type="button" class="btn btn-sm" onclick="wfDesignerAddCondicao('${_esc(id)}')">+ Condição</button>
+          <div class="wf-guide-grid">
+            <div class="wf-guide-card">
+              <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quando seguir por aqui?</div></div>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:10px">
+                <input type="checkbox" id="wf-aresta-padrao-${_esc(id)}" ${cfg.padrao ? 'checked' : ''}
+                  onchange="wfDesignerArestaPadrao('${_esc(id)}',this.checked)">
+                Usar este caminho quando nenhuma outra regra for atendida
+              </label>
+              <div id="wf-aresta-conds-wrap-${_esc(id)}" style="${cfg.padrao ? 'opacity:.4;pointer-events:none' : ''}">
+                <div class="wf-guide-row" style="margin-bottom:8px">
+                  <span class="wf-mini-help">As regras abaixo devem ocorrer</span>
+                  <select class="fi" style="width:auto;padding:2px 6px;font-size:11px"
+                    onchange="wfDesignerCampoCfg('${_esc(id)}','operador_logico',this.value)">
+                    <option value="AND" ${cfg.operador_logico !== 'OR' ? 'selected' : ''}>todas juntas</option>
+                    <option value="OR"  ${cfg.operador_logico === 'OR'  ? 'selected' : ''}>qualquer uma</option>
+                  </select>
+                </div>
+                <div id="wf-aresta-conds-${_esc(id)}" style="margin-bottom:8px"></div>
+                <button type="button" class="btn btn-sm" onclick="wfDesignerAddCondicao('${_esc(id)}')">+ Adicionar regra</button>
+              </div>
+            </div>
+            <div class="wf-guide-card">
+              <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quais respostas existem?</div></div>
+              ${_wfCamposOrigemResumoHtml(id)}
+            </div>
+          </div>
+          ${_wfPainelSalvarHtml('Salve para manter esta regra de saída vinculada ao fluxo.')}
         </div>`;
       _wfRenderCondicoes(id);
+      _wfRenderAssistenteAresta(id, painel);
+      _wfAplicarModoPainel();
       return;
     }
 
@@ -1644,18 +1926,34 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       }).join('') || '<div style="font-size:11px;color:var(--ink3)">Sem saídas configuradas.</div>';
 
       painel.innerHTML = `
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">
-          ${tipo === 'bpmn:InclusiveGateway' ? 'Gateway Inclusivo (OR)' : 'Gateway Exclusivo (XOR)'}
-        </div>
-        <label class="lbl" style="font-size:11px">Nome / rótulo</label>
-        <input type="text" class="fi" style="margin-top:2px;margin-bottom:12px" value="${nome}"
-          oninput="wfDesignerCampoCfg('${_esc(id)}','_nome',this.value);try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
-        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Saídas</div>
-        <div style="margin-bottom:10px">${saidas}</div>
-        <div style="font-size:11px;color:var(--ink3);padding:8px;background:var(--surf2);border-radius:6px">
-          💡 Clique em cada <strong>seta de saída</strong> para configurar sua condição.
-          Uma saída deve ser marcada como <em>padrão (else)</em>.
+        <div class="wf-guide-panel">
+          <div class="wf-guide-head">
+            <div>
+              <div class="wf-guide-eyebrow">Decisão do fluxo</div>
+              <div class="wf-guide-title">${nome || 'Gateway de decisão'}</div>
+              <div class="wf-guide-sub">Aqui você enxerga claramente para onde o fluxo vai dependendo da resposta dada na etapa anterior.</div>
+            </div>
+            <span class="wf-guide-badge">${tipo === 'bpmn:InclusiveGateway' ? 'Escolhe uma ou mais saídas' : 'Escolhe uma saída'}</span>
+          </div>
+          <div class="wf-guide-card wf-guide-card-full">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Nome da decisão</div></div>
+            <input type="text" class="fi" style="margin-top:2px" value="${nome}"
+              oninput="wfDesignerCampoCfg('${_esc(id)}','_nome',this.value);try{_wfModeler.get('modeling').updateLabel(_wfModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+          </div>
+          <div class="wf-guide-card wf-guide-card-full">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Caminhos possíveis</div></div>
+            <div class="wf-route-list">${(el.outgoing || []).map((s) => {
+              const cfgS = _wfConfigNos[s.id] || {};
+              const destino = s.target?.businessObject?.name || s.target?.id || '?';
+              const regra = cfgS.padrao ? 'quando nenhuma outra regra bater' : (cfgS.condicoes?.length ? cfgS.condicoes.map(_wfCondicaoLegivel).join((cfgS.operador_logico || 'AND') === 'OR' ? ' ou ' : ' e ') : 'sem regra definida');
+              return `<div class="wf-route-card"><div class="wf-route-title">Vai para ${_esc(destino)}</div><div class="wf-route-sub">Seguir por este caminho ${_esc(regra)}. Clique na seta correspondente no gráfico para editar a regra.</div></div>`;
+            }).join('') || '<div class="wf-guide-note">Este gateway ainda não tem saídas configuradas.</div>'}</div>
+          </div>
+          <div class="wf-guide-note">A resposta é dada por quem executou a etapa anterior. As opções possíveis vêm dos campos do formulário dessa etapa.</div>
+          ${_wfPainelSalvarHtml('Salve para manter o nome e as decisões deste gateway no modelo.')}
         </div>`;
+      _wfRenderMapaDecisao(id, painel);
+      _wfAplicarModoPainel();
       return;
     }
 
@@ -1665,13 +1963,14 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Gateway Paralelo (AND)</div>
         <label class="lbl" style="font-size:11px">Nome / rótulo</label>
         <input type="text" class="fi" style="margin-top:2px;margin-bottom:12px" value="${nome}"
-          oninput="try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+          oninput="try{_wfModeler.get('modeling').updateLabel(_wfModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
         <div style="font-size:12px;padding:10px;background:var(--surf2);border-radius:6px;color:var(--ink2);line-height:1.5">
           <strong>Como funciona:</strong><br>
           • <strong>Divisão (split):</strong> todas as saídas são ativadas simultaneamente.<br>
           • <strong>Junção (join):</strong> aguarda a conclusão de todos os caminhos paralelos antes de prosseguir.<br>
           Não requer configuração de condições.
         </div>`;
+      _wfAplicarModoPainel();
       return;
     }
 
@@ -1683,7 +1982,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Início</div>
         <label class="lbl" style="font-size:11px">Nome</label>
         <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
-          oninput="try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+          oninput="try{_wfModeler.get('modeling').updateLabel(_wfModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
         <label class="lbl" style="font-size:11px">Tipo de disparo</label>
         <select class="fi" style="margin-top:2px;margin-bottom:10px"
           onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_disparo',this.value)">
@@ -1694,7 +1993,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <label class="lbl" style="font-size:11px">Descrição / orientação ao solicitante</label>
         <textarea class="fi" rows="3" style="margin-top:2px;resize:vertical"
           placeholder="Descreva quando e como este processo deve ser iniciado…"
-          oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>`;
+          oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>
+        ${_wfPainelSalvarHtml('Salve para manter as regras deste evento de início no modelo.')}`;
+      _wfAplicarModoPainel();
       return;
     }
 
@@ -1706,7 +2007,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Fim</div>
         <label class="lbl" style="font-size:11px">Nome</label>
         <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
-          oninput="try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+          oninput="try{_wfModeler.get('modeling').updateLabel(_wfModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
         <label class="lbl" style="font-size:11px">Tipo</label>
         <select class="fi" style="margin-top:2px;margin-bottom:10px"
           onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_fim',this.value)">
@@ -1725,7 +2026,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           <option value="ep"       ${cfg.notificar_fim==='ep'       ? 'selected':''}>EP também</option>
           <option value="gestor"   ${cfg.notificar_fim==='gestor'   ? 'selected':''}>Gestor também</option>
           <option value="todos"    ${cfg.notificar_fim==='todos'    ? 'selected':''}>EP + Gestor + solicitante</option>
-        </select>`;
+        </select>
+        ${_wfPainelSalvarHtml('Salve para manter as mensagens e notificações deste evento de fim.')}`;
+      _wfAplicarModoPainel();
       return;
     }
 
@@ -1737,7 +2040,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento Intermediário</div>
         <label class="lbl" style="font-size:11px">Nome</label>
         <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}"
-          oninput="try{_wfBpmnModeler.get('modeling').updateLabel(_wfBpmnModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
+          oninput="try{_wfModeler.get('modeling').updateLabel(_wfModeler.get('elementRegistry').get('${_esc(id)}'),this.value)}catch(_e){}">
         <label class="lbl" style="font-size:11px">Tipo</label>
         <select class="fi" style="margin-top:2px;margin-bottom:10px"
           onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_evento',this.value)">
@@ -1747,7 +2050,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         </select>
         <label class="lbl" style="font-size:11px">Descrição</label>
         <textarea class="fi" rows="2" style="margin-top:2px;resize:vertical"
-          oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>`;
+          oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>
+        ${_wfPainelSalvarHtml('Salve para manter este evento intermediário configurado no fluxo.')}`;
+      _wfAplicarModoPainel();
       return;
     }
 
@@ -1782,64 +2087,303 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <input type="checkbox" ${acoes.includes(a) ? 'checked' : ''} onchange="wfDesignerToggleAcao('${_esc(id)}','${a}',this.checked)"> ${_esc(l)}</label>`;
 
     painel.innerHTML = `
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Atividade</div>
-      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--ink)">${nome || _esc(id)}</div>
-      <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Papéis</div>
-      <label class="lbl" style="font-size:11px">Executor</label>
-      <select class="fi" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerPapel('${_esc(id)}','executor',this.value)">${alvoOpts(papeis.executor)}</select>
-      <label class="lbl" style="font-size:11px">Revisor</label>
-      <select class="fi" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerPapel('${_esc(id)}','revisor',this.value)">${alvoOpts(papeis.revisor)}</select>
-      <label class="lbl" style="font-size:11px">Aprovador</label>
-      <select class="fi" style="margin-top:2px;margin-bottom:12px" onchange="wfDesignerPapel('${_esc(id)}','aprovador',this.value)">${alvoOpts(papeis.aprovador)}</select>
-      <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Ações disponíveis</div>
-      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px">
-        ${acaoChk('avancar','Avançar')}${acaoChk('aprovar','Aprovar')}
-        ${acaoChk('rejeitar','Rejeitar')}${acaoChk('devolver','Devolver')}
-        ${acaoChk('solicitar_ajuste','Solicitar ajuste')}
-      </div>
-      <div style="margin-top:-4px;margin-bottom:12px;border:1px solid var(--bdr);border-radius:8px;padding:8px;background:var(--surf2)">
-        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Condições por ação</div>
-        <div id="wf-acoes-cond-${_esc(id)}" style="margin-bottom:8px"></div>
-        <button type="button" class="btn btn-sm" onclick="wfDesignerAddAcaoCond('${_esc(id)}')">+ Condição de ação</button>
-      </div>
-      <label class="lbl" style="font-size:11px">Formulário dinâmico</label>
-      <select class="fi" id="wf-designer-form-${_esc(id)}" style="margin-top:2px;margin-bottom:8px" onchange="wfDesignerCampoCfg('${_esc(id)}','formulario_id',this.value||null);_wfAtualizarAcoesFormularioNo('${_esc(id)}')">${formOpts}</select>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:-2px;margin-bottom:8px">
-        <button type="button" class="btn btn-sm" onclick="wfAbrirModalNovoFormulario(null,'designer:${_esc(id)}')">+ Novo formulário</button>
-        <button type="button" class="btn btn-sm" id="wf-designer-form-editar-${_esc(id)}" onclick="wfAbrirModalNovoFormulario(document.getElementById('wf-designer-form-${_esc(id)}')?.value || null,'designer:${_esc(id)}')">Editar formulário</button>
-      </div>
-      <label class="lbl" style="font-size:11px">SLA (horas úteis · 0 = sem prazo)</label>
-      <input type="number" class="fi" min="0" value="${_esc(String(cfg.sla_horas || 0))}" style="margin-top:2px;margin-bottom:8px" oninput="wfDesignerCampoCfg('${_esc(id)}','sla_horas',Number(this.value)||0)">
-      <label class="lbl" style="font-size:11px">Instruções ao executor</label>
-      <textarea class="fi" rows="3" style="margin-top:2px;margin-bottom:8px;resize:vertical" oninput="wfDesignerCampoCfg('${_esc(id)}','instrucoes',this.value)">${_esc(cfg.instrucoes || '')}</textarea>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-        <input type="checkbox" ${cfg.exige_parecer ? 'checked' : ''} onchange="wfDesignerCampoCfg('${_esc(id)}','exige_parecer',this.checked)"> Exige parecer obrigatório</label>
-      <div style="margin-top:16px;border-top:1px solid var(--bdr);padding-top:12px">
-        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Campos condicionais</div>
-        <div id="wf-campos-cond-${_esc(id)}" style="margin-bottom:8px"></div>
-        <button type="button" class="btn btn-sm" onclick="wfDesignerAddCampoCond('${_esc(id)}')">+ Condição de campo</button>
-      </div>
-      <div style="margin-top:12px;border-top:1px solid var(--bdr);padding-top:12px">
-        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px">Notificação customizada</div>
-        <label class="lbl" style="font-size:11px">Título (use {{etapa.nome}}, {{processo.titulo}})</label>
-        <input type="text" class="fi" style="margin-top:2px;margin-bottom:6px" placeholder="Nova etapa: {{etapa.nome}}"
-          value="${_esc(cfg.titulo_notificacao || '')}"
-          oninput="wfDesignerCampoCfg('${_esc(id)}','titulo_notificacao',this.value)">
-        <label class="lbl" style="font-size:11px">Mensagem</label>
-        <textarea class="fi" rows="2" style="margin-top:2px;margin-bottom:10px;resize:vertical"
-          placeholder='Processo "{{processo.titulo}}" — etapa "{{etapa.nome}}" aguarda sua ação.'
-          oninput="wfDesignerCampoCfg('${_esc(id)}','mensagem_notificacao',this.value)">${_esc(cfg.mensagem_notificacao || '')}</textarea>
-      </div>
-      <div style="margin-top:12px;border-top:1px solid var(--bdr);padding-top:12px">
-        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px">Comentário automático</div>
-        <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Criado com autor "Sistema" ao iniciar a etapa.</div>
-        <textarea class="fi" rows="2" style="margin-top:2px;resize:vertical"
-          placeholder="Ex: Etapa {{etapa.nome}} iniciada. Prazo: {{prazo}}."
-          oninput="wfDesignerCampoCfg('${_esc(id)}','comentario_automatico',this.value)">${_esc(cfg.comentario_automatico || '')}</textarea>
+      <div class="wf-guide-panel">
+        <div class="wf-guide-head">
+          <div>
+            <div class="wf-guide-eyebrow">Etapa do fluxo</div>
+            <div class="wf-guide-title">${nome || _esc(id)}</div>
+            <div class="wf-guide-sub">Defina quem executa, o prazo, o que precisa ser feito e o que acontece depois desta etapa.</div>
+          </div>
+          <span class="wf-guide-badge">${cfg.exige_parecer ? 'Parecer obrigatório' : 'Execução simples'}</span>
+        </div>
+        <div class="wf-guide-grid">
+          <div class="wf-guide-card">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quem faz esta etapa?</div></div>
+            <div class="wf-guide-stack">
+              <div class="wf-guide-kv"><div class="wf-guide-k">Responsável principal</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','executor',this.value)">${alvoOpts(papeis.executor)}</select></div>
+              <div class="wf-guide-kv"><div class="wf-guide-k">Prazo</div><input type="number" class="fi" min="0" value="${_esc(String(cfg.sla_horas || 0))}" style="margin-top:4px" oninput="wfDesignerCampoCfg('${_esc(id)}','sla_horas',Number(this.value)||0)"><div class="wf-mini-help">Informe em horas úteis. Use 0 quando não houver prazo.</div></div>
+            </div>
+          </div>
+          <div class="wf-guide-card">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">O que precisa ser feito?</div></div>
+            <div class="wf-guide-stack">
+              <div class="wf-guide-kv"><div class="wf-guide-k">Orientação ao responsável</div><textarea class="fi" rows="4" style="resize:vertical;margin-top:4px" oninput="wfDesignerCampoCfg('${_esc(id)}','instrucoes',this.value)">${_esc(cfg.instrucoes || '')}</textarea></div>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" ${cfg.exige_parecer ? 'checked' : ''} onchange="wfDesignerCampoCfg('${_esc(id)}','exige_parecer',this.checked)"> Exigir justificativa ou parecer nesta etapa</label>
+            </div>
+          </div>
+          <div class="wf-guide-card wf-guide-card-full">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quais respostas esta etapa coleta?</div></div>
+            <div class="wf-guide-stack">
+              <div class="wf-guide-row">
+                <div style="flex:1;min-width:220px"><div class="wf-guide-k">Formulário</div><select class="fi" id="wf-designer-form-${_esc(id)}" style="margin-top:4px" onchange="wfDesignerCampoCfg('${_esc(id)}','formulario_id',this.value||null);_wfAtualizarAcoesFormularioNo('${_esc(id)}')">${formOpts}</select></div>
+                <button type="button" class="btn btn-sm" onclick="wfAbrirModalNovoFormulario(null,'designer:${_esc(id)}')">+ Novo formulário</button>
+                <button type="button" class="btn btn-sm" id="wf-designer-form-editar-${_esc(id)}" onclick="wfAbrirModalNovoFormulario(document.getElementById('wf-designer-form-${_esc(id)}')?.value || null,'designer:${_esc(id)}')">Editar formulário</button>
+              </div>
+              ${_wfCamposFormularioResumo(id)}
+            </div>
+          </div>
+          <div class="wf-guide-card wf-guide-card-full">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">O que pode acontecer depois?</div><div class="wf-guide-card-sub">Marque as ações que o usuário poderá escolher ao concluir esta etapa. Use o gateway para decidir aprovar/avançar por respostas do formulário; <strong>rejeitar</strong> e <strong>devolver</strong> retornam para a etapa anterior.</div></div>
+            <div class="wf-guide-row" style="margin-bottom:10px">${['avancar','aprovar','rejeitar','devolver','solicitar_ajuste'].map(a => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:6px 10px;border:1px solid var(--bdr);border-radius:999px;background:var(--surf2)"><input type="checkbox" ${acoes.includes(a) ? 'checked' : ''} onchange="wfDesignerToggleAcao('${_esc(id)}','${a}',this.checked)"> ${_esc((globalScope.WF_ACAO_LABELS||{})[a] || a)}</label>`).join('')}</div>
+            ${_wfRotasResumoHtml(id)}
+          </div>
+          <div class="wf-guide-card wf-guide-card-full">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Regras desta etapa</div><div class="wf-guide-card-sub">Descreva quando cada ação aparece e quando um campo do formulário deve aparecer.</div></div>
+            <div class="wf-guide-grid">
+              <div class="wf-guide-card">
+                <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quando cada botão aparece</div></div>
+                <div id="wf-acoes-cond-${_esc(id)}"></div>
+                <div class="wf-logic-actions"><button type="button" class="btn btn-sm" onclick="wfDesignerAddAcaoCond('${_esc(id)}')">+ Nova regra de botão</button></div>
+              </div>
+              <div class="wf-guide-card">
+                <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Quando um campo aparece ou fica obrigatório</div></div>
+                <div id="wf-campos-cond-${_esc(id)}"></div>
+                <div class="wf-logic-actions"><button type="button" class="btn btn-sm" onclick="wfDesignerAddCampoCond('${_esc(id)}')">+ Nova regra de campo</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="wf-guide-card wf-guide-card-full" data-wf-advanced="true">
+            <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Configurações avançadas</div><div class="wf-guide-card-sub">Use apenas quando precisar de revisão, aprovação formal ou mensagens customizadas.</div></div>
+            <div class="wf-guide-grid">
+              <div class="wf-guide-card">
+                <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Papéis adicionais</div></div>
+                <div class="wf-guide-kv"><div class="wf-guide-k">Revisor</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','revisor',this.value)">${alvoOpts(papeis.revisor)}</select></div>
+                <div class="wf-guide-kv" style="margin-top:10px"><div class="wf-guide-k">Aprovador</div><select class="fi" style="margin-top:4px" onchange="wfDesignerPapel('${_esc(id)}','aprovador',this.value)">${alvoOpts(papeis.aprovador)}</select></div>
+              </div>
+              <div class="wf-guide-card">
+                <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">Mensagens automáticas</div></div>
+                <div class="wf-guide-kv"><div class="wf-guide-k">Título da notificação</div><input type="text" class="fi" style="margin-top:4px" placeholder="Nova etapa: {{etapa.nome}}" value="${_esc(cfg.titulo_notificacao || '')}" oninput="wfDesignerCampoCfg('${_esc(id)}','titulo_notificacao',this.value)"></div>
+                <div class="wf-guide-kv" style="margin-top:10px"><div class="wf-guide-k">Mensagem</div><textarea class="fi" rows="2" style="resize:vertical;margin-top:4px" placeholder='Processo "{{processo.titulo}}" — etapa "{{etapa.nome}}" aguarda sua ação.' oninput="wfDesignerCampoCfg('${_esc(id)}','mensagem_notificacao',this.value)">${_esc(cfg.mensagem_notificacao || '')}</textarea></div>
+                <div class="wf-guide-kv" style="margin-top:10px"><div class="wf-guide-k">Comentário automático</div><textarea class="fi" rows="2" style="resize:vertical;margin-top:4px" placeholder="Ex: Etapa {{etapa.nome}} iniciada. Prazo: {{prazo}}." oninput="wfDesignerCampoCfg('${_esc(id)}','comentario_automatico',this.value)">${_esc(cfg.comentario_automatico || '')}</textarea></div>
+              </div>
+            </div>
+          </div>
+          ${_wfPainelSalvarHtml('Salve para persistir responsável, formulário, regras e mensagens desta etapa.')}
+        </div>
       </div>`;
     _wfAtualizarAcoesFormularioNo(id);
     _wfRenderAcoesCond(id);
     _wfRenderCamposCond(id);
+    _wfAplicarModoPainel();
+  }
+
+  function wfDesignerSetMode(modo) {
+    _st.designerModo = modo === 'avancado' ? 'avancado' : 'simples';
+    const badge = document.getElementById('wf-designer-mode-badge');
+    if (badge) badge.textContent = _st.designerModo === 'avancado' ? 'Modo avançado' : 'Modo simples';
+    _wfAplicarModoPainel();
+    try {
+      if (_wfModeler && _st.designerNoSel) {
+        const reg = _wfModeler.get('elementRegistry');
+        const el = reg?.get(_st.designerNoSel);
+        if (el) _wfRenderConfigPanel(el);
+      }
+      if (_wfModeler && _st.designerArestaSel) {
+        const reg = _wfModeler.get('elementRegistry');
+        const el = reg?.get(_st.designerArestaSel);
+        if (el) _wfRenderConfigPanel(el);
+      }
+    } catch (_e) { /* no-op */ }
+  }
+
+  function _wfAplicarModoPainel() {
+    const painel = document.getElementById('wf-designer-config');
+    if (!painel) return;
+    const avancado = _st.designerModo === 'avancado';
+    painel.querySelectorAll('[data-wf-advanced="true"]').forEach((el) => {
+      el.style.display = avancado ? '' : 'none';
+    });
+    const opLog = painel.querySelector('select[onchange*="operador_logico"]');
+    if (opLog && !avancado) opLog.value = 'AND';
+  }
+
+  function _wfCondicaoLegivel(c) {
+    if (!c || !c.campo) return 'sempre';
+    const valor = c.valor === '__ANY__' ? 'qualquer valor' : (c.valor || '(vazio)');
+    return `${c.campo} ${c.operador || '='} ${valor}`;
+  }
+
+  function _wfPapelLegivel(valor) {
+    if (!valor) return 'Não definido';
+    const labels = globalScope.WF_PAPEL_ALVO_LABELS || {
+      solicitante: 'Próprio solicitante',
+      gestor_solicitante: 'Gestor do solicitante',
+      gestor_executor: 'Gestor do executor anterior',
+      ep: 'Perfil EP',
+      gestor: 'Perfil Gestor',
+      dono: 'Perfil Dono',
+    };
+    const user = (globalScope.USUARIOS || []).find(u => u.email === valor);
+    return user?.nome || labels[valor] || valor;
+  }
+
+  function _wfNoPorId(noId) {
+    if (_wfModeler) {
+      const reg = _wfModeler.get('elementRegistry');
+      const el = reg?.get(noId);
+      if (el) {
+        return {
+          id: el.id,
+          nome: el.businessObject?.name || el.id,
+          tipo: _bpmnTipoToWf(el.type),
+        };
+      }
+    }
+    return (_wfModeloAtual?.canvas?.nos || []).find(n => n.id === noId) || null;
+  }
+
+  function _wfArestasSaida(noId) {
+    if (_wfModeler) {
+      const reg = _wfModeler.get('elementRegistry');
+      const el = reg?.get(noId);
+      return (el?.outgoing || []).map(flow => ({
+        id: flow.id,
+        origem: flow.source?.id,
+        destino: flow.target?.id,
+        label: flow.businessObject?.name || flow.id,
+        acao: flow.businessObject?.name || 'avancar',
+      }));
+    }
+    return (_wfModeloAtual?.canvas?.arestas || []).filter(a => a.origem === noId);
+  }
+
+  function _wfResumoResponsavelNo(noId) {
+    const cfg = _wfConfigNos[noId] || {};
+    const papel = cfg.papeis?.executor || cfg.responsavel_papel || '';
+    return _wfPapelLegivel(papel);
+  }
+
+  function _wfCamposFormularioResumo(noId) {
+    const campos = _wfCamposDoFormulario(noId);
+    if (!campos.length) return '<div class="wf-guide-note">Nenhum formulário vinculado a esta etapa.</div>';
+    return `<div class="wf-form-fields-list">${campos.map((c) => {
+      const meta = [];
+      if (c.tipo) meta.push(c.tipo);
+      if (c.obrigatorio) meta.push('obrigatório');
+      if (c.tipo === 'select' && c.opcoes?.length) meta.push(`opções: ${c.opcoes.join(', ')}`);
+      return `<div class="wf-form-field-chip"><div class="wf-form-field-name">${_esc(c.label || c.id)}</div><div class="wf-form-field-meta">${_esc(meta.join(' · ') || 'campo')}</div></div>`;
+    }).join('')}</div>`;
+  }
+
+  function _wfRotasResumoHtml(noId) {
+    const arestas = _wfArestasSaida(noId);
+    const cfgNo = _wfConfigNos[noId] || {};
+    const acoesEspeciais = (cfgNo.acoes || []).filter(a => a === 'rejeitar' || a === 'devolver');
+    const avisoEspecial = acoesEspeciais.length
+      ? `<div class="wf-guide-note">Os botões <strong>${_esc(acoesEspeciais.map(a => (globalScope.WF_ACAO_LABELS || {})[a] || a).join(' e '))}</strong> retornam para a etapa anterior e <strong>não usam</strong> as saídas do gateway.</div>`
+      : '';
+    if (!arestas.length) return `${avisoEspecial}<div class="wf-guide-note">Esta etapa ainda não tem saída definida no fluxo.</div>`;
+    return `${avisoEspecial}<div class="wf-route-list">${arestas.map((a) => {
+      const cfgAresta = _wfConfigNos[a.id] || {};
+      const destino = _wfNoPorId(a.destino);
+      const regra = cfgAresta.padrao
+        ? 'quando nenhuma outra condição for atendida'
+        : (cfgAresta.condicoes || []).length
+          ? cfgAresta.condicoes.map(_wfCondicaoLegivel).join((cfgAresta.operador_logico || 'AND') === 'OR' ? ' ou ' : ' e ')
+          : 'sem condição específica';
+      return `<div class="wf-route-card"><div class="wf-route-title">${_esc((globalScope.WF_ACAO_LABELS || {})[a.acao] || a.acao)} -> ${_esc(destino?.nome || a.destino || 'Destino')}</div><div class="wf-route-sub">Vai para <strong>${_esc(destino?.nome || a.destino || 'sem destino')}</strong> e depois fica com <strong>${_esc(_wfResumoResponsavelNo(destino?.id || ''))}</strong>. Regra: ${_esc(regra)}.</div></div>`;
+    }).join('')}</div>`;
+  }
+
+  function _wfCamposOrigemResumoHtml(arestaId) {
+    const campos = _wfCamposDaOrigemDaAresta(arestaId);
+    if (!campos.length) return '<div class="wf-mini-help">Nenhum campo de resposta foi encontrado na etapa anterior.</div>';
+    return campos.map((c) => {
+      const opcoes = c.tipo === 'select' && c.opcoes?.length ? ` Opções: ${c.opcoes.join(', ')}.` : (c.tipo === 'checkbox' ? ' Opções: sim, não.' : '');
+      return `<div class="wf-mini-help">${_esc(c.label || c.id)}${_esc(opcoes)}</div>`;
+    }).join('');
+  }
+
+  function _wfPainelSalvarHtml(rotulo) {
+    return `
+      <div class="wf-guide-row" style="justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--bdr)">
+        <div class="wf-mini-help">${_esc(rotulo || 'Revise as alterações e salve o modelo para persistir este card.')}</div>
+        <button type="button" class="btn btn-p btn-sm" onclick="wfDesignerSalvar()">Salvar</button>
+      </div>`;
+  }
+
+  function _wfRenderAssistenteAresta(arestaId, painel) {
+    const cfg = _wfConfigNos[arestaId] || {};
+    const frase = cfg.padrao
+      ? 'Se nenhuma condição for atendida, seguir por este caminho.'
+      : (cfg.condicoes || []).length
+        ? `Se ${cfg.condicoes.map(_wfCondicaoLegivel).join((cfg.operador_logico || 'AND') === 'OR' ? ' OU ' : ' E ')}, seguir por este caminho.`
+        : 'Sempre seguir por este caminho.';
+    painel.insertAdjacentHTML('beforeend', `
+      <div style="margin-top:10px;padding:8px;border-radius:6px;background:var(--surf2);font-size:12px;color:var(--ink2)">
+        <strong>Regra em linguagem simples:</strong> ${_esc(frase)}
+      </div>`);
+  }
+
+  function _wfRenderAssistenteNo(noId, painel) {
+    painel.insertAdjacentHTML('beforeend', `
+      <div style="margin-top:10px;padding:8px;border:1px dashed var(--bdr);border-radius:8px;background:var(--surf2)">
+        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Assistente de regras</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-sm" onclick="wfDesignerAplicarPreset('${_esc(noId)}','aprovacao_binaria')">Preset: Aprovação Sim/Não</button>
+          <button type="button" class="btn btn-sm" onclick="wfDesignerAplicarPreset('${_esc(noId)}','campo_condicional')">Preset: Mostrar campo por resposta</button>
+        </div>
+      </div>`);
+  }
+
+  function _wfRenderMapaDecisao(noId, painel) {
+    if (!_wfModeler) return;
+    try {
+      const reg = _wfModeler.get('elementRegistry');
+      const el = reg?.get(noId);
+      if (!el) return;
+      const saidas = (el.outgoing || []).map((s) => {
+        const cfg = _wfConfigNos[s.id] || {};
+        const alvo = s.target?.businessObject?.name || s.target?.id || '?';
+        const regra = cfg.padrao
+          ? 'se nenhuma regra anterior'
+          : (cfg.condicoes || []).length
+            ? cfg.condicoes.map(_wfCondicaoLegivel).join((cfg.operador_logico || 'AND') === 'OR' ? ' OU ' : ' E ')
+            : 'sempre';
+        return `<div style="font-size:12px;color:var(--ink2);margin-bottom:4px">Se <strong>${_esc(regra)}</strong> então ir para <strong>${_esc(alvo)}</strong>.</div>`;
+      });
+      if (!saidas.length) return;
+      painel.insertAdjacentHTML('beforeend', `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr)">
+          <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Mapa de decisão</div>
+          ${saidas.join('')}
+        </div>`);
+    } catch (_e) { /* no-op */ }
+  }
+
+  function wfDesignerAplicarPreset(noId, presetId) {
+    if (!_wfConfigNos[noId]) _wfConfigNos[noId] = _configPadrao();
+    const cfg = _wfConfigNos[noId];
+    const campos = _wfCamposDoFormulario(noId);
+    if (presetId === 'aprovacao_binaria') {
+      if (!campos.length) { alert('Vincule um formulário com campo de resposta antes de aplicar este preset.'); return; }
+      const campo = campos[0].id || campos[0].label;
+      cfg.acoes = Array.from(new Set([...(cfg.acoes || []), 'avancar', 'devolver']));
+      cfg.acoes_condicionais = [
+        { acao: 'avancar', campo, operador: '=', valor: 'sim' },
+        { acao: 'devolver', campo, operador: '=', valor: 'nao' },
+      ];
+    }
+    if (presetId === 'campo_condicional') {
+      if (campos.length < 2) { alert('Este preset precisa de ao menos 2 campos no formulário.'); return; }
+      const gatilho = campos[0].id || campos[0].label;
+      const alvo = campos[1].id || campos[1].label;
+      cfg.campos_condicionais = cfg.campos_condicionais || [];
+      cfg.campos_condicionais.push({
+        campo_id: alvo,
+        acao: 'mostrar',
+        operador_logico: 'AND',
+        condicoes: [{ campo: gatilho, operador: '=', valor: 'nao' }],
+      });
+    }
+    _wfRenderAcoesCond(noId);
+    _wfRenderCamposCond(noId);
+    _wfMarcarDesignerSujo();
+    if (_wfModeler) {
+      const reg = _wfModeler.get('elementRegistry');
+      const el = reg?.get(noId);
+      if (el) _wfRenderConfigPanel(el);
+    }
   }
 
   function wfDesignerCampoCfg(noId, campo, valor) {
@@ -1863,8 +2407,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   function _wfMarcarDesignerSujo() {
-    const d = document.getElementById('wf-bpmn-dirty');
-    if (d) d.style.display = 'inline';
+    _wfAtualizarIndicadorSujo(true);
+    _wfAgendarAutosave();
   }
 
   // ── Gateway Condicional — Editor de condições de arestas ──────────────────
@@ -1929,15 +2473,39 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     return campos.find(c => (c.id || c.label) === campoId) || null;
   }
 
+  function _wfCampoMetaNo(noId, campoId) {
+    const campos = _wfCamposDoFormulario(noId) || [];
+    return campos.find(c => (c.id || c.label) === campoId) || null;
+  }
+
+  function _wfOpcoesValorMeta(meta) {
+    if (!meta) return [];
+    if (Array.isArray(meta.opcoes) && meta.opcoes.length) {
+      return meta.opcoes.map(o => String(o || '').trim()).filter(Boolean);
+    }
+    if (meta.tipo === 'checkbox') return ['sim', 'nao'];
+    return [];
+  }
+
+  function _wfEditorValorSugestoesHtml({ valorAtual, opcoes, placeholder, selectOnChange, inputOnInput }) {
+    const lista = (opcoes || []).map(v => String(v || '').trim()).filter(Boolean);
+    if (!lista.length) {
+      return `<input type="text" class="fi" style="font-size:11px" placeholder="${_esc(placeholder || 'valor')}" value="${_esc(valorAtual || '')}" oninput="${inputOnInput}">`;
+    }
+    return `
+      <div style="display:grid;gap:6px">
+        <select class="fi" style="font-size:11px" onchange="${selectOnChange}">
+          <option value="">Escolha um valor sugerido</option>
+          ${lista.map(v => `<option value="${_esc(v)}"${String(valorAtual || '') === v ? ' selected' : ''}>${_esc(v)}</option>`).join('')}
+        </select>
+        <input type="text" class="fi" style="font-size:11px" placeholder="${_esc(placeholder || 'valor')}" value="${_esc(valorAtual || '')}" oninput="${inputOnInput}">
+      </div>`;
+  }
+
   function _wfOptsValorAresta(arestaId, campoId, valorAtual) {
     const meta = _wfCampoMetaAresta(arestaId, campoId);
     if (!meta) return null;
-    let opcoes = [];
-    if (meta.tipo === 'select' && Array.isArray(meta.opcoes)) {
-      opcoes = meta.opcoes.map(o => String(o || '').trim()).filter(Boolean);
-    } else if (meta.tipo === 'checkbox') {
-      opcoes = ['sim', 'nao'];
-    }
+    let opcoes = _wfOpcoesValorMeta(meta);
     if (!opcoes.length) return null;
 
     const base = `<option value="__ANY__"${(!valorAtual || valorAtual === '__ANY__') ? ' selected' : ''}>qualquer valor</option>`;
@@ -1950,7 +2518,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (!el) return;
     const conds = _wfConfigNos[arestaId]?.condicoes || [];
     if (!conds.length) {
-      el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Sem condições — saída livre.</div>';
+      el.innerHTML = '<div class="wf-guide-note">Sem regra específica. Este caminho pode ser usado livremente.</div>';
       return;
     }
     el.innerHTML = conds.map((c, i) => {
@@ -1960,18 +2528,14 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         : `<input type="text" class="fi" placeholder="valor" value="${_esc(c.valor || '')}" style="font-size:11px"
           oninput="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'valor',this.value)">`;
       return `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:4px;margin-bottom:6px;align-items:center">
-        <select class="fi" style="font-size:11px"
-          onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'campo',this.value)">
-          ${_wfOptsCamposAresta(arestaId, c.campo || '')}
-        </select>
-        <select class="fi" style="font-size:11px"
-          onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'operador',this.value)">
-          ${_WF_OPS_LABELS.map(op => `<option value="${_esc(op)}"${c.operador === op ? ' selected' : ''}>${_esc(op)}</option>`).join('')}
-        </select>
-        ${valorInput}
-        <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 4px"
-          onclick="wfDesignerRemoveCondicao('${_esc(arestaId)}',${i})">✕</button>
+      <div class="wf-logic-card">
+        <div class="wf-logic-sentence">Seguir por este caminho quando a resposta for:</div>
+        <div class="wf-logic-actions" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;align-items:center">
+          <select class="fi" style="font-size:11px" onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'campo',this.value)">${_wfOptsCamposAresta(arestaId, c.campo || '')}</select>
+          <select class="fi" style="font-size:11px" onchange="wfDesignerUpdateCondicao('${_esc(arestaId)}',${i},'operador',this.value)">${_WF_OPS_LABELS.map(op => `<option value="${_esc(op)}"${c.operador === op ? ' selected' : ''}>${_esc(op)}</option>`).join('')}</select>
+          ${valorInput}
+          <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 4px" onclick="wfDesignerRemoveCondicao('${_esc(arestaId)}',${i})">✕</button>
+        </div>
       </div>`;
     }).join('');
   }
@@ -2015,7 +2579,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const lista = _wfConfigNos[noId]?.acoes_condicionais || [];
     const acoes = _wfConfigNos[noId]?.acoes || [];
     if (!lista.length) {
-      el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Sem condições de ação.</div>';
+      el.innerHTML = '<div class="wf-guide-note">Todos os botões marcados acima aparecerão normalmente.</div>';
       return;
     }
 
@@ -2038,19 +2602,24 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${idx},'campo',this.value)">${semSelecao}${legado}${opts}</select>`;
     };
 
-    el.innerHTML = lista.map((r, i) => `
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:4px;margin-bottom:6px;align-items:center">
-        <select class="fi" style="font-size:11px" onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'acao',this.value)">
-          ${acoes.map(a => `<option value="${_esc(a)}"${r.acao === a ? ' selected' : ''}>${_esc((globalScope.WF_ACAO_LABELS||{})[a] || a)}</option>`).join('')}
-        </select>
-        ${optsCampos(r.campo || '', i)}
-        <select class="fi" style="font-size:11px" onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'operador',this.value)">
-          ${_WF_OPS_LABELS.map(op => `<option value="${_esc(op)}"${(r.operador || '=') === op ? ' selected' : ''}>${_esc(op)}</option>`).join('')}
-        </select>
-        <input type="text" class="fi" style="font-size:11px" placeholder="valor" value="${_esc(r.valor || '')}" oninput="wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'valor',this.value)">
-        <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 4px" onclick="wfDesignerAcaoCondRemove('${_esc(noId)}',${i})">✕</button>
+    el.innerHTML = `<div class="wf-logic-list">${lista.map((r, i) => `
+      <div class="wf-logic-card">
+        <div class="wf-logic-sentence">Mostrar o botão <strong>${_esc((globalScope.WF_ACAO_LABELS||{})[r.acao] || r.acao || 'ação')}</strong> quando:</div>
+        <div class="wf-logic-actions" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;align-items:center">
+          ${optsCampos(r.campo || '', i)}
+          <select class="fi" style="font-size:11px" onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'operador',this.value)">${_WF_OPS_LABELS.map(op => `<option value="${_esc(op)}"${(r.operador || '=') === op ? ' selected' : ''}>${_esc(op)}</option>`).join('')}</select>
+          ${_wfEditorValorSugestoesHtml({
+            valorAtual: r.valor || '',
+            opcoes: _wfOpcoesValorMeta(_wfCampoMetaNo(noId, r.campo || '')),
+            placeholder: 'escolha uma opção ou digite um valor',
+            selectOnChange: `wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'valor',this.value)`,
+            inputOnInput: `wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'valor',this.value)`,
+          })}
+          <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 4px" onclick="wfDesignerAcaoCondRemove('${_esc(noId)}',${i})">✕</button>
+        </div>
+        <div class="wf-logic-actions"><select class="fi" style="font-size:11px;max-width:220px" onchange="wfDesignerAcaoCondUpdate('${_esc(noId)}',${i},'acao',this.value)">${acoes.map(a => `<option value="${_esc(a)}"${r.acao === a ? ' selected' : ''}>${_esc((globalScope.WF_ACAO_LABELS||{})[a] || a)}</option>`).join('')}</select></div>
       </div>
-    `).join('');
+    `).join('')}</div>`;
   }
 
   function wfDesignerAddAcaoCond(noId) {
@@ -2072,6 +2641,10 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const reg = _wfConfigNos[noId]?.acoes_condicionais?.[idx];
     if (!reg) return;
     reg[chave] = valor;
+    if (chave === 'campo') {
+      reg.valor = '';
+      _wfRenderAcoesCond(noId);
+    }
     _wfMarcarDesignerSujo();
   }
 
@@ -2103,7 +2676,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (!el) return;
     const lista = _wfConfigNos[noId]?.campos_condicionais || [];
     if (!lista.length) {
-      el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Sem condições de campo.</div>';
+      el.innerHTML = '<div class="wf-guide-note">Todos os campos do formulário seguem o comportamento padrão.</div>';
       return;
     }
     const optsAfetado = (valorAtual) => {
@@ -2115,29 +2688,18 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       return `<input type="text" class="fi" value="${_esc(valorAtual || '')}" placeholder="id_do_campo" style="flex:1;min-width:80px;font-size:11px"
         oninput="wfDesignerCampoCondUpdate('${_esc(noId)}',__IDX__,'campo_id',this.value)">`;
     };
-    el.innerHTML = lista.map((cc, i) => `
-      <div style="background:var(--surf2);border-radius:6px;padding:8px;margin-bottom:8px;font-size:12px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
-          <span style="font-weight:600;white-space:nowrap">Campo afetado:</span>
+    el.innerHTML = `<div class="wf-logic-list">${lista.map((cc, i) => `
+      <div class="wf-logic-card">
+        <div class="wf-logic-sentence">${cc.acao === 'mostrar' ? 'Mostrar' : cc.acao === 'ocultar' ? 'Ocultar' : cc.acao === 'obrigatorio' ? 'Tornar obrigatório' : 'Tornar opcional'} o campo:</div>
+        <div class="wf-logic-actions">
           ${optsAfetado(cc.campo_id || '').replace(/__IDX__/g, String(i))}
-          <select class="fi" style="width:auto;font-size:11px"
-            onchange="wfDesignerCampoCondUpdate('${_esc(noId)}',${i},'acao',this.value)">
-            ${['mostrar','ocultar','obrigatorio','opcional'].map(a =>
-              `<option value="${a}"${cc.acao === a ? ' selected' : ''}>${a}</option>`).join('')}
-          </select>
-          <span>SE</span>
-          <select class="fi" style="width:auto;font-size:11px"
-            onchange="wfDesignerCampoCondUpdate('${_esc(noId)}',${i},'operador_logico',this.value)">
-            <option value="AND"${(cc.operador_logico || 'AND') === 'AND' ? ' selected' : ''}>AND</option>
-            <option value="OR"${cc.operador_logico === 'OR' ? ' selected' : ''}>OR</option>
-          </select>
-          <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444"
-            onclick="wfDesignerCampoCondRemove('${_esc(noId)}',${i})">✕</button>
+          <select class="fi" style="width:auto;font-size:11px" onchange="wfDesignerCampoCondUpdate('${_esc(noId)}',${i},'acao',this.value)">${['mostrar','ocultar','obrigatorio','opcional'].map(a => `<option value="${a}"${cc.acao === a ? ' selected' : ''}>${a}</option>`).join('')}</select>
+          <select class="fi" style="width:auto;font-size:11px" onchange="wfDesignerCampoCondUpdate('${_esc(noId)}',${i},'operador_logico',this.value)"><option value="AND"${(cc.operador_logico || 'AND') === 'AND' ? ' selected' : ''}>se todas as regras ocorrerem</option><option value="OR"${cc.operador_logico === 'OR' ? ' selected' : ''}>se qualquer regra ocorrer</option></select>
+          <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444" onclick="wfDesignerCampoCondRemove('${_esc(noId)}',${i})">✕</button>
         </div>
         <div id="wf-campo-cond-conds-${_esc(noId)}-${i}" style="margin-bottom:4px"></div>
-        <button type="button" class="btn btn-sm" style="font-size:10px"
-          onclick="wfDesignerCampoCondAddCond('${_esc(noId)}',${i})">+ condição</button>
-      </div>`).join('');
+        <button type="button" class="btn btn-sm" style="font-size:10px" onclick="wfDesignerCampoCondAddCond('${_esc(noId)}',${i})">+ Adicionar condição</button>
+      </div>`).join('')}</div>`;
     lista.forEach((_, i) => _wfRenderCampoCondConds(noId, i));
   }
 
@@ -2145,7 +2707,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const el = document.getElementById(`wf-campo-cond-conds-${noId}-${ccIdx}`);
     if (!el) return;
     const conds = _wfConfigNos[noId]?.campos_condicionais?.[ccIdx]?.condicoes || [];
-    if (!conds.length) { el.innerHTML = '<div style="font-size:11px;color:var(--ink3)">Sem condições.</div>'; return; }
+    if (!conds.length) { el.innerHTML = '<div class="wf-mini-help">Ainda não há condição cadastrada.</div>'; return; }
     const temOpts = _wfOptsCampos(noId, '') !== null;
     el.innerHTML = conds.map((c, i) => {
       const campoInput = temOpts
@@ -2162,8 +2724,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
             onchange="wfDesignerCampoCondCond('${_esc(noId)}',${ccIdx},${i},'operador',this.value)">
             ${_WF_OPS_LABELS.map(op => `<option value="${_esc(op)}"${c.operador === op ? ' selected' : ''}>${_esc(op)}</option>`).join('')}
           </select>
-          <input type="text" class="fi" placeholder="valor" value="${_esc(c.valor || '')}" style="font-size:11px"
-            oninput="wfDesignerCampoCondCond('${_esc(noId)}',${ccIdx},${i},'valor',this.value)">
+          ${_wfEditorValorSugestoesHtml({
+            valorAtual: c.valor || '',
+            opcoes: _wfOpcoesValorMeta(_wfCampoMetaNo(noId, c.campo || '')),
+            placeholder: 'escolha uma opção ou digite um valor',
+            selectOnChange: `wfDesignerCampoCondCond('${_esc(noId)}',${ccIdx},${i},'valor',this.value)`,
+            inputOnInput: `wfDesignerCampoCondCond('${_esc(noId)}',${ccIdx},${i},'valor',this.value)`,
+          })}
           <button type="button" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 4px"
             onclick="wfDesignerCampoCondRemoveCond('${_esc(noId)}',${ccIdx},${i})">✕</button>
         </div>`;
@@ -2202,7 +2769,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function wfDesignerCampoCondCond(noId, ccIdx, condIdx, chave, valor) {
     const c = _wfConfigNos[noId]?.campos_condicionais?.[ccIdx]?.condicoes?.[condIdx];
-    if (c) { c[chave] = valor; _wfMarcarDesignerSujo(); }
+    if (!c) return;
+    c[chave] = valor;
+    if (chave === 'campo') {
+      c.valor = '';
+      _wfRenderCampoCondConds(noId, ccIdx);
+    }
+    _wfMarcarDesignerSujo();
   }
 
   // ── Avaliação de campos condicionais (exposta para renderer de formulários) ─
@@ -2222,9 +2795,11 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     return res;
   }
 
-  async function wfDesignerSalvar() {
+  async function wfDesignerSalvar(opts = {}) {
     if (!_wfModeler || !_wfModeloAtual) return;
+    const silent = !!opts.silent;
     try {
+      _wfAutosaveEmCurso = true;
       const { xml } = await _wfModeler.saveXML({ format: true });
       const canvas = _wfSyncCanvas();
       const nome = document.getElementById('wf-designer-nome')?.value.trim() || _wfModeloAtual.nome;
@@ -2246,25 +2821,73 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         _wfModeloAtual.id = await _addDoc('wf_processo_modelos', dados);
       }
       Object.assign(_wfModeloAtual, dados);
-      const dirtyEl = document.getElementById('wf-bpmn-dirty');
-      if (dirtyEl) dirtyEl.style.display = 'none';
-      if (typeof globalScope.toast === 'function') globalScope.toast('✓ Workflow salvo');
+      _wfLimparAutosavePendente();
+      _wfAtualizarIndicadorSujo(false);
+      if (!silent && typeof globalScope.toast === 'function') globalScope.toast('✓ Workflow salvo');
     } catch (e) {
-      alert('Erro ao salvar: ' + e.message);
+      if (!silent) alert('Erro ao salvar: ' + e.message);
+    } finally {
+      _wfAutosaveEmCurso = false;
     }
   }
 
   async function wfDesignerPublicar() {
-    if (!_wfModeler || !_wfModeloAtual) return;
-    const canvas = _wfSyncCanvas();
-    if (!canvas.nos.some(n => n.tipo === 'inicio')) { alert('O fluxo precisa de um evento de início.'); return; }
-    if (!canvas.nos.some(n => n.tipo === 'fim')) { alert('O fluxo precisa de um evento de fim.'); return; }
-    if (!canvas.arestas.length) { alert('O fluxo precisa de ao menos uma conexão.'); return; }
-    _wfModeloAtual.status = 'publicado';
-    await wfDesignerSalvar();
-    if (typeof globalScope.toast === 'function') globalScope.toast('✓ Workflow publicado!');
-    else alert('Workflow publicado!');
-    wfNavWorkflow('iniciar');
+    await wfPublicarModelo();
+  }
+
+  function _wfValidarModeloPublicacao(modelo) {
+    const erros = [];
+    const avisos = [];
+    const autoFixes = [];
+    const canvas = (_wfModeloAtual?.id && modelo?.id === _wfModeloAtual?.id && _wfModeler)
+      ? _wfSyncCanvas()
+      : (modelo?.canvas || { nos: [], arestas: [] });
+    const cfgNos = (modelo?.id === _wfModeloAtual?.id) ? _wfConfigNos : (modelo?.config_nos || {});
+    const nos = canvas.nos || [];
+    const arestas = canvas.arestas || [];
+    const inicios = nos.filter(n => n.tipo === 'inicio');
+    const fins = nos.filter(n => n.tipo === 'fim');
+
+    if (!inicios.length) erros.push('Adicione um evento de início.');
+    if (!fins.length) erros.push('Adicione um evento de fim.');
+    if (!arestas.length) erros.push('Adicione ao menos uma conexão entre etapas.');
+
+    nos.filter(n => n.tipo === 'aprovacao').forEach((g) => {
+      const saidas = arestas.filter(a => a.origem === g.id);
+      if (saidas.length < 2) erros.push(`Gateway "${g.nome || g.id}" precisa de pelo menos duas saídas.`);
+      const padrao = saidas.filter(a => (cfgNos[a.id] || {}).padrao);
+      if (!padrao.length && saidas.length) {
+        avisos.push(`Gateway "${g.nome || g.id}" sem saída padrão.`);
+        autoFixes.push({ tipo: 'gateway_default', gatewayId: g.id, arestaId: saidas[0].id });
+      }
+      if (padrao.length > 1) erros.push(`Gateway "${g.nome || g.id}" possui mais de uma saída padrão.`);
+    });
+
+    nos.filter(n => n.tipo === 'tarefa').forEach((n) => {
+      const cfg = cfgNos[n.id] || _configPadrao();
+      (cfg.acoes || []).forEach((acao) => {
+        const prox = _proximoNoExecutavel(canvas, n.id, acao, {});
+        if (!prox) erros.push(`A ação "${acao}" da etapa "${n.nome || n.id}" não possui destino válido.`);
+      });
+    });
+
+    return { ok: !erros.length, erros, avisos, autoFixes, canvas };
+  }
+
+  function wfDesignerAplicarAutoFixPublicacao() {
+    if (!_wfModeloAtual) return;
+    const v = _wfValidarModeloPublicacao(_wfModeloAtual);
+    const fix = v.autoFixes.find(f => f.tipo === 'gateway_default');
+    if (!fix) { alert('Nenhuma correção automática disponível.'); return; }
+    if (!_wfConfigNos[fix.arestaId]) _wfConfigNos[fix.arestaId] = _configPadrao();
+    _wfConfigNos[fix.arestaId].padrao = true;
+    _wfMarcarDesignerSujo();
+    alert('Correção aplicada: saída padrão criada no gateway.');
+    if (_wfModeler) {
+      const reg = _wfModeler.get('elementRegistry');
+      const el = reg?.get(fix.gatewayId);
+      if (el) _wfRenderConfigPanel(el);
+    }
   }
 
   // Mantém stubs das funções antigas expostas para não quebrar chamadas inline
@@ -2345,7 +2968,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const inicio = nos.find(n => n.tipo === 'inicio');
     if (!inicio) { alert('Modelo sem nó de início.'); return; }
     // primeiro nó executável após o início
-    const primeira = _proximoNo(modelo.canvas, inicio.id, null);
+    const primeira = _proximoNoExecutavel(modelo.canvas, inicio.id, null);
     if (!primeira) { alert('Modelo sem etapa após o início.'); return; }
 
     const _prosseguir = async (vinculo) => {
@@ -2453,6 +3076,23 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (!destino) return null;
     if (destino.tipo === 'inicio') return _proximoNo(canvas, destino.id, null, dados);
     return destino;
+  }
+
+  function _proximoNoExecutavel(canvas, noId, acao, dados = {}) {
+    const visitados = new Set();
+    let atualId = noId;
+    let acaoAtual = acao;
+
+    while (atualId && !visitados.has(atualId)) {
+      visitados.add(atualId);
+      const prox = _proximoNo(canvas, atualId, acaoAtual, dados);
+      if (!prox) return null;
+      if (prox.tipo === 'fim') return prox;
+      if (prox.tipo !== 'aprovacao') return prox;
+      atualId = prox.id;
+      acaoAtual = null;
+    }
+    return null;
   }
 
   // ── Template Engine ───────────────────────────────────────────────────────
@@ -2849,102 +3489,6 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       wfCarregarFormularios();
     } catch (e) {
       alert('Erro ao salvar formulário: ' + e.message);
-    }
-  }
-
-  // ── Configurar Processo ───────────────────────────────────────────────────
-  async function wfConfigurarProcesso(processoId) {
-    const proc = await _getDoc('processos', processoId);
-    if (!proc) { alert('Processo não encontrado.'); return; }
-
-    const usaToBe = (proc.mod?.etapas_proc_tobe || []).length > 0;
-    const todasEtapas = usaToBe ? proc.mod.etapas_proc_tobe : (proc.mod?.etapas_proc || []);
-    const atividades = todasEtapas.filter(e => !e.tipo || e.tipo === 'Atividade' || e.tipo === 'Aprovação');
-
-    _st.configProcessoId = processoId;
-    _st.configProcessoEtapas = atividades.map((e, i) => ({
-      id: `${processoId}_${e.id || i}`,
-      nome: e.nome || `Etapa ${i + 1}`,
-    }));
-
-    // Carrega config salva
-    let configSalva = {};
-    try {
-      const doc = await _getDoc('wf_config_processo', processoId);
-      configSalva = doc?.etapas || {};
-    } catch (_e) { /* sem config prévia */ }
-
-    // Carrega modelos de formulário
-    if (!_st.formularioModelos.length) {
-      _st.formularioModelos = await _getAll('wf_formulario_modelos');
-    }
-
-    // Título
-    const tituloEl = document.getElementById('wf-config-proc-titulo');
-    if (tituloEl) tituloEl.textContent = proc.nome;
-
-    // Renderiza etapas
-    const etapasEl = document.getElementById('wf-config-proc-etapas');
-    if (etapasEl) {
-      const opcoesFormulario = _st.formularioModelos.map(m =>
-        `<option value="${_esc(m.id)}">${_esc(m.titulo)}</option>`
-      ).join('');
-
-      etapasEl.innerHTML = _st.configProcessoEtapas.map(etapa => {
-        const conf = configSalva[etapa.id] || {};
-        return `
-          <div style="border:1px solid var(--bdr);border-radius:8px;padding:14px;margin-bottom:10px">
-            <div style="font-weight:600;font-size:14px;margin-bottom:10px">${_esc(etapa.nome)}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div>
-                <label class="lbl" style="font-size:11px">Formulário</label>
-                <select class="fi" id="wf-conf-form-${_esc(etapa.id)}" style="margin-top:4px">
-                  <option value="">— Sem formulário —</option>
-                  ${opcoesFormulario}
-                </select>
-              </div>
-              <div>
-                <label class="lbl" style="font-size:11px">SLA (horas)</label>
-                <input type="number" class="fi" id="wf-conf-sla-${_esc(etapa.id)}" min="0" value="${_esc(String(conf.sla_horas ?? 0))}" style="margin-top:4px">
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      // Preenche selects com valor salvo
-      _st.configProcessoEtapas.forEach(etapa => {
-        const conf = configSalva[etapa.id] || {};
-        const sel = document.getElementById(`wf-conf-form-${etapa.id}`);
-        if (sel && conf.formulario_id) sel.value = conf.formulario_id;
-      });
-    }
-
-    wfNavWorkflow('config-modelo');
-  }
-
-  async function wfSalvarConfigProcesso() {
-    if (!_st.configProcessoId) return;
-
-    const etapas = {};
-    _st.configProcessoEtapas.forEach(etapa => {
-      const sel = document.getElementById(`wf-conf-form-${etapa.id}`);
-      const slaEl = document.getElementById(`wf-conf-sla-${etapa.id}`);
-      etapas[etapa.id] = {
-        formulario_id: sel?.value || null,
-        sla_horas: Number(slaEl?.value || 0),
-      };
-    });
-
-    try {
-      await _setDoc('wf_config_processo', _st.configProcessoId, {
-        processo_id: _st.configProcessoId,
-        etapas,
-      });
-      alert('Configuração salva com sucesso.');
-      wfNavWorkflow('iniciar');
-    } catch (e) {
-      alert('Erro ao salvar configuração: ' + e.message);
     }
   }
 
@@ -3589,17 +4133,41 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   async function wfAbrirModalNovoModelo() {
-    const nome = prompt('Nome do novo processo:');
-    if (!nome?.trim()) return;
+    _wfAbrirModalDinamico('wf-modal-novo-modelo', `
+      <div class="modal-hd"><span>Novo modelo de workflow</span><button type="button" class="modal-x" onclick="_wfFecharModalDinamico('wf-modal-novo-modelo')">✕</button></div>
+      <div class="modal-bd">
+        <label class="lbl">Nome do modelo</label>
+        <input id="wf-new-model-name" class="fi" style="margin-top:4px;margin-bottom:10px" placeholder="Ex.: Aprovação de Documento">
+        <label class="lbl">Template institucional</label>
+        <select id="wf-new-model-template" class="fi" style="margin-top:4px">${_wfTemplateCardHtml()}</select>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-p" onclick="wfConfirmarNovoModelo()">Criar</button>
+        <button type="button" class="btn" onclick="_wfFecharModalDinamico('wf-modal-novo-modelo')">Cancelar</button>
+      </div>
+    `);
+  }
+
+  async function wfConfirmarNovoModelo() {
+    const nome = (document.getElementById('wf-new-model-name')?.value || '').trim();
+    const templateId = document.getElementById('wf-new-model-template')?.value || 'vazio';
+    if (!nome) { alert('Informe o nome do modelo.'); return; }
     try {
-      const id = await _addDoc('wf_processo_modelos', {
-        nome: nome.trim(),
+      const payload = {
+        nome,
         descricao: '',
         status: 'rascunho',
         versao: 1,
-        etapas: [],
-        transicoes: [],
-      });
+        bpmn_xml: _wfBpmnInicial(),
+      };
+      if (templateId !== 'vazio') {
+        const bpmnXml = _wfBpmnFromTemplate(templateId);
+        payload.bpmn_xml = bpmnXml;
+        payload.config_nos = _wfConfigNosDoBpmn(bpmnXml);
+        _wfAjustarTemplateConfigNos(templateId, payload.config_nos);
+      }
+      const id = await _addDoc('wf_processo_modelos', payload);
+      _wfFecharModalDinamico('wf-modal-novo-modelo');
       await wfAbrirConfigModelo(id);
     } catch (e) {
       alert('Erro ao criar modelo: ' + e.message);
@@ -3632,6 +4200,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const modelo = await _getDoc('wf_processo_modelos', modeloId);
     if (!modelo) { alert('Modelo não encontrado.'); return; }
     _wfModeloAtual = modelo;
+    _wfPrepararCamposCabecalhoDesigner(modelo);
+    _wfLimparAutosavePendente();
+    _wfAtualizarIndicadorSujo(false);
     const tituloEl = document.getElementById('wf-config-titulo');
     if (tituloEl) tituloEl.textContent = modelo.nome;
     const statusEl = document.getElementById('wf-config-status-badge');
@@ -3644,78 +4215,11 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
     const pubBtn = document.getElementById('wf-btn-publicar');
     if (pubBtn) pubBtn.style.display = modelo.status === 'rascunho' ? '' : 'none';
-    _wfRenderEtapasConfig(modelo);
-    _wfRenderTransicoesConfig(modelo);
     _wfRenderArqInfo(modelo);
     wfNavWorkflow('config-modelo');
     setTimeout(() => _wfInitModeler(modelo), 0);
   }
 
-  function _wfEtapas(modelo) {
-    return modelo.etapas?.length
-      ? modelo.etapas
-      : (modelo.canvas?.nos?.filter(n => n.tipo !== 'inicio' && n.tipo !== 'fim') || []);
-  }
-
-  function _wfTransicoes(modelo) {
-    return modelo.transicoes?.length
-      ? modelo.transicoes
-      : (modelo.canvas?.arestas || []);
-  }
-
-  function _wfRenderEtapasConfig(modelo) {
-    const el = document.getElementById('wf-config-etapas');
-    if (!el) return;
-    const etapas = _wfEtapas(modelo);
-    if (!etapas.length) {
-      el.innerHTML = '<div style="color:var(--ink3);font-size:13px;padding:8px 0">Nenhuma etapa adicionada.</div>';
-      return;
-    }
-    const ICONE = globalScope.WF_TIPO_ETAPA_ICONE || { tarefa:'📋', aprovacao:'✅', inicio:'▶', fim:'⏹' };
-    const PAPEL_LABELS = globalScope.WF_PAPEL_ALVO_LABELS || {};
-    el.innerHTML = etapas.map((n, i) => `
-      <div onclick="wfAbrirModalEtapa('${_esc(n.id || i)}')" style="display:flex;align-items:center;gap:10px;border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:8px;cursor:pointer" title="Clique para editar a etapa">
-        <span style="font-size:16px">${ICONE[n.tipo || n.label] || '📋'}</span>
-        <div style="flex:1">
-          <div style="font-weight:600;font-size:13px">${_esc(n.nome || n.label || n.id)}</div>
-          <div style="font-size:11px;color:var(--ink3)">${_esc(n.tipo || 'tarefa')}${n.responsavel_papel ? ' · ' + _esc(PAPEL_LABELS[n.responsavel_papel] || n.responsavel_papel) : ''}${n.sla_horas ? ' · SLA ' + n.sla_horas + 'h' : ''}</div>
-        </div>
-        <button type="button" class="btn btn-r btn-sm" onclick="event.stopPropagation();_wfRemoverEtapa('${_esc(n.id || i)}')" title="Excluir etapa">✕</button>
-      </div>
-    `).join('');
-
-    // Defesa extra: remove qualquer botão residual de edição nessa lista.
-    Array.from(el.querySelectorAll('button')).forEach((btn) => {
-      if ((btn.textContent || '').trim().toLowerCase().includes('editar')) btn.remove();
-    });
-  }
-
-  function _wfRenderTransicoesConfig(modelo) {
-    const el = document.getElementById('wf-config-transicoes');
-    if (!el) return;
-    const trans = _wfTransicoes(modelo);
-    const etapas = _wfEtapas(modelo);
-    const nomeNo = id => {
-      const n = etapas.find(e => (e.id || e) === id);
-      return n ? (n.nome || n.label || n.id) : id;
-    };
-    if (!trans.length) {
-      el.innerHTML = '<div style="color:var(--ink3);font-size:13px">Nenhuma transição.</div>';
-      return;
-    }
-    const ACAO_LABELS = globalScope.WF_ACAO_LABELS || {};
-    const CONDICAO_LABELS = { sempre:'Sempre', aprovado:'Aprovado', rejeitado:'Rejeitado' };
-    el.innerHTML = trans.map((t, i) => `
-      <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:13px">
-        <div style="flex:1">
-          <strong>${_esc(nomeNo(t.de || t.origem))}</strong> → <strong>${_esc(nomeNo(t.para || t.destino))}</strong>
-          ${t.condicao && t.condicao !== 'sempre' ? `<span style="color:var(--ink3)"> (${_esc(CONDICAO_LABELS[t.condicao] || t.condicao)})</span>` : ''}
-          ${t.acao ? ` · ${_esc(ACAO_LABELS[t.acao] || t.acao)}` : ''}
-        </div>
-        <button type="button" class="btn btn-r btn-sm" onclick="_wfRemoverTransicao(${i})">✕</button>
-      </div>
-    `).join('');
-  }
 
   function _wfRenderArqInfo(modelo) {
     const el = document.getElementById('wf-config-arq-info');
@@ -3725,141 +4229,6 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     } else {
       el.textContent = 'Nenhum processo vinculado.';
     }
-  }
-
-  async function _wfRemoverEtapa(etapaId) {
-    if (!_wfModeloAtual) return;
-    if (!confirm('Remover esta etapa?')) return;
-    const etapas = _wfEtapas(_wfModeloAtual).filter(e => e.id !== etapaId);
-    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { etapas });
-    _wfModeloAtual.etapas = etapas;
-    _wfRenderEtapasConfig(_wfModeloAtual);
-  }
-
-  async function _wfRemoverTransicao(idx) {
-    if (!_wfModeloAtual) return;
-    if (!confirm('Remover esta transição?')) return;
-    const trans = [...(_wfModeloAtual.transicoes || [])];
-    trans.splice(idx, 1);
-    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { transicoes: trans });
-    _wfModeloAtual.transicoes = trans;
-    _wfRenderTransicoesConfig(_wfModeloAtual);
-  }
-
-  // Modal dinâmico para edição de etapa
-  function wfAbrirModalEtapa(etapaId) {
-    if (!_wfModeloAtual) return;
-    const etapas = _wfEtapas(_wfModeloAtual);
-    const etapa = etapaId ? etapas.find(e => e.id === etapaId) : null;
-    const cfgEtapa = etapa?.id ? (_wfConfigNos[etapa.id] || {}) : {};
-    const isNova = !etapa;
-    const TIPOS = [['tarefa','Tarefa'],['aprovacao','Aprovação']];
-    const PAPEIS = Object.entries(globalScope.WF_PAPEL_ALVO_LABELS || { solicitante:'Próprio solicitante', ep:'Perfil EP', gestor:'Perfil Gestor', dono:'Perfil Dono' });
-    const fms = _st.formularioModelos.length ? _st.formularioModelos : [];
-    _wfAbrirModalDinamico('wf-modal-etapa', `
-      <div class="modal-hd"><span>${isNova ? 'Nova etapa' : 'Editar etapa'}</span><button type="button" class="modal-x" onclick="_wfFecharModalDinamico('wf-modal-etapa')">✕</button></div>
-      <div class="modal-bd">
-        <div style="margin-bottom:14px"><label class="lbl">Nome *</label><input type="text" class="fi" id="wf-etapa-nome" value="${_esc(etapa?.nome || '')}" style="margin-top:4px;width:100%"></div>
-        <div style="margin-bottom:14px"><label class="lbl">Tipo</label><select class="fi" id="wf-etapa-tipo" style="margin-top:4px;width:100%">${TIPOS.map(([v,l])=>`<option value="${v}"${etapa?.tipo===v?' selected':''}>${l}</option>`).join('')}</select></div>
-        <div style="margin-bottom:14px"><label class="lbl">Responsável</label><select class="fi" id="wf-etapa-papel" style="margin-top:4px;width:100%"><option value="">— Não definido —</option>${PAPEIS.map(([v,l])=>`<option value="${v}"${(etapa?.responsavel_papel || cfgEtapa?.papeis?.executor || '')===v?' selected':''}>${_esc(l)}</option>`).join('')}</select></div>
-        <div style="margin-bottom:14px"><label class="lbl">Formulário</label><select class="fi" id="wf-etapa-form" onchange="_wfAtualizarAcoesFormularioEtapa()" style="margin-top:4px;width:100%"><option value="">— Sem formulário —</option>${fms.map(m=>`<option value="${_esc(m.id)}"${(etapa?.formulario_id || cfgEtapa?.formulario_id || '')===m.id?' selected':''}>${_esc(m.titulo||m.nome)}</option>`).join('')}</select><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn btn-sm" onclick="wfAbrirModalNovoFormulario(null,'etapa')">+ Novo formulário</button><button type="button" class="btn btn-sm" id="wf-etapa-form-editar" onclick="wfAbrirModalNovoFormulario(document.getElementById('wf-etapa-form')?.value || null,'etapa')">Editar formulário</button></div></div>
-        <div><label class="lbl">SLA (horas)</label><input type="number" class="fi" id="wf-etapa-sla" min="0" value="${etapa?.sla_horas ?? cfgEtapa?.sla_horas ?? 0}" style="margin-top:4px;width:100%"></div>
-      </div>
-      <div class="modal-ft">
-        <button type="button" class="btn btn-p" onclick="_wfSalvarEtapa('${_esc(etapaId||'')}')">Salvar</button>
-        <button type="button" class="btn" onclick="_wfFecharModalDinamico('wf-modal-etapa')">Cancelar</button>
-      </div>
-    `);
-    _wfAtualizarAcoesFormularioEtapa();
-    if (!fms.length) {
-      _getAll('wf_formulario_modelos').then(list => {
-        _st.formularioModelos = list;
-        const sel = document.getElementById('wf-etapa-form');
-        if (sel) sel.innerHTML = '<option value="">— Sem formulário —</option>' + list.map(m=>`<option value="${_esc(m.id)}"${etapa?.formulario_id===m.id?' selected':''}>${_esc(m.titulo||m.nome)}</option>`).join('');
-        _wfAtualizarAcoesFormularioEtapa();
-      }).catch(() => {});
-    }
-  }
-
-  async function _wfSalvarEtapa(etapaId) {
-    if (!_wfModeloAtual) return;
-    const nome = document.getElementById('wf-etapa-nome')?.value.trim();
-    if (!nome) { alert('Nome é obrigatório.'); return; }
-    const tipo = document.getElementById('wf-etapa-tipo')?.value || 'tarefa';
-    const papel = document.getElementById('wf-etapa-papel')?.value || '';
-    const formId = document.getElementById('wf-etapa-form')?.value || '';
-    const sla = Number(document.getElementById('wf-etapa-sla')?.value || 0);
-    const etapas = [..._wfEtapas(_wfModeloAtual)];
-    const idx = etapaId ? etapas.findIndex(e => e.id === etapaId) : -1;
-    const nova = { id: etapaId || `e_${Date.now()}`, nome, tipo, responsavel_papel: papel || null, formulario_id: formId || null, sla_horas: sla };
-    if (idx >= 0) etapas[idx] = nova;
-    else etapas.push(nova);
-
-    // Mantém sincronia com as configurações usadas pelo editor visual (painel lateral do nó).
-    const cfg = _wfConfigNos[nova.id] || _configPadrao();
-    cfg.formulario_id = nova.formulario_id;
-    cfg.sla_horas = nova.sla_horas;
-    cfg.papeis = cfg.papeis || {};
-    cfg.papeis.executor = nova.responsavel_papel;
-    _wfConfigNos[nova.id] = cfg;
-
-    // Se houver nó BPMN correspondente, atualiza o rótulo no canvas.
-    try {
-      if (_wfModeler) {
-        const reg = _wfModeler.get('elementRegistry');
-        const modeling = _wfModeler.get('modeling');
-        const el = reg?.get(nova.id);
-        if (el && modeling) modeling.updateLabel(el, nova.nome || '');
-      }
-    } catch (_e) { /* no-op */ }
-
-    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { etapas });
-    _wfModeloAtual.etapas = etapas;
-    _wfFecharModalDinamico('wf-modal-etapa');
-    _wfRenderEtapasConfig(_wfModeloAtual);
-
-    // Se o nó estava selecionado no designer, atualiza imediatamente o painel lateral.
-    try {
-      if (_st.designerNoSel) {
-        const reg = _wfModeler?.get('elementRegistry');
-        const elSel = reg?.get(_st.designerNoSel);
-        if (elSel) _wfRenderConfigPanel(elSel);
-      }
-    } catch (_e) { /* no-op */ }
-  }
-
-  function wfAbrirModalTransicao() {
-    if (!_wfModeloAtual) return;
-    const etapas = _wfEtapas(_wfModeloAtual);
-    const nosOpts = etapas.map(e => `<option value="${_esc(e.id)}">${_esc(e.nome||e.label||e.id)}</option>`).join('');
-    const ACOES = Object.entries(globalScope.WF_ACAO_LABELS || { avancar:'Avançar', concluir:'Concluir', aprovar:'Aprovar', rejeitar:'Rejeitar', devolver:'Devolver' });
-    _wfAbrirModalDinamico('wf-modal-transicao', `
-      <div class="modal-hd"><span>Nova transição</span><button type="button" class="modal-x" onclick="_wfFecharModalDinamico('wf-modal-transicao')">✕</button></div>
-      <div class="modal-bd">
-        <div style="margin-bottom:14px"><label class="lbl">De (etapa origem) *</label><select class="fi" id="wf-trans-de" style="margin-top:4px;width:100%"><option value="">Selecione…</option>${nosOpts}</select></div>
-        <div style="margin-bottom:14px"><label class="lbl">Para (etapa destino) *</label><select class="fi" id="wf-trans-para" style="margin-top:4px;width:100%"><option value="">Selecione…</option>${nosOpts}</select></div>
-        <div style="margin-bottom:14px"><label class="lbl">Ação</label><select class="fi" id="wf-trans-acao" style="margin-top:4px;width:100%"><option value="">— Nenhuma —</option>${ACOES.map(([v,l])=>`<option value="${v}">${_esc(l)}</option>`).join('')}</select></div>
-        <div><label class="lbl">Condição</label><select class="fi" id="wf-trans-condicao" style="margin-top:4px;width:100%"><option value="sempre">Sempre</option><option value="aprovado">Aprovado</option><option value="rejeitado">Rejeitado</option></select></div>
-      </div>
-      <div class="modal-ft">
-        <button type="button" class="btn btn-p" onclick="_wfSalvarTransicao()">Salvar</button>
-        <button type="button" class="btn" onclick="_wfFecharModalDinamico('wf-modal-transicao')">Cancelar</button>
-      </div>
-    `);
-  }
-
-  async function _wfSalvarTransicao() {
-    if (!_wfModeloAtual) return;
-    const de = document.getElementById('wf-trans-de')?.value;
-    const para = document.getElementById('wf-trans-para')?.value;
-    if (!de || !para) { alert('Selecione a origem e o destino.'); return; }
-    const acao = document.getElementById('wf-trans-acao')?.value || '';
-    const condicao = document.getElementById('wf-trans-condicao')?.value || 'sempre';
-    const trans = [...(_wfModeloAtual.transicoes || []), { id: `t_${Date.now()}`, de, para, acao: acao || null, condicao }];
-    await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { transicoes: trans });
-    _wfModeloAtual.transicoes = trans;
-    _wfFecharModalDinamico('wf-modal-transicao');
-    _wfRenderTransicoesConfig(_wfModeloAtual);
   }
 
   async function wfAbrirModalVincularArquitetura() {
@@ -3930,8 +4299,16 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   async function wfPublicarModelo() {
     if (!_wfModeloAtual) return;
-    const etapas = _wfEtapas(_wfModeloAtual);
-    if (!etapas.length) { alert('Adicione pelo menos uma etapa antes de publicar.'); return; }
+    if (_wfModeler) await wfDesignerSalvar();
+    const validacao = _wfValidarModeloPublicacao(_wfModeloAtual);
+    if (!validacao.ok) {
+      alert('Não foi possível publicar:\n\n- ' + validacao.erros.join('\n- '));
+      return;
+    }
+    if (validacao.avisos.length) {
+      const confirmar = confirm('Avisos encontrados:\n\n- ' + validacao.avisos.join('\n- ') + '\n\nDeseja continuar mesmo assim?');
+      if (!confirmar) return;
+    }
     if (!confirm(`Publicar o modelo "${_wfModeloAtual.nome}"? Após publicado ele estará disponível para iniciar processos.`)) return;
     try {
       await _updateDoc('wf_processo_modelos', _wfModeloAtual.id, { status: 'publicado' });
@@ -3949,6 +4326,13 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   async function _wfPublicarModeloId(modeloId) {
     if (!confirm('Publicar este modelo?')) return;
     try {
+      const modelo = await _getDoc('wf_processo_modelos', modeloId);
+      if (!modelo) { alert('Modelo não encontrado.'); return; }
+      const validacao = _wfValidarModeloPublicacao(modelo);
+      if (!validacao.ok) {
+        alert('Não foi possível publicar:\n\n- ' + validacao.erros.join('\n- '));
+        return;
+      }
       await _updateDoc('wf_processo_modelos', modeloId, { status: 'publicado' });
       wfCarregarModelos();
     } catch (e) {
@@ -3956,27 +4340,62 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
   }
 
+  function _wfCamposModeloParaSimulacao(modelo) {
+    const out = {};
+    const cfgNos = (modelo?.id === _wfModeloAtual?.id) ? _wfConfigNos : (modelo?.config_nos || {});
+    Object.keys(cfgNos).forEach((id) => {
+      const cfg = cfgNos[id] || {};
+      [
+        ...(cfg.condicoes || []),
+        ...((cfg.acoes_condicionais || []).map(c => ({ campo: c.campo }))),
+      ].forEach((c) => {
+        if (!c?.campo || out[c.campo]) return;
+        out[c.campo] = { id: c.campo, label: c.campo, tipo: 'texto', opcoes: [] };
+      });
+      (cfg.campos_condicionais || []).forEach((cc) => {
+        (cc.condicoes || []).forEach((c) => {
+          if (!c?.campo || out[c.campo]) return;
+          out[c.campo] = { id: c.campo, label: c.campo, tipo: 'texto', opcoes: [] };
+        });
+      });
+      const formId = cfg.formulario_id;
+      const form = (_st.formularioModelos || []).find(f => f.id === formId);
+      (form?.campos || []).forEach((campo) => {
+        const fid = campo.id || campo.label;
+        if (!fid) return;
+        out[fid] = {
+          id: fid,
+          label: campo.label || fid,
+          tipo: campo.tipo || 'texto',
+          opcoes: campo.opcoes || [],
+        };
+      });
+    });
+    return Object.values(out);
+  }
+
   function wfDesignerSimular() {
     if (!_wfModeloAtual) { alert('Abra um modelo antes de simular.'); return; }
-    const etapas = _wfEtapas(_wfModeloAtual);
-    const trans = _wfTransicoes(_wfModeloAtual);
-    // Monta simulação baseada nas transições condicionais
-    const transCondicionais = trans.filter(t => t.condicao && t.condicao !== 'sempre');
-    const nomeNo = id => {
-      const n = etapas.find(e => e.id === id);
-      return n ? (n.nome || n.label || n.id) : id;
-    };
-    const camposHtml = transCondicionais.length
-      ? transCondicionais.map(t => `
-          <div style="margin-bottom:12px">
-            <label class="lbl" style="font-size:12px">${_esc(nomeNo(t.de))} → ${_esc(nomeNo(t.para))}</label>
-            <select class="fi" data-trans-id="${_esc(t.id)}" style="margin-top:4px;width:100%">
-              <option value="aprovado">Aprovado</option>
-              <option value="rejeitado">Rejeitado</option>
-            </select>
-          </div>
-        `).join('')
-      : '<div style="color:var(--ink3);font-size:13px">Nenhuma condição definida — o fluxo percorre todas as etapas em sequência.</div>';
+    const canvas = _wfModeler ? _wfSyncCanvas() : (_wfModeloAtual.canvas || { nos: [], arestas: [] });
+    const campos = _wfCamposModeloParaSimulacao(_wfModeloAtual);
+    const nosExecutaveis = (canvas.nos || []).filter(n => n.tipo === 'tarefa' || n.tipo === 'aprovacao');
+    const camposHtml = [
+      ...(campos.length ? campos.map(c => {
+        const options = c.tipo === 'select' && c.opcoes?.length
+          ? `<select class="fi" data-sim-campo="${_esc(c.id)}" style="margin-top:4px;width:100%">
+              <option value="">(vazio)</option>
+              ${c.opcoes.map(o => `<option value="${_esc(o)}">${_esc(o)}</option>`).join('')}
+            </select>`
+          : `<input class="fi" data-sim-campo="${_esc(c.id)}" style="margin-top:4px;width:100%" placeholder="Valor de ${_esc(c.label)}">`;
+        return `<div style="margin-bottom:12px"><label class="lbl" style="font-size:12px">${_esc(c.label)}</label>${options}</div>`;
+      }) : ['<div style="color:var(--ink3);font-size:13px">Nenhum campo condicional identificado no modelo.</div>']),
+      ...nosExecutaveis.map(n => {
+        const cfg = _wfConfigNos[n.id] || {};
+        const acoes = cfg.acoes && cfg.acoes.length ? cfg.acoes : ['avancar'];
+        return `<div style="margin-bottom:12px"><label class="lbl" style="font-size:12px">Ação escolhida na etapa ${_esc(n.nome || n.id)}</label>
+          <select class="fi" data-sim-acao="${_esc(n.id)}" style="margin-top:4px;width:100%">${acoes.map(a => `<option value="${_esc(a)}">${_esc((globalScope.WF_ACAO_LABELS||{})[a] || a)}</option>`).join('')}</select></div>`;
+      }),
+    ].join('');
 
     const camposEl = document.getElementById('wf-sim-campos');
     const resultEl = document.getElementById('wf-sim-resultado');
@@ -3988,30 +4407,37 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   function wfExecutarSimulacao() {
     if (!_wfModeloAtual) return;
-    const etapas = _wfEtapas(_wfModeloAtual);
-    const trans = _wfTransicoes(_wfModeloAtual);
-    const condicoes = {};
-    document.querySelectorAll('#wf-sim-campos [data-trans-id]').forEach(sel => {
-      condicoes[sel.dataset.transId] = sel.value;
+    const canvas = _wfModeler ? _wfSyncCanvas() : (_wfModeloAtual.canvas || { nos: [], arestas: [] });
+    const dados = {};
+    document.querySelectorAll('#wf-sim-campos [data-sim-campo]').forEach((el) => {
+      dados[el.dataset.simCampo] = el.value || '';
     });
-    // Traça caminho sequencial (simplificado)
+    const acoesPorNo = {};
+    document.querySelectorAll('#wf-sim-campos [data-sim-acao]').forEach((el) => {
+      acoesPorNo[el.dataset.simAcao] = el.value || 'avancar';
+    });
+
     const caminho = [];
-    let visitados = new Set();
-    // Começa pelo primeiro elemento sem predecessores
-    const destinos = new Set(trans.map(t => t.para || t.destino));
-    const inicio = etapas.find(e => !destinos.has(e.id)) || etapas[0];
-    let atual = inicio;
-    while (atual && !visitados.has(atual.id) && caminho.length < 50) {
+    const explicacao = [];
+    const visitados = new Set();
+    const inicio = (canvas.nos || []).find(n => n.tipo === 'inicio');
+    if (!inicio) {
+      const resultEl0 = document.getElementById('wf-sim-resultado');
+      if (resultEl0) resultEl0.innerHTML = '<div style="color:var(--red);font-size:13px">Modelo sem evento de início.</div>';
+      return;
+    }
+
+    let atual = _proximoNoExecutavel(canvas, inicio.id, null, dados);
+    while (atual && !visitados.has(atual.id) && caminho.length < 80) {
       caminho.push(atual);
       visitados.add(atual.id);
-      const proxTrans = trans.find(t => {
-        if ((t.de || t.origem) !== atual.id) return false;
-        if (!t.condicao || t.condicao === 'sempre') return true;
-        return condicoes[t.id] === t.condicao;
-      });
-      if (!proxTrans) break;
-      atual = etapas.find(e => e.id === (proxTrans.para || proxTrans.destino)) || null;
+      if (atual.tipo === 'fim') break;
+      const acao = acoesPorNo[atual.id] || 'avancar';
+      const prox = _proximoNoExecutavel(canvas, atual.id, acao, dados);
+      explicacao.push(`Na etapa "${atual.nome || atual.id}", ação "${acao}" levou para "${prox?.nome || prox?.id || 'fim'}".`);
+      atual = prox;
     }
+
     const resultEl = document.getElementById('wf-sim-resultado');
     if (!resultEl) return;
     if (!caminho.length) { resultEl.innerHTML = '<div style="color:var(--ink3);font-size:13px">Nenhum caminho encontrado.</div>'; return; }
@@ -4023,6 +4449,10 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           ${i > 0 ? '<span style="color:var(--ink3)">→</span>' : ''}
           <span style="background:var(--blue-l);border:1px solid var(--blue-b);border-radius:20px;padding:4px 12px;font-size:12px">${ICONE[e.tipo]||'📋'} ${_esc(e.nome||e.label||e.id)}</span>
         `).join('')}
+      </div>
+      <div style="margin-top:10px;padding:10px;border-radius:8px;background:var(--surf2)">
+        <div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:6px">Explicação da decisão</div>
+        ${explicacao.length ? explicacao.map(t => `<div style="font-size:12px;color:var(--ink2);margin-bottom:4px">• ${_esc(t)}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Sem decisões intermediárias.</div>'}
       </div>
     `;
   }
@@ -4044,7 +4474,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     try {
       const m = await _getDoc('wf_processo_modelos', id);
       if (!m) { det.style.display = 'none'; return; }
-      const etapas = _wfEtapas(m);
+      const etapas = m.canvas?.nos?.filter(n => n.tipo !== 'inicio' && n.tipo !== 'fim') || [];
       det.innerHTML = `<strong>${_esc(m.nome)}</strong>${m.descricao ? `<p style="margin:6px 0 0;font-size:12px;color:var(--ink3)">${_esc(m.descricao)}</p>` : ''}<p style="margin:6px 0 0;font-size:11px;color:var(--ink3)">${etapas.length} etapa(s)</p>`;
       det.style.display = '';
     } catch { det.style.display = 'none'; }
@@ -4100,6 +4530,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     // Designer
     wfImportarMapeamento,
     wfAbrirDesigner,
+    wfDesignerSetMode,
+    wfDesignerAplicarAutoFixPublicacao,
+    wfDesignerAplicarPreset,
     wfDesignerRemoverArestaSel,
     wfDesignerCampoNo,
     wfDesignerCampoCfg,
@@ -4159,22 +4592,14 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     _wfAtualizarCampo,
     _wfRemoverCampo,
     _wfMoverCampo,
-    // Config processo
-    wfConfigurarProcesso,
-    wfSalvarConfigProcesso,
     // Modelagem nova
     wfCarregarModelos,
     wfAbrirModalNovoModelo,
+    wfConfirmarNovoModelo,
     wfExcluirModelo,
     wfAbrirConfigModelo,
     wfPublicarModelo,
     _wfPublicarModeloId,
-    wfAbrirModalEtapa,
-    _wfSalvarEtapa,
-    _wfRemoverEtapa,
-    wfAbrirModalTransicao,
-    _wfSalvarTransicao,
-    _wfRemoverTransicao,
     wfAbrirModalVincularArquitetura,
     _wfSalvarVinculoArq,
     _wfFecharModalDinamico,

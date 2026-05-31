@@ -930,6 +930,38 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 .wf-field-required{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);padding:10px 12px;border-top:1px solid var(--bdr);background:var(--surf2)}
 .wf-field-required input{accent-color:var(--blue)}
 
+.wf-guide-panel{display:flex;flex-direction:column;gap:12px}
+.wf-guide-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid var(--bdr);border-radius:14px;background:linear-gradient(180deg,var(--bg2),var(--surf))}
+.wf-guide-eyebrow{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:4px}
+.wf-guide-title{font-family:var(--fh);font-size:18px;font-weight:700;color:var(--ink);line-height:1.2}
+.wf-guide-sub{font-size:12px;color:var(--ink3);margin-top:4px;line-height:1.5}
+.wf-guide-badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:var(--blue-l);border:1px solid var(--blue-b);font-size:11px;font-weight:700;color:var(--blue);white-space:nowrap}
+.wf-guide-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.wf-guide-card{border:1px solid var(--bdr);border-radius:12px;background:var(--surf);padding:14px;box-shadow:var(--sh)}
+.wf-guide-card-full{grid-column:1/-1}
+.wf-guide-card-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.wf-guide-card-ttl{font-size:13px;font-weight:700;color:var(--ink)}
+.wf-guide-card-sub{font-size:11px;color:var(--ink3);line-height:1.5}
+.wf-guide-stack{display:flex;flex-direction:column;gap:10px}
+.wf-guide-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wf-guide-kv{display:flex;flex-direction:column;gap:4px}
+.wf-guide-k{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+.wf-guide-v{font-size:13px;color:var(--ink2);font-weight:600;line-height:1.4}
+.wf-guide-note{padding:10px 12px;border-radius:10px;background:var(--surf2);border:1px solid var(--bdr);font-size:12px;color:var(--ink2);line-height:1.6}
+.wf-route-list{display:flex;flex-direction:column;gap:8px}
+.wf-route-card{border:1px solid var(--bdr);border-radius:10px;background:var(--surf2);padding:10px 12px}
+.wf-route-title{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:3px}
+.wf-route-sub{font-size:12px;color:var(--ink2);line-height:1.55}
+.wf-logic-list{display:flex;flex-direction:column;gap:8px}
+.wf-logic-card{border:1px solid var(--bdr);border-radius:10px;background:var(--surf2);padding:10px 12px}
+.wf-logic-sentence{font-size:12px;color:var(--ink2);line-height:1.6}
+.wf-logic-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.wf-mini-help{font-size:11px;color:var(--ink3);line-height:1.5}
+.wf-form-fields-list{display:flex;flex-direction:column;gap:6px}
+.wf-form-field-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;background:var(--bg2);border:1px solid var(--bdr)}
+.wf-form-field-name{font-size:12px;font-weight:600;color:var(--ink2)}
+.wf-form-field-meta{font-size:11px;color:var(--ink3);text-align:right}
+
 .wf-member-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf);cursor:pointer;transition:all .12s}
 .wf-member-chip:hover{border-color:var(--blue-b);background:var(--blue-l)}
 .wf-grupo-membro-cb{accent-color:var(--blue);cursor:pointer;flex-shrink:0}
@@ -941,6 +973,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   .wf-field-card-body{grid-template-columns:1fr}
   .wf-exec-acoes-bar{padding:10px 12px;flex-wrap:wrap}
   .wf-field-type-badge{order:3;margin-left:0}
+  .wf-guide-grid{grid-template-columns:1fr}
+  .wf-guide-head{flex-direction:column}
 }
 </style>
 </head>
@@ -2221,7 +2255,10 @@ Não responda este e-mail.</pre>
       <button type="button" class="btn" onclick="wfNavWorkflow('modelagem')">← Voltar</button>
       <h3 id="wf-config-titulo" style="margin:0;font-size:17px;color:var(--ink)"></h3>
       <span id="wf-config-status-badge" style="padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600"></span>
+      <span id="wf-designer-mode-badge" style="padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;background:#e0f2fe;color:#0369a1">Modo simples</span>
       <div style="margin-left:auto;display:flex;gap:6px">
+        <button type="button" class="btn btn-sm" onclick="wfDesignerSetMode('simples')">Modo simples</button>
+        <button type="button" class="btn btn-sm" onclick="wfDesignerSetMode('avancado')">Modo avançado</button>
         <button type="button" class="btn btn-sm" onclick="wfAbrirModalNovoFormulario()">+ Novo formulário</button>
         <button type="button" class="btn" onclick="wfDesignerSalvar()">Salvar modelo</button>
         <button type="button" class="btn btn-sm" onclick="wfDesignerSimular()">▶ Simular</button>
@@ -2253,16 +2290,12 @@ Não responda este e-mail.</pre>
         <div id="wf-bpmn-canvas" style="height:420px;display:none"></div>
       </div>
       <div class="card" id="wf-designer-config" style="padding:14px;margin-bottom:16px;display:none"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <strong style="font-size:14px">Etapas do Fluxo</strong>
-        <button type="button" class="btn btn-p btn-sm" onclick="wfAbrirModalEtapa()">+ Etapa</button>
+      <div class="ib ibb" style="margin-bottom:12px;font-size:13px">
+        A modelagem é feita somente no gráfico BPMN acima. Clique em um nó ou conexão para configurar responsável, formulário, SLA e condições.
       </div>
-      <div id="wf-config-etapas" style="margin-bottom:20px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <strong style="font-size:14px">Transições</strong>
-        <button type="button" class="btn btn-sm" onclick="wfAbrirModalTransicao()">+ Transição</button>
+      <div class="ib ibb" style="margin-bottom:12px;font-size:13px">
+        No modo simples, as configurações avançadas ficam ocultas e o sistema prioriza receitas prontas, frases legíveis e validações antes da publicação.
       </div>
-      <div id="wf-config-transicoes" style="font-size:13px;color:var(--ink3)">Nenhuma transição.</div>
     </div>
   </div>
 
@@ -2289,7 +2322,7 @@ Não responda este e-mail.</pre>
     <div id="wf-notif-lista"></div>
   </div>
 
-  <!-- Painel: Configuração de processo legado -->
+  <!-- Painel: Configuração de processo legado (descontinuado) -->
   <div id="wf-painel-config-processo" style="display:none;max-width:720px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <button type="button" class="btn" onclick="wfNavWorkflow('iniciar')">← Voltar</button>
@@ -2554,13 +2587,14 @@ Não responda este e-mail.</pre>
       </div>
       <div class="modal-bd" style="overflow-y:auto;flex:1">
         <p style="font-size:13px;color:var(--ink3);margin-bottom:14px;line-height:1.6">
-          Informe valores para os campos condicionais e veja o caminho que o fluxo percorreria.
+          Informe respostas e ações do usuário para ver o caminho que o fluxo percorreria e entender por que cada decisão foi tomada.
         </p>
         <div id="wf-sim-campos"></div>
         <div id="wf-sim-resultado" style="margin-top:16px"></div>
       </div>
       <div class="modal-ft">
         <button type="button" class="btn btn-p" onclick="wfExecutarSimulacao()">▶ Traçar caminho</button>
+        <button type="button" class="btn btn-sm" onclick="wfDesignerAplicarAutoFixPublicacao()">Corrigir alertas comuns</button>
         <button type="button" class="btn" onclick="document.getElementById('wf-modal-simulacao').style.display='none'">Fechar</button>
       </div>
     </div>
@@ -19635,7 +19669,42 @@ function _bootShowLoginScreen(){
   if(ov) ov.style.display='none';
   document.getElementById('login-screen').style.display='flex';
 }
+function _bootBypassLoginLocal(){
+  try{
+    const host = (location.hostname || '').toLowerCase();
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    const qp = new URLSearchParams(location.search || '');
+    const enabled = qp.get('dev_nologin') === '1';
+    if(!isLocal || !enabled) return false;
+
+    let user = (USUARIOS || []).find(u => (u._perfil_original || u.perfil) === 'ep')
+      || (USUARIOS || [])[0]
+      || null;
+
+    if(!user){
+      user = {
+        nome: 'Usuário Local',
+        email: 'local@test',
+        perfil: 'ep',
+        perfis: ['ep'],
+        iniciais: 'LC',
+        macroprocessos_vinculados: [],
+        processos_vinculados: [],
+      };
+    }
+
+    try {
+      if(typeof lsSet === 'function') lsSet('siga_user', user.email || 'local@test');
+      else localStorage.setItem('siga_user', user.email || 'local@test');
+    } catch(_e) { /* storage indisponível */ }
+    _aplicarUsuario(user, true);
+    return true;
+  }catch(_e){
+    return false;
+  }
+}
 async function _bootRestoreSession(){
+  if(_bootBypassLoginLocal()) return;
   if(fbReady()){
     const {auth, onAuthStateChanged} = fb();
     let _authNullTimer = null;
