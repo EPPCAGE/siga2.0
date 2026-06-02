@@ -18301,8 +18301,15 @@ function gerarStatusReportPDF(){
       .cover{padding:.8cm .9cm .75cm}
       @page{margin:.8cm 1.2cm;size:A4}
       h2.sec{page-break-before:auto}
+      .no-print{display:none!important}
     }
   </style></head><body>
+
+  <div class="no-print" style="position:sticky;top:0;z-index:999;background:#1E3A5F;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 16px;margin:-1.2cm -1.5cm 1rem">
+    <span style="color:#fff;font-size:12px;margin-right:auto;font-weight:600">📄 Relatório Executivo — use os botões para salvar</span>
+    <button onclick="(function(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'}));a.download='relatorio-executivo.html';a.click();})()" style="padding:5px 14px;background:#fff;color:#1E3A5F;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600">⬇ Baixar HTML</button>
+    <button onclick="window.print()" style="padding:5px 14px;background:#00C5B4;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600">🖨 Imprimir / Salvar PDF</button>
+  </div>
 
   <div class="cover" style="position:relative">
     <div class="cover-logos">
