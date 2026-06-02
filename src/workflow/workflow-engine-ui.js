@@ -223,9 +223,7 @@
     const explicit = String(globalScope.CONFIG?.WORKFLOW_API_BASE_URL || '').trim();
     if (explicit && explicit !== '__WORKFLOW_API_BASE_URL__') {
       let normalized = explicit;
-      while (normalized.endsWith('/')) {
-        normalized = normalized.slice(0, -1);
-      }
+      while (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
       return normalized;
     }
     const projectId = globalScope.fb?.()?.FIREBASE_CONFIG?.projectId || 'gesproc2';
