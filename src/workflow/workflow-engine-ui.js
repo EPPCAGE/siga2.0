@@ -1693,6 +1693,20 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     <sequenceFlow id="f4" sourceRef="atendimento_urgente" targetRef="fim"/>
     <sequenceFlow id="f5" sourceRef="atendimento_normal" targetRef="fim"/>
   </process>
+  <bpmndi:BPMNDiagram id="d1"><bpmndi:BPMNPlane bpmnElement="proc1">
+    <bpmndi:BPMNShape bpmnElement="start"><omgdc:Bounds x="80" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="triagem"><omgdc:Bounds x="180" y="180" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gw_prioridade" isMarkerVisible="true"><omgdc:Bounds x="350" y="195" width="50" height="50"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="atendimento_urgente"><omgdc:Bounds x="470" y="100" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="atendimento_normal"><omgdc:Bounds x="470" y="280" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="fim"><omgdc:Bounds x="650" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="f0"><omgdi:waypoint x="116" y="220"/><omgdi:waypoint x="180" y="220"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f1"><omgdi:waypoint x="280" y="220"/><omgdi:waypoint x="350" y="220"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f2"><omgdi:waypoint x="375" y="195"/><omgdi:waypoint x="375" y="140"/><omgdi:waypoint x="470" y="140"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f3"><omgdi:waypoint x="375" y="245"/><omgdi:waypoint x="375" y="320"/><omgdi:waypoint x="470" y="320"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f4"><omgdi:waypoint x="570" y="140"/><omgdi:waypoint x="668" y="140"/><omgdi:waypoint x="668" y="202"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f5"><omgdi:waypoint x="570" y="320"/><omgdi:waypoint x="668" y="320"/><omgdi:waypoint x="668" y="238"/></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 </definitions>`;
     }
     if (templateId === 'aprovacao_com_retrabalho') {
@@ -1714,6 +1728,22 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     <sequenceFlow id="f5" sourceRef="ajustes" targetRef="revisao" name="reenviar"/>
     <sequenceFlow id="f6" sourceRef="publicacao" targetRef="fim"/>
   </process>
+  <bpmndi:BPMNDiagram id="d1"><bpmndi:BPMNPlane bpmnElement="proc1">
+    <bpmndi:BPMNShape bpmnElement="start"><omgdc:Bounds x="80" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="elaboracao"><omgdc:Bounds x="180" y="180" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="revisao"><omgdc:Bounds x="350" y="180" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gw_aprovacao" isMarkerVisible="true"><omgdc:Bounds x="520" y="195" width="50" height="50"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="publicacao"><omgdc:Bounds x="640" y="180" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="ajustes"><omgdc:Bounds x="520" y="330" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="fim"><omgdc:Bounds x="820" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="f0"><omgdi:waypoint x="116" y="220"/><omgdi:waypoint x="180" y="220"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f1"><omgdi:waypoint x="280" y="220"/><omgdi:waypoint x="350" y="220"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f2"><omgdi:waypoint x="450" y="220"/><omgdi:waypoint x="520" y="220"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f3"><omgdi:waypoint x="570" y="220"/><omgdi:waypoint x="640" y="220"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f4"><omgdi:waypoint x="545" y="245"/><omgdi:waypoint x="545" y="330"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f5"><omgdi:waypoint x="520" y="370"/><omgdi:waypoint x="400" y="370"/><omgdi:waypoint x="400" y="260"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f6"><omgdi:waypoint x="740" y="220"/><omgdi:waypoint x="820" y="220"/></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 </definitions>`;
     }
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -1732,6 +1762,20 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     <sequenceFlow id="f4" sourceRef="finalizacao" targetRef="fim"/>
     <sequenceFlow id="f5" sourceRef="devolucao" targetRef="fim"/>
   </process>
+  <bpmndi:BPMNDiagram id="d1"><bpmndi:BPMNPlane bpmnElement="proc1">
+    <bpmndi:BPMNShape bpmnElement="start"><omgdc:Bounds x="80" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="analise"><omgdc:Bounds x="180" y="180" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="gw_decisao" isMarkerVisible="true"><omgdc:Bounds x="350" y="195" width="50" height="50"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="finalizacao"><omgdc:Bounds x="470" y="100" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="devolucao"><omgdc:Bounds x="470" y="280" width="100" height="80"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape bpmnElement="fim"><omgdc:Bounds x="650" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge bpmnElement="f0"><omgdi:waypoint x="116" y="220"/><omgdi:waypoint x="180" y="220"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f1"><omgdi:waypoint x="280" y="220"/><omgdi:waypoint x="350" y="220"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f2"><omgdi:waypoint x="375" y="195"/><omgdi:waypoint x="375" y="140"/><omgdi:waypoint x="470" y="140"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f3"><omgdi:waypoint x="375" y="245"/><omgdi:waypoint x="375" y="320"/><omgdi:waypoint x="470" y="320"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f4"><omgdi:waypoint x="570" y="140"/><omgdi:waypoint x="668" y="140"/><omgdi:waypoint x="668" y="202"/></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge bpmnElement="f5"><omgdi:waypoint x="570" y="320"/><omgdi:waypoint x="668" y="320"/><omgdi:waypoint x="668" y="238"/></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 </definitions>`;
   }
 
