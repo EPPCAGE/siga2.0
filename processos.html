@@ -1203,6 +1203,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <div class="fg"><label class="fl" for="usr-area">Área</label><select class="fi" id="usr-area"><option value="">Selecione a área...</option></select></div>
     <div class="fg"><label class="fl" for="usr-email">E-mail<span>*</span></label><input class="fi" id="usr-email" type="email"></div>
+    <div class="fg"><label class="fl" for="usr-gestor">Gestor imediato</label><select class="fi" id="usr-gestor"><option value="">— Nenhum —</option></select><small style="color:var(--tx2);font-size:11px;margin-top:3px;display:block">Usado para direcionar tarefas de workflow ao "Gestor do solicitante".</small></div>
     <div class="fg"><label class="fl" for="usr-perfil">Perfil<span>*</span></label>
       <select class="fi" id="usr-perfil" onchange="onUsrPerfilChg()">
         <option value="ep">EPP</option>
@@ -16766,6 +16767,13 @@ function abrirModalUsr(idx){
   _abrirModalUsrEdicao(idx, delBtn, blockBtn);
 }
 function _usrPopulateSelectors(){
+  const gestorSel = document.getElementById('usr-gestor');
+  if(gestorSel){
+    const cur = gestorSel.value;
+    gestorSel.innerHTML = '<option value="">— Nenhum —</option>' +
+      USUARIOS.filter(u=>u.uid||u.email).map(u=>`<option value="${esc(u.uid||u.email)}">${esc(u.nome||u.email)}</option>`).join('');
+    if(cur) gestorSel.value = cur;
+  }
   const sel = document.getElementById('usr-proc-add-sel');
   if(sel){
     sel.innerHTML = '<option value="">Selecione um macroprocesso para vincular...</option>' +
@@ -16801,6 +16809,8 @@ function _abrirModalUsrNovo(delBtn, blockBtn){
   document.getElementById('usr-modal-t').textContent = 'Novo usuário';
   document.getElementById('usr-idx').value = '';
   ['usr-nome','usr-ini','usr-email'].forEach(id=>document.getElementById(id).value='');
+  const gestorSelNovo = document.getElementById('usr-gestor');
+  if(gestorSelNovo) gestorSelNovo.value = '';
   document.getElementById('usr-area').value = '';
   document.getElementById('usr-perfil').value = 'dono';
   document.getElementById('usr-vinculos-list').innerHTML = '';
@@ -16822,6 +16832,8 @@ function _abrirModalUsrEdicao(idx, delBtn, blockBtn){
   document.getElementById('usr-nome').value = u.nome;
   document.getElementById('usr-ini').value = u.iniciais;
   document.getElementById('usr-email').value = u.email;
+  const gestorSelEd = document.getElementById('usr-gestor');
+  if(gestorSelEd) gestorSelEd.value = u.gestor_uid || '';
   const areaSel = document.getElementById('usr-area');
   if(areaSel){
     if(u.area && ![...areaSel.options].some(o=>o.value===u.area)){
@@ -17089,11 +17101,13 @@ function _salvarUsrPerfis(perfil){
   return [perfil];
 }
 function _salvarUsrBuildPayload({email, nome, area, perfil, perfisArr, ini, vinculos, projetosVinculados, trocarSenha=false}){
+  const gestorUid = document.getElementById('usr-gestor')?.value || null;
   return {
     email, nome, area, perfil, perfis:perfisArr, iniciais:ini,
     macroprocessos_vinculados:vinculos,
     processos_vinculados:[],
     projetos_vinculados:projetosVinculados,
+    gestor_uid: gestorUid || null,
     ...(trocarSenha ? {trocar_senha:true} : {})
   };
 }
