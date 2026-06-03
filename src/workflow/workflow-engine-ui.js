@@ -3295,7 +3295,8 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       const prox = _proximoNo(canvas, atualId, acaoAtual, dados);
       if (!prox) return null;
       if (prox.tipo === 'fim') return prox;
-      if (prox.tipo !== 'aprovacao') return prox;
+      if (prox.tipo === 'tarefa' || prox.tipo === 'aprovacao') return prox;
+      // gateway ou início: continua pelo próximo nó
       atualId = prox.id;
       acaoAtual = null;
     }
