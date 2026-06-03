@@ -4669,6 +4669,19 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfCarregarAdminTarefas();
   }
 
+  async function wfAdminVerTarefa(tarefaId, instanciaId) {
+    if (instanciaId) {
+      // Abre o histórico da instância — visão completa sem assumir a tarefa
+      const instancia = await _wfApiRequest('wfInstanciaItem', `/${encodeURIComponent(instanciaId)}`).catch(() => null);
+      const titulo = instancia?.titulo || instanciaId;
+      const status = instancia?.status || '';
+      wfAbrirHistorico(instanciaId, titulo, status);
+    } else {
+      // Fallback: abre a tarefa diretamente
+      wfAbrirTarefa(tarefaId);
+    }
+  }
+
   function wfAdminFiltrar() {
     if (!_adminTarefasCache) return;
     const tbody = document.getElementById('wf-admin-tabela-body');
@@ -4711,7 +4724,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
         <td style="padding:8px 10px"><span style="background:${cor};color:#fff;font-size:11px;padding:2px 7px;border-radius:10px">${_esc(lbl)}</span></td>
         <td style="padding:8px 10px;color:${vencida ? '#ef4444' : 'inherit'};font-weight:${vencida ? '600' : 'normal'}">${prazoStr}${vencida ? ' ⚠' : ''}</td>
         <td style="padding:8px 10px;white-space:nowrap">
-          <button type="button" class="btn btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Ver</button>
+          <button type="button" class="btn btn-sm" onclick="wfAdminVerTarefa('${_esc(t.id)}','${_esc(t.instancia_id || '')}')">Ver</button>
           <button type="button" class="btn btn-r btn-sm" onclick="wfExcluirTarefa('${_esc(t.id)}')">Excluir</button>
         </td>
       </tr>`;
@@ -4797,6 +4810,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfCarregarAdminTarefas,
     wfAdminRecarregar,
     wfAdminFiltrar,
+    wfAdminVerTarefa,
     // Formulários
     wfCarregarFormularios,
     wfAbrirModalNovoFormulario,
