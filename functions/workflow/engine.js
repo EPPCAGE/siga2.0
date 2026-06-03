@@ -278,6 +278,30 @@ function makeEngine(db) {
 
   function _proximoNoCanvas(canvas, noId, acao, dados = {}) {
     const arestas = (canvas?.arestas || []).filter((aresta) => aresta.origem === noId);
+
+    // Para devolver: se não há aresta explícita, usa destino_devolucao da config do nó
+    if (acao === 'devolver' || acao === 'rejeitar') {
+      const arestasRetorno = arestas.filter(a => a.acao === acao || a.acao === 'devolver' || a.acao === 'rejeitar');
+      if (!arestasRetorno.length) {
+        const nos = canvas?.nos || [];
+        const noAtual = nos.find(n => n.id === noId);
+        const destinoId = noAtual?.config?.destino_devolucao;
+        if (destinoId) return _noCanvasPorId(canvas, destinoId);
+        // fallback: primeiro nó executável anterior (penúltimo no caminho de chegada)
+        const chegadas = arestas.filter(a => !a.acao || a.acao === 'avancar' || a.acao === 'aprovar');
+        const origens = (canvas?.arestas || []).filter(a => a.destino === noId);
+        const anterior = origens.find(a => {
+          const n = _noCanvasPorId(canvas, a.origem);
+          return n && n.tipo !== 'inicio' && n.tipo !== 'gateway_xor' && n.tipo !== 'gateway_and';
+        }) || origens[0];
+        return anterior ? _noCanvasPorId(canvas, anterior.origem) : null;
+      }
+      const pool = arestasRetorno;
+      const correspondentes = pool.filter(a => _avaliarCondicoesCanvas(a.condicoes, a.operador_logico, dados));
+      const escolhida = correspondentes[0] || pool.find(a => a.padrao) || pool[0] || null;
+      return escolhida ? _noCanvasPorId(canvas, escolhida.destino) : null;
+    }
+
     if (!arestas.length) return null;
     const candidatas = arestas.filter((aresta) => {
       if (!acao) return true;

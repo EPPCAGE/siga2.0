@@ -2124,8 +2124,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
             <div class="wf-guide-card-hd"><div class="wf-guide-card-ttl">O que pode acontecer depois?</div><div class="wf-guide-card-sub">Marque as ações que o usuário poderá escolher ao concluir esta etapa. Use o gateway para decidir aprovar/avançar por respostas do formulário; <strong>rejeitar</strong> e <strong>devolver</strong> retornam para a etapa anterior.</div></div>
             <div class="wf-guide-row" style="margin-bottom:10px">${[
               { v:'avancar',  desc:'Progride para a próxima etapa do fluxo.' },
-              { v:'devolver', desc:'Retorna à etapa anterior pedindo correção ou ajuste.' },
+              { v:'devolver', desc:'Retorna a uma etapa anterior pedindo correção ou ajuste.' },
             ].map(({v,desc}) => `<label style="display:flex;flex-direction:column;gap:2px;font-size:12px;cursor:pointer;padding:8px 12px;border:1px solid var(--bdr);border-radius:8px;background:var(--surf2);min-width:160px"><span style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${acoes.includes(v) ? 'checked' : ''} onchange="wfDesignerToggleAcao('${_esc(id)}','${v}',this.checked)"> <strong>${_esc(labelsAcao?.[v] || v)}</strong></span><span style="font-size:11px;color:var(--ink3);padding-left:20px">${_esc(desc)}</span></label>`).join('')}</div>
+            <div id="wf-destino-devolucao-wrap-${_esc(id)}" style="display:none"></div>
             ${_wfRotasResumoHtml(id)}
           </div>
           <div class="wf-guide-card wf-guide-card-full">
@@ -2165,6 +2166,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     _wfAtualizarAcoesFormularioNo(id);
     _wfRenderAcoesCond(id);
     _wfRenderCamposCond(id);
+    _wfRenderDestinoDevolucao(id);
     _wfAplicarModoPainel();
   }
 
@@ -2451,7 +2453,44 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const set = new Set(_wfConfigNos[noId].acoes || []);
     if (on) set.add(acao); else set.delete(acao);
     _wfConfigNos[noId].acoes = Array.from(set);
+    if (acao === 'devolver') _wfRenderDestinoDevolucao(noId);
     _wfRenderAcoesCond(noId);
+    _wfMarcarDesignerSujo();
+  }
+
+  function _wfNosAnterioresAo(noId) {
+    const canvas = _wfModeler ? _wfSyncCanvas() : (_wfModeloAtual?.canvas || { nos: [], arestas: [] });
+    const nos = canvas.nos || [];
+    const arestas = canvas.arestas || [];
+    // BFS reverso: encontra todos os nós que antecedem noId
+    const visitados = new Set();
+    const fila = [noId];
+    while (fila.length) {
+      const atual = fila.shift();
+      arestas.filter(a => a.destino === atual).forEach(a => {
+        if (!visitados.has(a.origem)) { visitados.add(a.origem); fila.push(a.origem); }
+      });
+    }
+    return nos.filter(n => visitados.has(n.id) && n.tipo !== 'inicio' && n.tipo !== 'fim' && n.id !== noId);
+  }
+
+  function _wfRenderDestinoDevolucao(noId) {
+    const container = document.getElementById(`wf-destino-devolucao-wrap-${noId}`);
+    if (!container) return;
+    const temDevolver = (_wfConfigNos[noId]?.acoes || []).includes('devolver');
+    if (!temDevolver) { container.style.display = 'none'; return; }
+    const nosAnt = _wfNosAnterioresAo(noId);
+    const atual = _wfConfigNos[noId]?.destino_devolucao || '';
+    const opts = nosAnt.length
+      ? nosAnt.map(n => `<option value="${_esc(n.id)}"${n.id === atual ? ' selected' : ''}>${_esc(n.nome || n.id)}</option>`).join('')
+      : '<option value="" disabled>Nenhuma etapa anterior disponível</option>';
+    container.innerHTML = `<div style="margin-top:8px"><label class="lbl">Devolver para qual etapa?</label><select class="fi" style="margin-top:4px" onchange="wfDesignerSetDestinoDevolucao('${_esc(noId)}',this.value)"><option value="">— etapa imediatamente anterior —</option>${opts}</select></div>`;
+    container.style.display = '';
+  }
+
+  function wfDesignerSetDestinoDevolucao(noId, destinoId) {
+    if (!_wfConfigNos[noId]) _wfConfigNos[noId] = _configPadrao();
+    _wfConfigNos[noId].destino_devolucao = destinoId || null;
     _wfMarcarDesignerSujo();
   }
 
@@ -4585,6 +4624,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfDesignerCampoCfg,
     wfDesignerPapel,
     wfDesignerToggleAcao,
+    wfDesignerSetDestinoDevolucao,
     wfDesignerAddAcaoCond,
     wfDesignerAcaoCondRemove,
     wfDesignerAcaoCondUpdate,
