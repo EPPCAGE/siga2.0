@@ -194,7 +194,8 @@ function makeEngine(db) {
 
   async function _atribuirTarefaSeNecessario(tarefa, usuario, opts = {}) {
     if (tarefa.responsavel_uid) return { ...tarefa, assumida: false };
-    const permitido = await _usuarioPodeExecutarTarefa(tarefa, usuario);
+    const isEp = usuario?.perfil === 'ep';
+    const permitido = isEp || await _usuarioPodeExecutarTarefa(tarefa, usuario);
     if (!permitido) {
       lancarErro(ERRO.SEM_PERMISSAO, 'Usuário não pode assumir ou executar esta tarefa.');
     }
