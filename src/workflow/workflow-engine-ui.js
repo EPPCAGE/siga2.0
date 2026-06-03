@@ -1914,14 +1914,9 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       gestor: 'Perfil Gestor',
       dono: 'Perfil Dono',
     };
-    const usuarios = (globalScope.USUARIOS || []).filter(u => u.email);
     const fixosHtml = Object.entries(fixos).map(([valor, label]) =>
       `<option value="${valor}"${(sel || '') === valor ? ' selected' : ''}>${_esc(label)}</option>`
     ).join('');
-    const usuariosOptions = usuarios.map(u => `<option value="${_esc(u.email)}"${(sel || '') === u.email ? ' selected' : ''}>${_esc(u.nome || u.email)}</option>`).join('');
-    const usuariosHtml = usuarios.length
-      ? `<optgroup label="Usuário específico">${usuariosOptions}</optgroup>`
-      : '';
     const grupos = _st.grupos || [];
     const gruposOptions = grupos.map(g => {
       const val = `grupo:${g.id}`;
@@ -1930,7 +1925,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const gruposHtml = grupos.length
       ? `<optgroup label="Equipe (fila)">${gruposOptions}</optgroup>`
       : '';
-    return fixosHtml + gruposHtml + usuariosHtml;
+    return fixosHtml + gruposHtml;
   }
 
   function _wfFormOptsNo(cfg) {
