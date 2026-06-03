@@ -39,8 +39,9 @@
       }
       const id = _escWith(esc, t.id);
       const botoesAcao = (eFila || eDisponivel)
-        ? `<button type="button" class="btn btn-p btn-sm" onclick="wfAssumirTarefa('${id}')">Assumir</button>`
-        : `<button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${id}')">Abrir</button>
+        ? `<button type="button" class="btn btn-p btn-sm" onclick="wfAssumirEAbrirTarefa('${id}')">Acessar</button>
+          <button type="button" class="btn btn-sm" onclick="wfAssumirTarefa('${id}')">Só assumir</button>`
+        : `<button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${id}')">Acessar</button>
           <button type="button" class="btn btn-sm" onclick="wfAbrirDelegacao('${id}')">Delegar</button>`;
 
       return `<div data-tarefa-id="${id}"><div class="card" style="padding:16px">

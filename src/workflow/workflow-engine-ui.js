@@ -279,7 +279,10 @@
 
   function _slaInfo(tarefa) {
     if (!tarefa.prazo) return '';
-    const prazo = tarefa.prazo?.toDate ? tarefa.prazo.toDate() : new Date(tarefa.prazo.seconds * 1000);
+    const prazo = tarefa.prazo?.toDate
+      ? tarefa.prazo.toDate()
+      : new Date((tarefa.prazo._seconds ?? tarefa.prazo.seconds) * 1000);
+    if (isNaN(prazo.getTime())) return '';
     const agora = new Date();
     const diff = prazo - agora;
     let cor, label;
@@ -552,8 +555,9 @@
         badgeFila = `${_badge('📋 Dispon\xEDvel', '#4b5563')} `;
       }
       const botoesAcao = (eFila || eDisponivel)
-        ? `<button type="button" class="btn btn-p btn-sm" onclick="wfAssumirTarefa('${_esc(t.id)}')">Assumir</button>`
-        : `<button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Abrir</button>
+        ? `<button type="button" class="btn btn-p btn-sm" onclick="wfAssumirEAbrirTarefa('${_esc(t.id)}')">Acessar</button>
+          <button type="button" class="btn btn-sm" onclick="wfAssumirTarefa('${_esc(t.id)}')">Só assumir</button>`
+        : `<button type="button" class="btn btn-p btn-sm" onclick="wfAbrirTarefa('${_esc(t.id)}')">Acessar</button>
           <button type="button" class="btn btn-sm" onclick="wfAbrirDelegacao('${_esc(t.id)}')">Delegar</button>`;
       const slaBadge = t.sla_vencido
         ? ' <span style="background:#ef4444;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle">SLA VENCIDO</span>'
@@ -785,6 +789,18 @@
     await _wfApiRequest('wfTarefas', `/${encodeURIComponent(tarefaId)}/assumir`, { method: 'POST' });
     _st.meusGrupos = null;
     wfCarregarTarefas();
+  }
+
+  async function wfAssumirEAbrirTarefa(tarefaId) {
+    const uid = _uid();
+    if (!uid) { alert('Usuário não autenticado.'); return; }
+    const tarefa = await _getDoc('wf_tarefa_workflows', tarefaId);
+    if (!tarefa) { alert('Tarefa não encontrada.'); return; }
+    if (!tarefa.responsavel_uid) {
+      await _wfApiRequest('wfTarefas', `/${encodeURIComponent(tarefaId)}/assumir`, { method: 'POST' });
+      _st.meusGrupos = null;
+    }
+    wfAbrirTarefa(tarefaId);
   }
 
   function _wfRenderAnexos() {
@@ -4678,7 +4694,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const statusLabel = { pendente: 'Pendente', em_execucao: 'Em execução', vencida: 'Vencida' };
     const statusCor = { pendente: '#3b82f6', em_execucao: '#f59e0b', vencida: '#ef4444' };
     tbody.innerHTML = tarefas.map((t, i) => {
-      const prazoTs = t.prazo?._seconds ? t.prazo._seconds * 1000 : (t.prazo ? new Date(t.prazo).getTime() : null);
+      const prazoTs = t.prazo ? ((t.prazo._seconds ?? t.prazo.seconds) ? (t.prazo._seconds ?? t.prazo.seconds) * 1000 : (t.prazo?.toDate ? t.prazo.toDate().getTime() : new Date(t.prazo).getTime())) : null;
       const prazoStr = prazoTs ? new Date(prazoTs).toLocaleDateString('pt-BR') : '—';
       const vencida = prazoTs && prazoTs < Date.now();
       const cor = statusCor[t.status] || '#6b7280';
@@ -4709,6 +4725,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     wfCarregarTarefas,
     wfAbrirTarefa,
     wfAssumirTarefa,
+    wfAssumirEAbrirTarefa,
     wfConcluirTarefa,
     wfAnexarArquivos,
     wfRemoverAnexo,
