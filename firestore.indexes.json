@@ -113,6 +113,20 @@
       ]
     },
     {
+      "collectionGroup": "wf_historico_workflows",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "instancia_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ocorrido_em",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "wf_notificacoes",
       "queryScope": "COLLECTION",
       "fields": [
