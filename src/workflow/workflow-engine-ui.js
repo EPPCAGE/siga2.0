@@ -1830,14 +1830,6 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     Object.keys(_wfConfigNos).forEach(k => delete _wfConfigNos[k]);
     Object.assign(_wfConfigNos, modelo.config_nos ?? {});
 
-    if (!_st.formularioModelos.length) {
-      try {
-        _st.formularioModelos = await _getAll('wf_formulario_modelos');
-      } catch (error_) {
-        _wfReportarErroNaoCritico('carregamento de modelos de formulario', error_);
-      }
-    }
-
     _wfPrepararCamposCabecalhoDesigner(modelo);
     _wfLimparAutosavePendente();
     _wfAtualizarIndicadorSujo(false);
@@ -4320,6 +4312,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const [modelo] = await Promise.all([
       _getDoc('wf_processo_modelos', modeloId),
       _getAll('wf_grupos').then(g => { _st.grupos = g; }).catch(() => {}),
+      _st.formularioModelos.length ? Promise.resolve() : _getAll('wf_formulario_modelos').then(f => { _st.formularioModelos = f; }).catch(() => {}),
     ]);
     if (!modelo) { alert('Modelo não encontrado.'); return; }
     _wfModeloAtual = modelo;
