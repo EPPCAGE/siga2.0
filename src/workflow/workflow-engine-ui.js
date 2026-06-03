@@ -1331,7 +1331,7 @@
   }
 
   function _wfAgendarAutosave() {
-    if (!_wfModeler || !_wfModeloAtual || _wfAutosaveEmCurso) return;
+    if (!_wfModeloAtual || _wfAutosaveEmCurso) return;
     _wfLimparAutosavePendente();
     _wfAutosaveTimer = setTimeout(() => {
       _wfAutosaveTimer = null;
@@ -2916,12 +2916,16 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   async function wfDesignerSalvar(opts = {}) {
-    if (!_wfModeler || !_wfModeloAtual) return;
+    if (!_wfModeloAtual) return;
     const silent = !!opts.silent;
     try {
       _wfAutosaveEmCurso = true;
-      const { xml } = await _wfModeler.saveXML({ format: true });
-      const canvas = _wfSyncCanvas();
+      let xml = _wfModeloAtual.bpmn_xml || '';
+      let canvas = _wfModeloAtual.canvas || { nos: [], arestas: [] };
+      if (_wfModeler) {
+        ({ xml } = await _wfModeler.saveXML({ format: true }));
+        canvas = _wfSyncCanvas();
+      }
       const nome = document.getElementById('wf-designer-nome')?.value.trim() || _wfModeloAtual.nome;
       const descricao = document.getElementById('wf-designer-desc')?.value.trim() || '';
       const dados = _wfMontarModeloPersistencia({
