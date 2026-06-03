@@ -107,7 +107,7 @@ function _avaliarCondicoesCanvas(condicoes = [], operadorLogico = 'AND', dados =
  */
 function makeEngine(db) {
   const notif = makeNotificacoes(db);
-  const PAPEIS_ETAPA_CANVAS = ['executor', 'revisor', 'aprovador'];
+
 
   const col = {
     modelos: db.collection('wf_processo_modelos'),
@@ -228,8 +228,18 @@ function makeEngine(db) {
     if (alvo.startsWith('grupo:')) {
       return { responsavel_uid: null, papel_alvo: alvo, grupo_id: alvo.slice(6) || null };
     }
-    if (['ep', 'gestor', 'dono', 'gestor_solicitante', 'gestor_executor'].includes(alvo)) {
+    if (['ep', 'gestor', 'dono'].includes(alvo)) {
       return { responsavel_uid: null, papel_alvo: alvo, grupo_id: null };
+    }
+    if (alvo === 'gestor_solicitante') {
+      const usuario = await _buscarUsuarioPorUid(instancia.solicitante_uid);
+      const uid = usuario?.gestor_uid || usuario?.gestor || null;
+      return { responsavel_uid: uid, papel_alvo: alvo, grupo_id: null };
+    }
+    if (alvo === 'gestor_executor') {
+      const usuario = await _buscarUsuarioPorUid(instancia.ultimo_executor_uid);
+      const uid = usuario?.gestor_uid || usuario?.gestor || null;
+      return { responsavel_uid: uid, papel_alvo: alvo, grupo_id: null };
     }
     if (alvo.includes('@')) {
       const uid = await _resolverUidPorEmail(alvo);
@@ -326,10 +336,6 @@ function makeEngine(db) {
       ? tarefa.acoes_disponiveis
       : ['concluir'];
     if (!base.includes(acao)) return false;
-    const cfgNoAtual = _configNo(instancia, tarefa.etapa_modelo_id);
-    if (_proximoPapelConfiguradoCanvas(cfgNoAtual, tarefa.papel_responsavel)) {
-      return true;
-    }
     const arestas = (instancia.canvas?.arestas || []).filter((aresta) => aresta.origem === tarefa.etapa_modelo_id);
     if (!arestas.length) return base.includes(acao);
     const noAtual = _noCanvasPorId(instancia.canvas, tarefa.etapa_modelo_id);
@@ -358,23 +364,10 @@ function makeEngine(db) {
     return acoesNo;
   }
 
-  function _proximoPapelConfiguradoCanvas(cfg = {}, papelAtual = null) {
-    const papeis = cfg.papeis || {};
-    const indiceAtual = papelAtual ? PAPEIS_ETAPA_CANVAS.indexOf(papelAtual) : -1;
-    for (let index = indiceAtual + 1; index < PAPEIS_ETAPA_CANVAS.length; index += 1) {
-      const papel = PAPEIS_ETAPA_CANVAS[index];
-      if (papeis[papel]) return papel;
-    }
-    return null;
-  }
 
-  async function _criarTarefaCanvas(instancia, modelo, no, papelResponsavel = null) {
+  async function _criarTarefaCanvas(instancia, modelo, no) {
     const cfg = _configNo(modelo, no.id);
-    const papelFinal = papelResponsavel || _proximoPapelConfiguradoCanvas(cfg, null) || 'executor';
-    const papelAlvo = cfg.papeis?.[papelFinal] || (papelFinal === 'executor' ? 'solicitante' : null);
-    if (!papelAlvo) {
-      lancarErro(ERRO.ETAPA_NAO_ENCONTRADA, `Nó ${no.id} sem responsável configurado para o papel ${papelFinal}.`);
-    }
+    const papelAlvo = cfg.papeis?.executor || 'solicitante';
     const destino = await _resolverDestinoTarefaCanvas(papelAlvo, instancia);
     const prazo = calcularPrazo(agora(), cfg.sla_horas);
     const tarefaData = fsClean({
@@ -386,7 +379,7 @@ function makeEngine(db) {
       processo_id: instancia.processo_modelo_id,
       responsavel_uid: destino.responsavel_uid || null,
       papel_alvo: destino.papel_alvo || null,
-      papel_responsavel: papelFinal,
+      papel_responsavel: 'executor',
       grupo_id: destino.grupo_id || null,
       status: 'pendente',
       prazo: prazo || null,
@@ -399,7 +392,7 @@ function makeEngine(db) {
       parecer: null,
       exige_parecer: !!cfg.exige_parecer,
       formulario_id: cfg.formulario_id || null,
-      acoes_disponiveis: _acoesPorPapelCanvas(cfg, papelFinal),
+      acoes_disponiveis: _acoesPorPapelCanvas(cfg, 'executor'),
       instrucoes: String(cfg.instrucoes || '').trim(),
       anexos: [],
     });
@@ -410,8 +403,8 @@ function makeEngine(db) {
     await _registrarHistorico(
       instancia.id, 'tarefa_criada', null,
       no.id, tarefa.id,
-      `Tarefa "${no.nome || no.id}" (${papelFinal}) criada para ${destino.papel_alvo || destino.responsavel_uid || 'fila livre'}.`,
-      { tarefa_id: tarefa.id, responsavel_uid: destino.responsavel_uid || null, papel_alvo: destino.papel_alvo || null, grupo_id: destino.grupo_id || null, papel_responsavel: papelFinal },
+      `Tarefa "${no.nome || no.id}" criada para ${destino.papel_alvo || destino.responsavel_uid || 'fila livre'}.`,
+      { tarefa_id: tarefa.id, responsavel_uid: destino.responsavel_uid || null, papel_alvo: destino.papel_alvo || null, grupo_id: destino.grupo_id || null },
     );
 
     if (destino.responsavel_uid) {
@@ -705,20 +698,6 @@ function makeEngine(db) {
         `Tarefa "${tarefaAtual.etapa_nome || tarefaAtual.etapa_modelo_id}" concluída com ação "${acaoFinal || 'Concluído'}".`,
         { acao_tomada: acaoFinal, observacao, dados_formulario, papel_responsavel: tarefaAtual.papel_responsavel || null },
       );
-
-      const cfgNoAtual = _configNo(instancia, tarefaAtual.etapa_modelo_id);
-      const proximoPapel = _proximoPapelConfiguradoCanvas(cfgNoAtual, tarefaAtual.papel_responsavel);
-      if (proximoPapel) {
-        const noAtual = _noCanvasPorId(instancia.canvas, tarefaAtual.etapa_modelo_id);
-        if (!noAtual) lancarErro(ERRO.ETAPA_NAO_ENCONTRADA, `Nó ${tarefaAtual.etapa_modelo_id} não encontrado no canvas.`);
-        await _criarTarefaCanvas(
-          { ...instancia, dados_consolidados: mergedDados, ultimo_executor_uid: patchInstancia.ultimo_executor_uid || instancia.ultimo_executor_uid },
-          instancia,
-          noAtual,
-          proximoPapel,
-        );
-        return { ok: true, proximo_papel: proximoPapel };
-      }
 
       await _avancarFluxoCanvas({ ...instancia, dados_consolidados: mergedDados }, tarefaAtual, acaoFinal);
       return { ok: true };
