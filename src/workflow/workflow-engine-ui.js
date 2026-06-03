@@ -1328,6 +1328,12 @@
     _wfDesignerDirty = !!ativo;
     const d = document.getElementById('wf-bpmn-dirty');
     if (d) d.style.display = ativo ? 'inline' : 'none';
+    const btn = document.getElementById('wf-btn-salvar-modelo');
+    if (btn) {
+      btn.textContent = ativo ? '💾 Salvar modelo *' : 'Salvar modelo';
+      btn.style.borderColor = ativo ? 'var(--amber)' : '';
+      btn.style.color = ativo ? 'var(--amber)' : '';
+    }
   }
 
   function _wfAgendarAutosave() {
@@ -1338,6 +1344,7 @@
       if (!_wfTemAlteracoesPendentes()) return;
       wfDesignerSalvar({ silent: true, source: 'autosave' }).catch((error_) => {
         _wfReportarErroNaoCritico('falha no autosave do workflow', error_);
+        if (typeof globalScope.toast === 'function') globalScope.toast('⚠ Autosave falhou: ' + (error_?.message || error_), 'var(--red)');
       });
     }, 1200);
   }
