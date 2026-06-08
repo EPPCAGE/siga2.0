@@ -705,6 +705,67 @@
          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">${barras}</div>`;
   }
 
+  function _wfRenderTimeline(instancia, tarefa) {
+    const el = document.getElementById('wf-exec-timeline');
+    if (!el) return;
+
+    const etapas = instancia?.snapshot_etapas || [];
+    if (!etapas.length) {
+      // canvas sem snapshot: mostra apenas etapa atual
+      el.innerHTML = _wfTimelineHtml([{ id: tarefa.etapa_modelo_id, nome: tarefa.etapa_nome || tarefa.etapa_modelo_id }], 0);
+      return;
+    }
+
+    const idxAtual = etapas.findIndex(e => e.id === tarefa.etapa_modelo_id);
+    el.innerHTML = _wfTimelineHtml(etapas, idxAtual);
+  }
+
+  function _wfTimelineHtml(etapas, idxAtual) {
+    const items = etapas.map((etapa, idx) => {
+      let estado, corPonto, corLinha, corTexto, peso, icone;
+      if (idx < idxAtual) {
+        estado = 'concluida'; corPonto = '#10b981'; corLinha = '#10b981';
+        corTexto = 'var(--ink3)'; peso = '400'; icone = '✓';
+      } else if (idx === idxAtual) {
+        estado = 'atual'; corPonto = '#3b82f6'; corLinha = 'var(--bdr)';
+        corTexto = 'var(--ink)'; peso = '700'; icone = '●';
+      } else {
+        estado = 'futura'; corPonto = 'var(--bdr)'; corLinha = 'var(--bdr)';
+        corTexto = 'var(--ink3)'; peso = '400'; icone = '○';
+      }
+      const isLast = idx === etapas.length - 1;
+      const linhaConectora = isLast ? '' :
+        `<div style="width:2px;flex-shrink:0;height:28px;background:${corLinha};margin-left:11px"></div>`;
+      return `
+        <div style="display:flex;flex-direction:column">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="width:24px;height:24px;border-radius:50%;background:${idx === idxAtual ? corPonto : 'transparent'};
+              border:2px solid ${corPonto};flex-shrink:0;display:flex;align-items:center;justify-content:center;
+              font-size:${idx < idxAtual ? '11px' : '8px'};color:${idx === idxAtual ? '#fff' : corPonto};font-weight:700;margin-top:1px">
+              ${icone}
+            </div>
+            <div style="flex:1;min-width:0;padding-bottom:4px">
+              <div style="font-size:12px;font-weight:${peso};color:${corTexto};line-height:1.4;word-break:break-word">${_esc(etapa.nome || etapa.id)}</div>
+              ${idx === idxAtual ? '<div style="font-size:10px;color:#3b82f6;font-weight:600;margin-top:1px">← Etapa atual</div>' : ''}
+              ${idx < idxAtual ? '<div style="font-size:10px;color:#10b981;margin-top:1px">Concluída</div>' : ''}
+            </div>
+          </div>
+          ${linhaConectora}
+        </div>`;
+    }).join('');
+
+    return `
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:16px 14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:14px">
+          Progresso do fluxo
+        </div>
+        ${items}
+        <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--bdr);font-size:11px;color:var(--ink3)">
+          ${idxAtual >= 0 ? `Etapa ${idxAtual + 1} de ${etapas.length}` : `${etapas.length} etapa${etapas.length !== 1 ? 's' : ''}`}
+        </div>
+      </div>`;
+  }
+
   function _wfRenderProgressoExecucao(instancia, tarefa) {
     const etapas = instancia?.snapshot_etapas || [];
     const idxAtual = etapas.findIndex(e => e.id === tarefa.etapa_modelo_id);
@@ -762,6 +823,7 @@
     const instancia = await _wfApiRequest('wfInstanciaItem', `/${encodeURIComponent(tarefa.instancia_id)}`);
     _wfRenderDadosAnterioresExecucao(instancia);
     _wfRenderProgressoExecucao(instancia, tarefa);
+    _wfRenderTimeline(instancia, tarefa);
     _wfRenderPapelExecucao(tarefa);
 
     // Carrega formulário: do nó (tarefa.formulario_id) ou da config do processo
