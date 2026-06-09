@@ -717,7 +717,11 @@
         let atual = inicio;
         while (atual && !visitados.has(atual.id)) {
           visitados.add(atual.id);
-          if (atual.tipo === 'tarefa' || atual.tipo === 'aprovacao') {
+          // Inclui apenas etapas executáveis; exclui gateways (gateway_xor/gateway_and)
+          // e aprovacao sem papel configurado (gateways salvos com tipo errado em modelos antigos)
+          const configNo = (instancia?.config_nos || {})[atual.id] || {};
+          const eGatewayAntigO = atual.tipo === 'aprovacao' && !configNo.papel_alvo && !configNo.grupo_id;
+          if ((atual.tipo === 'tarefa' || atual.tipo === 'aprovacao') && !eGatewayAntigO) {
             ordenados.push({ id: atual.id, nome: atual.nome || atual.id, tipo: atual.tipo });
           }
           // Saídas do nó atual — exclui arcos de rejeição/devolução (caminho não-feliz)
@@ -1480,7 +1484,8 @@
   function _bpmnTipoToWf(t) {
     if (t === 'bpmn:StartEvent') return 'inicio';
     if (t === 'bpmn:EndEvent') return 'fim';
-    if (t === 'bpmn:ExclusiveGateway' || t === 'bpmn:InclusiveGateway' || t === 'bpmn:ParallelGateway') return 'aprovacao';
+    if (t === 'bpmn:ExclusiveGateway' || t === 'bpmn:InclusiveGateway') return 'gateway_xor';
+    if (t === 'bpmn:ParallelGateway') return 'gateway_and';
     return 'tarefa';
   }
 

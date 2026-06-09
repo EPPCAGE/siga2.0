@@ -63,7 +63,9 @@ function _modeloUsaCanvas(modelo) {
 }
 
 function _etapaCanvasExecutavel(no) {
-  return ['tarefa', 'aprovacao'].includes(no?.tipo);
+  if (!no) return false;
+  if (no.tipo === 'gateway_xor' || no.tipo === 'gateway_and') return false;
+  return no.tipo === 'tarefa' || no.tipo === 'aprovacao';
 }
 
 function _configNo(modeloOuInstancia, noId) {
