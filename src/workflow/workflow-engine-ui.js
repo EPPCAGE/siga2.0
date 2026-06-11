@@ -705,7 +705,22 @@
          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">${barras}</div>`;
   }
 
+  // Retorna true para nós que são etapas reais (tarefa ou aprovação com ações configuradas).
+  // Gateways salvos como 'aprovacao' por bug antigo têm acoes=['avancar'] (padrão), sem aprovar/rejeitar.
+  function _wfNoEhEtapa(no, configNos) {
+    if (!no) return false;
+    if (no.tipo === 'gateway_xor' || no.tipo === 'gateway_and') return false;
+    if (no.tipo === 'tarefa') return true;
+    if (no.tipo === 'aprovacao') {
+      const cfg = (configNos || {})[no.id] || no.config || {};
+      const acoes = cfg.acoes || [];
+      return acoes.includes('aprovar') || acoes.includes('rejeitar');
+    }
+    return false;
+  }
+
   function _wfTimelineEtapasOrdenadas(instancia, tarefa) {
+    const configNos = instancia?.config_nos || {};
     const canvas = instancia?.canvas;
     if (canvas?.nos?.length && canvas?.arestas) {
       const nos = canvas.nos;
@@ -717,32 +732,29 @@
         let atual = inicio;
         while (atual && !visitados.has(atual.id)) {
           visitados.add(atual.id);
-          // Inclui apenas etapas executáveis; exclui gateways (gateway_xor/gateway_and)
-          // e aprovacao sem papel configurado (gateways salvos com tipo errado em modelos antigos)
-          const configNo = (instancia?.config_nos || {})[atual.id] || {};
-          const eGatewayAntigO = atual.tipo === 'aprovacao' && !configNo.papel_alvo && !configNo.grupo_id;
-          if ((atual.tipo === 'tarefa' || atual.tipo === 'aprovacao') && !eGatewayAntigO) {
+          if (_wfNoEhEtapa(atual, configNos)) {
             ordenados.push({ id: atual.id, nome: atual.nome || atual.id, tipo: atual.tipo });
           }
-          // Saídas do nó atual — exclui arcos de rejeição/devolução (caminho não-feliz)
+          // Saídas — exclui arcos de rejeição (caminho não-feliz), segue avancar/aprovar
           const saidas = arestas.filter(a =>
             a.origem === atual.id &&
             a.acao !== 'rejeitar' && a.acao !== 'devolver' &&
             (!a.acao || a.acao === 'avancar' || a.acao === 'aprovar')
           );
-          // Caminho feliz: 1) sem condições (sempre executa), 2) padrão explícito, 3) primeira saída
+          // Caminho feliz: arco sem condições > padrao > primeiro disponível
           const proxAresta =
             saidas.find(a => !a.condicoes?.length && !a.padrao) ||
             saidas.find(a => !a.condicoes?.length) ||
             saidas.find(a => a.padrao) ||
             saidas[0];
-          const proxNo = proxAresta ? nos.find(n => n.id === proxAresta.destino) : null;
-          atual = proxNo || null;
+          atual = proxAresta ? (nos.find(n => n.id === proxAresta.destino) || null) : null;
         }
         if (ordenados.length) return ordenados;
       }
     }
-    const snap = instancia?.snapshot_etapas || [];
+    // Fallback: snapshot_etapas — filtra gateways legados pelo mesmo critério
+    const snap = (instancia?.snapshot_etapas || [])
+      .filter(e => e.tipo === 'tarefa' || e.tipo == null || _wfNoEhEtapa(e, configNos));
     if (snap.length) return snap;
     return [{ id: tarefa.etapa_modelo_id, nome: tarefa.etapa_nome || tarefa.etapa_modelo_id }];
   }
