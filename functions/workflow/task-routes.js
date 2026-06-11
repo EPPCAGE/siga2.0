@@ -40,6 +40,12 @@ async function handleWfTarefasRoute({ req, res, user, tarefasCol, gruposCol, usu
     return;
   }
 
+  if (req.method === 'GET' && id && acao === 'candidatos-delegacao') {
+    const result = await engine.candidatosDelegacao({ tarefa_id: id });
+    res.json(result);
+    return;
+  }
+
   if (req.method === 'POST' && acao === 'assumir') {
     const result = await engine.assumirTarefa({
       tarefa_id: id,
