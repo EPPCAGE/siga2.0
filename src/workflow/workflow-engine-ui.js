@@ -4030,57 +4030,23 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       modal.style.display = 'flex';
 
       try {
-        // config/usuarios tem o array canônico com uid, email, nome, perfil
-        let todosUsuarios = globalScope.USUARIOS || [];
-        if (!todosUsuarios.length) {
-          const cfgDoc = await _getDoc('config', 'usuarios');
-          const raw = cfgDoc?.data;
-          if (typeof raw === 'string') todosUsuarios = JSON.parse(raw);
-          else if (Array.isArray(raw)) todosUsuarios = raw;
-        }
-
-        // Busca a tarefa para saber o grupo_id e papel_alvo
-        const tarefa = await _wfApiRequest('wfTarefas', `/${encodeURIComponent(tarefaId)}`);
-
-        // Determina o grupo responsável: 1) grupo da tarefa, 2) grupo:ID em papel_alvo, 3) grupo da instância
-        let grupoId = tarefa?.grupo_id || null;
-        if (!grupoId && String(tarefa?.papel_alvo || '').startsWith('grupo:')) {
-          grupoId = tarefa.papel_alvo.slice(6);
-        }
-        if (!grupoId && tarefa?.instancia_id) {
-          const instancia = await _wfApiRequest('wfInstanciaItem', `/${encodeURIComponent(tarefa.instancia_id)}`).catch(() => null);
-          grupoId = instancia?.grupo_id || null;
-        }
-
-        let candidatos = [];
-
-        if (grupoId) {
-          // Lista apenas membros do grupo
-          const grupo = await _getDoc('wf_grupos', grupoId).catch(() => null);
-          const emails = grupo?.membros_email || [];
-          candidatos = emails
-            .map(email => todosUsuarios.find(u => u.email === email))
-            .filter(Boolean);
-          // Se não resolveu por objeto, cria entradas mínimas com email
-          if (!candidatos.length && emails.length) {
-            candidatos = emails.map(email => ({ uid: email, email, nome: email }));
-          }
-        }
-
-        // Fallback: todos os usuários (sem grupo ou EP delegando fora do grupo)
-        if (!candidatos.length) {
-          candidatos = todosUsuarios;
-        }
-
-        sel.innerHTML = `<option value="">— Selecione —</option>` +
-          candidatos
-            .filter(u => u.uid || u.email)
-            .map(u => `<option value="${_esc(u.uid || u.email)}">${_esc(u.nome || u.email)}</option>`)
-            .join('');
+        // O backend resolve a equipe responsável pela tarefa (grupo da tarefa,
+        // papel_alvo 'grupo:ID' ou grupo da instância) e retorna só esses membros.
+        const resposta = await _wfApiRequest('wfTarefas', `/${encodeURIComponent(tarefaId)}/candidatos-delegacao`);
+        const candidatos = (resposta?.candidatos || []).filter(u => u.uid || u.email);
 
         if (!candidatos.length) {
           sel.innerHTML = `<option value="">Nenhum usuário disponível</option>`;
+          return;
         }
+
+        const hint = resposta?.escopo === 'todos' || resposta?.escopo === 'grupo_vazio'
+          ? '<option value="" disabled>— Todos os usuários (sem equipe definida) —</option>'
+          : '';
+        sel.innerHTML = `<option value="">— Selecione —</option>${hint}` +
+          candidatos
+            .map(u => `<option value="${_esc(u.uid || u.email)}">${_esc(u.nome || u.email)}</option>`)
+            .join('');
       } catch (e) {
         sel.innerHTML = `<option value="">Erro ao carregar usuários</option>`;
       }

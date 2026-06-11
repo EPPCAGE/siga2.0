@@ -956,6 +956,49 @@ function makeEngine(db) {
     return { ok: true, tarefa_id };
   }
 
+  async function candidatosDelegacao({ tarefa_id }) {
+    const tarefa = await buscarDoc(col.tarefas, tarefa_id, ERRO.TAREFA_NAO_ENCONTRADA);
+
+    // Determina o grupo responsável pela tarefa, na ordem:
+    // 1) grupo_id da tarefa, 2) papel_alvo 'grupo:ID', 3) grupo_id da instância.
+    let grupoId = tarefa.grupo_id || null;
+    if (!grupoId && String(tarefa.papel_alvo || '').startsWith('grupo:')) {
+      grupoId = tarefa.papel_alvo.slice(6) || null;
+    }
+    if (!grupoId && tarefa.instancia_id) {
+      const instSnap = await col.instancias.doc(tarefa.instancia_id).get();
+      if (instSnap.exists) grupoId = instSnap.data()?.grupo_id || null;
+    }
+
+    const usuarios = await _carregarUsuariosConfig();
+    const porEmail = (email) => usuarios.find(
+      (u) => String(u?.email || '').toLowerCase() === String(email || '').toLowerCase());
+
+    let candidatos = [];
+    let escopo = 'grupo';
+
+    if (grupoId) {
+      const grupoSnap = await col.grupos.doc(grupoId).get();
+      const grupo = grupoSnap.exists ? grupoSnap.data() : null;
+      const emails = (grupo?.membros_email || grupo?.membros_uid || [])
+        .filter((v) => String(v || '').includes('@'));
+      candidatos = emails.map((email) => {
+        const u = porEmail(email);
+        return { uid: u?.uid || null, email, nome: u?.nome || email };
+      });
+    }
+
+    // Sem grupo identificado (ou grupo vazio): retorna todos os usuários do sistema.
+    if (!candidatos.length) {
+      escopo = grupoId ? 'grupo_vazio' : 'todos';
+      candidatos = usuarios
+        .filter((u) => u?.email)
+        .map((u) => ({ uid: u.uid || null, email: u.email, nome: u.nome || u.email }));
+    }
+
+    return { escopo, grupo_id: grupoId || null, candidatos };
+  }
+
   async function excluirTarefa({ tarefa_id, usuario_uid, usuario_email = null, usuario_perfil = null }) {
     _garantirPermissaoGestaoWorkflow({ uid: usuario_uid, email: usuario_email, perfil: usuario_perfil }, 'Usuário não pode excluir esta tarefa.');
     const tarefa = await buscarDoc(col.tarefas, tarefa_id, ERRO.TAREFA_NAO_ENCONTRADA);
@@ -1029,6 +1072,7 @@ function makeEngine(db) {
     iniciarTarefa,
     concluirTarefa,
     delegarTarefa,
+    candidatosDelegacao,
     puxarTarefa,
     excluirTarefa,
     cancelarInstancia,
