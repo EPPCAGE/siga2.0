@@ -8024,7 +8024,7 @@ function salvarRetroativo(etId){
   epRetroEtapa=null;
   toast('Revisão salva.','var(--blue)');
   rDetalhe();
-  fbAutoSave('retroativo');
+  fbSaveNow('retroativo');
   updCounts();
 }
 function salvarEIrProximo(etId){
@@ -8032,7 +8032,7 @@ function salvarEIrProximo(etId){
   if(_RS_MAP[etId]) _RS_MAP[etId](p);
   if(p.etapas_puladas) p.etapas_puladas=p.etapas_puladas.filter(id=>id!==etId);
   push(p,etId,'EP','Dados revisados retroativamente pelo EP');
-  fbAutoSave('retroativo');
+  fbSaveNow('retroativo');
   toast('Revisão salva.','var(--blue)');
   const nx=nextEt(etId);
   if(!nx||nx===p.etapa){epRetroEtapa=null;rDetalhe();}
