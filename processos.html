@@ -18795,6 +18795,12 @@ function _fsClean(v){
 }
 async function fbSaveAll(){
   if(!fbReady() || !globalThis._fbLoadedAt) return;
+  // O listener onSnapshot faz processos[idx] = newObj quebrando a invariante
+  // curProc === processos[idx]. Re-sincroniza curProc no array antes de salvar.
+  if(curProc?.id){
+    const _cpIdx = processos.findIndex(p => p.id === curProc.id);
+    if(_cpIdx >= 0 && processos[_cpIdx] !== curProc) processos[_cpIdx] = curProc;
+  }
   // Pausa os listeners de tempo real durante o save (mesmo padrão do módulo de projetos)
   if(globalThis._fbState) globalThis._fbState.saving = true;
   try {
