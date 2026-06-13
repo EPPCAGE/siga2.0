@@ -674,11 +674,12 @@
     const gestorSel = document.getElementById('wf-exec-gestor');
     if (gestorSel) gestorSel.value = '';
     const instrDiv = document.getElementById('wf-exec-instrucoes');
-    if (!tarefa.etapa_desc) {
+    const textoInstr = tarefa.instrucoes || tarefa.etapa_desc || '';
+    if (!textoInstr) {
       instrDiv.style.display = 'none';
       return;
     }
-    instrDiv.textContent = tarefa.etapa_desc;
+    instrDiv.textContent = textoInstr;
     instrDiv.style.display = '';
   }
 
