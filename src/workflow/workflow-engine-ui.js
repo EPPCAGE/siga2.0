@@ -673,6 +673,22 @@
     // Limpa seleção de gestor de uma tarefa anterior
     const gestorSel = document.getElementById('wf-exec-gestor');
     if (gestorSel) gestorSel.value = '';
+    // Motivo de devolução (tarefa foi devolvida por etapa posterior)
+    let motivoEl = document.getElementById('wf-exec-motivo-devolvido');
+    if (!motivoEl) {
+      motivoEl = document.createElement('div');
+      motivoEl.id = 'wf-exec-motivo-devolvido';
+      motivoEl.style.cssText = 'display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e;margin-top:12px;line-height:1.6';
+      const instrDiv2 = document.getElementById('wf-exec-instrucoes');
+      instrDiv2?.parentNode?.insertBefore(motivoEl, instrDiv2);
+    }
+    if (tarefa.motivo_devolucao) {
+      motivoEl.innerHTML = `<strong>⚠ Tarefa devolvida — ajuste necessário:</strong><div style="margin-top:4px">${_esc(tarefa.motivo_devolucao)}</div>`;
+      motivoEl.style.display = '';
+    } else {
+      motivoEl.style.display = 'none';
+    }
+
     const instrDiv = document.getElementById('wf-exec-instrucoes');
     const textoInstr = tarefa.instrucoes || tarefa.etapa_desc || '';
     if (!textoInstr) {
