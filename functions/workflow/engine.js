@@ -138,6 +138,49 @@ function makeEngine(db) {
     grupos: db.collection('wf_grupos'),
   };
 
+  // Cache de config EmailJS (lido uma vez por execução da função)
+  let _ejsConfigCache = null;
+  async function _carregarEjsConfig() {
+    if (_ejsConfigCache) return _ejsConfigCache;
+    const doc = await db.doc('config/ejs').get().catch(() => null);
+    _ejsConfigCache = doc?.exists ? doc.data() : null;
+    return _ejsConfigCache;
+  }
+
+  async function _enviarEmailWorkflow({ emails, instancia, tarefa, etapa }) {
+    const ejsCfg = await _carregarEjsConfig();
+    if (!ejsCfg?.service || !ejsCfg?.template || !ejsCfg?.pubkey) return;
+    const { default: fetch } = await import('node-fetch');
+    const prazoStr = tarefa.prazo
+      ? (typeof tarefa.prazo.toDate === 'function'
+          ? tarefa.prazo.toDate()
+          : new Date(tarefa.prazo._seconds * 1000)
+        ).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+      : 'sem prazo definido';
+    const instrucoes = tarefa.instrucoes ? `\n\nOrientação: ${tarefa.instrucoes}` : '';
+    for (const email of emails) {
+      if (!email || typeof email !== 'string') continue;
+      await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          service_id: ejsCfg.service,
+          template_id: ejsCfg.template,
+          user_id: ejsCfg.pubkey,
+          template_params: {
+            to_email: email,
+            to_name: email,
+            from_name: 'EP·CAGE',
+            subject: `Workflow iniciado: ${instancia.titulo}`,
+            message: `O processo "${instancia.titulo}" foi iniciado automaticamente e aguarda sua ação.\n\nEtapa: ${etapa.nome}${instrucoes}`,
+            prazo: prazoStr,
+            link: 'https://sigaepp.web.app/',
+          },
+        }),
+      }).catch(e => console.warn('[wf email] erro ao enviar para', email, ':', e.message));
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Helpers internos
   // -------------------------------------------------------------------------
@@ -479,6 +522,40 @@ function makeEngine(db) {
         titulo_custom: tituloNotif,
         mensagem_custom: mensagemNotif,
       });
+    }
+
+    // Para workflows agendados: envia e-mail a todos os responsáveis pela primeira tarefa
+    if (instancia.agendado_para) {
+      const emailsDestinatarios = new Set();
+      if (destino.responsavel_uid) {
+        const u = await _buscarUsuarioPorUid(destino.responsavel_uid).catch(() => null);
+        if (u?.email) emailsDestinatarios.add(u.email);
+      }
+      // Se atribuído a grupo, envia para todos os membros da equipe
+      if (destino.grupo_id) {
+        const grupoSnap = await col.grupos.doc(destino.grupo_id).get().catch(() => null);
+        if (grupoSnap?.exists) {
+          const g = grupoSnap.data();
+          (g.membros_email || []).forEach(e => { if (e) emailsDestinatarios.add(e); });
+          if (g.chefe_email) emailsDestinatarios.add(g.chefe_email);
+        }
+      }
+      // papel_alvo genérico (ep, gestor, dono) — resolve via atribuições da instância
+      if (!destino.responsavel_uid && !destino.grupo_id && destino.papel_alvo) {
+        const uid = await _resolverUidNotificacaoCanvas(destino.papel_alvo, instancia).catch(() => null);
+        if (uid) {
+          const u = await _buscarUsuarioPorUid(uid).catch(() => null);
+          if (u?.email) emailsDestinatarios.add(u.email);
+        }
+      }
+      if (emailsDestinatarios.size) {
+        await _enviarEmailWorkflow({
+          emails: [...emailsDestinatarios],
+          instancia,
+          tarefa,
+          etapa: { id: no.id, nome: no.nome || no.id },
+        }).catch(e => console.warn('[wf email agendado]', e.message));
+      }
     }
 
     return tarefa;
@@ -873,7 +950,8 @@ function makeEngine(db) {
         await notif.tarefaConcluida({ destinatario_uid: instancia.solicitante_uid, instancia, tarefa: tarefaAtual }).catch(() => {});
       }
 
-      await _avancarFluxoCanvas({ ...instancia, dados_consolidados: mergedDados, gestor_solicitante_uid: gestorSolicitanteUid }, tarefaAtual, acaoFinal);
+      const anexosConsolidados = Array.isArray(anexos) ? anexos : [];
+      await _avancarFluxoCanvas({ ...instancia, dados_consolidados: mergedDados, gestor_solicitante_uid: gestorSolicitanteUid, anexos_consolidados: anexosConsolidados }, tarefaAtual, acaoFinal);
       return { ok: true };
     }
 
