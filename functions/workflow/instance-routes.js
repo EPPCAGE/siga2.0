@@ -20,6 +20,7 @@ async function handleWfInstanciasRoute({ req, res, user, instanciasCol, engine }
         solicitante_uid: user.uid,
         grupo_id: body.grupo_id || null,
         grupo_nome: body.grupo_nome || null,
+        agendado_para: body.agendado_para || null,
       })
       : await engine.iniciarInstanciaMapeada({
         processo_id: body.processo_id,

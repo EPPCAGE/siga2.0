@@ -279,23 +279,25 @@ function criarFormularioModelo({ titulo, campos, criado_por }) {
   });
 }
 
-function criarInstanciaProcesso({ processo_modelo_id, processo_modelo_versao, titulo, solicitante_uid, grupo_id = null, grupo_nome = null }) {
+function criarInstanciaProcesso({ processo_modelo_id, processo_modelo_versao, titulo, solicitante_uid, grupo_id = null, grupo_nome = null, agendado_para = null }) {
   _requerido({ processo_modelo_id }, 'processo_modelo_id');
   _requerido({ solicitante_uid }, 'solicitante_uid');
 
+  const statusInicial = agendado_para ? 'agendado' : 'em_andamento';
   return fsClean({
     processo_modelo_id,
     processo_modelo_versao: Number(processo_modelo_versao) || 1,
     titulo: titulo ? String(titulo).trim() : `Processo ${new Date().toLocaleDateString('pt-BR')}`,
-    status: 'em_andamento',
+    status: statusInicial,
     etapa_atual_id: null,
     solicitante_uid,
     grupo_id: _stringOuNull(grupo_id),
     grupo_nome: _stringOuNull(grupo_nome),
     dados_consolidados: {},
-    iniciado_em: agora(),
+    iniciado_em: agendado_para ? null : agora(),
     concluido_em: null,
     prazo_geral: null,
+    agendado_para: agendado_para ? (agendado_para instanceof Date ? Timestamp.fromDate(agendado_para) : Timestamp.fromDate(new Date(agendado_para))) : null,
   });
 }
 
