@@ -1011,6 +1011,16 @@
     return dados;
   }
 
+  // Retorna true se o nó é a primeira etapa executável no canvas
+  function _wfPrimeiraEtapa(canvas, noId) {
+    const origens = (canvas?.arestas || []).filter(a => a.destino === noId);
+    if (!origens.length) return true;
+    return origens.every(a => {
+      const n = (canvas.nos || []).find(nd => nd.id === a.origem);
+      return !n || n.tipo === 'inicio';
+    });
+  }
+
   function _wfAcoesVisiveisExecucao(instancia, tarefa, dadosParciais = {}) {
     const acoesDisponiveis = tarefa.acoes_disponiveis;
     let base = ['concluir'];
@@ -1020,6 +1030,13 @@
       base = ['avancar'];
     }
     if (!instancia?.canvas) return base;
+
+    // Injeta 'devolver' nativamente em qualquer etapa que não seja a primeira
+    if (!base.includes('devolver') && !base.includes('rejeitar') && !base.includes('solicitar_ajuste')) {
+      if (!_wfPrimeiraEtapa(instancia.canvas, tarefa.etapa_modelo_id)) {
+        base = [...base, 'devolver'];
+      }
+    }
 
     const arestas = (instancia.canvas.arestas || []).filter(a => a.origem === tarefa.etapa_modelo_id);
     if (!arestas.length) return base;
@@ -1201,7 +1218,7 @@
         method: 'POST',
         body: {
           acao,
-          observacao: obs,
+          observacao: acao === 'devolver' ? (motivoDevolucao || obs) : obs,
           motivo_devolucao: motivoDevolucao || undefined,
           dados_formulario: dadosForm,
           anexos: _st._anexosTarefa || [],
