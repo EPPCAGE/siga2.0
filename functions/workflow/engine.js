@@ -950,7 +950,8 @@ function makeEngine(db) {
         await notif.tarefaConcluida({ destinatario_uid: instancia.solicitante_uid, instancia, tarefa: tarefaAtual }).catch(() => {});
       }
 
-      await _avancarFluxoCanvas({ ...instancia, dados_consolidados: mergedDados, gestor_solicitante_uid: gestorSolicitanteUid }, tarefaAtual, acaoFinal);
+      const anexosConsolidados = Array.isArray(anexos) ? anexos : [];
+      await _avancarFluxoCanvas({ ...instancia, dados_consolidados: mergedDados, gestor_solicitante_uid: gestorSolicitanteUid, anexos_consolidados: anexosConsolidados }, tarefaAtual, acaoFinal);
       return { ok: true };
     }
 
