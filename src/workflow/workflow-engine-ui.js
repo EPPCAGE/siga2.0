@@ -1234,7 +1234,7 @@
     if (dadosForm == null) return;
 
     try {
-      await _wfApiRequest('wfTarefas', `/${encodeURIComponent(tarefa.id)}/concluir`, {
+      const resultado = await _wfApiRequest('wfTarefas', `/${encodeURIComponent(tarefa.id)}/concluir`, {
         method: 'POST',
         body: {
           acao,
@@ -1247,6 +1247,12 @@
       });
 
       wfNavWorkflow('tarefas');
+
+      if (resultado?.instancia_concluida) {
+        const msg = String(resultado.mensagem_fim || '').trim()
+          || 'O processo foi concluído com sucesso.';
+        _wfMostrarModalFim(msg);
+      }
     } catch (e) {
       alert('Erro ao concluir tarefa: ' + e.message);
     }
@@ -3476,11 +3482,24 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   // — Coleta perfis que precisam de atribuição explícita ao iniciar —
   // Retorna array de strings únicas, ex: ['ep', 'gestor']
   // Abre modal de vinculação de equipe; chama callback({ grupo_id, grupo_nome }) ou null se cancelado
-  async function _wfAbrirModalAtribuicao(nomeModelo, callback) {
+  async function _wfAbrirModalAtribuicao(nomeModelo, callback, orientacao = '') {
     const el = document.getElementById('wf-modal-atribuicao');
     if (!el) { callback({}); return; }
     const titulo = document.getElementById('wf-modal-atrib-titulo');
     if (titulo) titulo.textContent = `Vincular equipe — ${_esc(nomeModelo)}`;
+
+    const orientWrap = document.getElementById('wf-atrib-orientacao');
+    const orientTxt = document.getElementById('wf-atrib-orientacao-txt');
+    const orientacaoStr = String(orientacao || '').trim();
+    if (orientWrap && orientTxt) {
+      if (orientacaoStr) {
+        orientTxt.textContent = orientacaoStr;
+        orientWrap.style.display = '';
+      } else {
+        orientTxt.textContent = '';
+        orientWrap.style.display = 'none';
+      }
+    }
 
     const sel = document.getElementById('wf-atrib-sel-equipe');
     const membrosDiv = document.getElementById('wf-atrib-equipe-membros');
@@ -3523,6 +3542,22 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (!el) return;
     el.style.display = 'none';
     if (typeof el._atribCallback === 'function') el._atribCallback(null);
+  }
+
+  function _wfMostrarModalFim(mensagem) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:32px 28px;width:400px;max-width:92vw;box-shadow:0 8px 32px rgba(0,0,0,.18);text-align:center">
+        <div style="font-size:40px;margin-bottom:12px">✅</div>
+        <div style="font-weight:700;font-size:17px;margin-bottom:10px;color:var(--ink)">Processo concluído</div>
+        <div style="font-size:14px;color:var(--ink2);white-space:pre-wrap;margin-bottom:24px">${_esc(mensagem)}</div>
+        <button type="button" class="btn btn-p" id="_wf-fim-ok">OK</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    const fechar = () => overlay.remove();
+    overlay.querySelector('#_wf-fim-ok').onclick = fechar;
+    overlay.onclick = (e) => { if (e.target === overlay) fechar(); };
   }
 
   // Exibe modal com seletor de data/hora para workflows agendados. Retorna ISO string ou null se cancelado.
@@ -3577,6 +3612,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const cfgInicio = (modelo.config_nos || {})[inicio.id] || {};
     const tipoDisparo = cfgInicio.tipo_disparo || 'manual';
     const agendadoPadrao = cfgInicio.agendado_padrao || '';
+    const orientacaoInicio = cfgInicio.descricao || '';
 
     _wfAbrirModalAtribuicao(modelo.nome, async (vinculo) => {
       if (vinculo === null) return;
@@ -3608,7 +3644,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       } catch (e) {
         alert('Erro ao iniciar: ' + e.message);
       }
-    });
+    }, orientacaoInicio);
   }
 
   // ── Motor de Regras ───────────────────────────────────────────────────────
