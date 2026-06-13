@@ -3476,11 +3476,24 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   // — Coleta perfis que precisam de atribuição explícita ao iniciar —
   // Retorna array de strings únicas, ex: ['ep', 'gestor']
   // Abre modal de vinculação de equipe; chama callback({ grupo_id, grupo_nome }) ou null se cancelado
-  async function _wfAbrirModalAtribuicao(nomeModelo, callback) {
+  async function _wfAbrirModalAtribuicao(nomeModelo, callback, orientacao = '') {
     const el = document.getElementById('wf-modal-atribuicao');
     if (!el) { callback({}); return; }
     const titulo = document.getElementById('wf-modal-atrib-titulo');
     if (titulo) titulo.textContent = `Vincular equipe — ${_esc(nomeModelo)}`;
+
+    const orientWrap = document.getElementById('wf-atrib-orientacao');
+    const orientTxt = document.getElementById('wf-atrib-orientacao-txt');
+    const orientacaoStr = String(orientacao || '').trim();
+    if (orientWrap && orientTxt) {
+      if (orientacaoStr) {
+        orientTxt.textContent = orientacaoStr;
+        orientWrap.style.display = '';
+      } else {
+        orientTxt.textContent = '';
+        orientWrap.style.display = 'none';
+      }
+    }
 
     const sel = document.getElementById('wf-atrib-sel-equipe');
     const membrosDiv = document.getElementById('wf-atrib-equipe-membros');
@@ -3577,6 +3590,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const cfgInicio = (modelo.config_nos || {})[inicio.id] || {};
     const tipoDisparo = cfgInicio.tipo_disparo || 'manual';
     const agendadoPadrao = cfgInicio.agendado_padrao || '';
+    const orientacaoInicio = cfgInicio.descricao || '';
 
     _wfAbrirModalAtribuicao(modelo.nome, async (vinculo) => {
       if (vinculo === null) return;
@@ -3608,7 +3622,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       } catch (e) {
         alert('Erro ao iniciar: ' + e.message);
       }
-    });
+    }, orientacaoInicio);
   }
 
   // ── Motor de Regras ───────────────────────────────────────────────────────
