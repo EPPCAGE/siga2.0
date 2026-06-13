@@ -422,7 +422,7 @@ function makeEngine(db) {
   }
 
 
-  async function _criarTarefaCanvas(instancia, modelo, no, dadosIniciais = {}) {
+  async function _criarTarefaCanvas(instancia, modelo, no, dadosIniciais = {}, anexosIniciais = []) {
     const cfg = _configNo(modelo, no.id);
     const papelAlvo = cfg.papeis?.executor || 'solicitante';
     const destino = await _resolverDestinoTarefaCanvas(papelAlvo, instancia);
@@ -444,6 +444,7 @@ function makeEngine(db) {
       iniciado_em: null,
       concluido_em: null,
       dados_formulario: dadosIniciais || {},
+      anexos: Array.isArray(anexosIniciais) ? [...anexosIniciais] : [],
       acao_tomada: null,
       observacao: null,
       parecer: null,
@@ -451,7 +452,6 @@ function makeEngine(db) {
       formulario_id: cfg.formulario_id || null,
       acoes_disponiveis: _acoesPorPapelCanvas(cfg, 'executor'),
       instrucoes: String(cfg.instrucoes || '').trim(),
-      anexos: [],
     });
 
     const ref = await col.tarefas.add(tarefaData);
@@ -594,7 +594,9 @@ function makeEngine(db) {
     const modeloParaConfig = modeloData || instancia;
     // Ao devolver, pré-carrega o formulário com os dados já consolidados da instância
     const dadosIniciais = (acao === 'devolver' || acao === 'rejeitar') ? (instancia.dados_consolidados || {}) : {};
-    await _criarTarefaCanvas({ ...instancia, etapa_atual_id: proximoNo.id }, modeloParaConfig, proximoNo, dadosIniciais);
+    // Propaga anexos consolidados para a próxima tarefa
+    const anexosIniciais = instancia.anexos_consolidados || [];
+    await _criarTarefaCanvas({ ...instancia, etapa_atual_id: proximoNo.id }, modeloParaConfig, proximoNo, dadosIniciais, anexosIniciais);
   }
 
   async function _criarTarefa(instancia, etapa) {
@@ -836,7 +838,11 @@ function makeEngine(db) {
 
       const mergedDados = dadosMesclados;
       const gestorSolicitanteUid = gestor_solicitante_uid || instancia.gestor_solicitante_uid || null;
-      const patchInstancia = { dados_consolidados: mergedDados };
+      const patchInstancia = {
+        dados_consolidados: mergedDados,
+        // Acumula anexos para propagar às próximas tarefas
+        anexos_consolidados: Array.isArray(anexos) ? anexos : [],
+      };
       if (tarefaAtual.papel_responsavel === 'executor') {
         patchInstancia.ultimo_executor_uid = usuario_uid;
       }
