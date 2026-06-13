@@ -465,7 +465,7 @@ function makeEngine(db) {
   }
 
 
-  async function _criarTarefaCanvas(instancia, modelo, no, dadosIniciais = {}, anexosIniciais = []) {
+  async function _criarTarefaCanvas(instancia, modelo, no, dadosIniciais = {}, anexosIniciais = [], motivoDevolucao = null) {
     const cfg = _configNo(modelo, no.id);
     const papelAlvo = cfg.papeis?.executor || 'solicitante';
     const destino = await _resolverDestinoTarefaCanvas(papelAlvo, instancia);
@@ -491,6 +491,7 @@ function makeEngine(db) {
       acao_tomada: null,
       observacao: null,
       parecer: null,
+      motivo_devolucao: motivoDevolucao || null,
       exige_parecer: !!cfg.exige_parecer,
       formulario_id: cfg.formulario_id || null,
       acoes_disponiveis: _acoesPorPapelCanvas(cfg, 'executor'),
@@ -642,7 +643,7 @@ function makeEngine(db) {
     }
   }
 
-  async function _avancarFluxoCanvas(instancia, tarefa, acao) {
+  async function _avancarFluxoCanvas(instancia, tarefa, acao, motivoDevolucao = null) {
     // Usa o canvas do modelo publicado atual, não o snapshot da instância,
     // pois o snapshot pode estar desatualizado se o modelo foi editado após o início.
     const modelo = await col.modelos.doc(instancia.processo_modelo_id).get();
@@ -669,11 +670,11 @@ function makeEngine(db) {
     await col.instancias.doc(instancia.id).update({ no_atual_id: proximoNo.id, etapa_atual_id: proximoNo.id });
     await _registrarHistorico(instancia.id, 'etapa_avancada', null, proximoNo.id, null, `Fluxo avançou para "${proximoNo.nome || proximoNo.id}".`, { de: noAtual.id, para: proximoNo.id, acao: acao || null });
     const modeloParaConfig = modeloData || instancia;
-    // Ao devolver, pré-carrega o formulário com os dados já consolidados da instância
-    const dadosIniciais = (acao === 'devolver' || acao === 'rejeitar') ? (instancia.dados_consolidados || {}) : {};
-    // Propaga anexos consolidados para a próxima tarefa
+    // Ao devolver, pré-carrega formulário e propaga motivo ao executor anterior
+    const devolvendo = acao === 'devolver' || acao === 'rejeitar';
+    const dadosIniciais = devolvendo ? (instancia.dados_consolidados || {}) : {};
     const anexosIniciais = instancia.anexos_consolidados || [];
-    await _criarTarefaCanvas({ ...instancia, etapa_atual_id: proximoNo.id }, modeloParaConfig, proximoNo, dadosIniciais, anexosIniciais);
+    await _criarTarefaCanvas({ ...instancia, etapa_atual_id: proximoNo.id }, modeloParaConfig, proximoNo, dadosIniciais, anexosIniciais, devolvendo ? motivoDevolucao : null);
   }
 
   async function _criarTarefa(instancia, etapa) {
@@ -951,7 +952,7 @@ function makeEngine(db) {
       }
 
       const anexosConsolidados = Array.isArray(anexos) ? anexos : [];
-      await _avancarFluxoCanvas({ ...instancia, dados_consolidados: mergedDados, gestor_solicitante_uid: gestorSolicitanteUid, anexos_consolidados: anexosConsolidados }, tarefaAtual, acaoFinal);
+      await _avancarFluxoCanvas({ ...instancia, dados_consolidados: mergedDados, gestor_solicitante_uid: gestorSolicitanteUid, anexos_consolidados: anexosConsolidados }, tarefaAtual, acaoFinal, observacao || null);
       return { ok: true };
     }
 
