@@ -367,6 +367,18 @@ exports.wfComentarios = onRequest({ region: 'us-central1', cors: false }, async 
 });
 
 /**
+ * Job agendado — ativa instâncias de workflow agendadas cujo horário chegou (a cada 5 minutos)
+ */
+exports.wfAgendadorJob = onScheduleV2({
+  schedule: 'every 5 minutes',
+  region: 'us-central1',
+  timeZone: 'America/Sao_Paulo',
+}, async () => {
+  const resultado = await engine.processarAgendados();
+  console.log('[wfAgendadorJob]', resultado);
+});
+
+/**
  * Job agendado — processamento de SLA (a cada 30 minutos)
  */
 exports.wfSlaJob = onScheduleV2({

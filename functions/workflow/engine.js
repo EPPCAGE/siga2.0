@@ -640,7 +640,7 @@ function makeEngine(db) {
    * Integração: carrega o snapshot do processo da coleção `arquitetura`
    * e salva junto à instância para preservar o contexto histórico.
    */
-  async function iniciarInstancia({ processo_modelo_id, titulo, solicitante_uid, grupo_id = null, grupo_nome = null }) {
+  async function iniciarInstancia({ processo_modelo_id, titulo, solicitante_uid, grupo_id = null, grupo_nome = null, agendado_para = null }) {
     const modelo = await buscarDoc(col.modelos, processo_modelo_id, ERRO.MODELO_NAO_ENCONTRADO);
     if (modelo.status !== 'publicado') lancarErro(ERRO.MODELO_NAO_PUBLICADO, 'O modelo precisa estar publicado para iniciar instâncias.');
 
@@ -658,6 +658,7 @@ function makeEngine(db) {
       solicitante_uid,
       grupo_id,
       grupo_nome,
+      agendado_para: agendado_para || null,
     });
     if (_modeloUsaCanvas(modelo)) {
       instanciaData.canvas = fsClean(modelo.canvas || { nos: [], arestas: [] });
@@ -684,9 +685,14 @@ function makeEngine(db) {
     await _registrarHistorico(
       instancia.id, 'instancia_criada', solicitante_uid,
       null, null,
-      `Instância do processo "${modelo.nome}" criada.`,
-      { processo_modelo_id, versao: modelo.versao, grupo_id: grupo_id || null, grupo_nome: grupo_nome || null },
+      agendado_para
+        ? `Instância do processo "${modelo.nome}" agendada para ${new Date(agendado_para).toLocaleString('pt-BR')}.`
+        : `Instância do processo "${modelo.nome}" criada.`,
+      { processo_modelo_id, versao: modelo.versao, grupo_id: grupo_id || null, grupo_nome: grupo_nome || null, agendado_para: agendado_para || null },
     );
+
+    // Instância agendada — não cria tarefas agora; o scheduler ativará no momento certo
+    if (agendado_para) return instancia;
 
     if (_modeloUsaCanvas(modelo)) {
       const inicio = (modelo.canvas?.nos || []).find((no) => no.tipo === 'inicio');
@@ -1156,6 +1162,66 @@ function makeEngine(db) {
   }
 
   /**
+   * Ativa uma instância agendada: cria a primeira tarefa e muda status para em_andamento.
+   */
+  async function _ativarInstanciaAgendada(instancia) {
+    const modelo = await col.modelos.doc(instancia.processo_modelo_id).get();
+    const modeloData = modelo.exists ? { id: modelo.id, ...modelo.data() } : null;
+    if (!modeloData) return;
+
+    await col.instancias.doc(instancia.id).update(fsClean({
+      status: 'em_andamento',
+      iniciado_em: agora(),
+      agendado_ativado_em: agora(),
+    }));
+    const inst = { ...instancia, status: 'em_andamento' };
+
+    if (_modeloUsaCanvas(modeloData)) {
+      const inicio = (modeloData.canvas?.nos || []).find((n) => n.tipo === 'inicio');
+      if (!inicio) return;
+      const primeiroNo = _proximoNoExecutavelCanvas(modeloData.canvas, inicio.id, null, {}, modeloData.config_nos || {});
+      if (!primeiroNo) return;
+      await col.instancias.doc(inst.id).update({ etapa_atual_id: primeiroNo.id, no_atual_id: primeiroNo.id });
+      inst.etapa_atual_id = primeiroNo.id;
+      inst.no_atual_id = primeiroNo.id;
+
+      const cfgInicio = (modeloData.config_nos || {})[inicio.id] || {};
+      if (cfgInicio.descricao && inst.solicitante_uid) {
+        const solicitante = await _buscarUsuarioPorUid(inst.solicitante_uid).catch(() => null);
+        const msg = _interpolarMensagem(cfgInicio.descricao, inst, solicitante);
+        await notif.instanciaIniciada({ instancia: inst, mensagem: msg, destinatario_uid: inst.solicitante_uid }).catch(() => {});
+      }
+
+      await _notificarCientesCanvas(inst, primeiroNo);
+      await _criarTarefaCanvas(inst, modeloData, primeiroNo);
+    }
+
+    await _registrarHistorico(inst.id, 'instancia_ativada', null, null, null, 'Instância agendada ativada automaticamente.', {});
+  }
+
+  /**
+   * Job agendado: ativa instâncias com agendado_para <= agora.
+   */
+  async function processarAgendados() {
+    const agoraTmp = agora();
+    const snap = await col.instancias
+      .where('status', '==', 'agendado')
+      .where('agendado_para', '<=', agoraTmp)
+      .get();
+
+    let ativadas = 0;
+    for (const doc of snap.docs) {
+      try {
+        await _ativarInstanciaAgendada({ id: doc.id, ...doc.data() });
+        ativadas++;
+      } catch (e) {
+        console.error(`[processarAgendados] Erro ao ativar ${doc.id}:`, e.message);
+      }
+    }
+    return { ativadas, total: snap.size };
+  }
+
+  /**
    * Job agendado: verifica SLAs e emite alertas/vencimentos.
    */
   async function processarSla() {
@@ -1219,6 +1285,7 @@ function makeEngine(db) {
     retomarInstancia,
     excluirInstanciaLogica,
     processarSla,
+    processarAgendados,
   };
 }
 

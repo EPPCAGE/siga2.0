@@ -1289,8 +1289,8 @@
       const quantidade = acrescentar ? _st.instanciasCursor + _WF_PAGE : _WF_PAGE;
       _st.instanciasCursor = Math.min(quantidade, instanciasFiltradas.length);
       const instanciasVisiveis = instanciasFiltradas.slice(0, _st.instanciasCursor);
-      const statusLabels = { em_andamento:'Em andamento', concluido:'Concluído', cancelado:'Cancelado', suspenso:'Suspenso' };
-      const statusCores = { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444', suspenso:'#f59e0b' };
+      const statusLabels = { em_andamento:'Em andamento', concluido:'Concluído', cancelado:'Cancelado', suspenso:'Suspenso', agendado:'Agendado' };
+      const statusCores = { em_andamento:'#3b82f6', concluido:'#10b981', cancelado:'#ef4444', suspenso:'#f59e0b', agendado:'#8b5cf6' };
       const podeGerenciar = globalScope.isEP?.() || globalScope.isGestor?.();
       const isEp = globalScope.isEP?.();
       const renderer = _renderer();
@@ -1328,16 +1328,23 @@
           </div>
           <div style="font-size:11px;color:var(--ink3);margin-top:4px">${pct}% concluído</div>`
           : '';
+        const agendadoPara = i.agendado_para
+          ? (typeof i.agendado_para.toDate === 'function' ? i.agendado_para.toDate() : new Date(i.agendado_para._seconds * 1000))
+          : null;
+        const agendadoHtml = agendadoPara
+          ? `<div style="font-size:12px;color:#8b5cf6;margin-top:4px;margin-bottom:4px">🗓 Inicia em: <strong>${agendadoPara.toLocaleString('pt-BR')}</strong></div>`
+          : '';
         return _card(`
           <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(i.titulo)}</div>
           ${etapaAtualHtml}
           ${_badge(statusLabels[i.status] || i.status, statusCores[i.status] || '#6b7280')}
+          ${agendadoHtml}
           ${progressoHtml}
           <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
             <button type="button" class="btn btn-sm" onclick="wfAbrirHistorico('${_esc(i.id)}','${_esc(i.titulo)}','${_esc(i.status)}')">Ver histórico</button>
             ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-sm" onclick="wfSuspenderInstancia('${_esc(i.id)}')">Suspender</button>` : ''}
             ${i.status === 'suspenso' && podeGerenciar ? `<button type="button" class="btn btn-p btn-sm" onclick="wfRetomarInstancia('${_esc(i.id)}')">Retomar</button>` : ''}
-            ${i.status === 'em_andamento' && podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfConfirmarCancelar('${_esc(i.id)}')">Cancelar</button>` : ''}
+            ${(i.status === 'em_andamento' || i.status === 'agendado') && podeGerenciar ? `<button type="button" class="btn btn-r btn-sm" onclick="wfConfirmarCancelar('${_esc(i.id)}')">Cancelar</button>` : ''}
             ${(i.status === 'cancelado' && podeGerenciar) || isEp ? `<button type="button" class="btn btn-r btn-sm" onclick="wfExcluirInstancia('${_esc(i.id)}')">🗑 Excluir</button>` : ''}
           </div>
         `);
@@ -2324,16 +2331,21 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   function _wfRenderPainelInicio(painel, id, nome) {
     if (!_wfConfigNos[id]) _wfConfigNos[id] = {};
     const cfg = _wfConfigNos[id];
+    const tipoDisparo = cfg.tipo_disparo || 'manual';
+    const agendadoHtml = tipoDisparo === 'agendado' ? `
+      <label class="lbl" style="font-size:11px;margin-top:8px">Data/hora padrão de início <span style="font-size:10px;color:var(--ink3)">(o usuário pode ajustar ao iniciar)</span></label>
+      <input type="datetime-local" class="fi" style="margin-top:2px;margin-bottom:10px" value="${_esc(cfg.agendado_padrao || '')}" oninput="wfDesignerCampoCfg('${_esc(id)}','agendado_padrao',this.value)">` : '';
     painel.innerHTML = `
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Evento de Início</div>
       <label class="lbl" style="font-size:11px">Nome</label>
       <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}" oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
       <label class="lbl" style="font-size:11px">Tipo de disparo</label>
-      <select class="fi" style="margin-top:2px;margin-bottom:10px" onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_disparo',this.value)">
-        <option value="manual" ${(cfg.tipo_disparo || 'manual') === 'manual' ? 'selected' : ''}>Manual — usuário inicia pelo sistema</option>
-        <option value="agendado" ${cfg.tipo_disparo === 'agendado' ? 'selected' : ''}>Agendado — trigger externo / cron</option>
-        <option value="evento" ${cfg.tipo_disparo === 'evento' ? 'selected' : ''}>Evento — gerado por outro processo</option>
+      <select class="fi" style="margin-top:2px;margin-bottom:10px" onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_disparo',this.value);_wfRenderPainelInicio(this.closest('[data-wf-painel]')||document.getElementById('wf-painel-cfg'),'${_esc(id)}','${_esc(nome)}')">
+        <option value="manual" ${tipoDisparo === 'manual' ? 'selected' : ''}>Manual — usuário inicia pelo sistema</option>
+        <option value="agendado" ${tipoDisparo === 'agendado' ? 'selected' : ''}>Agendado — inicia em data/hora definida</option>
+        <option value="evento" ${tipoDisparo === 'evento' ? 'selected' : ''}>Evento — gerado por outro processo</option>
       </select>
+      ${agendadoHtml}
       <label class="lbl" style="font-size:11px">Descrição / orientação ao solicitante</label>
       <textarea class="fi" rows="3" style="margin-top:2px;resize:vertical" placeholder="Descreva quando e como este processo deve ser iniciado…" oninput="wfDesignerCampoCfg('${_esc(id)}','descricao',this.value)">${_esc(cfg.descricao || '')}</textarea>
       ${_wfPainelSalvarHtml('Salve para manter as regras deste evento de início no modelo.')}`;
@@ -3452,6 +3464,42 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     if (typeof el._atribCallback === 'function') el._atribCallback(null);
   }
 
+  // Exibe modal com seletor de data/hora para workflows agendados. Retorna ISO string ou null se cancelado.
+  function _wfPedirDataAgendamento(valorPadrao) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center';
+      const agora = new Date();
+      agora.setSeconds(0, 0);
+      // Valor padrão: template do modelo ou +1 hora
+      let defaultVal = valorPadrao || '';
+      if (!defaultVal) {
+        const d = new Date(agora.getTime() + 3600000);
+        defaultVal = d.toISOString().slice(0, 16);
+      }
+      overlay.innerHTML = `
+        <div style="background:#fff;border-radius:12px;padding:28px 24px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+          <div style="font-weight:700;font-size:16px;margin-bottom:4px">Agendar início do workflow</div>
+          <div style="font-size:13px;color:var(--ink3);margin-bottom:18px">Selecione a data e hora em que o processo deve iniciar automaticamente.</div>
+          <label class="lbl">Data e hora de início <span style="color:var(--red)">*</span></label>
+          <input id="_wf-agend-dt" type="datetime-local" class="fi" style="margin-top:4px;margin-bottom:20px" value="${_esc(defaultVal)}" min="${agora.toISOString().slice(0,16)}">
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button type="button" class="btn" id="_wf-agend-cancel">Cancelar</button>
+            <button type="button" class="btn btn-p" id="_wf-agend-ok">Confirmar</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#_wf-agend-cancel').onclick = () => { overlay.remove(); resolve(null); };
+      overlay.querySelector('#_wf-agend-ok').onclick = () => {
+        const val = overlay.querySelector('#_wf-agend-dt').value;
+        if (!val) { alert('Selecione uma data e hora.'); return; }
+        if (new Date(val) <= new Date()) { alert('A data deve ser no futuro.'); return; }
+        overlay.remove();
+        resolve(new Date(val).toISOString());
+      };
+    });
+  }
+
   // — Iniciar uma instância a partir de um modelo do designer —
   async function wfIniciarDeModelo(modeloId) {
     const uid = _uid();
@@ -3465,9 +3513,18 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const primeira = _proximoNoExecutavel(modelo.canvas, inicio.id, null);
     if (!primeira) { alert('Modelo sem etapa após o início.'); return; }
 
+    const cfgInicio = (modelo.config_nos || {})[inicio.id] || {};
+    const tipoDisparo = cfgInicio.tipo_disparo || 'manual';
+    const agendadoPadrao = cfgInicio.agendado_padrao || '';
+
     _wfAbrirModalAtribuicao(modelo.nome, async (vinculo) => {
       if (vinculo === null) return;
       try {
+        let agendadoPara = null;
+        if (tipoDisparo === 'agendado') {
+          agendadoPara = await _wfPedirDataAgendamento(agendadoPadrao);
+          if (agendadoPara === null) return; // usuário cancelou
+        }
         const titulo = `${modelo.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
         await _wfApiRequest('wfInstancias', '', {
           method: 'POST',
@@ -3476,10 +3533,17 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
             titulo,
             grupo_id: vinculo.grupo_id || null,
             grupo_nome: vinculo.grupo_nome || null,
+            agendado_para: agendadoPara || undefined,
           },
         });
-        alert(`Workflow iniciado! Etapa "${primeira.nome}" criada.`);
-        wfNavWorkflow(globalScope.isSolicitante?.() ? 'instancias' : 'tarefas');
+        if (agendadoPara) {
+          const dtStr = new Date(agendadoPara).toLocaleString('pt-BR');
+          alert(`Workflow agendado para ${dtStr}. Ele iniciará automaticamente nessa data.`);
+          wfNavWorkflow('instancias');
+        } else {
+          alert(`Workflow iniciado! Etapa "${primeira.nome}" criada.`);
+          wfNavWorkflow(globalScope.isSolicitante?.() ? 'instancias' : 'tarefas');
+        }
       } catch (e) {
         alert('Erro ao iniciar: ' + e.message);
       }
