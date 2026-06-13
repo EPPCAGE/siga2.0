@@ -2093,6 +2093,10 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   }
 
   async function wfAbrirDesigner(modeloId) {
+    // Save any pending changes from the current model before switching
+    if (_wfTemAlteracoesPendentes() && _wfModeloAtual) {
+      await wfDesignerSalvar({ silent: true }).catch(() => {});
+    }
     const modelo = modeloId ? await _getDoc('wf_processo_modelos', modeloId) : _novoModeloVazio();
     if (!modelo) { alert('Modelo não encontrado.'); return; }
 
@@ -2781,11 +2785,37 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     }
   }
 
+  function _wfMostrarStatusNuvem(estado, msg) {
+    const el = document.getElementById('wf-cloud-save-status');
+    if (!el) return;
+    const estilos = {
+      salvando: 'color:var(--ink3)',
+      salvo: 'color:var(--teal)',
+      erro: 'color:var(--red)',
+    };
+    el.style.cssText = `font-size:11px;${estilos[estado] || ''}`;
+    el.textContent = msg || '';
+    el.style.display = msg ? '' : 'none';
+    if (estado === 'salvo') {
+      clearTimeout(el._hideTimer);
+      el._hideTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+    }
+  }
+
   function _wfSalvarConfigNosImediato() {
     if (!_wfModeloAtual?.id) return;
-    const dados = { config_nos: _wfNormalizarConfigNosPersistencia(_wfConfigNos) };
-    _updateDoc('wf_processo_modelos', _wfModeloAtual.id, dados).catch((e) => {
+    const modeloId = _wfModeloAtual.id;
+    const configNosNorm = _wfNormalizarConfigNosPersistencia(_wfConfigNos);
+    const dados = { config_nos: configNosNorm };
+    _wfMostrarStatusNuvem('salvando', 'Salvando na nuvem…');
+    _updateDoc('wf_processo_modelos', modeloId, dados).then(() => {
+      if (_wfModeloAtual?.config_nos !== undefined) {
+        _wfModeloAtual.config_nos = configNosNorm;
+      }
+      _wfMostrarStatusNuvem('salvo', '✓ Salvo na nuvem');
+    }).catch((e) => {
       _wfReportarErroNaoCritico('salvar config_nos', e);
+      _wfMostrarStatusNuvem('erro', '⚠ Erro ao salvar');
       if (typeof globalScope.toast === 'function') globalScope.toast('⚠ Erro ao salvar configuração: ' + (e?.message || e), 'var(--red)');
     });
   }
@@ -3280,6 +3310,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     const silent = !!opts.silent;
     try {
       _wfAutosaveEmCurso = true;
+      _wfMostrarStatusNuvem('salvando', 'Salvando na nuvem…');
       let xml = _wfModeloAtual.bpmn_xml || '';
       let canvas = _wfModeloAtual.canvas || { nos: [], arestas: [] };
       if (_wfModeler) {
@@ -3308,9 +3339,12 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       Object.assign(_wfModeloAtual, dados);
       _wfLimparAutosavePendente();
       _wfAtualizarIndicadorSujo(false);
+      _wfMostrarStatusNuvem('salvo', '✓ Salvo na nuvem');
       if (!silent && typeof globalScope.toast === 'function') globalScope.toast('✓ Workflow salvo');
     } catch (e) {
+      _wfMostrarStatusNuvem('erro', '⚠ Erro ao salvar');
       if (!silent) alert('Erro ao salvar: ' + e.message);
+      else if (typeof globalScope.toast === 'function') globalScope.toast('⚠ Autosave falhou: ' + (e?.message || e), 'var(--red)');
     } finally {
       _wfAutosaveEmCurso = false;
     }
