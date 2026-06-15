@@ -1360,6 +1360,130 @@ function makeEngine(db) {
     return { ativadas, total: vencidas.length, emailsEnviados, emailsErro };
   }
 
+  // Extrai partes de data no fuso de Brasília sem depender de lib externa.
+  function _partesBrasilia(date) {
+    const fmt = (u) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', [u]: 'numeric' });
+    return {
+      ano:      Number(fmt('year').format(date)),
+      mes:      Number(fmt('month').format(date)),   // 1-12
+      dia:      Number(fmt('day').format(date)),     // 1-31
+      hora:     Number(fmt('hour').format(date)),    // 0-23
+      diaSem:   Number(new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short' })
+                  .formatToParts(date).find(p => p.type === 'weekday')
+                  ? (() => { const d = new Date(date.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' })); return d.getDay(); })()
+                  : date.getDay()),
+    };
+  }
+
+  function _ultimoDiaMes(ano, mes) {
+    return new Date(ano, mes, 0).getDate(); // mes já é 1-12, Date aceita mês 1-based quando dia=0
+  }
+
+  function _ultimoDiaUtilMes(ano, mes) {
+    let dia = _ultimoDiaMes(ano, mes);
+    while (true) {
+      const dow = new Date(ano, mes - 1, dia).getDay();
+      if (dow !== 0 && dow !== 6) return dia;
+      dia--;
+    }
+  }
+
+  function _nesimoDiaUtilMes(ano, mes, n) {
+    let count = 0;
+    const ultimo = _ultimoDiaMes(ano, mes);
+    for (let d = 1; d <= ultimo; d++) {
+      const dow = new Date(ano, mes - 1, d).getDay();
+      if (dow !== 0 && dow !== 6) {
+        count++;
+        if (count === n) return d;
+      }
+    }
+    return null; // mês não tem N dias úteis
+  }
+
+  function _recorrenciaDeveDisparar(rec, partes, ultimaExecMs) {
+    if (!rec?.ativo) return false;
+    const { ano, mes, dia, hora, diaSem } = partes;
+    if (rec.hora !== hora) return false;
+    // Já disparou nesta hora?
+    if (ultimaExecMs) {
+      const ultimaPartes = _partesBrasilia(new Date(ultimaExecMs));
+      if (ultimaPartes.ano === ano && ultimaPartes.mes === mes &&
+          ultimaPartes.dia === dia && ultimaPartes.hora === hora) return false;
+    }
+    switch (rec.tipo) {
+      case 'diario': return true;
+      case 'semanal': return diaSem === (rec.dia_semana ?? -1);
+      case 'mensal_dia_fixo': return dia === (rec.dia_mes ?? -1);
+      case 'mensal_dia_util': return dia === _nesimoDiaUtilMes(ano, mes, rec.numero_dia_util ?? 1);
+      case 'mensal_ultimo_dia': return dia === _ultimoDiaMes(ano, mes);
+      case 'mensal_ultimo_dia_util': return dia === _ultimoDiaUtilMes(ano, mes);
+      case 'trimestral': return [1, 4, 7, 10].includes(mes) && dia === 1;
+      case 'anual': return mes === (rec.mes ?? -1) && dia === (rec.dia_mes ?? -1);
+      default: return false;
+    }
+  }
+
+  /**
+   * Job agendado: cria e ativa instâncias de modelos com recorrência configurada.
+   */
+  async function processarRecorrencias() {
+    const agora_ = new Date();
+    const partes = _partesBrasilia(agora_);
+    const snap = await col.modelos.where('status', '==', 'publicado').get();
+
+    let criadas = 0;
+    const emailsEnviados = [];
+    const emailsErro = [];
+
+    for (const doc of snap.docs) {
+      const modelo = { id: doc.id, ...doc.data() };
+      const configNos = modelo.config_nos || {};
+      const noInicio = (modelo.canvas?.nos || []).find(n => n.tipo === 'inicio');
+      if (!noInicio) continue;
+      const cfgInicio = configNos[noInicio.id] || {};
+      const rec = cfgInicio.recorrencia;
+      if (!rec?.ativo) continue;
+
+      const ultimaExecMs = rec.ultima_execucao
+        ? (typeof rec.ultima_execucao.toDate === 'function'
+            ? rec.ultima_execucao.toDate().getTime()
+            : new Date(rec.ultima_execucao._seconds * 1000).getTime())
+        : null;
+
+      if (!_recorrenciaDeveDisparar(rec, partes, ultimaExecMs)) continue;
+
+      try {
+        const titulo = `${modelo.nome} — ${agora_.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} ${String(partes.hora).padStart(2,'0')}h`;
+        const instancia = await iniciarInstancia({
+          processo_modelo_id: modelo.id,
+          titulo,
+          solicitante_uid: null,
+        });
+
+        if (instancia.status === 'agendado') {
+          const res = await _ativarInstanciaAgendada(instancia);
+          (res?.emailsEnviados || []).forEach(e => emailsEnviados.push(e));
+          (res?.emailsErro || []).forEach(e => emailsErro.push(e));
+        }
+        criadas++;
+
+        // Marca última execução no config_nos do modelo
+        const novoConfigNos = {
+          ...configNos,
+          [noInicio.id]: {
+            ...cfgInicio,
+            recorrencia: { ...rec, ultima_execucao: agora() },
+          },
+        };
+        await col.modelos.doc(modelo.id).update({ config_nos: novoConfigNos });
+      } catch (e) {
+        console.error(`[processarRecorrencias] Erro no modelo ${modelo.id}:`, e.message);
+      }
+    }
+    return { criadas, emailsEnviados, emailsErro };
+  }
+
   /**
    * Job agendado: verifica SLAs e emite alertas/vencimentos.
    */
@@ -1411,6 +1535,126 @@ function makeEngine(db) {
     return { alertas: alertaSnap.size, vencidas: vencidasSnap.size };
   }
 
+  function _getSPDateParts(date) {
+    const partes = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      hour12: false,
+    }).formatToParts(date);
+    const get = (type) => Number(partes.find((p) => p.type === type)?.value || '0');
+    const ano = get('year');
+    const mes = get('month');
+    const dia = get('day');
+    const hora = get('hour') % 24;
+    const weekdayStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      weekday: 'short',
+    }).format(date).toLowerCase();
+    const weekdayMap = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+    const diaSemana = weekdayMap[weekdayStr.slice(0, 3)] ?? -1;
+    return { ano, mes, dia, hora, diaSemana };
+  }
+
+  function _avaliarRecorrencia(rec, agora_) {
+    if (!rec || rec.ativo !== true) return false;
+    const { ano, mes, dia, hora, diaSemana } = _getSPDateParts(agora_);
+    if (rec.hora !== hora) return false;
+
+    if (rec.ultima_execucao) {
+      const ue = typeof rec.ultima_execucao.toDate === 'function'
+        ? rec.ultima_execucao.toDate()
+        : new Date(rec.ultima_execucao);
+      const uePartes = _getSPDateParts(ue);
+      if (
+        uePartes.ano === ano &&
+        uePartes.mes === mes &&
+        uePartes.dia === dia &&
+        uePartes.hora === hora
+      ) return false;
+    }
+
+    const tipo = rec.tipo;
+
+    if (tipo === 'diario') return true;
+
+    if (tipo === 'semanal') return rec.dia_semana === diaSemana;
+
+    if (tipo === 'mensal_dia_fixo') return rec.dia_mes === dia;
+
+    if (tipo === 'mensal_dia_util') {
+      let contagem = 0;
+      for (let d = 1; d <= dia; d++) {
+        const dow = new Date(ano, mes - 1, d).getDay();
+        if (dow !== 0 && dow !== 6) contagem++;
+      }
+      return contagem === rec.numero_dia_util;
+    }
+
+    if (tipo === 'mensal_ultimo_dia') {
+      const ultimoDia = new Date(ano, mes, 0).getDate();
+      return dia === ultimoDia;
+    }
+
+    if (tipo === 'mensal_ultimo_dia_util') {
+      const ultimoDia = new Date(ano, mes, 0).getDate();
+      for (let d = ultimoDia; d >= 1; d--) {
+        const dow = new Date(ano, mes - 1, d).getDay();
+        if (dow !== 0 && dow !== 6) return dia === d;
+      }
+      return false;
+    }
+
+    if (tipo === 'trimestral') return [1, 4, 7, 10].includes(mes) && dia === 1;
+
+    if (tipo === 'anual') return rec.mes === mes && rec.dia_mes === dia;
+
+    return false;
+  }
+
+  async function processarRecorrencias() {
+    const snap = await col.modelos.where('status', '==', 'publicado').get();
+    const agora_ = new Date();
+    let criadas = 0;
+    const emailsEnviados = [];
+    const emailsErro = [];
+
+    for (const doc of snap.docs) {
+      const modelo = { id: doc.id, ...doc.data() };
+      const configNos = modelo.config_nos || {};
+      const nosCanvas = modelo.canvas?.nos || [];
+      const noInicio = nosCanvas.find((n) => n.tipo === 'inicio');
+      if (!noInicio) continue;
+      const cfgInicio = configNos[noInicio.id] || {};
+      const rec = cfgInicio.recorrencia;
+      if (!rec || !_avaliarRecorrencia(rec, agora_)) continue;
+
+      try {
+        const titulo = `${modelo.nome} — recorrente ${agora_.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
+        const instancia = await iniciarInstancia({
+          processo_modelo_id: modelo.id,
+          titulo,
+          solicitante_uid: 'sistema',
+          agendado_para: null,
+        });
+        criadas++;
+
+        await col.modelos.doc(modelo.id).update({
+          [`config_nos.${noInicio.id}.recorrencia.ultima_execucao`]: agora(),
+        });
+
+        (instancia?.emailsEnviados || []).forEach((e) => emailsEnviados.push(e));
+        (instancia?.emailsErro || []).forEach((e) => emailsErro.push(e));
+      } catch (e) {
+        console.error(`[processarRecorrencias] Erro ao criar instância para modelo ${modelo.id}:`, e.message);
+      }
+    }
+
+    return { criadas, total: snap.size, emailsEnviados, emailsErro };
+  }
+
   return {
     iniciarInstancia,
     iniciarInstanciaMapeada,
@@ -1427,9 +1671,11 @@ function makeEngine(db) {
     excluirInstanciaLogica,
     processarSla,
     processarAgendados,
+    processarRecorrencias,
     ativarInstancia,
     previewAtivarInstancia,
     previewConcluirTarefa,
+    processarRecorrencias,
   };
 
   async function ativarInstancia(instanciaId) {
