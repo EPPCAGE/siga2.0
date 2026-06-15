@@ -211,6 +211,25 @@ function _interpolarMensagem(template, instancia, solicitante) {
     .replaceAll('{{solicitante.email}}', solicitante?.email || '');
 }
 
+function _garantirPermissaoGestaoWorkflow(usuario, mensagem = 'Usuário não pode gerenciar esta operação de workflow.') {
+  if (_usuarioPodeGerenciarWorkflow(usuario)) return;
+  lancarErro(ERRO.SEM_PERMISSAO, mensagem);
+}
+
+function _garantirPermissaoDelegacao(tarefa, usuario) {
+  if (tarefa?.responsavel_uid && tarefa.responsavel_uid === usuario?.uid) return;
+  if (_usuarioPodeGerenciarWorkflow(usuario)) return;
+  lancarErro(ERRO.SEM_PERMISSAO, 'Usuário não pode delegar esta tarefa.');
+}
+
+function _proximoNoExecutavelCanvas(canvas, noId, acao, dados = {}, configNos = {}) {
+  let atual = _proximoNoCanvas(canvas, noId, acao, dados);
+  while (atual && !_etapaCanvasExecutavel(atual, configNos) && atual.tipo !== 'fim') {
+    atual = _proximoNoCanvas(canvas, atual.id, null, dados);
+  }
+  return atual;
+}
+
 /**
  * @param {import('firebase-admin/firestore').Firestore} db
  */
@@ -331,17 +350,6 @@ function makeEngine(db) {
     if (!tarefa.papel_alvo) return true;
     if (tarefa.papel_alvo === usuario.email) return true;
     return tarefa.papel_alvo === usuario.perfil;
-  }
-
-  function _garantirPermissaoGestaoWorkflow(usuario, mensagem = 'Usuário não pode gerenciar esta operação de workflow.') {
-    if (_usuarioPodeGerenciarWorkflow(usuario)) return;
-    lancarErro(ERRO.SEM_PERMISSAO, mensagem);
-  }
-
-  function _garantirPermissaoDelegacao(tarefa, usuario) {
-    if (tarefa?.responsavel_uid && tarefa.responsavel_uid === usuario?.uid) return;
-    if (_usuarioPodeGerenciarWorkflow(usuario)) return;
-    lancarErro(ERRO.SEM_PERMISSAO, 'Usuário não pode delegar esta tarefa.');
   }
 
   async function _atribuirTarefaSeNecessario(tarefa, usuario, opts = {}) {
@@ -473,13 +481,6 @@ function makeEngine(db) {
     }
   }
 
-  function _proximoNoExecutavelCanvas(canvas, noId, acao, dados = {}, configNos = {}) {
-    let atual = _proximoNoCanvas(canvas, noId, acao, dados);
-    while (atual && !_etapaCanvasExecutavel(atual, configNos) && atual.tipo !== 'fim') {
-      atual = _proximoNoCanvas(canvas, atual.id, null, dados);
-    }
-    return atual;
-  }
 
   function _acaoPermitidaNoCanvas(instancia, tarefa, acao, dados = {}) {
     const acaoNorm = _normalizarAcao(acao);
