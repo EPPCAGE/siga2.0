@@ -2,7 +2,7 @@
 
 /**
  * Cálculo de SLA em horas úteis.
- * Considera: segunda a sexta, 08h–18h (horário de Brasília, UTC-3).
+ * Considera: segunda a sexta, 09h–18h (horário de Brasília, UTC-3).
  * Feriados nacionais fixos e móveis são excluídos.
  *
  * Feriados considerados:
@@ -15,7 +15,7 @@
  * O Brasil não adota horário de verão desde 2019, portanto o offset é fixo.
  */
 
-const HORA_INICIO = 8;
+const HORA_INICIO = 9;
 const HORA_FIM = 18;
 const ALERTA_HORAS_ANTES = 2;
 
