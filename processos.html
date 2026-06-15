@@ -3376,6 +3376,8 @@ function testarEmailJSWorkflow(){
   emailjs.send(ejsConfig.service, templateId, {
     to_name: destNome,
     to_email: destEmail,
+    email: destEmail,
+    reply_to: destEmail,
     from_name: ORG_CONFIG.notificationFromName,
     workflow: 'Workflow de teste',
     processo_titulo: 'Workflow de teste',
@@ -3387,8 +3389,11 @@ function testarEmailJSWorkflow(){
     res.textContent = '✓ E-mail de teste (workflow) enviado para ' + destEmail + aviso;
     res.style.color = 'var(--green)';
   }).catch(err=>{
-    res.textContent = '✗ Erro: ' + (err.text || err.message || JSON.stringify(err));
+    const msg = err?.text || err?.message || JSON.stringify(err);
+    console.error('testarEmailJSWorkflow erro:', err);
+    res.textContent = '✗ Erro EmailJS: ' + msg + ' — verifique o campo "To Email" do template (deve ser {{to_email}}).';
     res.style.color = 'var(--red)';
+    if(typeof toast==='function') toast('✗ Falha no envio: '+msg, 'var(--red)');
   });
 }
 function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
@@ -3565,7 +3570,7 @@ function rAuditoria(){
   const el=document.getElementById('aud-list');
   if(!el)return;
   const lista=processos.filter(p=>{
-    if(filtAudMode==='andamento') return p.etapa==='auditoria';
+    if(filtAudMode==='andamento') return p.etapa==='auditoria'&&p.auditoria?.concluida!==true;
     if(filtAudMode==='concluida') return p.auditoria?.concluida===true;
     return p.etapa==='auditoria'||p.auditoria?.concluida===true;
   });
@@ -6415,13 +6420,18 @@ function popupConclusaoDono(msg){
 }
 function avDono(etAtu,role,acao,prazoEl){
   registrarRespondidoPor(etAtu);
-  // Sinaliza ao EP que há uma entrega do dono aguardando revisão antes de prosseguir
   if(!curProc.ent) curProc.ent={};
   curProc.ent.revisao_ep_pendente={etapa_dono:etAtu,dt:now()};
-  // Q008: dono concluiu — aguardando revisão do EP
   curProc.status_workflow='aguardando_revisao_ep';
-  av(etAtu,role,acao,prazoEl);
-  // Notificar o EP responsável que o dono concluiu a etapa
+  // Registra conclusão no histórico sem avançar etapa — regras Firestore impedem não-EP
+  // de alterar o campo etapa; o EP avança via prosseguirFluxo() com permissão isEP().
+  push(curProc,etAtu,role,acao);
+  if(!curProc.dt_etapas) curProc.dt_etapas={};
+  curProc.dt_etapas[etAtu]=now();
+  if(curProc.atribuicoes?.[etAtu]) delete curProc.atribuicoes[etAtu];
+  if(curProc.etapas_puladas) curProc.etapas_puladas=curProc.etapas_puladas.filter(id=>id!==etAtu);
+  fbSaveNow('avDono');
+  rDetalhe(); updCounts();
   const epUser = USUARIOS.find(u=>(u.nome===curProc.resp_ep||u.perfil==='ep')&&u.email);
   if(epUser?.email) enviarNotif(epUser.email, epUser.nome, curProc.dono+' concluiu "'+etLb(etAtu)+'". Aguarda sua revisão.', curProc.nome, '', curProc.dono||role);
   setTimeout(()=>popupConclusaoDono('Obrigado! Sua validação foi registrada e o EP foi notificado para continuar o processo.'),200);
@@ -6463,10 +6473,50 @@ function _salvarDonoValidToBe(p){
   const ata=document.getElementById('vtb-ata')?.value||'';
   if(dt||part||ata) p.mod.reuniao_valid_tobe={data:dt,participantes:part,ata};
 }
+function _salvarDonoPOP(p){
+  if(!p.form) p.form={};
+  const prev=p.form.pop||{};
+  const _tobeEt=p.mod?.etapas_proc_tobe||[];
+  const etapas=_tobeEt.length?_tobeEt:(p.mod?.etapas_proc||[]);
+  const ativ_detalhes={...prev.ativ_detalhes};
+  etapas.forEach((e,i)=>{
+    const descEl=document.getElementById(`pop-at-desc-${i}`);
+    if(!descEl) return;
+    const pd=ativ_detalhes[e.id]||{};
+    const fb=(e.tipo==='Decisao'||e.tipo==='Decisão')?'Decisão':(e.tipo||'Atividade');
+    const tEl=document.getElementById(`pop-at-tipo-${i}`);
+    const rEl=document.getElementById(`pop-at-resp-${i}`);
+    ativ_detalhes[e.id]={
+      tipo:tEl!=null?tEl.value:(pd.tipo||fb),
+      desc:descEl.value,
+      resp:rEl!=null?rEl.value:(pd.resp??''),
+    };
+  });
+  const _r=id=>document.getElementById(id);
+  p.form.pop={
+    area:_r('pp-area')!=null?_r('pp-area').value:(prev.area??''),
+    ger: _r('pp-ger') !=null?_r('pp-ger').value: (prev.ger??''),
+    mac: _r('pp-mac') !=null?_r('pp-mac').value: (prev.mac??''),
+    obj: _r('pp-obj') !=null?_r('pp-obj').value: (prev.obj??''),
+    def: _r('pp-def') !=null?_r('pp-def').value: (prev.def??''),
+    ent: _r('pp-ent') !=null?_r('pp-ent').value: (prev.ent??''),
+    sai: _r('pp-sai') !=null?_r('pp-sai').value: (prev.sai??''),
+    docs:_r('pp-docs')!=null?_r('pp-docs').value:(prev.docs??''),
+    ativ_detalhes,
+  };
+  p.form.pop_ok=true;
+  p.form.faq=document.getElementById('afaq')?.value||p.form.faq||'';
+  p.form.excecoes=document.getElementById('a-excecoes')?.value||p.form.excecoes||'';
+  p.form.contatos=document.getElementById('a-contatos')?.value||p.form.contatos||'';
+  p.form.forms=document.getElementById('aforms')?.value||p.form.forms||'';
+  const _obs=document.getElementById('aobs-pop')?.value||'';
+  if(_obs) p.form.obs_complement=_obs;
+}
 const _SALVAR_DONO_HANDLERS={
   questionario:_salvarDonoQuestionario,
   det_valid_asis:_salvarDonoValidAsIs,
   det_valid_tobe:_salvarDonoValidToBe,
+  pop:_salvarDonoPOP,
 };
 function _salvarDadosDono(){
   const p=curProc;
@@ -6524,12 +6574,33 @@ function _rAcaoRevisaoDono(el, p){
 function prosseguirFluxo(){
   const p=curProc;
   if(!p?.ent?.revisao_ep_pendente) return;
+  const etDono=p.ent.revisao_ep_pendente.etapa_dono;
   confirmar('Confirma que a entrega do dono está correta e o fluxo pode prosseguir?', ()=>{
-    _salvarDadosDono(); // salva silenciosamente quaisquer edições pendentes
+    _salvarDadosDono();
     delete p.ent.revisao_ep_pendente;
+    // EP avança a etapa — isEP() satisfaz a regra Firestore que bloqueia não-EP de alterar etapa
+    const nx=nextEt(etDono);
+    if(nx){
+      p.etapa=nx;
+      push(p,nx,'Sistema','Etapa iniciada');
+      p.status_workflow='em_andamento';
+      if(!p.dt_etapas) p.dt_etapas={};
+      if(!p.dt_etapas[etDono]) p.dt_etapas[etDono]=now();
+      if(['acompanha','auditoria'].includes(nx)&&!p.dt_proximo_acompanhamento){
+        const _hoje=new Date().toISOString().slice(0,10);
+        const _base=p.ent?.dt_efetiva||p.dt_etapas?.publicacao||_hoje;
+        p.dt_proximo_acompanhamento=_addDias(_base,180);
+      }
+      if(nx==='acompanha'&&!p.revisao_periodica){
+        const _hoje=new Date().toISOString().slice(0,10);
+        const _base=p.ent?.dt_efetiva||p.dt_etapas?.publicacao||_hoje;
+        p.revisao_periodica={proxima_revisao:_addDias(_base,180+365),ultima_revisao:null,lembretes_enviados:{pre7:false,venc:false,pos:[]},historico:[]};
+      }
+    } else if(etDono==='auditoria'){
+      p.status_workflow='concluido';
+    }
     fbAutoSave('prosseguirFluxo');
-    rDetalhe();
-    updCounts();
+    rDetalhe(); updCounts();
   });
 }
 
@@ -7900,21 +7971,27 @@ function _rsPOP(p){
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return;
     const prev=ativ_detalhes[e.id]||{};
-    const t=document.getElementById(`pop-at-tipo-${i}`)?.value;
-    const r=document.getElementById(`pop-at-resp-${i}`)?.value;
+    const tEl=document.getElementById(`pop-at-tipo-${i}`);
+    const rEl=document.getElementById(`pop-at-resp-${i}`);
     const fallbackTipo=(e.tipo==='Decisao'||e.tipo==='Decisão')?'Decisão':(e.tipo||'Atividade');
-    ativ_detalhes[e.id]={tipo:t||prev.tipo||fallbackTipo,desc:descEl.value||prev.desc||'',resp:r||prev.resp||''};
+    // Usa ?? para preservar string vazia; || só como fallback quando o elemento não existe
+    ativ_detalhes[e.id]={
+      tipo:tEl!=null?tEl.value:(prev.tipo||fallbackTipo),
+      desc:descEl.value,
+      resp:rEl!=null?rEl.value:(prev.resp??''),
+    };
   });
   const prev=p.form.pop||{};
+  const _r=id=>document.getElementById(id);
   p.form.pop={
-    area:document.getElementById('pp-area')?.value||prev.area||'',
-    ger:document.getElementById('pp-ger')?.value||prev.ger||'',
-    mac:document.getElementById('pp-mac')?.value||prev.mac||'',
-    obj:document.getElementById('pp-obj')?.value||prev.obj||'',
-    def:document.getElementById('pp-def')?.value||prev.def||'',
-    ent:document.getElementById('pp-ent')?.value||prev.ent||'',
-    sai:document.getElementById('pp-sai')?.value||prev.sai||'',
-    docs:document.getElementById('pp-docs')?.value||prev.docs||'',
+    area:_r('pp-area')!=null?_r('pp-area').value:(prev.area??''),
+    ger: _r('pp-ger') !=null?_r('pp-ger').value: (prev.ger??''),
+    mac: _r('pp-mac') !=null?_r('pp-mac').value: (prev.mac??''),
+    obj: _r('pp-obj') !=null?_r('pp-obj').value: (prev.obj??''),
+    def: _r('pp-def') !=null?_r('pp-def').value: (prev.def??''),
+    ent: _r('pp-ent') !=null?_r('pp-ent').value: (prev.ent??''),
+    sai: _r('pp-sai') !=null?_r('pp-sai').value: (prev.sai??''),
+    docs:_r('pp-docs')!=null?_r('pp-docs').value:(prev.docs??''),
     ativ_detalhes,
   };
   // Campos de complementação (migrados da etapa complement)
@@ -8010,7 +8087,7 @@ function salvarRetroativo(etId){
   epRetroEtapa=null;
   toast('Revisão salva.','var(--blue)');
   rDetalhe();
-  fbAutoSave('retroativo');
+  fbSaveNow('retroativo');
   updCounts();
 }
 function salvarEIrProximo(etId){
@@ -8018,7 +8095,7 @@ function salvarEIrProximo(etId){
   if(_RS_MAP[etId]) _RS_MAP[etId](p);
   if(p.etapas_puladas) p.etapas_puladas=p.etapas_puladas.filter(id=>id!==etId);
   push(p,etId,'EP','Dados revisados retroativamente pelo EP');
-  fbAutoSave('retroativo');
+  fbSaveNow('retroativo');
   toast('Revisão salva.','var(--blue)');
   const nx=nextEt(etId);
   if(!nx||nx===p.etapa){epRetroEtapa=null;rDetalhe();}
@@ -8226,7 +8303,15 @@ function _concluirDonoAtribuido(){
     if(!curProc.ent) curProc.ent={};
     curProc.ent.revisao_ep_pendente={etapa_dono:etAtu,dt:now()};
     curProc.status_workflow='aguardando_revisao_ep';
-    _origAv(etAtu,'Dono do processo','Tarefa "'+(ac?.titulo||etAtu)+'" concluída pelo usuário atribuído.',null);
+    // Registra conclusão no histórico sem avançar etapa — regras Firestore impedem não-EP
+    // de alterar o campo etapa; o EP avança via prosseguirFluxo() com permissão isEP().
+    push(curProc,etAtu,'Dono do processo','Tarefa "'+(ac?.titulo||etAtu)+'" concluída pelo usuário atribuído.');
+    if(!curProc.dt_etapas) curProc.dt_etapas={};
+    curProc.dt_etapas[etAtu]=now();
+    if(curProc.atribuicoes?.[etAtu]) delete curProc.atribuicoes[etAtu];
+    if(curProc.etapas_puladas) curProc.etapas_puladas=curProc.etapas_puladas.filter(id=>id!==etAtu);
+    fbSaveNow('dono_concluiu');
+    rDetalhe(); updCounts();
     const epUser=USUARIOS.find(u=>(u.nome===curProc.resp_ep||u.perfil==='ep')&&u.email);
     if(epUser?.email) enviarNotif(epUser.email,epUser.nome,(curProc.dono||usuarioLogado?.nome)+' concluiu "'+etLb(etAtu)+'". Aguarda sua revisão.',curProc.nome,'',curProc.dono||'Dono');
     setTimeout(()=>popupConclusaoDono('Obrigado! Sua validação foi registrada e o EP foi notificado para continuar o processo.'),200);
@@ -9180,30 +9265,32 @@ function salvarPOP(avancar=true){
     const descEl=document.getElementById(`pop-at-desc-${i}`);
     if(!descEl)return; // aba Atividades não renderizada, preserva valor anterior
     const prev=ativ_detalhes[e.id]||{};
+    const tEl=document.getElementById(`pop-at-tipo-${i}`);
+    const rEl=document.getElementById(`pop-at-resp-${i}`);
     const fallbackTipo=(e.tipo==='Decisao'||e.tipo==='Decisão')?'Decisão':(e.tipo||'Atividade');
     ativ_detalhes[e.id]={
-      tipo:document.getElementById(`pop-at-tipo-${i}`)?.value||prev.tipo||fallbackTipo,
-      desc:descEl.value||prev.desc||'',
-      resp:document.getElementById(`pop-at-resp-${i}`)?.value||prev.resp||'',
+      tipo:tEl!=null?tEl.value:(prev.tipo||fallbackTipo),
+      desc:descEl.value,
+      resp:rEl!=null?rEl.value:(prev.resp??''),
     };
   });
   p.form.pop={
-    area:document.getElementById('pp-area')?.value||'',
-    ger:document.getElementById('pp-ger')?.value||'',
-    mac:document.getElementById('pp-mac')?.value||'',
-    obj:document.getElementById('pp-obj')?.value||'',
-    def:document.getElementById('pp-def')?.value||'',
-    ent:document.getElementById('pp-ent')?.value||'',
-    sai:document.getElementById('pp-sai')?.value||'',
-    docs:document.getElementById('pp-docs')?.value||'',
+    area:document.getElementById('pp-area')?.value??'',
+    ger:document.getElementById('pp-ger')?.value??'',
+    mac:document.getElementById('pp-mac')?.value??'',
+    obj:document.getElementById('pp-obj')?.value??'',
+    def:document.getElementById('pp-def')?.value??'',
+    ent:document.getElementById('pp-ent')?.value??'',
+    sai:document.getElementById('pp-sai')?.value??'',
+    docs:document.getElementById('pp-docs')?.value??'',
     ativ_detalhes,
   };
   p.form.pop_ok=true;
   // Campos de complementação (migrados da etapa complement)
-  p.form.faq=document.getElementById('afaq')?.value||p.form.faq||'';
-  p.form.excecoes=document.getElementById('a-excecoes')?.value||p.form.excecoes||'';
-  p.form.contatos=document.getElementById('a-contatos')?.value||p.form.contatos||'';
-  p.form.forms=document.getElementById('aforms')?.value||p.form.forms||'';
+  p.form.faq=document.getElementById('afaq')?.value??p.form.faq??'';
+  p.form.excecoes=document.getElementById('a-excecoes')?.value??p.form.excecoes??'';
+  p.form.contatos=document.getElementById('a-contatos')?.value??p.form.contatos??'';
+  p.form.forms=document.getElementById('aforms')?.value??p.form.forms??'';
   const obsPopSv=document.getElementById('aobs-pop')?.value||'';
   if(obsPopSv) p.form.obs_complement=obsPopSv;
   if(avancar){av('pop','EP','POP construído no padrão CAGE');fbAutoSave('salvarPOP');}
@@ -18773,6 +18860,12 @@ function _fsClean(v){
 }
 async function fbSaveAll(){
   if(!fbReady() || !globalThis._fbLoadedAt) return;
+  // O listener onSnapshot faz processos[idx] = newObj quebrando a invariante
+  // curProc === processos[idx]. Re-sincroniza curProc no array antes de salvar.
+  if(curProc?.id){
+    const _cpIdx = processos.findIndex(p => p.id === curProc.id);
+    if(_cpIdx >= 0 && processos[_cpIdx] !== curProc) processos[_cpIdx] = curProc;
+  }
   // Pausa os listeners de tempo real durante o save (mesmo padrão do módulo de projetos)
   if(globalThis._fbState) globalThis._fbState.saving = true;
   try {
@@ -20142,9 +20235,13 @@ async function iaAnalisarIndicadores(){
         if(r===0&&m===0){ return false; } if(m<=0){ return false; }
         return pol==='Menor é melhor'?r>m:r<m;
       });
+      const hasMeta = last.meta !== null && last.meta !== undefined && last.meta !== '';
       return {
-        area:last.area, nome:last.nome, meta:last.meta,
+        area:last.area, nome:last.nome,
+        ...(hasMeta ? {meta:last.meta} : {sem_meta:true}),
         realizado:last.realizado, pct:last.pct_realizado, periodo:last.periodo,
+        polaridade:pol,
+        ...(last.unidade ? {unidade:last.unidade} : {}),
         ...(variacao?{variacao_periodo:variacao}:{}),
         ...(alerta3?{alerta:'3 períodos consecutivos abaixo da meta'}:{}),
       };
