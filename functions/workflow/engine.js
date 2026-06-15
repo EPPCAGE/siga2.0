@@ -590,8 +590,8 @@ function makeEngine(db) {
       });
     }
 
-    // Para workflows agendados: envia e-mail ao(s) responsável(is) pela primeira tarefa
-    if (instancia.agendado_para) {
+    // Envia e-mail ao(s) responsável(is) pela tarefa criada
+    {
       const emailsDestinatarios = new Set();
       if (destino.responsavel_uid) {
         // Responsável individual tem prioridade — notifica só ele
