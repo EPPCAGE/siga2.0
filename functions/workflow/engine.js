@@ -118,6 +118,99 @@ function _avaliarCondicoesCanvas(condicoes = [], operadorLogico = 'AND', dados =
   return condicoes.every((condicao) => _avaliarCondicaoCanvas(condicao, dados));
 }
 
+function _uidAtribuido(instancia, papel) {
+  const valor = instancia?.atribuicoes?.[papel];
+  if (!valor) return null;
+  if (typeof valor === 'string') return valor;
+  return valor.para || valor.uid || null;
+}
+
+function _usuarioPodeGerenciarWorkflow(usuario) {
+  return ['ep', 'gestor'].includes(String(usuario?.perfil || '').trim());
+}
+
+function _proximoNoCanvas(canvas, noId, acao, dados = {}) {
+  const arestas = (canvas?.arestas || []).filter((aresta) => aresta.origem === noId);
+
+  if (acao === 'devolver' || acao === 'rejeitar') {
+    const arestasRetorno = arestas.filter(a => a.acao === acao || a.acao === 'devolver' || a.acao === 'rejeitar');
+    if (!arestasRetorno.length) {
+      const nos = canvas?.nos || [];
+      const noAtual = nos.find(n => n.id === noId);
+      const destinoId = noAtual?.config?.destino_devolucao;
+      if (destinoId) return _noCanvasPorId(canvas, destinoId);
+      const origens = (canvas?.arestas || []).filter(a => a.destino === noId);
+      const anterior = origens.find(a => {
+        const n = _noCanvasPorId(canvas, a.origem);
+        return n && n.tipo !== 'inicio' && n.tipo !== 'gateway_xor' && n.tipo !== 'gateway_and';
+      }) || origens[0];
+      return anterior ? _noCanvasPorId(canvas, anterior.origem) : null;
+    }
+    const escolhida = arestasRetorno.find(a => _avaliarCondicoesCanvas(a.condicoes, a.operador_logico, dados))
+      || arestasRetorno.find(a => a.padrao)
+      || arestasRetorno[0]
+      || null;
+    return escolhida ? _noCanvasPorId(canvas, escolhida.destino) : null;
+  }
+
+  if (!arestas.length) return null;
+  const candidatas = arestas.filter((aresta) => {
+    if (!acao) return true;
+    return aresta.acao === acao || aresta.label === acao || (!aresta.acao && !aresta.label);
+  });
+  const pool = candidatas.length ? candidatas : arestas;
+  const escolhida = pool.find((aresta) => _avaliarCondicoesCanvas(aresta.condicoes, aresta.operador_logico, dados))
+    || pool.find((aresta) => aresta.padrao)
+    || pool[0]
+    || null;
+  return escolhida ? _noCanvasPorId(canvas, escolhida.destino) : null;
+}
+
+function _primeiraEtapaCanvas(canvas, noId) {
+  const origens = (canvas?.arestas || []).filter(a => a.destino === noId);
+  if (!origens.length) return true;
+  return origens.every(a => {
+    const n = _noCanvasPorId(canvas, a.origem);
+    return !n || n.tipo === 'inicio';
+  });
+}
+
+function _acoesPorPapelCanvas(cfg = {}, papel = 'executor') {
+  const acoesNo = Array.isArray(cfg.acoes) && cfg.acoes.length ? cfg.acoes : ['avancar'];
+  if (papel === 'revisor') return ['avancar'];
+  if (papel === 'aprovador') {
+    const acoesAprovador = acoesNo.filter((acaoItem) => acaoItem !== 'avancar');
+    return acoesAprovador.length ? acoesAprovador : ['aprovar', 'rejeitar'];
+  }
+  return acoesNo;
+}
+
+function _avaliarCamposCondicionaisCanvas(camposCondicionais = [], dadosForm = {}) {
+  const resultado = {};
+  (camposCondicionais || []).forEach((campoCondicional) => {
+    const campoId = String(campoCondicional?.campo_id || '').trim();
+    if (!campoId) return;
+    const passa = _avaliarCondicoesCanvas(campoCondicional.condicoes, campoCondicional.operador_logico, dadosForm);
+    if (!resultado[campoId]) resultado[campoId] = { visivel: true, obrigatorio: false };
+    switch (campoCondicional.acao) {
+      case 'mostrar':    resultado[campoId].visivel = passa; break;
+      case 'ocultar':   resultado[campoId].visivel = !passa; break;
+      case 'obrigatorio': resultado[campoId].obrigatorio = passa; break;
+      case 'opcional':  resultado[campoId].obrigatorio = !passa; break;
+      default: break;
+    }
+  });
+  return resultado;
+}
+
+function _interpolarMensagem(template, instancia, solicitante) {
+  if (!template) return '';
+  return template
+    .replaceAll('{{processo.titulo}}', instancia.titulo || '')
+    .replaceAll('{{solicitante.nome}}', solicitante?.nome || solicitante?.email || '')
+    .replaceAll('{{solicitante.email}}', solicitante?.email || '');
+}
+
 /**
  * @param {import('firebase-admin/firestore').Firestore} db
  */
@@ -225,13 +318,6 @@ function makeEngine(db) {
     return usuarios.find((item) => item?.uid === uid || item?.id === uid) || null;
   }
 
-  function _uidAtribuido(instancia, papel) {
-    const valor = instancia?.atribuicoes?.[papel];
-    if (!valor) return null;
-    if (typeof valor === 'string') return valor;
-    return valor.para || valor.uid || null;
-  }
-
   async function _usuarioPertenceAoGrupo(grupoId, email) {
     if (!(grupoId && email)) return false;
     const grupo = await buscarDoc(col.grupos, grupoId, { code: 'GRUPO_NAO_ENCONTRADO', status: 404 });
@@ -245,10 +331,6 @@ function makeEngine(db) {
     if (!tarefa.papel_alvo) return true;
     if (tarefa.papel_alvo === usuario.email) return true;
     return tarefa.papel_alvo === usuario.perfil;
-  }
-
-  function _usuarioPodeGerenciarWorkflow(usuario) {
-    return ['ep', 'gestor'].includes(String(usuario?.perfil || '').trim());
   }
 
   function _garantirPermissaoGestaoWorkflow(usuario, mensagem = 'Usuário não pode gerenciar esta operação de workflow.') {
@@ -391,59 +473,12 @@ function makeEngine(db) {
     }
   }
 
-  function _proximoNoCanvas(canvas, noId, acao, dados = {}) {
-    const arestas = (canvas?.arestas || []).filter((aresta) => aresta.origem === noId);
-
-    // Para devolver: se não há aresta explícita, usa destino_devolucao da config do nó
-    if (acao === 'devolver' || acao === 'rejeitar') {
-      const arestasRetorno = arestas.filter(a => a.acao === acao || a.acao === 'devolver' || a.acao === 'rejeitar');
-      if (!arestasRetorno.length) {
-        const nos = canvas?.nos || [];
-        const noAtual = nos.find(n => n.id === noId);
-        const destinoId = noAtual?.config?.destino_devolucao;
-        if (destinoId) return _noCanvasPorId(canvas, destinoId);
-        // fallback: primeiro nó executável anterior (penúltimo no caminho de chegada)
-        const chegadas = arestas.filter(a => !a.acao || a.acao === 'avancar' || a.acao === 'aprovar');
-        const origens = (canvas?.arestas || []).filter(a => a.destino === noId);
-        const anterior = origens.find(a => {
-          const n = _noCanvasPorId(canvas, a.origem);
-          return n && n.tipo !== 'inicio' && n.tipo !== 'gateway_xor' && n.tipo !== 'gateway_and';
-        }) || origens[0];
-        return anterior ? _noCanvasPorId(canvas, anterior.origem) : null;
-      }
-      const pool = arestasRetorno;
-      const correspondentes = pool.filter(a => _avaliarCondicoesCanvas(a.condicoes, a.operador_logico, dados));
-      const escolhida = correspondentes[0] || pool.find(a => a.padrao) || pool[0] || null;
-      return escolhida ? _noCanvasPorId(canvas, escolhida.destino) : null;
-    }
-
-    if (!arestas.length) return null;
-    const candidatas = arestas.filter((aresta) => {
-      if (!acao) return true;
-      return aresta.acao === acao || aresta.label === acao || (!aresta.acao && !aresta.label);
-    });
-    const pool = candidatas.length ? candidatas : arestas;
-    const correspondentes = pool.filter((aresta) => _avaliarCondicoesCanvas(aresta.condicoes, aresta.operador_logico, dados));
-    const escolhida = correspondentes[0] || pool.find((aresta) => aresta.padrao) || pool[0] || null;
-    return escolhida ? _noCanvasPorId(canvas, escolhida.destino) : null;
-  }
-
   function _proximoNoExecutavelCanvas(canvas, noId, acao, dados = {}, configNos = {}) {
     let atual = _proximoNoCanvas(canvas, noId, acao, dados);
     while (atual && !_etapaCanvasExecutavel(atual, configNos) && atual.tipo !== 'fim') {
       atual = _proximoNoCanvas(canvas, atual.id, null, dados);
     }
     return atual;
-  }
-
-  // Retorna true se o nó é a primeira etapa executável (só há nós 'inicio' antes dele)
-  function _primeiraEtapaCanvas(canvas, noId) {
-    const origens = (canvas?.arestas || []).filter(a => a.destino === noId);
-    if (!origens.length) return true;
-    return origens.every(a => {
-      const n = _noCanvasPorId(canvas, a.origem);
-      return !n || n.tipo === 'inicio';
-    });
   }
 
   function _acaoPermitidaNoCanvas(instancia, tarefa, acao, dados = {}) {
@@ -464,17 +499,6 @@ function makeEngine(db) {
       : ['avancar']).map(_normalizarAcao);
     return base.includes(acaoNorm);
   }
-
-  function _acoesPorPapelCanvas(cfg = {}, papel = 'executor') {
-    const acoesNo = Array.isArray(cfg.acoes) && cfg.acoes.length ? cfg.acoes : ['avancar'];
-    if (papel === 'revisor') return ['avancar'];
-    if (papel === 'aprovador') {
-      const acoesAprovador = acoesNo.filter((acaoItem) => acaoItem !== 'avancar');
-      return acoesAprovador.length ? acoesAprovador : ['aprovar', 'rejeitar'];
-    }
-    return acoesNo;
-  }
-
 
   async function _criarTarefaCanvas(instancia, modelo, no, dadosIniciais = {}, anexosIniciais = [], motivoDevolucao = null) {
     const cfg = _configNo(modelo, no.id);
@@ -574,33 +598,6 @@ function makeEngine(db) {
     return { tarefa, emailsEnviados: [], emailsErro: [] };
   }
 
-  function _avaliarCamposCondicionaisCanvas(camposCondicionais = [], dadosForm = {}) {
-    const resultado = {};
-    (camposCondicionais || []).forEach((campoCondicional) => {
-      const campoId = String(campoCondicional?.campo_id || '').trim();
-      if (!campoId) return;
-      const passa = _avaliarCondicoesCanvas(campoCondicional.condicoes, campoCondicional.operador_logico, dadosForm);
-      if (!resultado[campoId]) resultado[campoId] = { visivel: true, obrigatorio: false };
-      switch (campoCondicional.acao) {
-        case 'mostrar':
-          resultado[campoId].visivel = passa;
-          break;
-        case 'ocultar':
-          resultado[campoId].visivel = !passa;
-          break;
-        case 'obrigatorio':
-          resultado[campoId].obrigatorio = passa;
-          break;
-        case 'opcional':
-          resultado[campoId].obrigatorio = !passa;
-          break;
-        default:
-          break;
-      }
-    });
-    return resultado;
-  }
-
   async function _validarFormularioTarefaCanvas(instancia, tarefa, dados_formulario = {}) {
     if (!tarefa.formulario_id) return;
     const form = await buscarDoc(col.formularios, tarefa.formulario_id, { code: 'FORMULARIO_NAO_ENCONTRADO', status: 404 });
@@ -619,14 +616,6 @@ function makeEngine(db) {
     if (faltando.length > 0) {
       lancarErro(ERRO.CAMPO_OBRIGATORIO, `Campos obrigatórios não preenchidos: ${faltando.map((campo) => campo.label).join(', ')}`);
     }
-  }
-
-  function _interpolarMensagem(template, instancia, solicitante) {
-    if (!template) return '';
-    return template
-      .replaceAll('{{processo.titulo}}', instancia.titulo || '')
-      .replaceAll('{{solicitante.nome}}', solicitante?.nome || solicitante?.email || '')
-      .replaceAll('{{solicitante.email}}', solicitante?.email || '');
   }
 
   async function _notificarFimInstancia(instancia, cfgFim) {
