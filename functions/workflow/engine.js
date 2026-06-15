@@ -543,21 +543,12 @@ function makeEngine(db) {
           if (g.chefe_email) emailsDestinatarios.add(g.chefe_email);
         }
       }
-      // papel_alvo genérico (ep, gestor, dono) — envia para TODOS os usuários com aquele perfil
+      // papel_alvo específico (ex: gestor_solicitante) — resolve uid único
       if (!destino.responsavel_uid && !destino.grupo_id && destino.papel_alvo) {
-        const papeis = ['ep', 'gestor', 'dono'];
-        if (papeis.includes(destino.papel_alvo)) {
-          const usuarios = await _carregarUsuariosConfig().catch(() => []);
-          usuarios
-            .filter(u => u?.perfil === destino.papel_alvo && u?.email)
-            .forEach(u => emailsDestinatarios.add(u.email));
-        } else {
-          // papel específico (ex: gestor_solicitante) — resolve uid único
-          const uid = await _resolverUidNotificacaoCanvas(destino.papel_alvo, instancia).catch(() => null);
-          if (uid) {
-            const u = await _buscarUsuarioPorUid(uid).catch(() => null);
-            if (u?.email) emailsDestinatarios.add(u.email);
-          }
+        const uid = await _resolverUidNotificacaoCanvas(destino.papel_alvo, instancia).catch(() => null);
+        if (uid) {
+          const u = await _buscarUsuarioPorUid(uid).catch(() => null);
+          if (u?.email) emailsDestinatarios.add(u.email);
         }
       }
       if (emailsDestinatarios.size) {
