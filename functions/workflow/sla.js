@@ -5,9 +5,11 @@
  * Considera: segunda a sexta, 08h–18h (horário de Brasília, UTC-3).
  * Feriados nacionais fixos e móveis são excluídos.
  *
- * Feriados nacionais (Lei 9.093/1995 e alterações):
- *   Fixos: 1/1, 21/4, 1/5, 7/9, 12/10, 2/11, 15/11, 20/11, 25/12
- *   Móveis: Sexta-feira Santa, Carnaval (2ª e 3ª), Corpus Christi
+ * Feriados considerados:
+ *   Nacionais fixos: 1/1, 21/4, 1/5, 7/9, 12/10, 2/11, 15/11, 20/11, 25/12
+ *   Nacionais móveis: Sexta-feira Santa, Carnaval (2ª e 3ª), Corpus Christi
+ *   Estaduais RS: 20/9 (Revolução Farroupilha)
+ *   Municipais Porto Alegre: 2/2 (N. Sra. dos Navegantes — Lei 3.033/1967)
  *
  * Todas as comparações de hora/dia usam a hora local de Brasília (UTC-3).
  * O Brasil não adota horário de verão desde 2019, portanto o offset é fixo.
@@ -21,7 +23,9 @@ const ALERTA_HORAS_ANTES = 2;
 const BRASIL_OFFSET_MS = -3 * 60 * 60 * 1000;
 
 // ── Feriados fixos (MM-DD) ────────────────────────────────────────────────────
-const FERIADOS_FIXOS = new Set([
+
+// Nacionais
+const FERIADOS_NACIONAIS = new Set([
   '01-01', // Confraternização Universal
   '04-21', // Tiradentes
   '05-01', // Dia do Trabalho
@@ -31,6 +35,22 @@ const FERIADOS_FIXOS = new Set([
   '11-15', // Proclamação da República
   '11-20', // Consciência Negra (Lei 14.759/2023)
   '12-25', // Natal
+]);
+
+// Estaduais — Rio Grande do Sul
+const FERIADOS_RS = new Set([
+  '09-20', // Revolução Farroupilha / Dia do Gaúcho
+]);
+
+// Municipais — Porto Alegre
+const FERIADOS_POA = new Set([
+  '02-02', // Nossa Senhora dos Navegantes (Lei Municipal 3.033/1967)
+]);
+
+const FERIADOS_FIXOS = new Set([
+  ...FERIADOS_NACIONAIS,
+  ...FERIADOS_RS,
+  ...FERIADOS_POA,
 ]);
 
 // ── Cache de feriados móveis por ano ─────────────────────────────────────────
