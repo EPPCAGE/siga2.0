@@ -266,7 +266,7 @@ function makeEngine(db) {
 
   function _montarTemplateParams({ email, instancia, tarefa, etapa }) {
     let prazoStr = 'sem prazo definido';
-    if (tarefa.prazo) {
+    if (tarefa?.prazo) {
       const prazoDate = typeof tarefa.prazo.toDate === 'function'
         ? tarefa.prazo.toDate()
         : new Date(tarefa.prazo._seconds * 1000);
@@ -280,8 +280,8 @@ function makeEngine(db) {
       from_name: 'Escritório de Processos das CAGE',
       workflow: instancia.titulo,
       processo_titulo: instancia.titulo,
-      etapa_nome: etapa.nome,
-      instrucoes: tarefa.instrucoes || '',
+      etapa_nome: etapa?.nome || '',
+      instrucoes: tarefa?.instrucoes || '',
       prazo: prazoStr,
       link: 'https://sigaepp.web.app/',
     };
@@ -664,6 +664,16 @@ function makeEngine(db) {
     };
 
     await _enviar(instancia.solicitante_uid);
+
+    // E-mail ao solicitante informando que o processo chegou ao fim
+    if (solicitante?.email) {
+      await _enviarEmailsWorkflow({
+        emails: [solicitante.email],
+        instancia,
+        tarefa: null,
+        etapa: { id: 'fim', nome: cfgFim.titulo_fim || 'Processo concluído' },
+      }).catch(() => {});
+    }
 
     const extra = cfgFim.notificar_fim || '';
     if (extra === 'ep' || extra === 'todos') {
