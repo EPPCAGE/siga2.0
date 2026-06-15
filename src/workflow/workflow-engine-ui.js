@@ -4465,11 +4465,25 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
   async function wfAtivarInstanciaAgora(instanciaId) {
     try {
       const res = await _wfApiRequest('wfAdminJobs', `/ativar/${encodeURIComponent(instanciaId)}`, { method: 'POST' });
-      const partes = [`✅ Processo ativado.`];
-      if (res.emailsEnviados?.length) partes.push(`📧 E-mail enviado para: ${res.emailsEnviados.join(', ')}.`);
-      if (res.emailsErro?.length) partes.push(`⚠️ Erro ao enviar e-mail para: ${res.emailsErro.join(', ')}.`);
+      const emailsPendentes = res.emailsPendentes || [];
+      const enviados = [];
+      const erros = [];
+      const ejsCfg = globalScope.ejsConfig;
+      if (emailsPendentes.length && ejsCfg?.service && ejsCfg?.template && ejsCfg?.pubkey && typeof emailjs !== 'undefined') {
+        for (const item of emailsPendentes) {
+          try {
+            await emailjs.send(ejsCfg.service, ejsCfg.template, item.templateParams, ejsCfg.pubkey);
+            enviados.push(item.email);
+          } catch (err) {
+            erros.push(`${item.email} (${err?.text || err?.message || 'erro'})`);
+          }
+        }
+      }
+      const partes = ['✅ Processo ativado.'];
+      if (enviados.length) partes.push(`📧 E-mail enviado para: ${enviados.join(', ')}.`);
+      if (erros.length) partes.push(`⚠️ Erro ao enviar e-mail para: ${erros.join(', ')}.`);
       const msg = partes.join(' ');
-      const cor = res.emailsErro?.length ? 'var(--yellow,#ca8a04)' : 'var(--teal)';
+      const cor = erros.length ? 'var(--yellow,#ca8a04)' : 'var(--teal)';
       if (typeof globalScope.toast === 'function') globalScope.toast(msg, cor);
       else alert(msg);
       _st.instanciasLista = null;
