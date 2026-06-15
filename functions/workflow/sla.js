@@ -3,7 +3,11 @@
 /**
  * Cálculo de SLA em horas úteis.
  * Considera: segunda a sexta, 08h–18h (horário de Brasília, UTC-3).
- * Feriados nacionais fixos do ano corrente são excluídos.
+ * Feriados nacionais fixos e móveis são excluídos.
+ *
+ * Feriados nacionais (Lei 9.093/1995 e alterações):
+ *   Fixos: 1/1, 21/4, 1/5, 7/9, 12/10, 2/11, 15/11, 20/11, 25/12
+ *   Móveis: Sexta-feira Santa, Carnaval (2ª e 3ª), Corpus Christi
  *
  * Todas as comparações de hora/dia usam a hora local de Brasília (UTC-3).
  * O Brasil não adota horário de verão desde 2019, portanto o offset é fixo.
@@ -11,28 +15,76 @@
 
 const HORA_INICIO = 8;
 const HORA_FIM = 18;
-const HORAS_UTEIS_DIA = HORA_FIM - HORA_INICIO;
 const ALERTA_HORAS_ANTES = 2;
 
 // UTC-3 fixo (Brasil parou horário de verão em 2019)
 const BRASIL_OFFSET_MS = -3 * 60 * 60 * 1000;
 
-// Feriados nacionais fixos (MM-DD)
+// ── Feriados fixos (MM-DD) ────────────────────────────────────────────────────
 const FERIADOS_FIXOS = new Set([
   '01-01', // Confraternização Universal
   '04-21', // Tiradentes
   '05-01', // Dia do Trabalho
-  '09-07', // Independência
+  '09-07', // Independência do Brasil
   '10-12', // Nossa Senhora Aparecida
   '11-02', // Finados
   '11-15', // Proclamação da República
-  '11-20', // Consciência Negra
+  '11-20', // Consciência Negra (Lei 14.759/2023)
   '12-25', // Natal
 ]);
 
+// ── Cache de feriados móveis por ano ─────────────────────────────────────────
+const _cacheFeriadosMoveis = new Map(); // ano → Set<'MM-DD'>
+
+/**
+ * Algoritmo de Butcher/Anonymous para calcular a Páscoa (Gregoriano).
+ * Retorna Date UTC à meia-noite do dia da Páscoa.
+ */
+function _calcularPascoa(ano) {
+  const a = ano % 19;
+  const b = Math.floor(ano / 100);
+  const c = ano % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31); // 1-based
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(ano, mes - 1, dia));
+}
+
+function _mmdd(data) {
+  return `${String(data.getUTCMonth() + 1).padStart(2, '0')}-${String(data.getUTCDate()).padStart(2, '0')}`;
+}
+
+function _feriadosMoveis(ano) {
+  if (_cacheFeriadosMoveis.has(ano)) return _cacheFeriadosMoveis.get(ano);
+
+  const pascoa = _calcularPascoa(ano);
+  const DIA = 86400000; // 1 dia em ms
+
+  const moveis = new Set([
+    _mmdd(new Date(pascoa.getTime() - 48 * DIA)), // Carnaval — segunda-feira
+    _mmdd(new Date(pascoa.getTime() - 47 * DIA)), // Carnaval — terça-feira
+    _mmdd(new Date(pascoa.getTime() -  2 * DIA)), // Sexta-feira Santa
+    _mmdd(pascoa),                                 // Páscoa (domingo, só por completude)
+    _mmdd(new Date(pascoa.getTime() + 60 * DIA)), // Corpus Christi
+  ]);
+
+  _cacheFeriadosMoveis.set(ano, moveis);
+  return moveis;
+}
+
+// ── Helpers de fuso horário ───────────────────────────────────────────────────
+
 /**
  * Converte um Date UTC para um "Date" cujos métodos getUTC* retornam a hora
- * local de Brasília. Usando essa convenção, getUTCHours() = hora em Brasília.
+ * local de Brasília (UTC-3). Convenção: getUTCHours() = hora em Brasília.
  */
 function _brasilDate(data) {
   return new Date(data.getTime() + BRASIL_OFFSET_MS);
@@ -48,10 +100,13 @@ function _setBrasilHora(data, hora, min = 0) {
   return new Date(bd.getTime() - BRASIL_OFFSET_MS);
 }
 
+// ── Verificação de dia útil ───────────────────────────────────────────────────
+
 function _ehFeriado(data) {
   const bd = _brasilDate(data);
-  const mmdd = `${String(bd.getUTCMonth() + 1).padStart(2, '0')}-${String(bd.getUTCDate()).padStart(2, '0')}`;
-  return FERIADOS_FIXOS.has(mmdd);
+  const ano = bd.getUTCFullYear();
+  const chave = _mmdd(bd);
+  return FERIADOS_FIXOS.has(chave) || _feriadosMoveis(ano).has(chave);
 }
 
 function _ehDiaUtil(data) {
@@ -59,33 +114,33 @@ function _ehDiaUtil(data) {
   return dia !== 0 && dia !== 6 && !_ehFeriado(data);
 }
 
+// ── Lógica de avanço ─────────────────────────────────────────────────────────
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/** Avança `d` um dia (UTC) e posiciona no início do expediente de Brasília. */
+function _avancarDia(d) {
+  return _setBrasilHora(new Date(d.getTime() + DIA_MS), HORA_INICIO);
+}
+
 /**
- * Avança `data` para o próximo minuto dentro do expediente útil de Brasília.
+ * Avança `data` para o próximo instante dentro do expediente útil de Brasília.
  * Se já está no expediente, retorna o mesmo instante.
  */
 function _proxHorarioUtil(data) {
   let d = new Date(data);
 
-  // Garante que estamos num dia útil
-  while (!_ehDiaUtil(d)) {
-    d = _setBrasilHora(d, HORA_INICIO);
-    // Avança para o dia seguinte (soma 24h em UTC, depois ajusta a hora)
-    d = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+  const h = _brasilDate(d).getUTCHours();
+  if (h >= HORA_FIM) {
+    d = _avancarDia(d);
+  } else if (h < HORA_INICIO) {
     d = _setBrasilHora(d, HORA_INICIO);
   }
 
-  const h = _brasilDate(d).getUTCHours();
-  if (h < HORA_INICIO) {
-    d = _setBrasilHora(d, HORA_INICIO);
-  } else if (h >= HORA_FIM) {
-    // Próximo dia útil às HORA_INICIO
-    d = new Date(d.getTime() + 24 * 60 * 60 * 1000);
-    d = _setBrasilHora(d, HORA_INICIO);
-    while (!_ehDiaUtil(d)) {
-      d = new Date(d.getTime() + 24 * 60 * 60 * 1000);
-      d = _setBrasilHora(d, HORA_INICIO);
-    }
+  while (!_ehDiaUtil(d)) {
+    d = _avancarDia(d);
   }
+
   return d;
 }
 
@@ -110,19 +165,16 @@ function adicionarHorasUteis(dataInicio, horas) {
       minutosRestantes = 0;
     } else {
       minutosRestantes -= minutosAteOFim;
-      // Próximo dia útil
-      let prox = new Date(atual.getTime() + 24 * 60 * 60 * 1000);
-      prox = _setBrasilHora(prox, HORA_INICIO);
-      while (!_ehDiaUtil(prox)) {
-        prox = new Date(prox.getTime() + 24 * 60 * 60 * 1000);
-        prox = _setBrasilHora(prox, HORA_INICIO);
-      }
+      let prox = _avancarDia(atual);
+      while (!_ehDiaUtil(prox)) prox = _avancarDia(prox);
       atual = prox;
     }
   }
 
   return atual;
 }
+
+// ── Cálculo de prazo e status ─────────────────────────────────────────────────
 
 /**
  * Calcula o prazo de uma tarefa a partir do momento de criação.
@@ -145,7 +197,7 @@ function calcularPrazo(criado_em, sla_horas) {
 
 /**
  * Retorna o status de SLA de uma tarefa.
- * @param {object} tarefa - TarefaWorkflow
+ * @param {object} tarefa
  * @returns {'sem_sla'|'no_prazo'|'vencendo'|'vencido'}
  */
 function calcularStatusSla(tarefa) {
