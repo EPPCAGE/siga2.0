@@ -528,6 +528,7 @@ function makeEngine(db) {
     }
 
     // Para workflows agendados: envia e-mail a todos os responsáveis pela primeira tarefa
+    console.log('[wf criarTarefa] agendado_para:', instancia.agendado_para, '| grupo_id:', destino.grupo_id, '| papel_alvo:', destino.papel_alvo);
     if (instancia.agendado_para) {
       const emailsDestinatarios = new Set();
       console.log('[wf email agendado] destino:', JSON.stringify({ responsavel_uid: destino.responsavel_uid, grupo_id: destino.grupo_id, papel_alvo: destino.papel_alvo }));
