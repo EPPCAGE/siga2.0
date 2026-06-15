@@ -4477,22 +4477,10 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       }
       if (!confirm(confirmMsg)) return;
 
+      // O envio de e-mail acontece no servidor (EmailJS via accessToken).
       const res = await _wfApiRequest('wfAdminJobs', `/ativar/${encodeURIComponent(instanciaId)}`, { method: 'POST' });
-      const emailsPendentes = res.emailsPendentes || [];
-      const enviados = [];
-      const erros = [];
-      const ejsCfg = globalScope.ejsConfig;
-      const templateId = ejsCfg?.template_workflow || ejsCfg?.template;
-      if (emailsPendentes.length && ejsCfg?.service && templateId && ejsCfg?.pubkey && typeof emailjs !== 'undefined') {
-        for (const item of emailsPendentes) {
-          try {
-            await emailjs.send(ejsCfg.service, templateId, item.templateParams);
-            enviados.push(item.email);
-          } catch (err) {
-            erros.push(`${item.email} (${err?.text || err?.message || 'erro'})`);
-          }
-        }
-      }
+      const enviados = res.emailsEnviados || [];
+      const erros = res.emailsErro || [];
       const partes = ['✅ Processo ativado.'];
       if (enviados.length) partes.push(`📧 E-mail enviado para: ${enviados.join(', ')}.`);
       if (erros.length) partes.push(`⚠️ Erro ao enviar e-mail para: ${erros.join(', ')}.`);
