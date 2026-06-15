@@ -1416,7 +1416,7 @@
           ? (typeof i.agendado_para.toDate === 'function' ? i.agendado_para.toDate() : new Date(i.agendado_para._seconds * 1000))
           : null;
         const agendadoHtml = agendadoPara
-          ? `<div style="font-size:12px;color:#8b5cf6;margin-top:4px;margin-bottom:4px">🗓 Inicia em: <strong>${agendadoPara.toLocaleString('pt-BR')}</strong></div>`
+          ? `<div style="font-size:12px;color:#8b5cf6;margin-top:4px;margin-bottom:4px">🗓 Inicia em: <strong>${agendadoPara.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</strong></div>`
           : '';
         return _card(`
           <div style="font-weight:600;font-size:14px;margin-bottom:4px">${_esc(i.titulo)}</div>
@@ -3686,7 +3686,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
           },
         });
         if (agendadoPara) {
-          const dtStr = new Date(agendadoPara).toLocaleString('pt-BR');
+          const dtStr = new Date(agendadoPara).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
           alert(`Workflow agendado para ${dtStr}. Ele iniciará automaticamente nessa data.`);
           wfNavWorkflow('instancias');
         } else {

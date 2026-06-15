@@ -764,7 +764,7 @@ function makeEngine(db) {
       instancia.id, 'instancia_criada', solicitante_uid,
       null, null,
       agendado_para
-        ? `Instância do processo "${modelo.nome}" agendada para ${new Date(agendado_para).toLocaleString('pt-BR')}.`
+        ? `Instância do processo "${modelo.nome}" agendada para ${new Date(agendado_para).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`
         : `Instância do processo "${modelo.nome}" criada.`,
       { processo_modelo_id, versao: modelo.versao, grupo_id: grupo_id || null, grupo_nome: grupo_nome || null, agendado_para: agendado_para || null },
     );
