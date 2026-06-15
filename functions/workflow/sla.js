@@ -2,7 +2,8 @@
 
 /**
  * Cálculo de SLA em horas úteis.
- * Considera: segunda a sexta, 09h–18h (horário de Brasília, UTC-3).
+ * Considera: segunda a sexta, 09h–12h e 13h–18h (horário de Brasília, UTC-3).
+ * Almoço (12h–13h) não é contabilizado como hora útil.
  * Feriados nacionais fixos e móveis são excluídos.
  *
  * Feriados considerados:
@@ -17,6 +18,8 @@
 
 const HORA_INICIO = 9;
 const HORA_FIM = 18;
+const ALMOCO_INICIO = 12;
+const ALMOCO_FIM = 13;
 const ALERTA_HORAS_ANTES = 2;
 
 // UTC-3 fixo (Brasil parou horário de verão em 2019)
@@ -145,14 +148,16 @@ function _avancarDia(d) {
 
 /**
  * Avança `data` para o próximo instante dentro do expediente útil de Brasília.
- * Se já está no expediente, retorna o mesmo instante.
+ * Pula almoço (12h–13h), fora do expediente e dias não úteis.
  */
 function _proxHorarioUtil(data) {
   let d = new Date(data);
-
   const h = _brasilDate(d).getUTCHours();
+
   if (h >= HORA_FIM) {
     d = _avancarDia(d);
+  } else if (h >= ALMOCO_INICIO && h < ALMOCO_FIM) {
+    d = _setBrasilHora(d, ALMOCO_FIM); // pula almoço
   } else if (h < HORA_INICIO) {
     d = _setBrasilHora(d, HORA_INICIO);
   }
@@ -166,6 +171,7 @@ function _proxHorarioUtil(data) {
 
 /**
  * Adiciona `horas` horas úteis a `dataInicio` (Date JS, em UTC).
+ * O dia tem dois blocos úteis: 09h–12h (3h) e 13h–18h (5h) = 8h/dia.
  * @param {Date} dataInicio
  * @param {number} horas
  * @returns {Date}
@@ -177,17 +183,29 @@ function adicionarHorasUteis(dataInicio, horas) {
   let atual = _proxHorarioUtil(new Date(dataInicio));
 
   while (minutosRestantes > 0) {
-    const fimDoDia = _setBrasilHora(atual, HORA_FIM);
-    const minutosAteOFim = Math.max(0, (fimDoDia - atual) / 60000);
+    const h = _brasilDate(atual).getUTCHours();
 
-    if (minutosRestantes <= minutosAteOFim) {
+    // Próximo ponto de pausa: almoço (se ainda na manhã) ou fim do dia
+    const proximoPonto = h < ALMOCO_INICIO
+      ? _setBrasilHora(atual, ALMOCO_INICIO)
+      : _setBrasilHora(atual, HORA_FIM);
+
+    const minutosAteProximo = Math.max(0, (proximoPonto - atual) / 60000);
+
+    if (minutosRestantes <= minutosAteProximo) {
       atual = new Date(atual.getTime() + minutosRestantes * 60000);
       minutosRestantes = 0;
     } else {
-      minutosRestantes -= minutosAteOFim;
-      let prox = _avancarDia(atual);
-      while (!_ehDiaUtil(prox)) prox = _avancarDia(prox);
-      atual = prox;
+      minutosRestantes -= minutosAteProximo;
+      if (h < ALMOCO_INICIO) {
+        // Chegou no almoço — retoma às 13h
+        atual = _setBrasilHora(atual, ALMOCO_FIM);
+      } else {
+        // Fim do dia — avança para próximo dia útil às 09h
+        let prox = _avancarDia(atual);
+        while (!_ehDiaUtil(prox)) prox = _avancarDia(prox);
+        atual = prox;
+      }
     }
   }
 
