@@ -259,10 +259,7 @@ function makeEngine(db) {
     return _ejsConfigCache;
   }
 
-  async function _enviarEmailWorkflow({ emails, instancia, tarefa, etapa }) {
-    const ejsCfg = await _carregarEjsConfig();
-    if (!ejsCfg?.service || !ejsCfg?.template || !ejsCfg?.pubkey) return;
-    const { default: fetch } = await import('node-fetch');
+  async function _prepararEmailsWorkflow({ emails, instancia, tarefa, etapa }) {
     let prazoStr = 'sem prazo definido';
     if (tarefa.prazo) {
       const prazoDate = typeof tarefa.prazo.toDate === 'function'
@@ -271,36 +268,20 @@ function makeEngine(db) {
       prazoStr = prazoDate.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     }
     const instrucoes = tarefa.instrucoes ? `\n\nOrientação: ${tarefa.instrucoes}` : '';
-    const enviados = [];
-    const erros = [];
-    for (const email of emails) {
-      if (!email || typeof email !== 'string') continue;
-      try {
-        const resp = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            service_id: ejsCfg.service,
-            template_id: ejsCfg.template,
-            user_id: ejsCfg.pubkey,
-            template_params: {
-              to_email: email,
-              to_name: email,
-              from_name: 'EP·CAGE',
-              subject: `Workflow iniciado: ${instancia.titulo}`,
-              message: `O processo "${instancia.titulo}" foi iniciado automaticamente e aguarda sua ação.\n\nEtapa: ${etapa.nome}${instrucoes}`,
-              prazo: prazoStr,
-              link: 'https://sigaepp.web.app/',
-            },
-          }),
-        });
-        if (resp.ok) enviados.push(email);
-        else erros.push(`${email} (HTTP ${resp.status})`);
-      } catch (e) {
-        erros.push(`${email} (${e.message})`);
-      }
-    }
-    return { enviados, erros };
+    return emails
+      .filter(e => e && typeof e === 'string')
+      .map(email => ({
+        email,
+        templateParams: {
+          to_email: email,
+          to_name: email,
+          from_name: 'EP·CAGE',
+          subject: `Workflow iniciado: ${instancia.titulo}`,
+          message: `O processo "${instancia.titulo}" foi iniciado automaticamente e aguarda sua ação.\n\nEtapa: ${etapa.nome}${instrucoes}`,
+          prazo: prazoStr,
+          link: 'https://sigaepp.web.app/',
+        },
+      }));
   }
 
   // -------------------------------------------------------------------------
@@ -586,17 +567,17 @@ function makeEngine(db) {
         }
       }
       if (emailsDestinatarios.size) {
-        const emailResult = await _enviarEmailWorkflow({
+        const emailsPendentes = await _prepararEmailsWorkflow({
           emails: [...emailsDestinatarios],
           instancia,
           tarefa,
           etapa: { id: no.id, nome: no.nome || no.id },
-        }).catch(e => ({ enviados: [], erros: [`erro geral: ${e.message}`] }));
-        return { tarefa, emailsEnviados: emailResult?.enviados || [], emailsErro: emailResult?.erros || [] };
+        }).catch(() => []);
+        return { tarefa, emailsPendentes };
       }
     }
 
-    return { tarefa, emailsEnviados: [], emailsErro: [] };
+    return { tarefa, emailsPendentes: [] };
   }
 
   async function _validarFormularioTarefaCanvas(instancia, tarefa, dados_formulario = {}) {
@@ -1276,11 +1257,11 @@ function makeEngine(db) {
       await _notificarCientesCanvas(inst, primeiroNo);
       const resultado = await _criarTarefaCanvas(inst, modeloData, primeiroNo);
       await _registrarHistorico(inst.id, 'instancia_ativada', null, null, null, 'Instância agendada ativada automaticamente.', {});
-      return { emailsEnviados: resultado?.emailsEnviados || [], emailsErro: resultado?.emailsErro || [] };
+      return { emailsPendentes: resultado?.emailsPendentes || [] };
     }
 
     await _registrarHistorico(inst.id, 'instancia_ativada', null, null, null, 'Instância agendada ativada automaticamente.', {});
-    return { emailsEnviados: [], emailsErro: [] };
+    return { emailsPendentes: [] };
   }
 
   /**
@@ -1304,19 +1285,17 @@ function makeEngine(db) {
     });
 
     let ativadas = 0;
-    const emailsEnviados = [];
-    const emailsErro = [];
+    const emailsPendentes = [];
     for (const doc of vencidas) {
       try {
         const res = await _ativarInstanciaAgendada({ id: doc.id, ...doc.data() });
         ativadas++;
-        (res?.emailsEnviados || []).forEach(e => emailsEnviados.push(e));
-        (res?.emailsErro || []).forEach(e => emailsErro.push(e));
+        (res?.emailsPendentes || []).forEach(e => emailsPendentes.push(e));
       } catch (e) {
         console.error(`[processarAgendados] Erro ao ativar ${doc.id}:`, e.message);
       }
     }
-    return { ativadas, total: vencidas.length, emailsEnviados, emailsErro };
+    return { ativadas, total: vencidas.length, emailsPendentes };
   }
 
   /**
