@@ -544,24 +544,23 @@ function makeEngine(db) {
       });
     }
 
-    // Para workflows agendados: envia e-mail a todos os responsáveis pela primeira tarefa
+    // Para workflows agendados: envia e-mail ao(s) responsável(is) pela primeira tarefa
     if (instancia.agendado_para) {
       const emailsDestinatarios = new Set();
       if (destino.responsavel_uid) {
+        // Responsável individual tem prioridade — notifica só ele
         const u = await _buscarUsuarioPorUid(destino.responsavel_uid).catch(() => null);
         if (u?.email) emailsDestinatarios.add(u.email);
-      }
-      // Se atribuído a grupo, envia para todos os membros da equipe
-      if (destino.grupo_id) {
+      } else if (destino.grupo_id) {
+        // Sem responsável fixo: notifica todos os membros do grupo
         const grupoSnap = await col.grupos.doc(destino.grupo_id).get().catch(() => null);
         if (grupoSnap?.exists) {
           const g = grupoSnap.data();
           (g.membros_email || []).forEach(e => { if (e) emailsDestinatarios.add(e); });
           if (g.chefe_email) emailsDestinatarios.add(g.chefe_email);
         }
-      }
-      // papel_alvo específico (ex: gestor_solicitante) — resolve uid único
-      if (!destino.responsavel_uid && !destino.grupo_id && destino.papel_alvo) {
+      } else if (destino.papel_alvo) {
+        // Papel específico (ex: gestor_solicitante) — resolve uid único
         const uid = await _resolverUidNotificacaoCanvas(destino.papel_alvo, instancia).catch(() => null);
         if (uid) {
           const u = await _buscarUsuarioPorUid(uid).catch(() => null);
