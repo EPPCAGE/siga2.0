@@ -267,7 +267,7 @@ function makeEngine(db) {
         : new Date(tarefa.prazo._seconds * 1000);
       prazoStr = prazoDate.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     }
-    const instrucoes = tarefa.instrucoes ? `\n\nOrientação: ${tarefa.instrucoes}` : '';
+    const instrucoes = tarefa.instrucoes || '';
     return emails
       .filter(e => e && typeof e === 'string')
       .map(email => ({
@@ -276,10 +276,11 @@ function makeEngine(db) {
           to_email: email,
           to_name: email,
           from_name: 'Escritório de Processos das CAGE',
-          subject: `Workflow iniciado: ${instancia.titulo}`,
-          message: `O processo "${instancia.titulo}" foi iniciado automaticamente e aguarda sua ação.\n\nEtapa: ${etapa.nome}${instrucoes}`,
+          processo_titulo: instancia.titulo,
+          etapa_nome: etapa.nome,
+          instrucoes,
           prazo: prazoStr,
-          link: 'eppcage.com.br',
+          link: 'https://sigaepp.web.app/',
         },
       }));
   }
