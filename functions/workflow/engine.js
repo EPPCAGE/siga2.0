@@ -1365,6 +1365,7 @@ function makeEngine(db) {
     processarSla,
     processarAgendados,
     ativarInstancia,
+    previewAtivarInstancia,
   };
 
   async function ativarInstancia(instanciaId) {
@@ -1375,6 +1376,47 @@ function makeEngine(db) {
       throw Object.assign(new Error(`Instância não está no status agendado (status: ${instancia.status})`), { code: 'STATUS_INVALIDO', status: 400 });
     }
     return _ativarInstanciaAgendada(instancia);
+  }
+
+  async function previewAtivarInstancia(instanciaId) {
+    const snap = await col.instancias.doc(instanciaId).get();
+    if (!snap.exists) throw Object.assign(new Error('Instância não encontrada'), { code: 'NAO_ENCONTRADO', status: 404 });
+    const instancia = { id: snap.id, ...snap.data() };
+    if (instancia.status !== 'agendado') {
+      throw Object.assign(new Error(`Instância não está no status agendado (status: ${instancia.status})`), { code: 'STATUS_INVALIDO', status: 400 });
+    }
+
+    const modeloSnap = await col.modelos.doc(instancia.processo_modelo_id).get().catch(() => null);
+    const modeloData = modeloSnap?.exists ? modeloSnap.data() : null;
+    if (!modeloData) return { destinatarios: [], tipo: null };
+
+    const inicio = _primeiraEtapaCanvas(modeloData);
+    if (!inicio) return { destinatarios: [], tipo: null };
+
+    const primeiroNo = (modeloData.canvas?.nos || []).find(n => n.id === inicio.proximo_no_id);
+    if (!primeiroNo) return { destinatarios: [], tipo: null };
+
+    const cfg = _configNo(modeloData, primeiroNo.id);
+    const papelAlvo = cfg.papeis?.executor || 'solicitante';
+    const destino = await _resolverDestinoTarefaCanvas(papelAlvo, instancia);
+
+    if (destino.responsavel_uid) {
+      const u = await _buscarUsuarioPorUid(destino.responsavel_uid).catch(() => null);
+      return { tipo: 'usuario', destinatarios: u ? [{ nome: u.nome || u.email, email: u.email }] : [] };
+    }
+    if (destino.grupo_id) {
+      const grupoSnap = await col.grupos.doc(destino.grupo_id).get().catch(() => null);
+      if (grupoSnap?.exists) {
+        const g = grupoSnap.data();
+        const emails = [...(g.membros_email || [])];
+        if (g.chefe_email && !emails.includes(g.chefe_email)) emails.push(g.chefe_email);
+        return { tipo: 'grupo', nome_grupo: g.nome || destino.grupo_id, destinatarios: emails.filter(Boolean).map(e => ({ email: e, nome: e })) };
+      }
+    }
+    if (destino.papel_alvo) {
+      return { tipo: 'papel', papel: destino.papel_alvo, destinatarios: [] };
+    }
+    return { destinatarios: [], tipo: null };
   }
 }
 

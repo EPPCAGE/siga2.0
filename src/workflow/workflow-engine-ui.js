@@ -4464,6 +4464,19 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
 
   async function wfAtivarInstanciaAgora(instanciaId) {
     try {
+      const preview = await _wfApiRequest('wfAdminJobs', `/ativar/${encodeURIComponent(instanciaId)}/preview`, { method: 'POST' });
+      let confirmMsg = 'Deseja ativar este processo agora?';
+      if (preview.tipo === 'usuario' && preview.destinatarios?.length) {
+        const dest = preview.destinatarios[0];
+        confirmMsg = `O usuário ${dest.nome || dest.email} será notificado do início deste processo. Confirmar?`;
+      } else if (preview.tipo === 'grupo') {
+        const nomes = (preview.destinatarios || []).map(d => d.nome || d.email).join(', ');
+        confirmMsg = `O grupo "${preview.nome_grupo}" será notificado (${nomes}). Confirmar?`;
+      } else if (preview.tipo === 'papel') {
+        confirmMsg = `O perfil "${preview.papel}" será notificado do início deste processo. Confirmar?`;
+      }
+      if (!confirm(confirmMsg)) return;
+
       const res = await _wfApiRequest('wfAdminJobs', `/ativar/${encodeURIComponent(instanciaId)}`, { method: 'POST' });
       const emailsPendentes = res.emailsPendentes || [];
       const enviados = [];
