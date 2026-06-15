@@ -1602,26 +1602,26 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     </div>
     <div class="arq-filtros-avancados" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span class="fbar-l">Macroprocesso</span>
-      <select class="fi" id="arq-f-macro" onchange="rArq()" style="max-width:220px"><option value="">Todos</option></select>
+      <select class="fi" id="arq-f-macro" aria-label="Filtrar por macroprocesso" onchange="rArq()" style="max-width:220px"><option value="">Todos</option></select>
       <span class="fbar-l">Área</span>
-      <select class="fi" id="arq-f-area" onchange="rArq()" style="max-width:180px"><option value="">Todas</option></select>
+      <select class="fi" id="arq-f-area" aria-label="Filtrar por área" onchange="rArq()" style="max-width:180px"><option value="">Todas</option></select>
       <span class="fbar-l">Natureza</span>
-      <select class="fi" id="arq-f-nat" onchange="rArq()" style="max-width:160px">
+      <select class="fi" id="arq-f-nat" aria-label="Filtrar por natureza" onchange="rArq()" style="max-width:160px">
         <option value="">Todas</option>
         <option>Finalístico</option>
         <option>Apoio</option>
         <option>Gestão</option>
       </select>
       <span class="fbar-l">Obj. estratégico</span>
-      <select class="fi" id="arq-f-obje" onchange="rArq()" style="max-width:220px"><option value="">Todos</option></select>
+      <select class="fi" id="arq-f-obje" aria-label="Filtrar por objetivo estratégico" onchange="rArq()" style="max-width:220px"><option value="">Todos</option></select>
       <span class="fbar-l">Mapeado</span>
-      <select class="fi" id="arq-f-map" onchange="rArq()" style="max-width:110px">
+      <select class="fi" id="arq-f-map" aria-label="Filtrar por status de mapeamento" onchange="rArq()" style="max-width:110px">
         <option value="">Todos</option>
         <option value="sim">Sim</option>
         <option value="nao">Não</option>
       </select>
       <span class="fbar-l">Crítico</span>
-      <select class="fi" id="arq-f-crit" onchange="rArq()" style="max-width:110px">
+      <select class="fi" id="arq-f-crit" aria-label="Filtrar por processo crítico" onchange="rArq()" style="max-width:110px">
         <option value="">Todos</option>
         <option value="sim">Sim</option>
         <option value="nao">Não</option>
@@ -1827,7 +1827,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="ph-s">Planejamento, execução e acompanhamento de atividades do EPP</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <select class="fi" id="plano-ano-sel" onchange="rPlano()" style="width:90px"></select>
+      <select class="fi" id="plano-ano-sel" aria-label="Selecionar ano do PAT" onchange="rPlano()" style="width:90px"></select>
       <button type="button" class="btn ep-only" onclick="gerarStatusReportPDF()" title="Gerar Relatório Executivo em PDF" style="border-color:var(--red-b,#fca5a5);color:var(--red,#dc2626)">📄 Relatório Executivo PDF</button>
       <button type="button" class="btn btn-p" onclick="abrirPlanoModal(null)">+ Nova atividade</button>
     </div>
@@ -1864,7 +1864,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <option value="governanca">Governança</option>
       <option value="outro">Outro</option>
     </select>
-    <input class="fi" id="plano-filt-srch" placeholder="Buscar..." oninput="rPlano()" style="min-width:170px;flex:1">
+    <input class="fi" id="plano-filt-srch" aria-label="Buscar atividades do PAT" placeholder="Buscar..." oninput="rPlano()" style="min-width:170px;flex:1">
   </div>
   <div id="plano-c"></div>
   <div id="plano-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:999;overflow-y:auto">
@@ -1901,7 +1901,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
       <button type="button" class="btn" onclick="fecharModalNovaAuditoria()">✕ Fechar</button>
     </div>
-    <input class="srch" id="aud-srch" placeholder="Filtrar por nome, área ou macroprocesso..." oninput="rListaAptosAuditoria()" style="width:100%;margin-bottom:1rem">
+    <input class="srch" id="aud-srch" aria-label="Filtrar processos aptos para análise de aderência" placeholder="Filtrar por nome, área ou macroprocesso..." oninput="rListaAptosAuditoria()" style="width:100%;margin-bottom:1rem">
     <div id="aud-aptos-list"></div>
   </div>
 </div>

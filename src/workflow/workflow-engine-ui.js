@@ -282,7 +282,7 @@
     const prazo = tarefa.prazo?.toDate
       ? tarefa.prazo.toDate()
       : new Date((tarefa.prazo._seconds ?? tarefa.prazo.seconds) * 1000);
-    if (isNaN(prazo.getTime())) return '';
+    if (Number.isNaN(prazo.getTime())) return '';
     const agora = new Date();
     const diff = prazo - agora;
     let cor, label;

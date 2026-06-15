@@ -612,9 +612,9 @@ function makeEngine(db) {
   function _interpolarMensagem(template, instancia, solicitante) {
     if (!template) return '';
     return template
-      .replace(/\{\{processo\.titulo\}\}/g, instancia.titulo || '')
-      .replace(/\{\{solicitante\.nome\}\}/g, solicitante?.nome || solicitante?.email || '')
-      .replace(/\{\{solicitante\.email\}\}/g, solicitante?.email || '');
+      .replaceAll('{{processo.titulo}}', instancia.titulo || '')
+      .replaceAll('{{solicitante.nome}}', solicitante?.nome || solicitante?.email || '')
+      .replaceAll('{{solicitante.email}}', solicitante?.email || '');
   }
 
   async function _notificarFimInstancia(instancia, cfgFim) {
