@@ -3383,7 +3383,7 @@ function testarEmailJSWorkflow(){
     instrucoes: 'Este é um e-mail de teste do template de workflow do '+ORG_CONFIG.systemBrand+'.',
     prazo: new Date().toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo'}),
     link: ORG_CONFIG.publicUrl,
-  }, ejsConfig.pubkey).then(()=>{
+  }).then(()=>{
     res.textContent = '✓ E-mail de teste (workflow) enviado para ' + destEmail + aviso;
     res.style.color = 'var(--green)';
   }).catch(err=>{

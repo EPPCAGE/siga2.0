@@ -4486,7 +4486,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       if (emailsPendentes.length && ejsCfg?.service && templateId && ejsCfg?.pubkey && typeof emailjs !== 'undefined') {
         for (const item of emailsPendentes) {
           try {
-            await emailjs.send(ejsCfg.service, templateId, item.templateParams, ejsCfg.pubkey);
+            await emailjs.send(ejsCfg.service, templateId, item.templateParams);
             enviados.push(item.email);
           } catch (err) {
             erros.push(`${item.email} (${err?.text || err?.message || 'erro'})`);
