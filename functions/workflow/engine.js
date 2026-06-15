@@ -548,6 +548,9 @@ function makeEngine(db) {
         // Responsável individual tem prioridade — notifica só ele
         const u = await _buscarUsuarioPorUid(destino.responsavel_uid).catch(() => null);
         if (u?.email) emailsDestinatarios.add(u.email);
+      } else if (destino.papel_alvo && String(destino.papel_alvo).includes('@')) {
+        // Pessoa específica identificada por e-mail (ex: grupo_membro sem uid) — só ela
+        emailsDestinatarios.add(destino.papel_alvo);
       } else if (destino.grupo_id) {
         // Sem responsável fixo: notifica todos os membros do grupo
         const grupoSnap = await col.grupos.doc(destino.grupo_id).get().catch(() => null);
@@ -1408,6 +1411,10 @@ function makeEngine(db) {
     if (destino.responsavel_uid) {
       const u = await _buscarUsuarioPorUid(destino.responsavel_uid).catch(() => null);
       return { tipo: 'usuario', destinatarios: u ? [{ nome: u.nome || u.email, email: u.email }] : [] };
+    }
+    if (destino.papel_alvo && String(destino.papel_alvo).includes('@')) {
+      // Pessoa específica identificada por e-mail (ex: grupo_membro sem uid) — só ela
+      return { tipo: 'usuario', destinatarios: [{ nome: destino.papel_alvo, email: destino.papel_alvo }] };
     }
     if (destino.grupo_id) {
       const grupoSnap = await col.grupos.doc(destino.grupo_id).get().catch(() => null);
