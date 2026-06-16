@@ -159,7 +159,7 @@ await planoRepository.set('id', dados);
 const snap = await getDocs(collection(db, 'processos'));
 ```
 
-Os repositórios disponíveis são: `processosRepository`, `solicitacoesRepository`, `kpisRepository`, `publicacoesRepository`, `planoRepository`, `avisosRepository`, `relatoriosIndicadoresRepository`, `projetosRepository`, `programasRepository`, `configRepository`.
+Os repositórios disponíveis são: `processosRepository`, `solicitacoesRepository`, `kpisRepository`, `publicacoesRepository`, `planoRepository`, `relatoriosIndicadoresRepository`, `projetosRepository`, `programasRepository`, `configRepository`.
 
 ### 3.5 Coleções Firestore
 
@@ -299,7 +299,6 @@ Módulos com poucas dependências externas. Começar aqui.
 | Módulo | Tamanho estimado | Testes E2E |
 |--------|-----------------|------------|
 | Notificações / e-mail | ~600 linhas | Criar antes de extrair |
-| Avisos | ~400 linhas | Criar antes de extrair |
 | Auditoria de processos | ~1.500 linhas | Já existem |
 | Backup e restauração | ~300 linhas | Criar antes de extrair |
 

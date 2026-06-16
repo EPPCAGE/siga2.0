@@ -9,7 +9,6 @@ const DEFAULT_COLLECTIONS = [
   'plano',
   'plano_metas',
   'solicitacoes',
-  'avisos',
   'relatorios_ind',
   'fluxos',
   'projPROJETOS',

@@ -32,7 +32,6 @@ Usuários com perfil `ep` têm acesso total a ambos os módulos. Usuários podem
 | Metodologias | Todos | Publicações e documentos do EP |
 | Notificações | Todos | Histórico de notificações e config EmailJS |
 | Administração | EP | Cadastro de usuários, perfis e vínculos |
-| Avisos | EP | Gerenciamento de avisos institucionais |
 
 ---
 

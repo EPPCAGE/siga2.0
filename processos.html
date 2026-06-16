@@ -150,9 +150,6 @@ body.drawer-open{overflow:hidden;touch-action:none}
 .module-hub-foot{margin-top:1.5rem;border-top:1px solid rgba(255,255,255,.08);padding-top:1.2rem;display:flex;align-items:center;justify-content:space-between}
 .hub-section{margin-top:2rem;border-top:1px solid rgba(255,255,255,.1);padding-top:2rem}
 .hub-section-ttl{font-family:var(--fh);font-size:15px;font-weight:600;color:#fff;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.hub-aviso-card{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-left:3px solid var(--teal);border-radius:10px;padding:1rem 1.2rem;margin-bottom:.6rem}
-.hub-aviso-ttl{font-size:14px;font-weight:700;color:#fff;margin-bottom:6px;letter-spacing:.01em}
-.hub-aviso-body{font-size:13px;color:rgba(255,255,255,.75);line-height:1.6}
 .hub-tbl-wrap{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;overflow:hidden;overflow-x:auto}
 .hub-tbl{width:100%;border-collapse:collapse;font-size:12px}
 .hub-tbl th{text-align:left;padding:6px 9px;background:#292934;border-bottom:1px solid rgba(255,255,255,.08);font-weight:600;color:#d2d2d5;font-size:11px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
@@ -742,12 +739,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     width:100%!important;
     max-width:none!important
   }
-  #aviso-modal label[style*="display:flex"],
   #usr-modal label[style*="display:flex"]{
     align-items:flex-start!important;
     line-height:1.45
   }
-  #page-admin>div,#page-avisos>div{padding:1rem!important}
+  #page-admin>div{padding:1rem!important}
   .upl{padding:1.25rem 1rem;border-radius:16px}
   .toast{left:12px;right:12px;bottom:12px;font-size:14px;padding:12px 14px;border-radius:14px}
   #inactivity-warning{left:12px;right:12px;bottom:12px;max-width:none}
@@ -756,7 +752,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   #trocar-senha-modal,
   #alterar-senha-modal,
   #usr-modal,
-  #aviso-modal,
   #usr-list-modal,
   #novo-kpi-modal,
   #plano-modal,
@@ -783,7 +778,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   #trocar-senha-modal>div,
   #alterar-senha-modal>div,
   #usr-modal>div,
-  #aviso-modal>div,
   #usr-list-modal>div,
   #novo-kpi-modal>div,
   #plano-modal>div,
@@ -1027,23 +1021,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
     </div>
 
-    <!-- Avisos — visible to all users, no heading -->
-    <div class="hub-section" id="hub-avisos-section">
-      <div id="hub-avisos-cards">
-        <div style="text-align:center;color:rgba(255,255,255,.35);font-size:13px;padding:1rem 0">Nenhum aviso ativo.</div>
-      </div>
-      <!-- EPP: manage avisos inline -->
-      <div id="hub-avisos-manage" style="display:none;margin-top:1.4rem">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
-          <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.08em">Gerenciar avisos</span>
-          <button type="button" class="btn btn-p" style="font-size:12px" id="hub-aviso-new-btn" onclick="abrirModalAviso(null)">+ Novo aviso</button>
-        </div>
-        <div class="hub-tbl-wrap">
-          <table class="hub-tbl"><thead><tr><th>Título</th><th>Mensagem</th><th>Destinatários</th><th>Status</th><th>Ações</th></tr></thead>
-          <tbody id="avisos-tbody"></tbody></table>
-        </div>
-      </div>
-    </div>
 
     <!-- Administração de Usuários — EPP only, collapsed into modal button -->
     <div class="hub-section" id="hub-admin-section" style="display:none">
@@ -1233,37 +1210,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="btn" id="usr-block-btn" onclick="alternarBloqueioUsrModal()" style="display:none"></button>
       <button type="button" class="btn" onclick="document.getElementById('usr-modal').style.display='none'">Cancelar</button>
       <button type="button" class="btn btn-p" onclick="salvarUsr()">Salvar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL AVISO — global, used from hub -->
-<div id="aviso-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:5000;align-items:center;justify-content:center;padding:1rem">
-  <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
-    <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem" id="aviso-modal-t">Novo aviso</div>
-    <input type="hidden" id="aviso-id">
-    <div class="fg"><label class="fl" for="aviso-titulo">Título<span>*</span></label><input class="fi" id="aviso-titulo" placeholder="Ex: Manutenção programada em 15/04"></div>
-    <div class="fg"><label class="fl" for="aviso-corpo">Mensagem<span>*</span></label><textarea class="fi" id="aviso-corpo" rows="4" placeholder="Texto do aviso..."></textarea></div>
-    <div class="fg">
-      <label class="fl" for="aviso-perfil-todos">Destinatários<span>*</span></label>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-          <input type="checkbox" id="aviso-perfil-todos" onchange="onAvisoPerfisChg()" checked> Todos os perfis
-        </label>
-        <div id="aviso-perfis-ind" style="display:flex;flex-direction:column;gap:6px;padding-left:1.2rem;opacity:.4;pointer-events:none">
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-ep"> EPP</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="aviso-perfil-dono"> Processos</label>
-        </div>
-      </div>
-    </div>
-    <div class="fg" style="display:flex;align-items:center;gap:8px">
-      <input type="checkbox" id="aviso-ativo" checked>
-      <label class="fl" style="margin:0;cursor:pointer" for="aviso-ativo">Aviso ativo (visível para os usuários)</label>
-    </div>
-    <div class="btn-row">
-      <button type="button" class="btn btn-r" id="aviso-del-btn" style="margin-right:auto;display:none" onclick="excluirAvisoModal()">Excluir</button>
-      <button type="button" class="btn" onclick="document.getElementById('aviso-modal').style.display='none'">Cancelar</button>
-      <button type="button" class="btn btn-p" onclick="salvarAviso()">Salvar</button>
     </div>
   </div>
 </div>
@@ -2060,7 +2006,6 @@ Não responda este e-mail.</pre>
 </div></div>
 
 <div id="page-admin" class="page"></div>
-<div id="page-avisos" class="page"></div>
 
 <!-- ===== WORKFLOW ===== -->
 <div id="page-workflow" class="page"><div style="padding:2rem;max-width:1400px;width:100%;margin:0 auto">
@@ -2848,7 +2793,6 @@ let _metaIdC = 1;
 
 let notifs = [];
 let ejsConfig = {service:'',template:'',pubkey:''};
-let AVISOS = [];
 let curProc = null;
 let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
@@ -2872,7 +2816,6 @@ const APP = {
   get ARQUITETURA()   { return ARQUITETURA; },   set ARQUITETURA(v)   { ARQUITETURA = v; },
   get USUARIOS()      { return globalThis.USUARIOS; },      set USUARIOS(v)      { globalThis.USUARIOS = v; },
   get publicacoes()   { return publicacoes; },   set publicacoes(v)   { publicacoes = v; },
-  get AVISOS()        { return AVISOS; },        set AVISOS(v)        { AVISOS = v; },
   get ejsConfig()     { return ejsConfig; },     set ejsConfig(v)     { ejsConfig = v; },
   get filtFaseAtual() { return filtFaseAtual; }, set filtFaseAtual(v) { filtFaseAtual = v; },
 };
@@ -3047,7 +2990,7 @@ function go(page,btn){
   _getPageRenderer(page)();
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
-  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',dashboard:'Painel geral',processos:'Processos',arq:'Arquitetura',solicitacoes:'Solicitações',faq:'Base de FAQs',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',avisos:'Avisos',detalhe:'Processo',painelgestor:'Painel do Gestor',workflow:'Workflow'};
+  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',dashboard:'Painel geral',processos:'Processos',arq:'Arquitetura',solicitacoes:'Solicitações',faq:'Base de FAQs',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor',workflow:'Workflow'};
   const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||'SIGA 2.0';
 }
 function _invokeGlobalHandler(handlerName){
@@ -3070,7 +3013,6 @@ function _getPageRenderer(page){
     publicacoes:()=>{rPub();},
     admin:renderAdmin,
     plano:rPlano,
-    avisos:rAvisos,
     painelgestor:rPainelGestor,
     workflow:globalThis.rWorkflow,
   })[page];
@@ -16690,7 +16632,6 @@ function exportarBackupJSON(){
     plano,
     plano_metas: PAT_METAS,
     publicacoes,
-    avisos: AVISOS,
     arquitetura: ARQUITETURA,
     usuarios: USUARIOS,
     mapeados_manual: [...mapeadosManual],
@@ -18836,14 +18777,6 @@ async function fbLoad(){
       }
     }
 
-    // avisos
-    const avSnap = await avisosRepository.list();
-    if(!avSnap.empty){
-      AVISOS = [];
-      avSnap.docs.forEach(d => AVISOS.push(d.data));
-    }
-
-
     // metas do escritório
     const metasSnap = await planoMetasRepository.list();
     if(!metasSnap.empty){
@@ -19010,98 +18943,6 @@ async function _fbLoadManualSet(key, applyLoaded, applyFallback){
   applyFallback();
 }
 
-// ─── QUADRO DE AVISOS ────────────────────────────────────────
-
-function rAvisos(){
-  renderHubAvisosCards();
-  const tbody = document.getElementById('avisos-tbody');
-  if(!tbody) return;
-  if(!AVISOS.length){
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:rgba(255,255,255,.35)">Nenhum aviso criado</td></tr>';
-    return;
-  }
-  tbody.innerHTML = AVISOS.map(a=>`
-    <tr>
-      <td style="font-weight:500">${esc(a.titulo)}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,.55)">${esc(a.corpo)}</td>
-      <td style="font-size:12px">${(a.perfis||[]).map(p=>p==='todos'?'<span style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);padding:2px 7px;border-radius:99px;font-size:11px">Todos</span>':('<span style="background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);padding:2px 7px;border-radius:99px;font-size:11px">'+(PERFIL_LABELS[p]||p)+'</span>')).join(' ')}</td>
-      <td><span style="padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;background:${a.ativo?'rgba(26,110,60,.35)':'rgba(255,255,255,.07)'};color:${a.ativo?'#6ee7b7':'rgba(255,255,255,.4)'}">${a.ativo?'Ativo':'Inativo'}</span></td>
-      <td style="display:flex;gap:6px">
-        <button type="button" class="btn" style="font-size:11px" onclick="abrirModalAviso('${a.id}')">Editar</button>
-      </td>
-    </tr>`).join('');
-}
-
-function abrirModalAviso(id){
-  const modal = document.getElementById('aviso-modal');
-  const aviso = id ? AVISOS.find(a=>a.id===id) : null;
-  document.getElementById('aviso-modal-t').textContent = aviso ? 'Editar aviso' : 'Novo aviso';
-  document.getElementById('aviso-id').value = id||'';
-  document.getElementById('aviso-titulo').value = aviso?.titulo||'';
-  document.getElementById('aviso-corpo').value = aviso?.corpo||'';
-  document.getElementById('aviso-ativo').checked = aviso ? aviso.ativo : true;
-  const perfis = aviso?.perfis || ['todos'];
-  const todosChk = document.getElementById('aviso-perfil-todos');
-  todosChk.checked = perfis.includes('todos');
-  ['ep','dono'].forEach(p=>{
-    const cb = document.getElementById('aviso-perfil-'+p);
-    if(cb) cb.checked = perfis.includes(p);
-  });
-  onAvisoPerfisChg();
-  const delBtn = document.getElementById('aviso-del-btn');
-  if(delBtn) delBtn.style.display = aviso ? '' : 'none';
-  modal.style.display = 'flex';
-}
-
-function onAvisoPerfisChg(){
-  const todos = document.getElementById('aviso-perfil-todos');
-  const ind = document.getElementById('aviso-perfis-ind');
-  if(!todos || !ind) return;
-  ind.style.opacity = todos.checked ? '.4' : '1';
-  ind.style.pointerEvents = todos.checked ? 'none' : '';
-}
-
-async function salvarAviso(){
-  const id = document.getElementById('aviso-id').value || ('av_'+Date.now());
-  const titulo = document.getElementById('aviso-titulo').value.trim();
-  const corpo = document.getElementById('aviso-corpo').value.trim();
-  const ativo = document.getElementById('aviso-ativo').checked;
-  if(!titulo){ toast('Informe o título do aviso.','var(--amber)'); return; }
-  if(!corpo)  { toast('Informe a mensagem do aviso.','var(--amber)'); return; }
-  const todosChk = document.getElementById('aviso-perfil-todos').checked;
-  let perfis;
-  if(todosChk){
-    perfis = ['todos'];
-  } else {
-    perfis = ['ep','dono'].filter(p=>document.getElementById('aviso-perfil-'+p)?.checked);
-    if(!perfis.length){ toast('Selecione ao menos um perfil destinatário.','var(--amber)'); return; }
-  }
-  const aviso = { id, titulo, corpo, perfis, ativo, autor: usuarioLogado.nome, data: now() };
-  const idx = AVISOS.findIndex(a=>a.id===id);
-  if(idx>=0) AVISOS[idx]=aviso; else AVISOS.push(aviso);
-  if(fbReady()){
-    try{ await avisosRepository.set(id, aviso); }
-    catch(e){ console.warn('salvarAviso error:',e.message); }
-  }
-  document.getElementById('aviso-modal').style.display='none';
-  rAvisos();
-  toast('✓ Aviso salvo','var(--teal)');
-}
-
-async function excluirAvisoModal(){
-  const id = document.getElementById('aviso-id').value;
-  if(!id) return;
-  confirmar('Excluir este aviso permanentemente?', async () => {
-    AVISOS = AVISOS.filter(a=>a.id!==id);
-    if(fbReady()){
-      try{ await avisosRepository.remove(id); }
-      catch(e){ console.warn('excluirAviso error:',e.message); }
-    }
-    document.getElementById('aviso-modal').style.display='none';
-    rAvisos();
-    toast('Aviso excluído','var(--ink3)');
-  });
-}
 
 
 // ── AUTO-SAVE HOOKS ───────────────────────

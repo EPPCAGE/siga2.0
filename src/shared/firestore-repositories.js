@@ -144,7 +144,6 @@
   globalScope.planoRepository = collectionRepository('plano');
   globalScope.planoMetasRepository = collectionRepository('plano_metas');
   globalScope.solicitacoesRepository = collectionRepository('solicitacoes');
-  globalScope.avisosRepository = collectionRepository('avisos');
   globalScope.relatoriosIndicadoresRepository = collectionRepository('relatorios_ind');
   globalScope.fluxosRepository = collectionRepository('fluxos');
   globalScope.sessoesRepository = collectionRepository('sessions');

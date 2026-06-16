@@ -46,7 +46,6 @@ Todo acesso novo ao Firestore deve passar por repositorios, por exemplo:
 - `kpisRepository`
 - `publicacoesRepository`
 - `planoRepository`
-- `avisosRepository`
 - `relatoriosIndicadoresRepository`
 - `projetosRepository`
 - `programasRepository`
