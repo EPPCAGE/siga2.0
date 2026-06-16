@@ -874,9 +874,7 @@
   }
 
   async function _wfFormularioIdExecucaoTarefa(tarefa) {
-    if (tarefa.formulario_id) return tarefa.formulario_id;
-    const configProc = await _getDoc('wf_config_processo', tarefa.processo_id);
-    return configProc?.etapas?.[tarefa.etapa_modelo_id]?.formulario_id || null;
+    return tarefa.formulario_id || null;
   }
 
   async function _wfCarregarFormularioExecucaoTarefa(tarefa, formContainer) {
@@ -1627,19 +1625,9 @@
       return;
     }
 
-    // Carrega config do processo para SLA por etapa
-    let configEtapas = {};
-    try {
-      const configProc = await _getDoc('wf_config_processo', processoId);
-      configEtapas = configProc?.etapas ?? {};
-    } catch (error_) {
-      _wfReportarErroNaoCritico(`configuracao de processo ${processoId}`, error_);
-    }
-
     // Monta snapshot das etapas com os dados do mapeamento
     const snapshotEtapas = etapasExec.map((e, i) => {
       const etapaId = `${processoId}_${e.id || i}`;
-      const etapaConf = configEtapas[etapaId] ?? {};
       return {
         id: etapaId,
         nome: e.nome || `Etapa ${i + 1}`,
@@ -1648,7 +1636,7 @@
         executor: e.executor || null,
         modo: e.modo || 'Manual',
         natureza: e.natureza || null,
-        sla_horas: etapaConf.sla_horas ?? 0,
+        sla_horas: 0,
       };
     });
 
