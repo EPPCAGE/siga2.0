@@ -2527,7 +2527,7 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
       <label class="lbl" style="font-size:11px">Nome</label>
       <input type="text" class="fi" style="margin-top:2px;margin-bottom:10px" value="${nome}" oninput="wfDesignerAtualizarRotulo('${_esc(id)}',this.value)">
       <label class="lbl" style="font-size:11px">Tipo de disparo</label>
-      <select class="fi" style="margin-top:2px;margin-bottom:10px" onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_disparo',this.value);_wfRenderPainelInicio(document.getElementById('wf-designer-config'),'${_esc(id)}','${_esc(nome)}')">
+      <select class="fi" style="margin-top:2px;margin-bottom:10px" onchange="wfDesignerCampoCfg('${_esc(id)}','tipo_disparo',this.value)">
         <option value="manual" ${tipoDisparo === 'manual' ? 'selected' : ''}>Manual — usuário inicia pelo sistema</option>
         <option value="agendado" ${tipoDisparo === 'agendado' ? 'selected' : ''}>Agendado — inicia em data/hora definida</option>
         <option value="recorrente" ${tipoDisparo === 'recorrente' ? 'selected' : ''}>Recorrente — dispara automaticamente por padrão de data</option>
@@ -2994,6 +2994,11 @@ ${diShapes}${diEdges}  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
     _wfConfigNos[noId][campo] = valor;
     if (campo === '_nome') {
       wfDesignerAtualizarRotulo(noId, valor);
+    }
+    if (campo === 'tipo_disparo') {
+      const painel = document.getElementById('wf-designer-config');
+      const noEl = _wfModeloAtual?.canvas?.nos?.find(n => n.id === noId);
+      if (painel && noEl) _wfRenderPainelInicio(painel, noId, noEl.nome || noId);
     }
     _wfMarcarDesignerSujo();
     _wfSalvarConfigNosImediato();
