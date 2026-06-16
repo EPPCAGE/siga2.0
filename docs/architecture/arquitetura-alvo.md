@@ -318,7 +318,6 @@ Módulos simples, sem regra de negócio complexa. Migração de Firestore → SQ
 
 | Módulo | Linhas est. | Arquivo alvo | Tabela SQL alvo |
 |---|---|---|---|
-| Avisos | ~400 | `src/processos/avisos/` | `avisos` |
 | Backup/Restore JSON | ~300 | `src/processos/backup/` | (export de SQL) |
 | Publicações/Metodologias | ~700 | `src/processos/publicacoes/` | `publicacoes` |
 
@@ -646,7 +645,6 @@ Firestore                   Cloud SQL
 | 5ª | `kpis`, `relatorios_ind` | `kpis` | Relatórios analíticos |
 | 6ª | `plano`, `plano_metas` | `plano`, `plano_metas` | PAT |
 | 7ª | `publicacoes` | `publicacoes` | Dependência de arquitetura |
-| 8ª | `avisos` | `avisos` | Independente |
 | 9ª | `projPROJETOS` | `projetos` | Módulo separado |
 | 10ª | `projPROGRAMAS` | `programas` | Módulo separado |
 | Manter | `sessions/{uid}` | — | Real-time; permanece no Firestore |

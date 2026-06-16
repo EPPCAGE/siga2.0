@@ -78,7 +78,6 @@ graph LR
     C4[("plano\nplano_metas")]
     C5[("publicacoes")]
     C6[("kpis")]
-    C7[("avisos")]
     C8[("relatorios_ind")]
     C9[("fluxos")]
     C10[("sessions")]
@@ -113,7 +112,6 @@ graph TD
     RS["solicitacoesRepository"]
     RPL["planoRepository / planoMetasRepository"]
     RPB["publicacoesRepository"]
-    RA["avisosRepository"]
     RRI["relatoriosIndicadoresRepository"]
     RF["fluxosRepository"]
     RSE["sessoesRepository"]
@@ -129,7 +127,6 @@ graph TD
     plano[("plano")]
     plano_metas[("plano_metas")]
     publicacoes[("publicacoes")]
-    avisos[("avisos")]
     relatorios_ind[("relatorios_ind")]
     fluxos[("fluxos")]
     sessions[("sessions")]
@@ -143,7 +140,6 @@ graph TD
   UI --> RS --> solicitacoes
   UI --> RPL --> plano & plano_metas
   UI --> RPB --> publicacoes
-  UI --> RA --> avisos
   UI --> RRI --> relatorios_ind
   UI --> RF --> fluxos
   UI --> RSE --> sessions

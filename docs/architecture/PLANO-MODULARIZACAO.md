@@ -58,7 +58,6 @@
 | 3 | 🧭 Navegação/Hub | ~70 | ⚪ Baixo | 🔥🔥🔥 Crítica | ❌ Criar | Auth |
 | **FASE 1: Fundação (baixo risco, alto isolamento)** |
 | 5 | 📢 Notificações/Email | ~600 | ⚪ Baixo | 🔥 Alta | ❌ Criar | EmailJS |
-| 6 | 🔔 Avisos | ~400 | ⚪ Baixo | 🔥 Alta | ❌ Criar | - |
 | 7 | 📊 Auditoria | ~1.500 | ⚪ Baixo | 🔥 Alta | ✅ Existe | BPMN |
 | 8 | 💾 Backup/Restore | ~300 | ⚪ Baixo | 🟡 Média | ❌ Criar | - |
 | **FASE 2: Gestão de dados (médio risco)** |
@@ -109,7 +108,6 @@ Extrair módulos isolados e de baixo risco
 - 📢 Módulo Notificações (600 linhas)
 
 **Semana 3:**
-- 🔔 Módulo Avisos (400 linhas)
 - 📊 Módulo Auditoria (1.500 linhas)
 
 **Semana 4:**
@@ -199,8 +197,6 @@ src/
 │   │   ├── notificacoes-renderer.js
 │   │   ├── notificacoes-controller.js
 │   │   └── email-service.js
-│   ├── avisos/
-│   │   └── ...
 │   ├── auditoria/
 │   │   └── ...
 │   ├── kpis/
