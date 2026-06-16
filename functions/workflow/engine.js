@@ -608,6 +608,13 @@ function makeEngine(db) {
           (g.membros_email || []).forEach(e => { if (e) emailsDestinatarios.add(e); });
           if (g.chefe_email) emailsDestinatarios.add(g.chefe_email);
         }
+      } else if (['ep', 'gestor', 'dono'].includes(String(destino.papel_alvo))) {
+        // Fila genérica por perfil (sem responsável individual atribuído) —
+        // notifica todos os usuários com esse perfil, já que qualquer um pode assumir.
+        const usuarios = await _carregarUsuariosConfig();
+        usuarios
+          .filter((u) => String(u?.perfil || '') === destino.papel_alvo && u?.email)
+          .forEach((u) => emailsDestinatarios.add(u.email));
       } else if (destino.papel_alvo) {
         // Papel específico (ex: gestor_solicitante) — resolve uid único
         const uid = await _resolverUidNotificacaoCanvas(destino.papel_alvo, instancia).catch(() => null);
