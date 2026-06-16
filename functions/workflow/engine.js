@@ -1624,16 +1624,24 @@ function makeEngine(db) {
     if (!instanciaSnap.exists) throw Object.assign(new Error('Instância não encontrada'), { code: 'NAO_ENCONTRADO', status: 404 });
     const instancia = { id: instanciaSnap.id, ...instanciaSnap.data() };
 
-    if (!_modeloUsaCanvas(instancia)) return { destinatarios: [], tipo: null };
+    // Usa o canvas do modelo publicado atual, não o snapshot da instância,
+    // pois o snapshot pode estar desatualizado ou ausente (mesma lógica de _avancarFluxoCanvas).
+    const modelo = await col.modelos.doc(instancia.processo_modelo_id).get();
+    const modeloData = modelo.exists ? { id: modelo.id, ...modelo.data() } : null;
+    if (!_modeloUsaCanvas(modeloData || instancia)) return { destinatarios: [], tipo: null };
+    const canvas = (modeloData && _modeloUsaCanvas(modeloData))
+      ? modeloData.canvas
+      : (instancia.canvas || { nos: [], arestas: [] });
+    const configNos = (modeloData?.config_nos) || instancia.config_nos || {};
 
     const acaoFinal = _normalizarAcao(acao ?? tarefa.acoes_disponiveis?.[0] ?? 'avancar');
     const proxNo = _proximoNoExecutavelCanvas(
-      instancia.canvas, tarefa.etapa_modelo_id, acaoFinal,
-      instancia.dados_consolidados || {}, instancia.config_nos || {},
+      canvas, tarefa.etapa_modelo_id, acaoFinal,
+      instancia.dados_consolidados || {}, configNos,
     );
     if (!proxNo || proxNo.tipo === 'fim') return { destinatarios: [], tipo: null };
 
-    const cfg = _configNo({ config_nos: instancia.config_nos || {} }, proxNo.id);
+    const cfg = _configNo({ config_nos: configNos }, proxNo.id);
     const papelAlvo = cfg.papeis?.executor || 'solicitante';
     const destino = await _resolverDestinoTarefaCanvas(papelAlvo, instancia);
 
