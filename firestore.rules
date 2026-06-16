@@ -87,8 +87,8 @@ service cloud.firestore {
       allow write: if isAuth() && isEP();
     }
     // FASE 3 — reservado para editor visual de fluxos (canvas BPMN)
-    // wf_etapa_modelos e wf_transicao_fluxos substituirão wf_config_processo
-    // na modelagem de processos. Mantidas aqui para não bloquear a transição.
+    // wf_etapa_modelos e wf_transicao_fluxos substituirão a modelagem de
+    // processos legada. Mantidas aqui para não bloquear a transição.
     match /wf_etapa_modelos/{id} {
       allow read: if isAuth();
       allow write: if isAuth() && isEP();
@@ -166,12 +166,6 @@ service cloud.firestore {
       allow create: if isAuth();
       allow update: if isAuth() && resource.data.destinatario_uid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lida']);
-    }
-
-    // Config por processo (formulários/SLA): somente EP escreve; autenticados leem.
-    match /wf_config_processo/{id} {
-      allow read: if isAuth();
-      allow write: if isAuth() && isEP();
     }
 
     // Fila de e-mails de workflow (envio diferido): a Cloud Function enfileira;
