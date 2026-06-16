@@ -4323,9 +4323,10 @@ function projConclusaoImagemDisplaySrc(imgOrUrl){
     if(!/\.sharepoint\.com$/i.test(url.hostname)) return raw;
 
     const sharedPath = /^\/:[a-z]:\/r(\/.+)$/i.exec(url.pathname);
-    const directUrl = sharedPath ? new URL(url.origin + sharedPath[1]) : url;
-    if(!directUrl.searchParams.has('download')) directUrl.searchParams.set('download', '1');
-    return directUrl.href;
+    const serverRelativePath = sharedPath ? sharedPath[1] : url.pathname;
+    const downloadUrl = new URL('/_layouts/15/download.aspx', url.origin);
+    downloadUrl.searchParams.set('SourceUrl', decodeURIComponent(serverRelativePath));
+    return downloadUrl.href;
   } catch(e) {
     if(!(e instanceof TypeError)) throw e;
     return raw;
@@ -4375,7 +4376,7 @@ function projConclusaoUrlsToImagens(text){
 function projConclusaoImagemPreviewItemHtml(url, index){
   const src = projConclusaoImagemDisplaySrc(url);
   const alt = projConclusaoImagemNome(url, index);
-  return `<div><img src="${projEsc(src)}" alt="${projEsc(alt)}" loading="lazy" decoding="async"><button type="button" class="proj-btn danger" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%" onclick="projRemoveConclusaoImagem(${index})">Remover</button></div>`;
+  return `<div><img src="${projEsc(src)}" data-proj-image-href="${projEsc(url)}" data-proj-image-alt="${projEsc(alt)}" alt="${projEsc(alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"><button type="button" class="proj-btn danger" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%" onclick="projRemoveConclusaoImagem(${index})">Remover</button></div>`;
 }
 
 function projMemorialImagemLinkHtml(img, active, carousel){
@@ -4383,10 +4384,49 @@ function projMemorialImagemLinkHtml(img, active, carousel){
   const href = projConclusaoImagemHref(img);
   const alt = img?.nome || 'Imagem do memorial';
   const classAttr = carousel ? ` class="${active ? 'proj-v12-carousel-slide on' : 'proj-v12-carousel-slide'}"` : '';
-  return `<a href="${projEsc(href)}" target="_blank" rel="noopener"${classAttr}><img src="${projEsc(src)}" alt="${projEsc(alt)}" loading="lazy" decoding="async"></a>`;
+  return `<a href="${projEsc(href)}" target="_blank" rel="noopener"${classAttr}><img src="${projEsc(src)}" data-proj-image-href="${projEsc(href)}" data-proj-image-alt="${projEsc(alt)}" alt="${projEsc(alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a>`;
 }
 
 // ── AVANÇAR FASE ──────────────────────────────────────────────────
+function projImagemMemorialProxySrc(src){
+  const value = String(src || '').trim();
+  if(!value || value.startsWith('data:') || value.startsWith('blob:')) return '';
+  return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(value);
+}
+
+function projImagemMemorialFallbackNode(href, alt){
+  const box = document.createElement('div');
+  box.className = 'proj-image-load-fallback';
+  const title = document.createElement('strong');
+  title.textContent = alt || 'Imagem do memorial';
+  const text = document.createElement('span');
+  text.textContent = 'A imagem nao pode ser carregada embutida pelo provedor.';
+  const link = document.createElement('a');
+  link.href = href || '#';
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.textContent = 'Abrir imagem';
+  box.append(title, text, link);
+  return box;
+}
+
+function projHandleMemorialImageError(event){
+  const img = event.target;
+  if(!(img instanceof HTMLImageElement) || !img.dataset.projImageHref) return;
+  if(!img.dataset.projProxyTried) {
+    const proxySrc = projImagemMemorialProxySrc(img.currentSrc || img.src);
+    if(proxySrc) {
+      img.dataset.projProxyTried = '1';
+      img.src = proxySrc;
+      return;
+    }
+  }
+  if(img.dataset.projFallbackDone) return;
+  img.dataset.projFallbackDone = '1';
+  img.replaceWith(projImagemMemorialFallbackNode(img.dataset.projImageHref, img.dataset.projImageAlt || img.alt));
+}
+
+document.addEventListener('error', projHandleMemorialImageError, true);
 function projAvancarFase(id) {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === String(id));
