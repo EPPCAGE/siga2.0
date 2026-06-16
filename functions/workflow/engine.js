@@ -514,9 +514,12 @@ function makeEngine(db) {
   function _acaoPermitidaNoCanvas(instancia, tarefa, acao, dados = {}) {
     const acaoNorm = _normalizarAcao(acao);
 
-    // 'devolver' é permitido nativamente em qualquer etapa que não seja a primeira
     if (acaoNorm === 'devolver') {
       if (_primeiraEtapaCanvas(instancia.canvas, tarefa.etapa_modelo_id)) return false;
+      // Respeita a escolha feita na modelagem: se a etapa define explicitamente
+      // suas ações e "devolver" não está entre elas, a ação não é permitida.
+      const acoesConfiguradas = Array.isArray(tarefa.acoes_disponiveis) ? tarefa.acoes_disponiveis.map(_normalizarAcao) : null;
+      if (acoesConfiguradas?.length && !acoesConfiguradas.includes('devolver')) return false;
       const arestas = (instancia.canvas?.arestas || []).filter((aresta) => aresta.origem === tarefa.etapa_modelo_id);
       const regrasAresta = arestas.filter((aresta) => aresta.acao === 'devolver' || aresta.acao === 'rejeitar');
       if (!regrasAresta.length) return true;

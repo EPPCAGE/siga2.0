@@ -1076,8 +1076,10 @@
     }
     if (!instancia?.canvas) return base;
 
-    // Injeta 'devolver' nativamente em qualquer etapa que não seja a primeira
-    if (!base.includes('devolver') && !base.includes('rejeitar') && !base.includes('solicitar_ajuste')) {
+    // Compatibilidade com tarefas antigas sem acoes_disponiveis configurado:
+    // mantém 'devolver' nativamente disponível. Quando a etapa já define suas
+    // ações explicitamente na modelagem, respeita a escolha feita ali.
+    if (!acoesDisponiveis?.length && !base.includes('devolver') && !base.includes('rejeitar') && !base.includes('solicitar_ajuste')) {
       if (!_wfPrimeiraEtapa(instancia.canvas, tarefa.etapa_modelo_id)) {
         base = [...base, 'devolver'];
       }
