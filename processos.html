@@ -14269,9 +14269,17 @@ function filtPub(cat, el){
   rPub();
 }
 
-function _pubGerarPopPdf(procId){
-  const proc = processos.find(p=>p.id===procId);
-  if(!proc){toast('Processo não encontrado.','var(--amber)');return;}
+function _pubGerarPopPdfFromPub(pubId){
+  const pub = publicacoes.find(p=>p.id===pubId);
+  if(!pub){toast('Publicação não encontrada.','var(--amber)');return;}
+  let proc = null;
+  if((pub.proc_ids||[]).length){
+    proc = processos.find(p=>(pub.proc_ids).includes(p.id));
+  }
+  if(!proc&&(pub.arq_ids||[]).length){
+    proc = processos.find(p=>pub.arq_ids.includes(p.arq_id));
+  }
+  if(!proc){toast('Processo vinculado não encontrado.','var(--amber)');return;}
   curProc = proc;
   gerarPopPdfDireto();
 }
@@ -14317,7 +14325,7 @@ function rPub(){
           <div class="pub-card-meta">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div class="pub-card-actions">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
-            ${p.categoria==='POPs'&&(p.proc_ids||[]).length?`<button type="button" class="btn btn-a" style="font-size:10px;padding:2px 8px" onclick="_pubGerarPopPdf(${(p.proc_ids||[])[0]})">⬇ PDF do POP</button>`:''}
+            ${p.categoria==='POPs'&&((p.proc_ids||[]).length||(p.arq_ids||[]).length)?`<button type="button" class="btn btn-a" style="font-size:10px;padding:2px 8px" onclick="_pubGerarPopPdfFromPub(${p.id})">⬇ PDF do POP</button>`:''}
             ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${_lbl}</a>`:''}).join(''):''}
 
             ${isEP()?`<button type="button" class="btn pub-action-edit" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">Editar</button>
