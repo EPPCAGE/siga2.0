@@ -11040,12 +11040,16 @@ async function _bpmnGetSvg(which,p){
   });
 }
 
-// Converte SVG string salvo em PNG via canvas, sem precisar do BpmnJS
+// Converte SVG string salvo em PNG via canvas, sem precisar do BpmnJS.
+// Usa createObjectURL (same-origin) em vez de data URL base64 para evitar
+// canvas taint no Chrome, que bloqueia toDataURL em SVGs carregados via data:.
 function svgStringToPng(svg){
   if(!svg) return Promise.resolve(null);
   return new Promise(resolve=>{
     const img=new Image();
-    const dataUrl='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+    const blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const cleanup=(result)=>{URL.revokeObjectURL(url);resolve(result);};
     img.onload=()=>{
       try{
         const sc=2,c=document.createElement('canvas');
@@ -11053,11 +11057,11 @@ function svgStringToPng(svg){
         const ctx=c.getContext('2d');
         ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,c.width,c.height);
         ctx.scale(sc,sc); ctx.drawImage(img,0,0);
-        resolve(c.toDataURL('image/png'));
-      }catch{resolve(null);}
+        cleanup(c.toDataURL('image/png'));
+      }catch{cleanup(null);}
     };
-    img.onerror=()=>resolve(null);
-    img.src=dataUrl;
+    img.onerror=()=>cleanup(null);
+    img.src=url;
   });
 }
 
