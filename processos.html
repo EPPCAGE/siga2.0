@@ -10628,6 +10628,23 @@ async function _popPdfAnexo(p){
   return apendice+bpmnLandscape;
 }
 
+// Cache do logo CAGE em base64
+let _cageLogoB64 = null;
+async function _fetchCageLogoBase64() {
+  if (_cageLogoB64) return _cageLogoB64;
+  try {
+    const resp = await fetch('cage-logo-report.png');
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return new Promise(res => {
+      const reader = new FileReader();
+      reader.onload = () => { _cageLogoB64 = reader.result; res(reader.result); };
+      reader.onerror = () => res(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
+
 async function gerarPopPdf(){
   const el=document.getElementById('tab-form');
   if(!el)return;
