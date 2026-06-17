@@ -4625,7 +4625,7 @@ function sincronizarSIPOCArquitetura(proc){
   if(!proc.arq_id) return;
   const item = findArqItemById(proc.arq_id);
   if(!item) return;
-  if(proc.objetivo)          item.objetivo      = proc.objetivo;
+  if(proc.ent.objetivo_proc) item.objetivo      = proc.ent.objetivo_proc;
   if(proc.ent.entradas)      item.entradas      = proc.ent.entradas;
   if(proc.ent.saidas)        item.entregas      = proc.ent.saidas;
   if(proc.ent.clientes)      item.clientes      = proc.ent.clientes;
@@ -5445,9 +5445,9 @@ const ACOES = {
     const ai=findArqItemById(p.arq_id)||{};
     const fg=(e,a)=>e||a||'';
     const hint=(e,a)=>!e&&a?'<span style="font-size:10px;font-weight:600;color:var(--teal);margin-left:5px;vertical-align:middle">↙ arquitetura</span>':'';
-    const anyFromArq=(!p.objetivo&&!!ai.objetivo)||(!p.ent.fornecedores&&!!ai.fornecedores)||(!p.ent.clientes&&!!ai.clientes)||(!p.ent.entradas&&!!ai.entradas)||(!p.ent.saidas&&!!ai.entregas)||(!p.ent.atores&&!!ai.atores);
+    const anyFromArq=(!p.ent.objetivo_proc&&!!ai.objetivo)||(!p.ent.fornecedores&&!!ai.fornecedores)||(!p.ent.clientes&&!!ai.clientes)||(!p.ent.entradas&&!!ai.entradas)||(!p.ent.saidas&&!!ai.entregas)||(!p.ent.atores&&!!ai.atores);
     return `<div class="ib ibt">Registre as informações levantadas na reunião com o dono do processo e equipe.</div>
-    <div class="fg"><label class="fl">Objetivo do processo${hint(p.objetivo,ai.objetivo)}</label><textarea class="fi" id="r-obj" style="min-height:60px" placeholder="Descreva o objetivo central do processo...">${esc(fg(p.objetivo,ai.objetivo))}</textarea></div>
+    <div class="fg"><label class="fl">Objetivo do processo${hint(p.ent.objetivo_proc,ai.objetivo)}</label><textarea class="fi" id="r-obj" style="min-height:60px" placeholder="Descreva o objetivo central do processo...">${esc(fg(p.ent.objetivo_proc,ai.objetivo))}</textarea></div>
     <div class="card-t">SIPOC</div>
     ${anyFromArq?'<div class="ib ibp" style="font-size:11.5px;margin:.4rem 0">Campos marcados com <strong style="color:var(--teal)">↙ arquitetura</strong> foram pré-preenchidos com dados da arquitetura de processos. Confirme ou ajuste — ao salvar, as alterações são sincronizadas de volta.</div>':''}
     <div class="g2" style="margin-top:.5rem">
@@ -6279,7 +6279,7 @@ function _rsAbertura(p){
 }
 function _rsReuniao(p){
   const objVal=document.getElementById('r-obj')?.value;
-  if(objVal!=null) p.objetivo=objVal;
+  if(objVal!=null) p.ent.objetivo_proc=objVal;
   p.ent.fornecedores=document.getElementById('r-fornec')?.value||p.ent.fornecedores;
   p.ent.clientes=document.getElementById('r-clientes')?.value||p.ent.clientes;
   p.ent.entradas=document.getElementById('r-entradas')?.value||p.ent.entradas;
@@ -7013,7 +7013,7 @@ function salvarReuniao(avancar=true){
   ])) return;
   const p=curProc;
   const _objVal=document.getElementById('r-obj')?.value;
-  if(_objVal!=null) p.objetivo=_objVal;
+  if(_objVal!=null) p.ent.objetivo_proc=_objVal;
   p.ent.fornecedores=document.getElementById('r-fornec')?.value||'';
   p.ent.clientes=document.getElementById('r-clientes')?.value||'';
   p.ent.entradas=document.getElementById('r-entradas')?.value||'';
