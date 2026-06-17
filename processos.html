@@ -11239,22 +11239,24 @@ async function _popPdfAnexo(p){
   const hasTobeModeler=!!(bpmnModelers['tobe']&&bpmnProcIds['tobe']===p?.id);
   const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs||p.mod?.hasFluxoImg||p.mod?.fluxoImgBase64||hasAsIsModeler||p.id);
   const _comTobe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
-  const hasBpmnT=_comTobe&&!!(p.mod?.bpmnToBe||hasTobeModeler);
+  const hasBpmnT=_comTobe&&!!(p.mod?.bpmnToBe||p.mod?.bpmnToBeSvg||hasTobeModeler);
   if(hasFluxoA||hasBpmnT){
     const _svgToImg=(svg)=>svg.replace(/<svg /,'<svg style="max-width:100%;height:auto;display:block" ');
     const _wrapSvg=(svg)=>`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:8px">${_svgToImg(svg)}</div>`;
     const _wrapPng=(png)=>`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma do processo" style="max-width:100%;height:auto;display:block"></div>`;
+    // Converte SVG para PNG (mais confiável em contexto de impressão); usa SVG inline só como último recurso
+    const _svgToPngOrInline=async(svg)=>{const png=await svgStringToPng(svg);return png?_wrapPng(png):_wrapSvg(svg);};
     let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">12.0 Desenho do Processo</div>`;
     let hasDiagramContent=false;
     if(hasBpmnT){
       const svg=await _bpmnGetSvg('tobe',p);
-      if(svg){bpInner+=_wrapSvg(svg);hasDiagramContent=true;}
+      if(svg){bpInner+=await _svgToPngOrInline(svg);hasDiagramContent=true;}
       else{const png=await _getFluxogramaToBePng(p);if(png){bpInner+=_wrapPng(png);hasDiagramContent=true;}}
     }
     // Fallback para AS IS se TO BE não renderizou (XML inválido, sem diagrama visual, etc.)
     if(!hasDiagramContent&&hasFluxoA){
       const svg=await _bpmnGetSvg('asis',p);
-      if(svg){bpInner+=_wrapSvg(svg);hasDiagramContent=true;}
+      if(svg){bpInner+=await _svgToPngOrInline(svg);hasDiagramContent=true;}
       else{const png=await _getFluxogramaAsIsPng(p);if(png){bpInner+=_wrapPng(png);hasDiagramContent=true;}}
     }
     if(!hasDiagramContent){
