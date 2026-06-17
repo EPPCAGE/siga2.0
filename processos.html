@@ -11137,6 +11137,7 @@ function _popPdfIlpSection(p, secH){
 // ─── Gera HTML do apêndice de caracterização do processo para o PDF ──────────
 async function _popPdfAnexo(p){
   const e=p.ent||{};
+  const resp=e.quest_resp||{};
   const sections=[];
   const _esc=v=>esc(String(v||''));
   const secH=(n,t)=>`<div style="font-size:13px;font-weight:700;color:#1a1a2e;border-bottom:2px solid #1e6bfa;padding-bottom:5px;margin:1.5rem 0 .8rem;break-after:avoid">${n} ${t}</div>`;
