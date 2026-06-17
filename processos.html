@@ -10591,25 +10591,6 @@ async function _popPdfAnexo(p){
     </div>`);
   }
 
-  // ── 11.0 Oportunidades e Soluções Validadas ──────────────────────────────
-  const _analise=e.analise||{};
-  const _fb=_analise.feedback_dono||{};
-  const _hasFb=Object.keys(_fb).length>0;
-  const _conf=tipo=>Object.entries(_fb[tipo]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k);
-  const _oport=_hasFb?_conf('oportunidades'):(_analise.oportunidades||[]);
-  const _solucoes=_hasFb?_conf('solucoes_problemas'):(_analise.solucoes_problemas||[]);
-  if(_oport.length||_solucoes.length){
-    let osHtml=secH('11.0','Oportunidades e Soluções Validadas');
-    if(_oport.length){
-      osHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#065f46;margin:.6rem 0 .4rem">✦ Oportunidades (${_oport.length})</div>`;
-      osHtml+=_oport.map(o=>`<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#1a1a2e;padding:5px 0;border-bottom:1px solid #e8e8f4"><span style="color:#22c55e;flex-shrink:0;margin-top:1px">✓</span><span>${_esc(o)}</span></div>`).join('');
-    }
-    if(_solucoes.length){
-      osHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#0d9488;margin:${_oport.length?'.9rem':'.6rem'} 0 .4rem">💡 Soluções Propostas (${_solucoes.length})</div>`;
-      osHtml+=_solucoes.map(s=>`<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#1a1a2e;padding:5px 0;border-bottom:1px solid #e8e8f4"><span style="color:#0d9488;flex-shrink:0;margin-top:1px">✓</span><span>${_esc(s)}</span></div>`).join('');
-    }
-    sections.push(osHtml);
-  }
 
   // ── 12.0 Desenho do processo (BPMN) — página separada em paisagem ────────
   // Regra: TO BE tem prioridade; se falhar ou produto não for TO BE, usa AS IS.
