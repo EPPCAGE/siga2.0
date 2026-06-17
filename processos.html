@@ -3834,7 +3834,7 @@ function aplicarPermissoes(){
   const nbProc = document.getElementById('nb-proc');
   if(nbProc) nbProc.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
   const nbPainelGestor = document.getElementById('nb-painel-gestor');
-  if(nbPainelGestor) nbPainelGestor.style.display = usuarioLogado?.perfil==='gestor' ? '' : 'none';
+  if(nbPainelGestor) nbPainelGestor.style.display = (usuarioLogado?.perfil==='gestor'||isEP()) ? '' : 'none';
   const nbNotif = document.getElementById('nb-notif');
   if(nbNotif) nbNotif.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
