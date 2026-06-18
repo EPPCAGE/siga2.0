@@ -1157,7 +1157,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </button>
   <button type="button" class="nav-btn" onclick="go('publicacoes',this)" id="nb-pub">
     <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M10 2v3h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-    Publicações
+    POPs e Publicações
   </button>
 
   <button type="button" class="nav-btn" onclick="go('notificacoes',this)" id="nb-notif">
@@ -2301,7 +2301,7 @@ function go(page,btn){
   _getPageRenderer(page)();
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
-  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de FAQs',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
+  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de FAQs',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Análise de Aderência',publicacoes:'POPs e Publicações',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
   const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||'SIGA 2.0';
 }
 function _invokeGlobalHandler(handlerName){
