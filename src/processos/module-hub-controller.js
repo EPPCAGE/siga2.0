@@ -17,6 +17,9 @@
   function setupAdmin(){
     const ep = isEP();
     setDisplay(document.getElementById('hub-admin-section'), ep);
+    const perfil = globalScope.usuarioLogado?.perfil;
+    const showContact = perfil === 'dono' || perfil === 'gestor';
+    setDisplay(document.getElementById('hub-contact-banner'), showContact, 'block');
   }
 
   function openModuleHub(){
