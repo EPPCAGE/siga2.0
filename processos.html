@@ -2573,6 +2573,8 @@ function getTarefasUsr(){
     const et=proc.etapa,etObj=ETAPAS.find(e=>e.id===et);
     if(!etObj)return false;
     const atrib=(proc.atribuicoes||{})[et];
+    // Atribuição explícita a este usuário como interessado — tem prioridade sobre perfil
+    if(atrib?.para?.startsWith('interessado:')&&atrib.para_email===usuarioLogado.email) return true;
     if(perf==='ep'){
       // EP vê etapas não atribuídas a dono/gestor
       return !atrib||(atrib.para!=='dono'&&atrib.para!=='gestor'&&!atrib.para?.startsWith('interessado:'));
@@ -2590,8 +2592,6 @@ function getTarefasUsr(){
       if(!isAssigned) return false;
       return proc.pat===usuarioLogado.nome||!proc.pat;
     }
-    // Interessado com atribuição explícita
-    if(atrib?.para?.startsWith('interessado:')&&atrib.para_email===usuarioLogado.email) return true;
     return false;
   });
 }
