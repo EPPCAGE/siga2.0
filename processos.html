@@ -4301,6 +4301,13 @@ function salvarMetadados(){
   p.dono=novoDono;
   p.dono_email=novoDonoEmail;
   p.produto=document.getElementById('em-produto')?.value||p.produto;
+  // Se o produto mudou para AS IS puro e a etapa atual é TO BE, recua para 'melhorias'
+  const comToBe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
+  const etapaAtualEhTobe=ETAPAS.find(e=>e.id===p.etapa)?.tobe;
+  if(!comToBe&&etapaAtualEhTobe){
+    p.etapa='melhorias';
+    push(p,p.etapa,'EP','Produto alterado para AS IS — etapa recuada para Melhorias (etapas TO BE removidas do fluxo).');
+  }
   const novoArqId=document.getElementById('em-arq-id')?.value||'';
   if(novoArqId!==p.arq_id) {
     const unidade=getUnidadesMapeaveis().find(u=>u.arq_id===novoArqId);
