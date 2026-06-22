@@ -5078,6 +5078,7 @@ function abrirAtribuirEtapa(etapaId){
       <select class="fi" id="atrib-para">
         <option value="dono">Dono do processo — ${esc(p.dono||'—')}</option>
         <option value="gestor">Gestor / Patrocinador — ${esc(p.pat||'—')}</option>
+        ${(p.interessados||[]).map(email=>{const u=USUARIOS.find(u=>u.email===email);const nm=u?.nome||email;return`<option value="interessado:${esc(email)}">Interessado — ${esc(nm)}</option>`;}).join('')}
       </select>
     </div>
     <div class="fg" style="margin-bottom:1.2rem">
@@ -5100,10 +5101,14 @@ async function confirmarAtribuirEtapa(etapaId){
   if(para==='dono'){
     paraNome=p.dono;
     paraEmail=getDonoEmail(p);
-  } else {
+  } else if(para==='gestor'){
     paraNome=p.pat;
     const gUser=USUARIOS.find(u=>u.nome===p.pat);
     paraEmail=gUser?.email||'';
+  } else if(para.startsWith('interessado:')){
+    paraEmail=para.slice('interessado:'.length);
+    const iUser=USUARIOS.find(u=>u.email===paraEmail);
+    paraNome=iUser?.nome||paraEmail;
   }
   if(!paraEmail){toast('E-mail do destinatário não encontrado.','var(--amber)');return;}
 
@@ -5111,7 +5116,7 @@ async function confirmarAtribuirEtapa(etapaId){
   let senhaTemp = null;
   if(!usuarioExiste){
     try {
-      senhaTemp = await _criarUsuarioParaAtribuicao(paraEmail, paraNome, para==='dono'?'dono':'gestor');
+      senhaTemp = await _criarUsuarioParaAtribuicao(paraEmail, paraNome, para==='gestor'?'gestor':'dono');
     } catch(e){
       toast('Não foi possível criar o acesso para '+paraNome+': '+(e.message||e.code||e),'var(--red)');
       return;
