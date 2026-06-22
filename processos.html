@@ -2575,7 +2575,7 @@ function getTarefasUsr(){
     const atrib=(proc.atribuicoes||{})[et];
     if(perf==='ep'){
       // EP vê etapas não atribuídas a dono/gestor
-      return !atrib||(atrib.para!=='dono'&&atrib.para!=='gestor');
+      return !atrib||(atrib.para!=='dono'&&atrib.para!=='gestor'&&!atrib.para?.startsWith('interessado:'));
     }
     if(perf==='dono'){
       // Atribuição explícita ou, para retrocompatibilidade, etapa de resp==='dono' sem atribuicoes
@@ -2590,6 +2590,8 @@ function getTarefasUsr(){
       if(!isAssigned) return false;
       return proc.pat===usuarioLogado.nome||!proc.pat;
     }
+    // Interessado com atribuição explícita
+    if(atrib?.para?.startsWith('interessado:')&&atrib.para_email===usuarioLogado.email) return true;
     return false;
   });
 }
