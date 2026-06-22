@@ -6717,7 +6717,7 @@ function _concluirDonoAtribuido(){
 }
 function _rAcaoAppendEPBars(el, p, isPulada){
   const atrib=(p.atribuicoes||{})[p.etapa];
-  if(atrib?.para==='dono'||atrib?.para==='gestor'){
+  if(atrib?.para==='dono'||atrib?.para==='gestor'||atrib?.para?.startsWith('interessado:')){
     const prazoFmt=atrib.prazo?atrib.prazo.split('-').reverse().join('/'):'—';
     const atribBar=document.createElement('div');
     atribBar.style.cssText='margin-top:.8rem;padding:.7rem 1rem;border:1.5px solid var(--blue-b,#bfdbfe);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--blue-l,#eff6ff)';
