@@ -11432,13 +11432,16 @@ function bpmnColorize(which){
       } else if(t.includes('Gateway')){
         modeling.setColor(el,{fill:'#FEF3C7',stroke:'#D97706'});
       } else if(t==='bpmn:Task'||t.includes('Activity')){
-        modeling.setColor(el,{fill:'#DBEAFE',stroke:'#2563EB'});
+        modeling.setColor(el,{fill:'#DBEAFE',stroke:'#2563EB',color:'#000000'});
       } else if(t==='bpmn:SubProcess'){
-        modeling.setColor(el,{fill:'#EDE9FE',stroke:'#7C3AED'});
+        modeling.setColor(el,{fill:'#EDE9FE',stroke:'#7C3AED',color:'#000000'});
       } else if(t==='bpmn:Participant'||t==='bpmn:Lane'){
-        modeling.setColor(el,{fill:'#F0F9FF',stroke:'#0EA5E9'});
+        modeling.setColor(el,{fill:'#F0F9FF',stroke:'#0EA5E9',color:'#000000'});
       }
     });
+    // Fundo branco no canvas do diagram-js
+    const svgEl=document.querySelector('#bpmn-'+which+'-canvas svg');
+    if(svgEl) svgEl.style.background='#ffffff';
     bpmnDirty[which]=true;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
     if(lbl)lbl.style.display='inline';
