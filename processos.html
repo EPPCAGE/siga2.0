@@ -334,9 +334,7 @@ select.fi{cursor:pointer}
 .bpmn-wrap{border:1px solid var(--bdr);border-radius:var(--rl);overflow:hidden;background:#fafafa}
 .bpmn-bar{display:flex;align-items:center;gap:6px;padding:.55rem .8rem;background:var(--surf2);border-bottom:1px solid var(--bdr);flex-wrap:wrap}
 .bpmn-bar .btn{font-size:11px;padding:4px 10px}
-.bpmn-canvas{width:100%;height:480px;display:block;background:#ffffff}
-.bpmn-canvas .djs-container{background:#ffffff!important}
-.bpmn-canvas .djs-label text{fill:#000000!important}
+.bpmn-canvas{width:100%;height:480px;display:block}
 .bpmn-spinner{display:flex;align-items:center;justify-content:center;height:480px;flex-direction:column;gap:10px;color:var(--ink3);font-size:13px}
 .bpmn-spinner .spin{width:24px;height:24px;border:2px solid var(--bdr2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
 .bpmn-dirty{font-size:11px;color:var(--amber);font-weight:600}
@@ -11391,15 +11389,11 @@ function bpmnColorize(which){
         modeling.setColor(el,{fill:'#F0F9FF',stroke:'#0EA5E9'});
       }
     });
-    // Texto preto em todos os labels do canvas
+    // Texto preto em todos os labels (o bpmn-js não expõe font color via setColor)
     const canvasDiv=document.getElementById('bpmn-'+which+'-canvas');
-    if(canvasDiv){
-      canvasDiv.style.background='#ffffff';
-      canvasDiv.querySelectorAll('.djs-label text, text.djs-label').forEach(tx=>{
-        tx.style.fill='#000000';
-        tx.setAttribute('fill','#000000');
-      });
-    }
+    if(canvasDiv) canvasDiv.querySelectorAll('text').forEach(tx=>{
+      tx.style.fill='#000000';
+    });
     bpmnDirty[which]=true;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
     if(lbl)lbl.style.display='inline';
