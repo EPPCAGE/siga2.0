@@ -14398,8 +14398,9 @@ function _pubBpmnRemove(i){
 }
 function _pubCatChange(cat){
   const isPop = cat==='POPs';
+  const isFluxo = cat==='Fluxos';
   const wrap = document.getElementById('pub-procs-wrap');
-  if(wrap) wrap.style.display = isPop ? '' : 'none';
+  if(wrap) wrap.style.display = (isPop||isFluxo) ? '' : 'none';
   const bwrap = document.getElementById('pub-bpmn-wrap');
   if(bwrap) bwrap.style.display = isPop ? '' : 'none';
 }
