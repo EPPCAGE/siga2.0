@@ -19,9 +19,6 @@
 <!-- Config: loaded synchronously so globalThis.CONFIG is available immediately -->
 <script src="config/config.deploy.js" onerror="console.info('config/config.deploy.js not found')"></script>
 <script src="config/config.local.js" onerror="console.info('config/config.local.js not found')"></script>
-<!-- Temporary compatibility fallback for older local setups. Prefer config/*.js. -->
-<script src="config.deploy.js" onerror="console.info('legacy config.deploy.js not found')"></script>
-<script src="config.local.js" onerror="console.info('legacy config.local.js not found')"></script>
 <script src="src/shared/tenant-config.js"></script>
 <script src="src/shared/org-config.js"></script>
 <script src="src/shared/firebase-helpers.js"></script>
