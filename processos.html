@@ -17131,7 +17131,8 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
   if(user){
     // Só inicia sessão única na primeira autenticação — não a cada refresh de token
     // (onAuthStateChanged(user) dispara a cada hora; criar novo sid derruba outras abas)
-    if(!_sessionUnsub) _iniciarSessaoUnica(firebaseUser.uid);
+    const _isFirstAuth = !_sessionUnsub;
+    if(_isFirstAuth) _iniciarSessaoUnica(firebaseUser.uid);
     // Não-EP muda senha mas não pode escrever em config/usuarios;
     // o override fica em /usuarios/{uid} — aplica antes de mostrar hub.
     if(user.trocar_senha){
@@ -17145,9 +17146,9 @@ async function _bootRestoreFirebaseUser(auth, firebaseUser){
     globalThis._isManualLogin = false;
     _aplicarUsuario(user, _fromRestore);
     if(btn){ btn.textContent='Entrar'; btn.disabled=false; }
-    // Define Custom Claim {perfil} no token de forma não-bloqueante.
-    // Permite que as regras do Firestore apliquem restrições por perfil.
-    _setUserClaimsForUser(firebaseUser).catch(()=>{});
+    // Define Custom Claim {perfil} apenas no primeiro login — getIdToken(true) dentro de
+    // _setUserClaimsForUser dispara onAuthStateChanged novamente, criando loop infinito.
+    if(_isFirstAuth) _setUserClaimsForUser(firebaseUser).catch(()=>{});
     return;
   }
   const {signOut} = fb();
