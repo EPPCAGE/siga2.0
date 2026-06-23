@@ -13,6 +13,10 @@ globalThis.CONFIG = {
   // Define o Custom Claim {perfil} no token do usuário após o login,
   // permitindo que as regras do Firestore apliquem controle por perfil.
   SET_CLAIMS_URL: '',
+  // URL da Cloud Function registerUser (pública).
+  // Cria conta Firebase Auth e registra em config/usuarios via SDK admin,
+  // eliminando a necessidade de permissão EP para o auto-cadastro no primeiro acesso.
+  REGISTER_USER_URL: '',
   TENANCY: {
     // Manter false enquanto usa a base legada nas colecoes raiz do Firestore.
     // Ao ativar, os dados passam a usar caminhos como tenants/{tenantId}/processos.

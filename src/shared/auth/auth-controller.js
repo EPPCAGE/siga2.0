@@ -202,9 +202,9 @@
     }
   };
 
-  // Salva config/usuarios diretamente no Firestore, sem exigir perfil EP.
-  // fbSaveAll() só grava usuarios dentro de if(isEP()), o que falha no
-  // auto-cadastro porque nenhum usuário está logado nesse momento.
+  // Salva config/usuarios diretamente no Firestore.
+  // Requer perfil EP (isEP() nas regras Firestore).
+  // Usar apenas quando o usuário logado é EP (ex: _criarUsuarioParaAtribuicao).
   async function _fbSaveUsuarios() {
     const repo = globalScope.configRepository;
     if (!repo) throw new Error('Repositório de usuários não disponível. Tente novamente em instantes.');
@@ -216,26 +216,36 @@
     await repo.set('usuarios', { data: JSON.stringify(lista) });
   }
 
-  // Garante que o usuário está em USUARIOS (cadastro mínimo), salvando no Firestore.
-  // Usado quando a conta Auth existe mas o SIGA ainda não tem o registro.
+  // Garante que o usuário está em USUARIOS via Cloud Function registerUser.
+  // Necessário porque config/usuarios exige isEP() no Firestore — a Cloud
+  // Function usa o SDK admin e bypassa essa restrição de forma segura.
   async function _garantirCadastroSiga(email, nome) {
-    if (globalScope._findUsuarioByEmail(email)) return; // já existe
-    const palavras = (nome || email.split('@')[0]).trim().split(/\s+/).filter(Boolean);
-    const iniciais = (palavras.length >= 2
-      ? palavras[0][0] + palavras[palavras.length - 1][0]
-      : (palavras[0] || '?').slice(0, 2)
-    ).toUpperCase();
-    globalScope.USUARIOS.push({
-      email,
-      nome: palavras.join(' ') || email,
-      perfil: 'dono',
-      perfis: ['dono', 'gerente_projeto'],
-      iniciais,
-      macroprocessos_vinculados: [],
-      processos_vinculados: [],
-      trocar_senha: true
+    if (globalScope._findUsuarioByEmail && globalScope._findUsuarioByEmail(email)) return;
+    const url = globalThis.CONFIG?.REGISTER_USER_URL;
+    if (!url) {
+      // Sem Cloud Function configurada: não é possível auto-registrar.
+      // O usuário precisará ser cadastrado pelo administrador.
+      throw new Error('Cadastro automático não disponível. Entre em contato com o administrador.');
+    }
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, nome: nome || email.split('@')[0] }),
     });
-    await _fbSaveUsuarios();
+    const data = await resp.json().catch(function() { return {}; });
+    if (!resp.ok) throw new Error(data.error || 'Erro ao registrar no SIGA.');
+    // Adiciona localmente para o resto da sessão não precisar recarregar
+    if (!globalScope._findUsuarioByEmail || !globalScope._findUsuarioByEmail(email)) {
+      const palavras = (nome || email.split('@')[0]).trim().split(/\s+/).filter(Boolean);
+      const iniciais = (palavras.length >= 2
+        ? palavras[0][0] + palavras[palavras.length - 1][0]
+        : (palavras[0] || '?').slice(0, 2)).toUpperCase();
+      (globalScope.USUARIOS || []).push({
+        email, nome: palavras.join(' ') || email, perfil: 'dono',
+        perfis: ['dono', 'gerente_projeto'], iniciais,
+        macroprocessos_vinculados: [], processos_vinculados: [], trocar_senha: true,
+      });
+    }
     // Notifica EPPs do novo cadastro automático
     if (globalScope.enviarNotif) {
       (globalScope.USUARIOS || []).filter(u => u.perfil === 'ep' && u.email).forEach(ep =>
@@ -320,96 +330,80 @@
    * @param {Function} showOk - Callback para mostrar sucesso
    */
   globalScope._primeiroAcessoNovo = async function _primeiroAcessoNovo(email, nome, showErr, showOk) {
-    if (!nome) {
-      showErr('Informe seu nome completo.');
-      return;
-    }
-    if (!globalScope.fbReady || !globalScope.fbReady()) {
-      showErr('Firebase não configurado.');
-      return;
-    }
+    if (!nome) { showErr('Informe seu nome completo.'); return; }
     const rlErr = _resetRateLimit(email);
     if (rlErr) { showErr(rlErr); return; }
 
-    const senhaTemp = globalScope.gerarSenhaTemp();
-
-    // Cria conta no Firebase Auth
-    try {
-      const { initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG } = globalScope.fb();
-      const secApp = initializeApp(FIREBASE_CONFIG, 'sec_' + Date.now());
-      const secAuth = getAuth(secApp);
-      
-      try {
-        await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
-      } catch (error_) {
-        await deleteApp(secApp).catch(() => {});
-        if (error_.code === 'auth/email-already-in-use') {
-          // Conta Auth já existe — garante cadastro no SIGA e envia reset de senha
-          const { auth: _auth, sendPasswordResetEmail: _spr } = globalScope.fb();
-          await _garantirCadastroSiga(email, nome);
-          await _spr(_auth, email);
-          showOk('Acesso configurado! Enviamos um link de redefinição de senha para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
-          return;
-        }
-        throw error_;
-      }
-      await deleteApp(secApp);
-    } catch (e) {
-      showErr('Erro ao criar acesso: ' + (e.message || e.code || e));
+    const url = globalThis.CONFIG?.REGISTER_USER_URL;
+    if (!url) {
+      showErr('Você não está cadastrado no sistema. Entre em contato com o administrador para solicitar acesso.');
       return;
     }
 
-    // Registra no SIGA e só então envia o e-mail
     try {
-      const palavras = nome.trim().split(/\s+/).filter(Boolean);
-      const iniciais = (palavras.length >= 2
-        ? palavras[0][0] + palavras[palavras.length - 1][0]
-        : (palavras[0] || '?').slice(0, 2)
-      ).toUpperCase();
-
-      globalScope.USUARIOS.push({
-        email,
-        nome,
-        perfil: 'dono',
-        perfis: ['dono', 'gerente_projeto'],
-        iniciais,
-        macroprocessos_vinculados: [],
-        processos_vinculados: [],
-        trocar_senha: true
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, nome }),
       });
+      const data = await resp.json().catch(function() { return {}; });
 
-      await _fbSaveUsuarios(); // lança erro se o repositório não estiver disponível
+      if (!resp.ok) {
+        showErr(data.error || 'Erro ao criar acesso. Tente novamente.');
+        return;
+      }
 
-      // Só envia o e-mail após confirmar o save no Firestore
-      if (globalScope._enviarSenhaAcesso) {
-        globalScope._enviarSenhaAcesso(email, nome, senhaTemp);
+      if (data.status === 'exists') {
+        // Já estava no SIGA — trata como usuário existente (envia reset de senha)
+        await globalScope._primeiroAcessoExistente(email, showErr, showOk);
+        return;
+      }
+
+      // Adiciona localmente para a sessão atual
+      if (!globalScope._findUsuarioByEmail || !globalScope._findUsuarioByEmail(email)) {
+        const palavras = nome.trim().split(/\s+/).filter(Boolean);
+        const iniciais = (palavras.length >= 2
+          ? palavras[0][0] + palavras[palavras.length - 1][0]
+          : (palavras[0] || '?').slice(0, 2)).toUpperCase();
+        (globalScope.USUARIOS || []).push({
+          email, nome, perfil: 'dono', perfis: ['dono', 'gerente_projeto'],
+          iniciais, macroprocessos_vinculados: [], processos_vinculados: [], trocar_senha: true,
+        });
+      }
+
+      if (data.status === 'created' && data.senhaTemp) {
+        // Conta nova: envia senha temporária
+        if (globalScope._enviarSenhaAcesso) globalScope._enviarSenhaAcesso(email, nome, data.senhaTemp);
+        showOk('Acesso criado! Enviamos uma senha temporária para ' + email + '. Verifique sua caixa de entrada e spam.');
+      } else {
+        // Conta Auth já existia: envia reset de senha
+        if (globalScope.fbReady && globalScope.fbReady()) {
+          try {
+            const { auth, sendPasswordResetEmail } = globalScope.fb();
+            await sendPasswordResetEmail(auth, email);
+          } catch (_) { /* não bloqueia */ }
+        }
+        showOk('Acesso configurado! Enviamos um link de redefinição de senha para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
       }
 
       // Notifica EPPs
       if (globalScope.enviarNotif) {
-        globalScope.USUARIOS.filter(u => u.perfil === 'ep' && u.email).forEach(ep =>
-          globalScope.enviarNotif(
-            ep.email, ep.nome,
+        (globalScope.USUARIOS || []).filter(u => u.perfil === 'ep' && u.email).forEach(ep =>
+          globalScope.enviarNotif(ep.email, ep.nome,
             'Novo usuário registrado: ' + nome + ' (' + email + '). Acesso liberado automaticamente.',
-            'Controle de Acesso', '', 'Sistema'
-          )
+            'Controle de Acesso', '', 'Sistema')
         );
       }
-    } catch (e) {
-      // Desfaz o push em memória para não deixar estado inconsistente
-      const idx = (globalScope.USUARIOS || []).findLastIndex(u => u.email === email);
-      if (idx >= 0) globalScope.USUARIOS.splice(idx, 1);
-      showErr('Acesso criado no Firebase, mas falha ao registrar no SIGA: ' + (e.message || e));
-      return;
-    }
 
-    showOk('Acesso criado! Enviamos uma senha temporária para ' + email + '. Verifique sua caixa de entrada e spam.');
-    
-    // Limpa formulário
-    const nomeEl = document.getElementById('pa-nome');
-    const emailEl = document.getElementById('pa-email');
-    if (nomeEl) nomeEl.value = '';
-    if (emailEl) emailEl.value = '';
+      // Limpa formulário
+      const nomeEl = document.getElementById('pa-nome');
+      const emailEl = document.getElementById('pa-email');
+      if (nomeEl) nomeEl.value = '';
+      if (emailEl) emailEl.value = '';
+
+    } catch (e) {
+      showErr('Erro ao criar acesso: ' + (e.message || e));
+    }
   };
 
   // ══════════════════════════════════════════════════════════════
