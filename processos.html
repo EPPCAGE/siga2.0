@@ -3215,9 +3215,10 @@ function rMeusProc(){
       ` : `<div style="font-size:11px;color:#0d9488;font-weight:500">Ver informações →</div>`}
       ${popBadges ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${popBadges}</div>` : ''}
       ${revBadge?`<div style="display:flex;align-items:center;gap:6px;margin-top:8px">${revBadge}${revBtn}</div>`:''}
-      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px;flex-wrap:wrap">
         ${hasFaq?`<button type="button" class="btn" style="font-size:10px;padding:2px 9px" title="Ver perguntas frequentes" onclick="event.stopPropagation();abrirFaqProc('${u.arq_id}')">❓ FAQ</button>`:''}
         ${(()=>{const _inds=kpis.filter(k=>(proc&&k.pid===proc.id)||(k.arq_id===u.arq_id));const _nGrp=Object.keys(kpiGroupByKey(_inds)).length;return _nGrp?`<button type="button" class="btn" style="font-size:10px;padding:2px 9px" title="Ver indicadores vinculados" onclick="event.stopPropagation();abrirIndicadoresProc('${u.arq_id}')">📊 ${_nGrp} ind.</button>`:''})()}
+        ${(()=>{const _fluxos=publicacoes.filter(p=>p.categoria==='Fluxos'&&(p.arq_ids||[]).includes(u.arq_id)&&p.url);return _fluxos.map(p=>`<button type="button" class="btn" style="font-size:10px;padding:2px 9px" title="${esc(p.titulo)}" onclick="event.stopPropagation();window.open('${safeUrl(p.url)}','_blank')">🔀 ${esc(p.titulo)}</button>`).join('');})()}
       </div>
       </div>
     </div>`;
