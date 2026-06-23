@@ -164,6 +164,114 @@ exports.setUserClaims = onRequest(async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// registerUser — cria conta Firebase Auth e registra em config/usuarios.
+// Endpoint público (sem auth): o usuário ainda não está autenticado no momento
+// do primeiro acesso. Validação por domínio de e-mail + rate limiting por IP.
+// Retorna {status, senhaTemp?}:
+//   "created"    — conta Auth criada, senhaTemp disponível para envio
+//   "siga_added" — conta Auth já existia, usuário adicionado ao SIGA
+//   "exists"     — usuário já estava no SIGA (nenhuma ação realizada)
+// ---------------------------------------------------------------------------
+function _generateTempPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(10);
+  return Array.from(bytes).map(b => chars[b % chars.length]).join('');
+}
+
+exports.registerUser = onRequest(async (req, res) => {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+  // Rate limit: 5 tentativas por hora por IP para prevenir abuso
+  const ipAllowed = await checkRateLimit(`reg_${getClientIpHash(req)}`, 5, 60 * 60 * 1000);
+  if (!ipAllowed) {
+    res.status(429).json({ error: "Muitas tentativas de cadastro. Aguarde antes de tentar novamente." });
+    return;
+  }
+
+  const { email, nome } = req.body || {};
+  if (!email || typeof email !== "string" || email.length > 254) {
+    res.status(400).json({ error: "Campo obrigatório: email" });
+    return;
+  }
+  if (!nome || typeof nome !== "string" || nome.trim().length < 2) {
+    res.status(400).json({ error: "Campo obrigatório: nome completo" });
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Lê domínios permitidos do Firestore (fallback para domínios padrão)
+  let allowedDomains = ["sefaz.rs.gov.br", "cage.rs.gov.br"];
+  try {
+    const orgDoc = await admin.firestore().doc("config/org_config").get();
+    if (orgDoc.exists) {
+      const domains = orgDoc.data()?.allowedDomains;
+      if (Array.isArray(domains) && domains.length > 0) allowedDomains = domains;
+    }
+  } catch (_) { /* usa fallback */ }
+
+  const domain = normalizedEmail.split("@")[1] || "";
+  if (!allowedDomains.includes(domain)) {
+    res.status(403).json({ error: "Domínio de e-mail não autorizado para cadastro." });
+    return;
+  }
+
+  try {
+    const db = admin.firestore();
+    const configDoc = await db.doc("config/usuarios").get();
+    const rawData = configDoc.exists ? configDoc.data()?.data : null;
+    const lista = typeof rawData === "string" ? JSON.parse(rawData) : [];
+
+    // Já está no SIGA — nenhuma ação necessária
+    if (Array.isArray(lista) && lista.some(u => u?.email === normalizedEmail)) {
+      res.status(200).json({ status: "exists" });
+      return;
+    }
+
+    // Tenta criar conta Firebase Auth
+    let senhaTemp = null;
+    let authStatus = "siga_added";
+    try {
+      senhaTemp = _generateTempPassword();
+      await admin.auth().createUser({ email: normalizedEmail, password: senhaTemp });
+      authStatus = "created";
+    } catch (authErr) {
+      if (authErr.code !== "auth/email-already-exists") throw authErr;
+      // Conta Auth já existe — apenas registrar no SIGA
+    }
+
+    // Adiciona ao SIGA
+    const palavras = nome.trim().split(/\s+/).filter(Boolean);
+    const iniciais = (palavras.length >= 2
+      ? palavras[0][0] + palavras[palavras.length - 1][0]
+      : (palavras[0] || "?").slice(0, 2)).toUpperCase();
+
+    const novoUsuario = {
+      email: normalizedEmail,
+      nome: palavras.join(" ") || normalizedEmail,
+      perfil: "dono",
+      perfis: ["dono", "gerente_projeto"],
+      iniciais,
+      macroprocessos_vinculados: [],
+      processos_vinculados: [],
+      trocar_senha: true,
+    };
+
+    const listaAtualizada = Array.isArray(lista) ? [...lista, novoUsuario] : [novoUsuario];
+    await db.doc("config/usuarios").set({ data: JSON.stringify(listaAtualizada) });
+
+    const result = { status: authStatus };
+    if (senhaTemp) result.senhaTemp = senhaTemp;
+    res.status(200).json(result);
+  } catch (e) {
+    console.error("registerUser error:", e);
+    res.status(500).json({ error: "Erro interno ao criar acesso. Tente novamente ou contate o administrador." });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // ai — proxy autenticado para Azure OpenAI.
 // ---------------------------------------------------------------------------
 exports.ai = onRequest(
