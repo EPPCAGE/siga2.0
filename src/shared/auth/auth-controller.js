@@ -272,14 +272,14 @@
     if (rlErr) { showErr(rlErr); return; }
     
     try {
-      const { auth, sendPasswordResetEmail, initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG } = globalScope.fb();
-      
+      const { initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG } = globalScope.fb();
+
       // Tenta criar conta Firebase Auth (caso EPP tenha cadastrado manualmente)
       const secApp = initializeApp(FIREBASE_CONFIG, 'sec_exist_' + Date.now());
       const secAuth = getAuth(secApp);
       let contaCriada = false;
       const senhaTemp = globalScope.gerarSenhaTemp();
-      
+
       try {
         await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
         contaCriada = true;
@@ -306,15 +306,10 @@
         const user = globalScope._findUsuarioByEmail(email);
         if (!user) {
           // Usuário tem Auth mas não está no SIGA — cadastra automaticamente
-          const { auth: _auth, sendPasswordResetEmail: _spr } = globalScope.fb();
           await _garantirCadastroSiga(email, email.split('@')[0]);
-          await _spr(_auth, email);
-          showOk('Acesso configurado! Enviamos um link de redefinição de senha para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
-        } else {
-          // Usuário já cadastrado — apenas reset de senha
-          await sendPasswordResetEmail(auth, email);
-          showOk('Link de redefinição enviado para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
         }
+        await globalScope._enviarResetSenha(email, user?.nome);
+        showOk('Link de redefinição enviado para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
       }
     } catch (err) {
       showErr('Erro ao enviar e-mail: ' + err.message);
@@ -377,12 +372,7 @@
         showOk('Acesso criado! Enviamos uma senha temporária para ' + email + '. Verifique sua caixa de entrada e spam.');
       } else {
         // Conta Auth já existia: envia reset de senha
-        if (globalScope.fbReady && globalScope.fbReady()) {
-          try {
-            const { auth, sendPasswordResetEmail } = globalScope.fb();
-            await sendPasswordResetEmail(auth, email);
-          } catch (_) { /* não bloqueia */ }
-        }
+        await globalScope._enviarResetSenha(email, nome);
         showOk('Acesso configurado! Enviamos um link de redefinição de senha para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
       }
 
@@ -453,6 +443,45 @@
     }
     
     return arr.join('');
+  };
+
+  // Gera link de redefinição de senha via Cloud Function e envia por EmailJS.
+  // Usa template_ufittyp com variáveis: to_name, to_email, email, link.
+  globalScope._enviarResetSenha = async function _enviarResetSenha(email, nomeHint) {
+    const url = globalThis.CONFIG?.RESET_LINK_URL;
+    if (!url) {
+      // Fallback: usa sendPasswordResetEmail do Firebase (e-mail padrão)
+      if (globalScope.fbReady && globalScope.fbReady()) {
+        try {
+          const { auth, sendPasswordResetEmail } = globalScope.fb();
+          await sendPasswordResetEmail(auth, email);
+        } catch (_) { /* não bloqueia */ }
+      }
+      return;
+    }
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await resp.json().catch(function() { return {}; });
+      if (!resp.ok || !data.link) return; // silencioso — não revela se e-mail existe
+      const nome = data.nome || nomeHint || email.split('@')[0];
+      const ejsConfig = globalScope.ejsConfig;
+      const ORG_CONFIG = globalScope.ORG_CONFIG;
+      if (ejsConfig?.service && ejsConfig?.pubkey && typeof emailjs !== 'undefined') {
+        emailjs.send(ejsConfig.service, 'template_ufittyp', {
+          to_name: nome,
+          to_email: email,
+          email,
+          from_name: ORG_CONFIG?.notificationFromName || 'EPP/CAGE',
+          link: data.link,
+        }).catch(function(err) { console.warn('EmailJS reset:', err?.text || err?.message); });
+      }
+    } catch (e) {
+      console.warn('_enviarResetSenha:', e.message);
+    }
   };
 
   /**
