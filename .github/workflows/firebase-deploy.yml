@@ -33,7 +33,7 @@ jobs:
               REGISTER_USER_URL: process.env.REGISTER_USER_URL || '',
               RESET_LINK_URL: process.env.RESET_LINK_URL || '',
             };
-            require('fs').writeFileSync('config.deploy.js', 'window.CONFIG = ' + JSON.stringify(cfg) + ';');
+            require('fs').writeFileSync('config/config.deploy.js', 'window.CONFIG = ' + JSON.stringify(cfg) + ';');
           "
 
       - name: Instalar dependências das Cloud Functions
