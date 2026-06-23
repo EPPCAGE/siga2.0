@@ -941,9 +941,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         Gerenciar usuários
         <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;margin-left:auto;opacity:.6"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button type="button" id="btn-migrar-areas" onclick="migrarSiglasAreas()" style="margin-top:8px;width:100%;padding:.75rem 1rem;background:#2b2b3a;border:1px solid rgba(255,255,255,.15);border-radius:10px;color:#e8e8f0;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;transition:background .12s;font-family:inherit" onmouseover="this.style.background='#343448'" onmouseout="this.style.background='#2b2b3a'">
-        🔄 Migrar siglas de área (executar uma vez)
-      </button>
     </div>
 
     <!-- Footer: user info + logout -->
@@ -10662,40 +10659,6 @@ async function _popPdfAnexo(p){
   if(!sections.length&&!bpmnLandscape)return '';
   const apendice=sections.length?sections.join('\n'):'';
   return apendice+bpmnLandscape;
-}
-
-// ── Migração única: substituir siglas de área por nome completo ──────────────
-async function migrarSiglasAreas(){
-  if(!isEP()){toast('Apenas EP pode executar esta migração.','var(--red)');return;}
-  const SIGLAS = {
-    'DAUD': 'Divisão de Auditoria',
-    'DCO':  'Divisão de Controle e Orientação',
-    'DTTI': 'Divisão de Transparência e Tecnologia da Informação',
-  };
-  const substituir = v => SIGLAS[v] || v;
-  let arqAlterada = false;
-  let usrAlterado = false;
-  // Arquitetura
-  ARQUITETURA.forEach(m=>{
-    m.processos.forEach(p=>{
-      if(SIGLAS[p.area]){p.area=substituir(p.area);arqAlterada=true;}
-      (p.subprocessos||[]).forEach(s=>{
-        if(SIGLAS[s.area]){s.area=substituir(s.area);arqAlterada=true;}
-      });
-    });
-  });
-  // Usuários
-  USUARIOS.forEach(u=>{
-    if(SIGLAS[u.area]){u.area=substituir(u.area);usrAlterado=true;}
-  });
-  if(!arqAlterada&&!usrAlterado){
-    toast('Nenhuma sigla encontrada — nada a migrar.','var(--ink3)');
-    return;
-  }
-  fbAutoSave('migrarSiglasAreas');
-  const btn=document.getElementById('btn-migrar-areas');
-  if(btn){btn.textContent='✅ Migração concluída — pode remover este botão';btn.disabled=true;}
-  toast('Áreas atualizadas e salvas no Firestore.','var(--teal)');
 }
 
 // Cache do logo CAGE em base64
