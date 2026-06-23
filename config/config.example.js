@@ -17,6 +17,10 @@ globalThis.CONFIG = {
   // Cria conta Firebase Auth e registra em config/usuarios via SDK admin,
   // eliminando a necessidade de permissão EP para o auto-cadastro no primeiro acesso.
   REGISTER_USER_URL: '',
+  // URL da Cloud Function passwordResetLink (pública).
+  // Gera link de redefinição de senha via SDK admin e retorna para o frontend
+  // enviar via EmailJS com template customizado (template_ufittyp).
+  RESET_LINK_URL: '',
   TENANCY: {
     // Manter false enquanto usa a base legada nas colecoes raiz do Firestore.
     // Ao ativar, os dados passam a usar caminhos como tenants/{tenantId}/processos.

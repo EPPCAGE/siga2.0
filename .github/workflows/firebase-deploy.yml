@@ -22,6 +22,7 @@ jobs:
           CHECK_EMAIL_URL: ${{ secrets.CHECK_EMAIL_URL }}
           SET_CLAIMS_URL: ${{ secrets.SET_CLAIMS_URL }}
           REGISTER_USER_URL: ${{ secrets.REGISTER_USER_URL }}
+          RESET_LINK_URL: ${{ secrets.RESET_LINK_URL }}
         run: |
           node -e "
             const cfg = {
@@ -30,6 +31,7 @@ jobs:
               CHECK_EMAIL_URL: process.env.CHECK_EMAIL_URL || '',
               SET_CLAIMS_URL: process.env.SET_CLAIMS_URL || '',
               REGISTER_USER_URL: process.env.REGISTER_USER_URL || '',
+              RESET_LINK_URL: process.env.RESET_LINK_URL || '',
             };
             require('fs').writeFileSync('config.deploy.js', 'window.CONFIG = ' + JSON.stringify(cfg) + ';');
           "

@@ -164,6 +164,56 @@ exports.setUserClaims = onRequest(async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// passwordResetLink — gera link de redefinição de senha via SDK admin e
+// retorna junto com o nome do usuário para o frontend enviar via EmailJS.
+// Endpoint público (usuário não está autenticado ao redefinir senha).
+// ---------------------------------------------------------------------------
+exports.passwordResetLink = onRequest(async (req, res) => {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+  // Rate limit: 5 tentativas por hora por IP
+  const ipAllowed = await checkRateLimit(`reset_${getClientIpHash(req)}`, 5, 60 * 60 * 1000);
+  if (!ipAllowed) {
+    res.status(429).json({ error: "Muitas tentativas. Aguarde antes de tentar novamente." });
+    return;
+  }
+
+  const { email } = req.body || {};
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ error: "Campo obrigatório: email" });
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  try {
+    // Busca nome do usuário no SIGA
+    let nome = normalizedEmail.split("@")[0];
+    try {
+      const configDoc = await admin.firestore().doc("config/usuarios").get();
+      if (configDoc.exists) {
+        const lista = JSON.parse(configDoc.data()?.data || "[]");
+        const usuario = lista.find(u => u?.email === normalizedEmail);
+        if (usuario?.nome) nome = usuario.nome;
+      }
+    } catch (_) { /* usa fallback */ }
+
+    const link = await admin.auth().generatePasswordResetLink(normalizedEmail);
+    res.status(200).json({ link, nome });
+  } catch (e) {
+    if (e.code === "auth/user-not-found") {
+      // Não revela se o e-mail existe ou não (prevenção de enumeração)
+      res.status(200).json({ link: null, nome: null });
+      return;
+    }
+    console.error("passwordResetLink error:", e);
+    res.status(500).json({ error: "Erro interno ao gerar link de redefinição." });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // registerUser — cria conta Firebase Auth e registra em config/usuarios.
 // Endpoint público (sem auth): o usuário ainda não está autenticado no momento
 // do primeiro acesso. Validação por domínio de e-mail + rate limiting por IP.
