@@ -21,6 +21,7 @@ jobs:
           AI_FUNCTION_URL: ${{ secrets.AI_FUNCTION_URL }}
           CHECK_EMAIL_URL: ${{ secrets.CHECK_EMAIL_URL }}
           SET_CLAIMS_URL: ${{ secrets.SET_CLAIMS_URL }}
+          REGISTER_USER_URL: ${{ secrets.REGISTER_USER_URL }}
         run: |
           node -e "
             const cfg = {
@@ -28,6 +29,7 @@ jobs:
               AI_FUNCTION_URL: process.env.AI_FUNCTION_URL || '',
               CHECK_EMAIL_URL: process.env.CHECK_EMAIL_URL || '',
               SET_CLAIMS_URL: process.env.SET_CLAIMS_URL || '',
+              REGISTER_USER_URL: process.env.REGISTER_USER_URL || '',
             };
             require('fs').writeFileSync('config.deploy.js', 'window.CONFIG = ' + JSON.stringify(cfg) + ';');
           "
