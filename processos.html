@@ -11419,11 +11419,11 @@ function bpmnColorize(which){
       } else if(t.includes('Gateway')){
         modeling.setColor(el,{fill:'#FEF3C7',stroke:'#D97706'});
       } else if(t==='bpmn:Task'||t.includes('Activity')){
-        modeling.setColor(el,{fill:'#DBEAFE',stroke:'#2563EB'});
+        modeling.setColor(el,{fill:'#FFFFFF',stroke:'#2563EB',color:'#000000'});
       } else if(t==='bpmn:SubProcess'){
-        modeling.setColor(el,{fill:'#EDE9FE',stroke:'#7C3AED'});
+        modeling.setColor(el,{fill:'#FFFFFF',stroke:'#7C3AED',color:'#000000'});
       } else if(t==='bpmn:Participant'||t==='bpmn:Lane'){
-        modeling.setColor(el,{fill:'#F0F9FF',stroke:'#0EA5E9'});
+        modeling.setColor(el,{fill:'#FFFFFF',stroke:'#0EA5E9',color:'#000000'});
       }
     });
     bpmnDirty[which]=true;
