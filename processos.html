@@ -1774,6 +1774,7 @@ Não responda este e-mail.</pre>
       <button type="button" class="chip" onclick="filtPub('Drop',this)">Drop</button>
       <button type="button" class="chip" onclick="filtPub('Metodologia',this)">Metodologia</button>
       <button type="button" class="chip" onclick="filtPub('Formulário',this)">Formulário</button>
+      <button type="button" class="chip" onclick="filtPub('Fluxos',this)">Fluxos</button>
       <button type="button" class="chip" onclick="filtPub('Relatórios',this)">Relatórios</button>
       <button type="button" class="chip" onclick="filtPub('Outro',this)">Outro</button>
     </div>
@@ -1795,6 +1796,7 @@ Não responda este e-mail.</pre>
             <option>Drop</option>
             <option>Metodologia</option>
             <option>Formulário</option>
+            <option>Fluxos</option>
             <option>Relatórios</option>
             <option>Outro</option>
           </select>
@@ -14339,7 +14341,7 @@ function rPub(){
     el.innerHTML = '<div class="ib ibsl">Nenhuma publicação encontrada. Clique em "+ Nova publicação" para adicionar.</div>';
     return;
   }
-  const catColor = {POPs:'var(--green,#16a34a)',Manual:'var(--blue)',Drop:'var(--teal)',Metodologia:'var(--purple,#7c3aed)',Formulário:'var(--amber)',Outro:'var(--ink3)'};
+  const catColor = {POPs:'var(--green,#16a34a)',Manual:'var(--blue)',Drop:'var(--teal)',Metodologia:'var(--purple,#7c3aed)',Formulário:'var(--amber)',Fluxos:'var(--blue)',Outro:'var(--ink3)'};
   el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">` +
     lista.map(p=>{
       const cor = catColor[p.categoria]||'var(--ink3)';
