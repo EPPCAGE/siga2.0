@@ -39,51 +39,19 @@ jobs:
       - name: Instalar dependências das Cloud Functions
         run: npm ci --prefix functions
 
-      - name: Configurar gcloud CLI
-        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2
+      - name: Instalar firebase-tools
+        run: npm install -g firebase-tools@13
 
-      - name: Deploy das Cloud Functions via gcloud
-        # Usa gcloud diretamente para evitar que firebase-tools consulte a API de
-        # Extensions (firebaseextensions.googleapis.com), que exigiria permissão
-        # adicional na service account.
-        # Autentica inline sem usar google-github-actions/auth para não definir
-        # GOOGLE_APPLICATION_CREDENTIALS, que interferiria no passo de hosting.
+      - name: Deploy das Cloud Functions
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/sa.json
-          gcloud auth activate-service-account --key-file=/tmp/sa.json
+          firebase deploy --only functions \
+            --project gesproc2 \
+            --non-interactive
           rm -f /tmp/sa.json
-
-          PROJECT=gesproc2
-          REGION=us-central1
-          RUNTIME=nodejs20
-          SOURCE=./functions
-
-          deploy_fn() {
-            local name=$1; shift
-            gcloud functions deploy "$name" \
-              --gen2 \
-              --region="$REGION" \
-              --runtime="$RUNTIME" \
-              --source="$SOURCE" \
-              --entry-point="$name" \
-              --trigger-http \
-              --allow-unauthenticated \
-              --project="$PROJECT" \
-              --quiet \
-              "$@"
-          }
-
-          # Deploy em paralelo para reduzir tempo total
-          deploy_fn checkEmail &
-          deploy_fn setUserClaims &
-          deploy_fn passwordResetLink &
-          deploy_fn registerUser &
-          deploy_fn migrateAllUserClaims &
-          deploy_fn ai \
-            --set-secrets="AZURE_OPENAI_KEY=AZURE_OPENAI_KEY:latest,AZURE_OPENAI_ENDPOINT=AZURE_OPENAI_ENDPOINT:latest,AZURE_OPENAI_DEPLOYMENT=AZURE_OPENAI_DEPLOYMENT:latest" &
-          wait
 
       - name: Deploy para Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@0cbcac4740c2bfb00d632f0b863b57713124eb5a  # v0.9.0
@@ -97,6 +65,9 @@ jobs:
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Configurar gcloud CLI
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2
 
       - name: Deploy Firestore Rules via REST API
         run: |
