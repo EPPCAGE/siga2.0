@@ -2457,8 +2457,10 @@ function salvarEmailJS(){
     status.textContent = 'Preencha os três campos para ativar o envio real.';
     status.className = 'ib ibb';
   }
-  fbSaveEjs();
-  toast('Configuração salva');
+  fbSaveEjs().then(function(ok){
+    if(ok === false) toast('Erro ao salvar no Firestore — verifique o console e sua sessão.','var(--red)');
+    else toast('Configuração EmailJS salva');
+  });
 }
 
 function testarEmailJSReset(){
@@ -16889,7 +16891,7 @@ function fbAutoSave(label){
 
 // Save EmailJS config to Firebase when saved locally
 async function fbSaveEjs(){
-  if(!fbReady()) return;
+  if(!fbReady()) return false;
   try {
     await configRepository.set('ejs', {
       service:       ejsConfig.service       || '',
@@ -16897,7 +16899,11 @@ async function fbSaveEjs(){
       templateReset: ejsConfig.templateReset || '',
       pubkey:        ejsConfig.pubkey        || '',
     });
-  } catch(e){ console.warn('fbSaveEjs error:', e.message); }
+    return true;
+  } catch(e){
+    console.error('fbSaveEjs error:', e.code, e.message);
+    return false;
+  }
 }
 
 // ── FLUXO BIZAGI (imagens) ────────────────
