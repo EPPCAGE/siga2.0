@@ -2104,6 +2104,7 @@ let _pubBpmnUrls = [];
 
 let plano = [];
 let _planoIdC = 1;
+let _planoNotifChecked = false;
 let relatoriosPat = [];
 let PAT_METAS = [];  // Metas anuais do escritório (config)
 let _metaIdC = 1;
@@ -15303,6 +15304,35 @@ function planoPopulateAnoSel(){
   }).join('');
 }
 
+function _planoCheckNotificacoes(lista){
+  if(_planoNotifChecked) return;
+  _planoNotifChecked = true;
+  const hoje = new Date().toISOString().split('T')[0];
+  const paraIniciar = lista.filter(a=>{
+    const st = planoStatusEfetivo(a);
+    return a.dt_prev_inicio === hoje && st !== 'concluida' && st !== 'em_execucao';
+  });
+  const paraEncerrar = lista.filter(a=>{
+    return a.prazo === hoje && planoStatusEfetivo(a) !== 'concluida';
+  });
+  const linhas = [];
+  if(paraIniciar.length){
+    linhas.push(`<strong>Início previsto hoje (${paraIniciar.length}):</strong>`);
+    paraIniciar.forEach(a=>linhas.push(`• ${esc(a.nome)}`));
+  }
+  if(paraEncerrar.length){
+    if(linhas.length) linhas.push('');
+    linhas.push(`<strong>Prazo de conclusão hoje (${paraEncerrar.length}):</strong>`);
+    paraEncerrar.forEach(a=>linhas.push(`• ${esc(a.nome)}`));
+  }
+  if(!linhas.length) return;
+  const div = document.createElement('div');
+  div.style.cssText='position:fixed;bottom:90px;right:20px;z-index:9100;max-width:340px;background:var(--bg);border:1px solid var(--amber);border-radius:var(--r);padding:1rem 1.2rem;box-shadow:0 4px 20px rgba(0,0,0,.18);font-size:13px;line-height:1.6';
+  div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-weight:700;color:var(--amber);margin-bottom:.4rem">⏰ Atividades do PAT — hoje</div>${linhas.join('<br>')}</div><button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--ink3);flex-shrink:0;padding:0;line-height:1">✕</button></div>`;
+  document.body.appendChild(div);
+  setTimeout(()=>div.remove(), 15000);
+}
+
 function rPlano(){
   if(!isEP()) return;
   planoPopulateAnoSel();
@@ -15323,6 +15353,7 @@ function rPlano(){
     (a.descricao||'').toLowerCase().includes(srch)||
     (a.responsavel||'').toLowerCase().includes(srch));
   planoDashAnual(doAno);
+  _planoCheckNotificacoes(doAno);
   planoStatsTrimestrais(doAno);
   renderPlanoMetas();
   const el = document.getElementById('plano-c');
@@ -15660,15 +15691,15 @@ function planoDashAnual(lista){
   if(pct>=75) cor='#14b8a6';
   else if(pct>=40) cor='#f59e0b';
   else cor='#ef4444';
-  // Métricas de pontualidade
-  const conclLista = lista.filter(a=>planoStatusEfetivo(a)==='concluida'&&a.entrega_status);
-  const emDia      = conclLista.filter(a=>a.entrega_status==='em_dia').length;
-  const comAtraso  = conclLista.filter(a=>a.entrega_status==='com_atraso').length;
-  const pctPontualidade = conclLista.length ? Math.round(emDia/conclLista.length*100) : null;
-  let corPont;
-  if(pctPontualidade>=80) corPont='#14b8a6';
-  else if(pctPontualidade>=50) corPont='#f59e0b';
-  else corPont='#ef4444';
+  // Pontualidade na conclusão: atividades concluídas com prazo comparando dt_conclusao vs prazo
+  const conclComPrazo = lista.filter(a=>planoStatusEfetivo(a)==='concluida' && a.prazo && a.dt_conclusao);
+  const conclEmDia    = conclComPrazo.filter(a=>a.dt_conclusao<=a.prazo).length;
+  const pctConclPont  = conclComPrazo.length ? Math.round(conclEmDia/conclComPrazo.length*100) : null;
+  // Pontualidade no início: atividades com ambas as datas de início preenchidas
+  const inicioComAmbasDatas = lista.filter(a=>a.dt_prev_inicio && a.dt_efet_inicio);
+  const inicioEmDia         = inicioComAmbasDatas.filter(a=>a.dt_efet_inicio<=a.dt_prev_inicio).length;
+  const pctInicioPont       = inicioComAmbasDatas.length ? Math.round(inicioEmDia/inicioComAmbasDatas.length*100) : null;
+  const _corPont = v => v==null?'#94a3b8':v>=80?'#14b8a6':v>=50?'#f59e0b':'#ef4444';
   const stF = document.getElementById('plano-filt-status')?.value||'';
   const dc = (v,l,c,bg,st)=>{
     const isActive=st&&st===stF;
@@ -15698,14 +15729,16 @@ function planoDashAnual(lista){
         <div style="width:${pct}%;height:100%;background:${cor};border-radius:3px;transition:width .4s"></div>
       </div>
     </div>
-    ${conclLista.length?`<div style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.7rem 1rem">
-      <div style="font-size:22px;font-weight:700;color:${corPont};line-height:1">${pctPontualidade}%</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Pontualidade nas entregas</div>
-      <div style="font-size:11px;margin-top:5px;display:flex;gap:8px;flex-wrap:wrap">
-        <span style="color:#0f766e">✅ ${emDia} em dia</span>
-        <span style="color:#dc2626">⚠ ${comAtraso} com atraso</span>
-      </div>
-    </div>`:''}
+    <div style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.7rem 1rem">
+      <div style="font-size:22px;font-weight:700;color:${_corPont(pctConclPont)};line-height:1">${pctConclPont!=null?pctConclPont+'%':'—'}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Pontualidade na conclusão</div>
+      ${conclComPrazo.length?`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">${conclEmDia} em dia · ${conclComPrazo.length-conclEmDia} com atraso</div>`:`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">Sem dados suficientes</div>`}
+    </div>
+    <div style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.7rem 1rem">
+      <div style="font-size:22px;font-weight:700;color:${_corPont(pctInicioPont)};line-height:1">${pctInicioPont!=null?pctInicioPont+'%':'—'}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Pontualidade no início</div>
+      ${inicioComAmbasDatas.length?`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">${inicioEmDia} em dia · ${inicioComAmbasDatas.length-inicioEmDia} com atraso</div>`:`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">Sem dados suficientes</div>`}
+    </div>
   </div>`;
 }
 
@@ -15842,14 +15875,18 @@ function _planoCardInfoLine(at, pct, prazoColor, prazoWarn){
   const responsavelInfo = at.responsavel
     ? `<span style="font-size:11px;color:var(--ink3)">👤 ${esc(at.responsavel)}</span>`
     : '';
+  const inicioInfo = at.dt_prev_inicio
+    ? `<span style="font-size:11px;color:var(--ink3)" title="Data prevista para início">🟢 ${at.dt_prev_inicio}</span>`
+    : '';
   const prazoInfo = at.prazo
-    ? `<span style="font-size:11px;color:${prazoColor}">📅 ${at.prazo}${prazoWarn}</span>`
+    ? `<span style="font-size:11px;color:${prazoColor}" title="Data prevista para conclusão">📅 ${at.prazo}${prazoWarn}</span>`
     : '';
   const quantidadeInfo = at.qt_prevista
     ? `<span style="font-size:11px;color:var(--ink3)">📊 ${at.qt_realizada||0}/${at.qt_prevista} (${pct}%)</span>`
     : '';
   return `<div style="display:flex;gap:12px;align-items:center;margin-top:.6rem;flex-wrap:wrap">
     ${responsavelInfo}
+    ${inicioInfo}
     ${prazoInfo}
     ${quantidadeInfo}
   </div>`;
@@ -16373,14 +16410,26 @@ function _planoModalBodyHTML(){
         <input class="fi" id="pm-resp" value="">
       </div>
       <div>
-        <div class="fl">Prazo para conclusão</div>
-        <input class="fi" type="date" id="pm-prazo" value="">
-      </div>
-      <div>
         <div class="fl">Trimestre</div>
         <select class="fi" id="pm-tri">
           ${trOpts}
         </select>
+      </div>
+      <div>
+        <div class="fl">Data prevista para início</div>
+        <input class="fi" type="date" id="pm-dt-prev-inicio" value="">
+      </div>
+      <div>
+        <div class="fl">Data efetiva de início</div>
+        <input class="fi" type="date" id="pm-dt-efet-inicio" value="">
+      </div>
+      <div>
+        <div class="fl">Data prevista para conclusão</div>
+        <input class="fi" type="date" id="pm-prazo" value="">
+      </div>
+      <div>
+        <div class="fl">Data efetiva de conclusão</div>
+        <input class="fi" type="date" id="pm-dt-efet-conclusao" value="">
       </div>
       <div>
         <div class="fl">Status</div>
@@ -16452,6 +16501,9 @@ function _planoModalApplyValues(at){
   document.getElementById('pm-desc').value = cur.descricao||'';
   document.getElementById('pm-resp').value = cur.responsavel||usuarioLogado?.nome||'';
   document.getElementById('pm-prazo').value = cur.prazo||'';
+  document.getElementById('pm-dt-prev-inicio').value = cur.dt_prev_inicio||'';
+  document.getElementById('pm-dt-efet-inicio').value = cur.dt_efet_inicio||'';
+  document.getElementById('pm-dt-efet-conclusao').value = cur.dt_conclusao||'';
   document.getElementById('pm-tri').value = cur.trimestre||'Anual';
   document.getElementById('pm-status').value = cur.status||'planejado';
   document.getElementById('pm-prio').value = cur.prioridade||'media';
@@ -16515,7 +16567,9 @@ function _planoBuildAtividade({id,ano,nome,vTipo,vId,vNome,qtPrev,qtReal,antigo}
     nome,
     descricao:    document.getElementById('pm-desc')?.value.trim()||'',
     responsavel:  document.getElementById('pm-resp')?.value.trim()||'',
-    prazo:        document.getElementById('pm-prazo')?.value||'',
+    prazo:          document.getElementById('pm-prazo')?.value||'',
+    dt_prev_inicio: document.getElementById('pm-dt-prev-inicio')?.value||'',
+    dt_efet_inicio: document.getElementById('pm-dt-efet-inicio')?.value||'',
     trimestre:    document.getElementById('pm-tri')?.value||'Anual',
     status:       document.getElementById('pm-status')?.value||'planejado',
     prioridade:   document.getElementById('pm-prio')?.value||'media',
@@ -16529,7 +16583,7 @@ function _planoBuildAtividade({id,ano,nome,vTipo,vId,vNome,qtPrev,qtReal,antigo}
     evidencia:    document.getElementById('pm-evid')?.value.trim()||'',
     dt_criacao:   antigo?.dt_criacao||hoje,
     dt_atualizacao: hoje,
-    dt_conclusao:   antigo?.dt_conclusao||'',
+    dt_conclusao:   document.getElementById('pm-dt-efet-conclusao')?.value||antigo?.dt_conclusao||'',
     entrega_status: antigo?.entrega_status||'',
     dias_atraso:    antigo?.dias_atraso??null,
   };
@@ -16549,13 +16603,13 @@ function _planoAplicarConclusao(at, antigo){
 }
 function _planoMarcarConclusao(at){
   const hoje = new Date().toISOString().split('T')[0];
-  at.dt_conclusao = hoje;
+  if(!at.dt_conclusao) at.dt_conclusao = hoje;
   if(!at.prazo){
     at.entrega_status = 'sem_prazo';
     at.dias_atraso = 0;
     return;
   }
-  const diffMs = new Date(hoje) - new Date(at.prazo);
+  const diffMs = new Date(at.dt_conclusao) - new Date(at.prazo);
   const dias = Math.ceil(diffMs / 86400000);
   at.dias_atraso = Math.max(0, dias);
   at.entrega_status = dias <= 0 ? 'em_dia' : 'com_atraso';
