@@ -287,8 +287,10 @@
         });
         const data = await resp.json().catch(function() { return {}; });
         if (resp.ok && data.link) {
-          // Conta existe no Auth — reset enviado pela CF server-side
           resetEnviado = true;
+          if (data.emailSent === false) {
+            console.warn('_primeiroAcessoExistente: CF retornou emailSent=false — verifique o campo "Template ID (redefinição de senha)" nas configurações do EmailJS.');
+          }
         }
       }
 
@@ -482,9 +484,11 @@
         body: JSON.stringify({ email }),
       });
       const data = await resp.json().catch(function() { return {}; });
-      // CF envia o e-mail server-side; cliente não precisa reenviar.
-      // Retorno silencioso quando link é null (e-mail não encontrado — não revela).
       if (!resp.ok || !data.link) return;
+      if (data.emailSent === false) {
+        // CF gerou o link mas não conseguiu enviar o e-mail (templateReset ausente).
+        console.warn('_enviarResetSenha: CF retornou emailSent=false — verifique o campo "Template ID (redefinição de senha)" nas configurações do EmailJS.');
+      }
     } catch (e) {
       console.warn('_enviarResetSenha:', e.message);
     }

@@ -204,13 +204,22 @@ exports.passwordResetLink = onRequest(async (req, res) => {
 
     // Envia o e-mail de reset via EmailJS server-side para não depender do
     // ejsConfig do cliente (que pode estar vazio antes do login).
+    let emailSent = false;
     try {
       const ejsDoc = await admin.firestore().doc("config/ejs").get();
-      if (ejsDoc.exists) {
+      if (!ejsDoc.exists) {
+        console.warn("passwordResetLink: config/ejs não encontrado no Firestore");
+      } else {
         const ejs = ejsDoc.data();
+        console.info("passwordResetLink: ejs fields —", {
+          hasService: !!ejs.service,
+          hasPubkey: !!ejs.pubkey,
+          hasTemplate: !!ejs.template,
+          hasTemplateReset: !!ejs.templateReset,
+        });
         if (ejs.service && ejs.pubkey && ejs.templateReset) {
           const fetch = (await import("node-fetch")).default;
-          await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+          const ejsRes = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -226,14 +235,22 @@ exports.passwordResetLink = onRequest(async (req, res) => {
               },
             }),
           });
+          if (ejsRes.ok) {
+            emailSent = true;
+            console.info("passwordResetLink: e-mail enviado via EmailJS para", normalizedEmail);
+          } else {
+            const body = await ejsRes.text().catch(() => "");
+            console.warn("passwordResetLink: EmailJS retornou", ejsRes.status, body);
+          }
+        } else {
+          console.warn("passwordResetLink: templateReset ou service/pubkey ausente em config/ejs — e-mail não enviado");
         }
       }
     } catch (ejsErr) {
       console.warn("passwordResetLink EmailJS send failed:", ejsErr.message);
-      // não bloqueia — retorna link para o cliente tentar como fallback
     }
 
-    res.status(200).json({ link, nome });
+    res.status(200).json({ link, nome, emailSent });
   } catch (e) {
     if (e.code === "auth/user-not-found") {
       // Não revela se o e-mail existe ou não (prevenção de enumeração)
