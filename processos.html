@@ -1670,6 +1670,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
         <div class="fg"><label class="fl" for="ejs-template">Template ID (notificações de mapeamento)</label><input class="fi" id="ejs-template" placeholder="template_xxxxxxx"></div>
         <div class="fg"><label class="fl" for="ejs-template-reset">Template ID (redefinição de senha)</label><input class="fi" id="ejs-template-reset" placeholder="template_xxxxxxx"></div>
         <div class="fg"><label class="fl" for="ejs-pubkey">Public Key</label><input class="fi" id="ejs-pubkey" placeholder="xxxxxxxxxxxxxxxxx"></div>
+        <div class="fg"><label class="fl" for="ejs-privatekey">Private Key <span style="font-weight:400;color:var(--ink3)">(necessária para envio via servidor — EmailJS → Account → Generate Private Key)</span></label><input class="fi" id="ejs-privatekey" type="password" placeholder="xxxxxxxxxxxxxxxxx"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button type="button" class="btn btn-p" onclick="salvarEmailJS()">Salvar e ativar</button>
@@ -2108,7 +2109,7 @@ let PAT_METAS = [];  // Metas anuais do escritório (config)
 let _metaIdC = 1;
 
 let notifs = [];
-let ejsConfig = {service:'',template:'',templateReset:'',pubkey:''};
+let ejsConfig = {service:'',template:'',templateReset:'',pubkey:'',privatekey:''};
 let curProc = null;
 let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
@@ -2442,6 +2443,7 @@ function salvarEmailJS(){
   ejsConfig.template = document.getElementById('ejs-template').value.trim();
   ejsConfig.templateReset = document.getElementById('ejs-template-reset').value.trim();
   ejsConfig.pubkey = document.getElementById('ejs-pubkey').value.trim();
+  ejsConfig.privatekey = document.getElementById('ejs-privatekey').value.trim();
   lsSet('epcage_ejs', JSON.stringify(ejsConfig));
   const status = document.getElementById('emailjs-status');
   if(ejsConfig.service && ejsConfig.template && ejsConfig.pubkey){
@@ -2560,11 +2562,13 @@ function _rNotifPreencherEmailJS(){
   const tf = document.getElementById('ejs-template');
   const trf = document.getElementById('ejs-template-reset');
   const pf = document.getElementById('ejs-pubkey');
+  const pkf = document.getElementById('ejs-privatekey');
   const st = document.getElementById('emailjs-status');
   if(sf) sf.value = ejsConfig.service       || '';
   if(tf) tf.value = ejsConfig.template      || '';
   if(trf) trf.value = ejsConfig.templateReset || '';
   if(pf) pf.value = ejsConfig.pubkey        || '';
+  if(pkf) pkf.value = ejsConfig.privatekey   || '';
   if(st && ejsConfig.service && ejsConfig.template && ejsConfig.pubkey){
     st.textContent = '✓ EmailJS configurado — envio real de e-mails ativado.';
     st.className = 'ib ibg';
@@ -16687,6 +16691,7 @@ async function fbLoad(){
       ejsConfig.template          = d.template          || '';
       ejsConfig.templateReset     = d.templateReset     || '';
       ejsConfig.pubkey            = d.pubkey            || '';
+      ejsConfig.privatekey        = d.privatekey        || '';
       if(ejsConfig.pubkey && typeof emailjs !== 'undefined'){
         emailjs.init({publicKey: ejsConfig.pubkey});
       }
@@ -16898,6 +16903,7 @@ async function fbSaveEjs(){
       template:      ejsConfig.template      || '',
       templateReset: ejsConfig.templateReset || '',
       pubkey:        ejsConfig.pubkey        || '',
+      privatekey:    ejsConfig.privatekey    || '',
     });
     return true;
   } catch(e){
@@ -17050,6 +17056,7 @@ function _bootLoadEmailJsLocalFallback(){
     ejsConfig.template          = cfg.template          || '';
     ejsConfig.templateReset     = cfg.templateReset     || '';
     ejsConfig.pubkey            = cfg.pubkey            || '';
+    ejsConfig.privatekey        = cfg.privatekey        || '';
     if(ejsConfig.pubkey && typeof emailjs !== 'undefined') emailjs.init({publicKey: ejsConfig.pubkey});
   } catch(e){ console.warn('ejsConfig localStorage parse error:', e.message); }
 }
