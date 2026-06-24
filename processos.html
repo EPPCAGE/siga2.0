@@ -15310,10 +15310,10 @@ function _planoCheckNotificacoes(lista){
   const hoje = new Date().toISOString().split('T')[0];
   const paraIniciar = lista.filter(a=>{
     const st = planoStatusEfetivo(a);
-    return a.dt_prev_inicio === hoje && st !== 'concluida' && st !== 'em_execucao';
+    return a.dt_prev_inicio === hoje && !a.dt_efet_inicio && st !== 'concluida' && st !== 'em_execucao';
   });
   const paraEncerrar = lista.filter(a=>{
-    return a.prazo === hoje && planoStatusEfetivo(a) !== 'concluida';
+    return a.prazo === hoje && !a.dt_conclusao && planoStatusEfetivo(a) !== 'concluida';
   });
   const linhas = [];
   if(paraIniciar.length){
