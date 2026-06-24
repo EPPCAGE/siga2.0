@@ -40,6 +40,9 @@ jobs:
         run: npm ci --prefix functions
 
       - name: Deploy das Cloud Functions via gcloud
+        # gcloud já vem pré-instalado no ubuntu-latest — não precisa de setup-gcloud.
+        # Autentica inline sem definir GOOGLE_APPLICATION_CREDENTIALS para não
+        # interferir na action de hosting que vem a seguir.
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
