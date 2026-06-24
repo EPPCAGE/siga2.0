@@ -8126,6 +8126,42 @@ async function removerAnexoQuestao(questaoIdx,anexoIdx){
   });
 }
 
+async function gerarFAQIA(){
+  const p=curProc; if(!p) return;
+  const btn=document.getElementById('btn-gerar-faq');
+  const st=document.getElementById('faq-ia-status');
+  if(btn) btn.disabled=true;
+  _rsPOP(p);
+  const popObj=(document.getElementById('pp-obj')?.value||'').trim()||p.form?.pop?.obj||p.objetivo||'';
+  const popEnt=(document.getElementById('pp-ent')?.value||'').trim()||p.form?.pop?.ent||p.ent?.entradas||'';
+  const popSai=(document.getElementById('pp-sai')?.value||'').trim()||p.form?.pop?.sai||p.ent?.saidas||'';
+  const asIsAtual=((p.mod?.asIs||'').trim()||'').substring(0,3000);
+  const etapasDetalhadas=(p.mod?.etapas_proc||[])
+    .map((e,i)=>`${i+1}. ${e?.nome||e?.desc||''} | Tipo: ${e?.tipo||'Atividade'} | Responsavel: ${e?.resp||e?.executor||'Nao informado'}`)
+    .join('\n');
+  const payload={
+    processo: p.nome,
+    objetivo: popObj,
+    entradas: popEnt,
+    saidas: popSai,
+    atores: p.ent?.atores||'',
+    etapas: etapasDetalhadas,
+    descricao_as_is: asIsAtual,
+    problemas: (p.ent?.prob||[]).map(x=>typeof x==='string'?x:x.desc||'').filter(Boolean).join('; '),
+    produto: p.produto||'',
+    contexto_atualizado_em: now()
+  };
+  try{
+    const res = await chamarIA('gerar_faq', payload, st);
+    if(res){
+      const el=document.getElementById('afaq');
+      if(el) el.value=(el.value?el.value+'\n\n':'')+res.trim();
+      toast('FAQ gerado! Revise e edite conforme necessário.','var(--teal)');
+    }
+  } catch(e){ toast('Erro ao gerar FAQ: '+e.message,'var(--red)'); }
+  finally{ if(btn){btn.disabled=false;} if(st){st.textContent='';} }
+}
+
 async function iaGerarQuestoesAuditoria(){
   const p=curProc;if(!p)return;
   const aud=p.auditoria||{};
