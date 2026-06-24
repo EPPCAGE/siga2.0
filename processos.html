@@ -1674,7 +1674,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button type="button" class="btn btn-p" onclick="salvarEmailJS()">Salvar e ativar</button>
         <button type="button" class="btn" onclick="testarEmailJS()">Testar template mapeamento</button>
-
+        <button type="button" class="btn" onclick="testarEmailJSReset()">Testar template redefinição de senha</button>
         <span id="ejs-test-result" style="font-size:12px;color:var(--ink3)"></span>
       </div>
     </div>
@@ -2460,6 +2460,37 @@ function salvarEmailJS(){
   }
   fbSaveEjs();
   toast('Configuração salva');
+}
+
+function testarEmailJSReset(){
+  const res = document.getElementById('ejs-test-result');
+  if(!ejsConfig.service || !ejsConfig.templateReset || !ejsConfig.pubkey){
+    res.textContent = 'Configure e salve o template de redefinição de senha primeiro.';
+    res.style.color = 'var(--red)';
+    return;
+  }
+  if(typeof emailjs === 'undefined'){
+    res.textContent = 'Biblioteca EmailJS não disponível.';
+    res.style.color = 'var(--red)';
+    return;
+  }
+  res.textContent = 'Enviando...';
+  res.style.color = 'var(--ink3)';
+  const destEmail = usuarioLogado?.email || '';
+  const destNome = usuarioLogado?.nome || 'Usuário';
+  emailjs.send(ejsConfig.service, ejsConfig.templateReset, {
+    to_name: destNome,
+    to_email: destEmail,
+    email: destEmail,
+    from_name: ORG_CONFIG.notificationFromName,
+    link: ORG_CONFIG.publicUrl + '?reset=teste',
+  }).then(()=>{
+    res.textContent = '✓ E-mail de teste (redefinição) enviado para ' + destEmail;
+    res.style.color = 'var(--green)';
+  }).catch(err=>{
+    res.textContent = '✗ Erro: ' + (err.text || err.message || JSON.stringify(err));
+    res.style.color = 'var(--red)';
+  });
 }
 
 function testarEmailJS(){
