@@ -326,9 +326,40 @@ exports.registerUser = onRequest(async (req, res) => {
     const rawData = configDoc.exists ? configDoc.data()?.data : null;
     const lista = typeof rawData === "string" ? JSON.parse(rawData) : [];
 
-    // Já está no SIGA — nenhuma ação necessária
+    // Já está no SIGA — garante conta Auth e envia link de acesso
     if (Array.isArray(lista) && lista.some(u => u?.email === normalizedEmail)) {
-      res.status(200).json({ status: "exists" });
+      // Cria conta Auth se ainda não existir
+      try {
+        await admin.auth().createUser({ email: normalizedEmail, password: _generateTempPassword() });
+      } catch (authErr) {
+        if (authErr.code !== "auth/email-already-exists") throw authErr;
+      }
+      // Envia link de redefinição de senha via EmailJS
+      let emailSent = false;
+      try {
+        const link = await admin.auth().generatePasswordResetLink(normalizedEmail);
+        const ejsDoc = await admin.firestore().doc("config/ejs").get();
+        if (ejsDoc.exists) {
+          const ejs = ejsDoc.data();
+          if (ejs.service && ejs.pubkey && ejs.templateReset) {
+            const fetch = (await import("node-fetch")).default;
+            const nomeUsuario = lista.find(u => u?.email === normalizedEmail)?.nome || normalizedEmail;
+            const ejsPayload = {
+              service_id: ejs.service, template_id: ejs.templateReset, user_id: ejs.pubkey,
+              template_params: { to_name: nomeUsuario, to_email: normalizedEmail, email: normalizedEmail, from_name: "EPP/CAGE", link },
+            };
+            if (ejs.privatekey) ejsPayload.accessToken = ejs.privatekey;
+            const ejsRes = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+              method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ejsPayload),
+            });
+            emailSent = ejsRes.ok;
+            if (!ejsRes.ok) console.warn("registerUser(exists): EmailJS retornou", ejsRes.status);
+          }
+        }
+      } catch (ejsErr) {
+        console.warn("registerUser(exists) EmailJS error:", ejsErr.message);
+      }
+      res.status(200).json({ status: "exists", emailSent });
       return;
     }
 
