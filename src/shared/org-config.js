@@ -21,7 +21,7 @@
     notificationFromName: 'EP·CAGE',
     noreplySuggestion: 'noreply.ep@sefaz.rs.gov.br',
     automaticEmailFooter: 'Este é um e-mail automático do EPP — CAGE/Sefaz-RS.',
-    localEpEmail: 'ep@sefaz.rs.gov.br',
+    localEpEmail: 'epp.cage@sefaz.rs.gov.br',
     loginEmailPlaceholder: 'usuario@sefaz.rs.gov.br',
     supportPortalUrl: 'https://atendimentocage.sefaz.rs.gov.br/',
     supportPortalLabel: 'Portal e-CAGE',
