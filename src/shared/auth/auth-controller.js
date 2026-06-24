@@ -383,11 +383,7 @@
       }
 
       if (data.status === 'created') {
-        // E-mail enviado server-side pelo CF; fallback client-side se necessário
-        if (!data.emailSent && data.senhaTemp && globalScope._enviarSenhaAcesso) {
-          globalScope._enviarSenhaAcesso(email, nome, data.senhaTemp);
-        }
-        showOk('Acesso criado! Enviamos uma senha temporária para ' + email + '. Verifique sua caixa de entrada e spam.');
+        showOk('Acesso criado! Enviamos um link para definir sua senha para ' + email + '. Verifique sua caixa de entrada e spam.');
       } else {
         // Conta Auth já existia: envia reset de senha
         await globalScope._enviarResetSenha(email, nome);

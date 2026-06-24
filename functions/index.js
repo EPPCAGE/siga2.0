@@ -332,12 +332,10 @@ exports.registerUser = onRequest(async (req, res) => {
       return;
     }
 
-    // Tenta criar conta Firebase Auth
-    let senhaTemp = null;
+    // Tenta criar conta Firebase Auth (senha aleatória — usuário nunca a recebe)
     let authStatus = "siga_added";
     try {
-      senhaTemp = _generateTempPassword();
-      await admin.auth().createUser({ email: normalizedEmail, password: senhaTemp });
+      await admin.auth().createUser({ email: normalizedEmail, password: _generateTempPassword() });
       authStatus = "created";
     } catch (authErr) {
       if (authErr.code !== "auth/email-already-exists") throw authErr;
@@ -364,54 +362,51 @@ exports.registerUser = onRequest(async (req, res) => {
     const listaAtualizada = Array.isArray(lista) ? [...lista, novoUsuario] : [novoUsuario];
     await db.doc("config/usuarios").set({ data: JSON.stringify(listaAtualizada) });
 
-    // Envia e-mail com a senha temporária via EmailJS server-side
+    // Gera link de redefinição e envia via EmailJS (mesmo fluxo do passwordResetLink)
     let emailSent = false;
-    if (senhaTemp) {
-      try {
-        const ejsDoc = await db.doc("config/ejs").get();
-        if (ejsDoc.exists) {
-          const ejs = ejsDoc.data();
-          if (ejs.service && ejs.pubkey && ejs.templateReset) {
-            const fetch = (await import("node-fetch")).default;
-            const ejsPayload = {
-              service_id: ejs.service,
-              template_id: ejs.templateReset,
-              user_id: ejs.pubkey,
-              template_params: {
-                to_name: novoUsuario.nome,
-                to_email: normalizedEmail,
-                email: normalizedEmail,
-                from_name: "EPP/CAGE",
-                link: senhaTemp,
-              },
-            };
-            if (ejs.privatekey) ejsPayload.accessToken = ejs.privatekey;
-            const ejsRes = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(ejsPayload),
-            });
-            if (ejsRes.ok) {
-              emailSent = true;
-              console.info("registerUser: e-mail enviado via EmailJS para", normalizedEmail);
-            } else {
-              const body = await ejsRes.text().catch(() => "");
-              console.warn("registerUser: EmailJS retornou", ejsRes.status, body);
-            }
+    try {
+      const link = await admin.auth().generatePasswordResetLink(normalizedEmail);
+      const ejsDoc = await db.doc("config/ejs").get();
+      if (ejsDoc.exists) {
+        const ejs = ejsDoc.data();
+        if (ejs.service && ejs.pubkey && ejs.templateReset) {
+          const fetch = (await import("node-fetch")).default;
+          const ejsPayload = {
+            service_id: ejs.service,
+            template_id: ejs.templateReset,
+            user_id: ejs.pubkey,
+            template_params: {
+              to_name: novoUsuario.nome,
+              to_email: normalizedEmail,
+              email: normalizedEmail,
+              from_name: "EPP/CAGE",
+              link,
+            },
+          };
+          if (ejs.privatekey) ejsPayload.accessToken = ejs.privatekey;
+          const ejsRes = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(ejsPayload),
+          });
+          if (ejsRes.ok) {
+            emailSent = true;
+            console.info("registerUser: link de acesso enviado via EmailJS para", normalizedEmail);
           } else {
-            console.warn("registerUser: config/ejs incompleto — e-mail não enviado");
+            const body = await ejsRes.text().catch(() => "");
+            console.warn("registerUser: EmailJS retornou", ejsRes.status, body);
           }
         } else {
-          console.warn("registerUser: config/ejs não encontrado no Firestore");
+          console.warn("registerUser: config/ejs incompleto — e-mail não enviado");
         }
-      } catch (ejsErr) {
-        console.warn("registerUser EmailJS send failed:", ejsErr.message);
+      } else {
+        console.warn("registerUser: config/ejs não encontrado no Firestore");
       }
+    } catch (ejsErr) {
+      console.warn("registerUser: erro ao enviar e-mail:", ejsErr.message);
     }
 
-    const result = { status: authStatus, emailSent };
-    if (senhaTemp && !emailSent) result.senhaTemp = senhaTemp; // fallback: cliente tenta enviar
-    res.status(200).json(result);
+    res.status(200).json({ status: authStatus, emailSent });
   } catch (e) {
     console.error("registerUser error:", e);
     res.status(500).json({ error: "Erro interno ao criar acesso. Tente novamente ou contate o administrador." });
