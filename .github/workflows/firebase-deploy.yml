@@ -79,6 +79,9 @@ jobs:
             --set-secrets="AZURE_OPENAI_KEY=AZURE_OPENAI_KEY:latest,AZURE_OPENAI_ENDPOINT=AZURE_OPENAI_ENDPOINT:latest,AZURE_OPENAI_DEPLOYMENT=AZURE_OPENAI_DEPLOYMENT:latest" &
           wait
 
+          # Revoga credenciais do gcloud para não interferir no hosting deploy a seguir
+          gcloud auth revoke --all --quiet || true
+
       - name: Deploy para Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@0cbcac4740c2bfb00d632f0b863b57713124eb5a  # v0.9.0
         with:
