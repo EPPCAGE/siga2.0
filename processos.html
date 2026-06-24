@@ -1165,7 +1165,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
   <button type="button" class="nav-btn" onclick="go('notificacoes',this)" id="nb-notif">
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a5 5 0 00-5 5v3l-1 2h12l-1-2V7a5 5 0 00-5-5z" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg>
-    Notificações <span class="nav-cnt" id="nb-notif-cnt">0</span>
+    Configuração Notificações <span class="nav-cnt" id="nb-notif-cnt">0</span>
   </button>
   <button type="button" class="nav-btn" onclick="lsSet('siga_module','hub');openModuleHub()" id="nb-modhub" style="display:none;margin-top:4px;border-top:1px solid var(--bdr2);padding-top:10px">
     <svg viewBox="0 0 16 16" fill="none"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" stroke="currentColor" stroke-width="1.2"/></svg>
@@ -1647,7 +1647,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 </div>
 
 <div id="page-notificacoes" class="page"><div style="padding:2rem">
-  <div class="ph"><div><div class="ph-t">Notificações</div><div class="ph-s">Configuração de e-mail e registro de avisos enviados</div></div>
+  <div class="ph"><div><div class="ph-t">Configuração Notificações</div><div class="ph-s">Configuração de e-mail e registro de avisos enviados</div></div>
   <button type="button" class="btn" onclick="limparNotifs()">Limpar lidas</button></div>
 
   <!-- Guia de configuração EmailJS — visível apenas para EP -->
@@ -2307,7 +2307,7 @@ function go(page,btn){
   _getPageRenderer(page)();
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
-  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de FAQs',indicadores:'Indicadores',plano:'PAT',notificacoes:'Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
+  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de FAQs',indicadores:'Indicadores',plano:'PAT',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
   const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||'SIGA 2.0';
 }
 function _invokeGlobalHandler(handlerName){
@@ -2413,7 +2413,8 @@ function pbBadge(p){return '<span class="badge '+({Baixa:'bg',Media:'ba',Alta:'b
 function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'br',Critico:'br'}[v]||'bgr')+'"'+(v==='Critico'?' style="background:var(--red);color:#fff"':'')+'>'+v+'</span>';}
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.filter(isProcessoEmAndamento).length;
-  const _filaCnt=getTarefasUsr().length+(isEP()?0:processos.filter(p=>['vencida','pendente'].includes(_revStatus(p))&&['acompanha','auditoria'].includes(p.etapa)&&(p.dono===usuarioLogado?.nome||p.dono_email===usuarioLogado?.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id))).length);
+  const _avisosCnt=_avisos.length+_getAvisosPAT().length;
+  const _filaCnt=getTarefasUsr().length+(isEP()?0:processos.filter(p=>['vencida','pendente'].includes(_revStatus(p))&&['acompanha','auditoria'].includes(p.etapa)&&(p.dono===usuarioLogado?.nome||p.dono_email===usuarioLogado?.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id))).length)+_avisosCnt;
   document.getElementById('nb-fila-cnt').textContent=_filaCnt;
   const meusProcCnt=document.getElementById('nb-meusproc-cnt');
   if(meusProcCnt) meusProcCnt.textContent=getMinhasUnidades().length;
@@ -2537,6 +2538,8 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
   }
   const item={id:Date.now(),para:para_nome,para_email,acao,proc_nome,prazo,de:de_nome,data:now(),lida:false};
   notifs.unshift(item);
+  // Persiste no Firestore para aparecer em Minhas Tarefas do destinatário
+  _notifSalvarFirestore(item);
   updCounts();
   rNotif();
   // EmailJS
@@ -2598,6 +2601,96 @@ function rNotif(){
 }
 function marcarLida(id){const n=notifs.find(x=>x.id===id);if(n){n.lida=true;}updCounts();rNotif();}
 function limparNotifs(){notifs=notifs.filter(n=>!n.lida);updCounts();rNotif();}
+
+// ── Avisos persistidos no Firestore (aparecem em Minhas Tarefas) ──────────────
+let _avisos = []; // avisos do usuário logado carregados do Firestore
+
+function _notifSalvarFirestore(item){
+  if(!fbReady()) return;
+  const db = firebase.firestore();
+  const expires = new Date(); expires.setDate(expires.getDate()+30);
+  db.collection('notifs').doc(String(item.id)).set({
+    para_email: item.para_email,
+    para: item.para,
+    acao: item.acao,
+    proc_nome: item.proc_nome||'',
+    prazo: item.prazo||'',
+    de: item.de||'',
+    data: item.data,
+    lida: false,
+    expires_at: expires.toISOString(),
+  }).catch(e=>console.warn('notif Firestore save error:',e.message));
+}
+
+async function _notifCarregarFirestore(){
+  if(!fbReady()||!usuarioLogado?.email) return;
+  const db = firebase.firestore();
+  const hoje = new Date().toISOString();
+  try {
+    const snap = await db.collection('notifs')
+      .where('para_email','==',usuarioLogado.email)
+      .where('lida','==',false)
+      .get();
+    _avisos = [];
+    snap.forEach(doc=>{
+      const d=doc.data();
+      if(d.expires_at && d.expires_at < hoje) return; // expirado
+      _avisos.push({fsId:doc.id, ...d});
+    });
+    _avisos.sort((a,b)=>b.data.localeCompare(a.data));
+    updCounts();
+    rFila();
+  } catch(e){ console.warn('notif Firestore load error:',e.message); }
+}
+
+async function marcarAvisoLido(fsId){
+  if(!fbReady()) return;
+  _avisos = _avisos.filter(a=>a.fsId!==fsId);
+  updCounts();
+  rFila();
+  try {
+    await firebase.firestore().collection('notifs').doc(fsId).update({lida:true});
+  } catch(e){ console.warn('marcarAvisoLido error:',e.message); }
+}
+
+function _getAvisosPAT(){
+  const hoje = new Date().toISOString().slice(0,10);
+  const ano = planoAno ? planoAno() : new Date().getFullYear();
+  const doAno = plano.filter(a=>!a.ano||a.ano===ano);
+  const avisos = [];
+  doAno.forEach(a=>{
+    const st = typeof planoStatusEfetivo==='function' ? planoStatusEfetivo(a) : '';
+    if(a.dt_prev_inicio===hoje && !a.dt_efet_inicio && st!=='concluida' && st!=='em_execucao')
+      avisos.push({tipo:'pat_inicio', nome:a.nome});
+    if(a.prazo===hoje && !a.dt_conclusao && st!=='concluida')
+      avisos.push({tipo:'pat_prazo', nome:a.nome});
+  });
+  return avisos;
+}
+
+function _htmlAvisos(){
+  const avisosPAT = _getAvisosPAT();
+  const total = _avisos.length + avisosPAT.length;
+  if(!total) return '';
+  let h = '<hr><div class="sec-lbl" style="margin-bottom:.5rem;color:var(--amber)">🔔 Avisos ('+total+')</div>';
+  avisosPAT.forEach(a=>{
+    const txt = a.tipo==='pat_inicio'
+      ? '📅 Início previsto hoje: <strong>'+esc(a.nome)+'</strong>'
+      : '⏰ Prazo de conclusão hoje: <strong>'+esc(a.nome)+'</strong>';
+    h+=`<div style="background:var(--bg2);border:1px solid var(--bdr);border-left:3px solid var(--amber);border-radius:var(--r);padding:.6rem .9rem;margin-bottom:6px;font-size:12.5px">
+      ${txt}
+      <div style="margin-top:4px"><button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="go('plano')">Ver PAT</button></div>
+    </div>`;
+  });
+  _avisos.forEach(a=>{
+    h+=`<div style="background:var(--bg2);border:1px solid var(--bdr);border-left:3px solid var(--blue);border-radius:var(--r);padding:.6rem .9rem;margin-bottom:6px;font-size:12.5px">
+      <div style="font-weight:500">${esc(a.acao)}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">${a.proc_nome?'Processo: '+esc(a.proc_nome)+' · ':''}${esc(a.data)}${a.de?' · De: '+esc(a.de):''}</div>
+      <div style="margin-top:4px"><button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="marcarAvisoLido('${a.fsId}')">Marcar como lido</button></div>
+    </div>`;
+  });
+  return h;
+}
 
 // ═══════════════════════════════════════════
 // FILA DE TAREFAS
@@ -3001,9 +3094,13 @@ function rFila(){
   document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
   const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir análise de aderência do processo'};
   const el=document.getElementById('fila-content');
-  if(!tarefas.length&&!_revPendDono.length){el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>';rMeusProc();return;}
+  if(!tarefas.length&&!_revPendDono.length){
+    const avisosHtml=_htmlAvisos();
+    el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>'+avisosHtml;
+    rMeusProc();return;
+  }
   if(!tarefas.length&&_revPendDono.length){
-    let h=_htmlRevPendFila(_revPendDono);
+    let h=_htmlRevPendFila(_revPendDono)+_htmlAvisos();
     el.innerHTML=h;rMeusProc();return;
   }
   // Q010: separar vencidos, críticos, normais
@@ -3054,6 +3151,7 @@ function rFila(){
     }
   }
   if(_revPendDono.length) html+=(_revPendDono.length&&(venc.length||crit.length||norm.length||aguard.length)?'<hr>':'')+_htmlRevPendFila(_revPendDono);
+  html+=_htmlAvisos();
   el.innerHTML=html;
   rMeusProc();
 }
@@ -15306,32 +15404,9 @@ function planoPopulateAnoSel(){
 }
 
 function _planoCheckNotificacoes(lista){
-  if(_planoNotifChecked) return;
-  _planoNotifChecked = true;
-  const hoje = new Date().toISOString().split('T')[0];
-  const paraIniciar = lista.filter(a=>{
-    const st = planoStatusEfetivo(a);
-    return a.dt_prev_inicio === hoje && !a.dt_efet_inicio && st !== 'concluida' && st !== 'em_execucao';
-  });
-  const paraEncerrar = lista.filter(a=>{
-    return a.prazo === hoje && !a.dt_conclusao && planoStatusEfetivo(a) !== 'concluida';
-  });
-  const linhas = [];
-  if(paraIniciar.length){
-    linhas.push(`<strong>Início previsto hoje (${paraIniciar.length}):</strong>`);
-    paraIniciar.forEach(a=>linhas.push(`• ${esc(a.nome)}`));
-  }
-  if(paraEncerrar.length){
-    if(linhas.length) linhas.push('');
-    linhas.push(`<strong>Prazo de conclusão hoje (${paraEncerrar.length}):</strong>`);
-    paraEncerrar.forEach(a=>linhas.push(`• ${esc(a.nome)}`));
-  }
-  if(!linhas.length) return;
-  const div = document.createElement('div');
-  div.style.cssText='position:fixed;bottom:90px;right:20px;z-index:9100;max-width:340px;background:var(--bg);border:1px solid var(--amber);border-radius:var(--r);padding:1rem 1.2rem;box-shadow:0 4px 20px rgba(0,0,0,.18);font-size:13px;line-height:1.6';
-  div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div style="font-weight:700;color:var(--amber);margin-bottom:.4rem">⏰ Atividades do PAT — hoje</div>${linhas.join('<br>')}</div><button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--ink3);flex-shrink:0;padding:0;line-height:1">✕</button></div>`;
-  document.body.appendChild(div);
-  setTimeout(()=>div.remove(), 15000);
+  // Avisos do PAT agora aparecem em Minhas Tarefas — não exibe mais banner flutuante
+  updCounts();
+  rFila();
 }
 
 function rPlano(){
@@ -16787,6 +16862,7 @@ async function fbLoad(){
     globalThis._fbDataReady = true;
     globalThis._fbLoadedAt = Date.now();
     _fbWatchExternalChanges();
+    _notifCarregarFirestore();
     // Salvar automaticamente processos corrigidos durante o carregamento
     if(globalThis._needsAutoFixSave){
       console.info('Auto-fix: persistindo processos corrigidos no Firestore...');
