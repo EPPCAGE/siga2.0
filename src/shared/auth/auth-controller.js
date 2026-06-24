@@ -270,47 +270,61 @@
     }
     const rlErr = _resetRateLimit(email);
     if (rlErr) { showErr(rlErr); return; }
-    
-    try {
-      const { initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG } = globalScope.fb();
 
-      // Tenta criar conta Firebase Auth (caso EPP tenha cadastrado manualmente)
+    try {
+      const user = globalScope._findUsuarioByEmail(email);
+
+      // Tenta reset primeiro — a CF verifica se o usuário existe no Auth.
+      // Se não existir, retorna link:null e criamos a conta com senha temporária.
+      const url = globalThis.CONFIG?.RESET_LINK_URL;
+      let resetEnviado = false;
+
+      if (url) {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await resp.json().catch(function() { return {}; });
+        if (resp.ok && data.link) {
+          // Conta existe no Auth — reset enviado pela CF server-side
+          resetEnviado = true;
+        }
+      }
+
+      if (resetEnviado) {
+        showOk('Link de redefinição enviado para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
+        return;
+      }
+
+      // Conta não existe no Auth — cria com senha temporária
+      const { initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG } = globalScope.fb();
       const secApp = initializeApp(FIREBASE_CONFIG, 'sec_exist_' + Date.now());
       const secAuth = getAuth(secApp);
-      let contaCriada = false;
       const senhaTemp = globalScope.gerarSenhaTemp();
-
       try {
         await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
-        contaCriada = true;
       } catch (createErr) {
-        if (createErr.code !== 'auth/email-already-in-use') throw createErr;
+        // Se chegou aqui e a conta já existe, tenta reset via Firebase direto
+        if (createErr.code === 'auth/email-already-in-use') {
+          const { auth, sendPasswordResetEmail } = globalScope.fb();
+          await sendPasswordResetEmail(auth, email).catch(() => {});
+          showOk('Link de redefinição enviado para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
+          return;
+        }
+        throw createErr;
       } finally {
         await deleteApp(secApp).catch(() => {});
       }
 
-      if (contaCriada) {
-        // Conta recém-criada — envia senha temporária
-        const user = globalScope._findUsuarioByEmail(email);
-        if (user) {
-          user.trocar_senha = true;
-          await _fbSaveUsuarios();
-        }
-        const nome = user?.nome || email;
-        if (globalScope._enviarSenhaAcesso) {
-          globalScope._enviarSenhaAcesso(email, nome, senhaTemp);
-        }
-        showOk('Acesso liberado! Enviamos uma senha temporária para ' + email + '. Use-a para entrar e defina sua senha definitiva.');
-      } else {
-        // Conta já existe no Auth — garante cadastro no SIGA antes de enviar reset
-        const user = globalScope._findUsuarioByEmail(email);
-        if (!user) {
-          // Usuário tem Auth mas não está no SIGA — cadastra automaticamente
-          await _garantirCadastroSiga(email, email.split('@')[0]);
-        }
-        await globalScope._enviarResetSenha(email, user?.nome);
-        showOk('Link de redefinição enviado para ' + email + '. Verifique sua caixa de entrada (e a pasta de spam).');
+      if (user) {
+        user.trocar_senha = true;
+        await _fbSaveUsuarios();
       }
+      const nome = user?.nome || email;
+      if (globalScope._enviarSenhaAcesso) globalScope._enviarSenhaAcesso(email, nome, senhaTemp);
+      showOk('Acesso liberado! Enviamos uma senha temporária para ' + email + '. Use-a para entrar e defina sua senha definitiva.');
+
     } catch (err) {
       showErr('Erro ao enviar e-mail: ' + err.message);
     }
