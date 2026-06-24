@@ -16960,7 +16960,12 @@ function fbAutoSave(label){
 async function fbSaveEjs(){
   if(!fbReady()) return;
   try {
-    await configRepository.set('ejs', ejsConfig);
+    await configRepository.set('ejs', {
+      service:       ejsConfig.service       || '',
+      template:      ejsConfig.template      || '',
+      templateReset: ejsConfig.templateReset || '',
+      pubkey:        ejsConfig.pubkey        || '',
+    });
   } catch(e){ console.warn('fbSaveEjs error:', e.message); }
 }
 
