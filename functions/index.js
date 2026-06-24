@@ -219,21 +219,24 @@ exports.passwordResetLink = onRequest(async (req, res) => {
         });
         if (ejs.service && ejs.pubkey && ejs.templateReset) {
           const fetch = (await import("node-fetch")).default;
+          const ejsPayload = {
+            service_id: ejs.service,
+            template_id: ejs.templateReset,
+            user_id: ejs.pubkey,
+            template_params: {
+              to_name: nome,
+              to_email: normalizedEmail,
+              email: normalizedEmail,
+              from_name: "EPP/CAGE",
+              link,
+            },
+          };
+          // Modo estrito do EmailJS: exige accessToken (private key) em chamadas server-side
+          if (ejs.privatekey) ejsPayload.accessToken = ejs.privatekey;
           const ejsRes = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              service_id: ejs.service,
-              template_id: ejs.templateReset,
-              user_id: ejs.pubkey,
-              template_params: {
-                to_name: nome,
-                to_email: normalizedEmail,
-                email: normalizedEmail,
-                from_name: "EPP/CAGE",
-                link,
-              },
-            }),
+            body: JSON.stringify(ejsPayload),
           });
           if (ejsRes.ok) {
             emailSent = true;
