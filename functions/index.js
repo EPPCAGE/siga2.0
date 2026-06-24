@@ -201,6 +201,38 @@ exports.passwordResetLink = onRequest(async (req, res) => {
     } catch (_) { /* usa fallback */ }
 
     const link = await admin.auth().generatePasswordResetLink(normalizedEmail);
+
+    // Envia o e-mail de reset via EmailJS server-side para não depender do
+    // ejsConfig do cliente (que pode estar vazio antes do login).
+    try {
+      const ejsDoc = await admin.firestore().doc("config/ejs").get();
+      if (ejsDoc.exists) {
+        const ejs = ejsDoc.data();
+        if (ejs.service && ejs.pubkey) {
+          const fetch = (await import("node-fetch")).default;
+          await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              service_id: ejs.service,
+              template_id: "template_ufittyp",
+              user_id: ejs.pubkey,
+              template_params: {
+                to_name: nome,
+                to_email: normalizedEmail,
+                email: normalizedEmail,
+                from_name: "EPP/CAGE",
+                link,
+              },
+            }),
+          });
+        }
+      }
+    } catch (ejsErr) {
+      console.warn("passwordResetLink EmailJS send failed:", ejsErr.message);
+      // não bloqueia — retorna link para o cliente tentar como fallback
+    }
+
     res.status(200).json({ link, nome });
   } catch (e) {
     if (e.code === "auth/user-not-found") {
