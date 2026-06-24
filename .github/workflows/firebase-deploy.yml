@@ -75,13 +75,15 @@ jobs:
               "$@"
           }
 
-          deploy_fn checkEmail
-          deploy_fn setUserClaims
-          deploy_fn passwordResetLink
-          deploy_fn registerUser
-          deploy_fn migrateAllUserClaims
+          # Deploy em paralelo para reduzir tempo total
+          deploy_fn checkEmail &
+          deploy_fn setUserClaims &
+          deploy_fn passwordResetLink &
+          deploy_fn registerUser &
+          deploy_fn migrateAllUserClaims &
           deploy_fn ai \
-            --set-secrets="AZURE_OPENAI_KEY=AZURE_OPENAI_KEY:latest,AZURE_OPENAI_ENDPOINT=AZURE_OPENAI_ENDPOINT:latest,AZURE_OPENAI_DEPLOYMENT=AZURE_OPENAI_DEPLOYMENT:latest"
+            --set-secrets="AZURE_OPENAI_KEY=AZURE_OPENAI_KEY:latest,AZURE_OPENAI_ENDPOINT=AZURE_OPENAI_ENDPOINT:latest,AZURE_OPENAI_DEPLOYMENT=AZURE_OPENAI_DEPLOYMENT:latest" &
+          wait
 
       - name: Deploy para Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@0cbcac4740c2bfb00d632f0b863b57713124eb5a  # v0.9.0
