@@ -10,6 +10,7 @@
     "source": "functions",
     "runtime": "nodejs20"
   },
+  "extensions": {},
   "hosting": {
     "site": "sigaepp",
     "public": ".",
