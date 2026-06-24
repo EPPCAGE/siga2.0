@@ -208,14 +208,14 @@ exports.passwordResetLink = onRequest(async (req, res) => {
       const ejsDoc = await admin.firestore().doc("config/ejs").get();
       if (ejsDoc.exists) {
         const ejs = ejsDoc.data();
-        if (ejs.service && ejs.pubkey) {
+        if (ejs.service && ejs.pubkey && ejs.templateReset) {
           const fetch = (await import("node-fetch")).default;
           await fetch("https://api.emailjs.com/api/v1.0/email/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               service_id: ejs.service,
-              template_id: "template_ufittyp",
+              template_id: ejs.templateReset,
               user_id: ejs.pubkey,
               template_params: {
                 to_name: nome,

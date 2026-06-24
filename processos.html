@@ -1667,8 +1667,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
       <div class="g3" style="margin-bottom:.8rem">
         <div class="fg"><label class="fl" for="ejs-service">Service ID</label><input class="fi" id="ejs-service" placeholder="service_xxxxxxx"></div>
-        <div class="fg"><label class="fl" for="ejs-template">Template ID (mapeamento de processos)</label><input class="fi" id="ejs-template" placeholder="template_xxxxxxx"></div>
-
+        <div class="fg"><label class="fl" for="ejs-template">Template ID (notificações de mapeamento)</label><input class="fi" id="ejs-template" placeholder="template_xxxxxxx"></div>
+        <div class="fg"><label class="fl" for="ejs-template-reset">Template ID (redefinição de senha)</label><input class="fi" id="ejs-template-reset" placeholder="template_xxxxxxx"></div>
         <div class="fg"><label class="fl" for="ejs-pubkey">Public Key</label><input class="fi" id="ejs-pubkey" placeholder="xxxxxxxxxxxxxxxxx"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -2109,7 +2109,7 @@ let PAT_METAS = [];  // Metas anuais do escritório (config)
 let _metaIdC = 1;
 
 let notifs = [];
-let ejsConfig = {service:'',template:'',pubkey:''};
+let ejsConfig = {service:'',template:'',templateReset:'',pubkey:''};
 let curProc = null;
 let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
@@ -2441,7 +2441,7 @@ function updCounts(){
 function salvarEmailJS(){
   ejsConfig.service = document.getElementById('ejs-service').value.trim();
   ejsConfig.template = document.getElementById('ejs-template').value.trim();
-
+  ejsConfig.templateReset = document.getElementById('ejs-template-reset').value.trim();
   ejsConfig.pubkey = document.getElementById('ejs-pubkey').value.trim();
   lsSet('epcage_ejs', JSON.stringify(ejsConfig));
   const status = document.getElementById('emailjs-status');
@@ -2526,11 +2526,13 @@ function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
 function _rNotifPreencherEmailJS(){
   const sf = document.getElementById('ejs-service');
   const tf = document.getElementById('ejs-template');
+  const trf = document.getElementById('ejs-template-reset');
   const pf = document.getElementById('ejs-pubkey');
   const st = document.getElementById('emailjs-status');
-  if(sf) sf.value = ejsConfig.service  || '';
-  if(tf) tf.value = ejsConfig.template || '';
-  if(pf) pf.value = ejsConfig.pubkey   || '';
+  if(sf) sf.value = ejsConfig.service       || '';
+  if(tf) tf.value = ejsConfig.template      || '';
+  if(trf) trf.value = ejsConfig.templateReset || '';
+  if(pf) pf.value = ejsConfig.pubkey        || '';
   if(st && ejsConfig.service && ejsConfig.template && ejsConfig.pubkey){
     st.textContent = '✓ EmailJS configurado — envio real de e-mails ativado.';
     st.className = 'ib ibg';
@@ -16719,7 +16721,7 @@ async function fbLoad(){
       const d = ejsDoc.data();
       ejsConfig.service           = d.service           || '';
       ejsConfig.template          = d.template          || '';
-
+      ejsConfig.templateReset     = d.templateReset     || '';
       ejsConfig.pubkey            = d.pubkey            || '';
       if(ejsConfig.pubkey && typeof emailjs !== 'undefined'){
         emailjs.init({publicKey: ejsConfig.pubkey});
@@ -17073,7 +17075,7 @@ function _bootLoadEmailJsLocalFallback(){
     const cfg = JSON.parse(saved);
     ejsConfig.service           = cfg.service           || '';
     ejsConfig.template          = cfg.template          || '';
-
+    ejsConfig.templateReset     = cfg.templateReset     || '';
     ejsConfig.pubkey            = cfg.pubkey            || '';
     if(ejsConfig.pubkey && typeof emailjs !== 'undefined') emailjs.init({publicKey: ejsConfig.pubkey});
   } catch(e){ console.warn('ejsConfig localStorage parse error:', e.message); }
