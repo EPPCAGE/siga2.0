@@ -15273,6 +15273,7 @@ function planoAno(){
 }
 
 const PLANO_FIM_TRI = {T1:'-03-31',T2:'-06-30',T3:'-09-30',T4:'-12-31',Anual:'-12-31'};
+const PLANO_INI_TRI = {T1:'-01-01',T2:'-04-01',T3:'-07-01',T4:'-10-01',Anual:'-01-01'};
 function planoStatusEfetivo(at){
   // 1. Quantidade realizada >= prevista → concluída automaticamente
   if(at.qt_prevista > 0 && (at.qt_realizada||0) >= at.qt_prevista) return 'concluida';
@@ -16411,7 +16412,7 @@ function _planoModalBodyHTML(){
       </div>
       <div>
         <div class="fl">Trimestre</div>
-        <select class="fi" id="pm-tri">
+        <select class="fi" id="pm-tri" onchange="planoAtualizarTriDatas()">
           ${trOpts}
         </select>
       </div>
@@ -16500,11 +16501,13 @@ function _planoModalApplyValues(at){
   document.getElementById('pm-nome').value = cur.nome||'';
   document.getElementById('pm-desc').value = cur.descricao||'';
   document.getElementById('pm-resp').value = cur.responsavel||usuarioLogado?.nome||'';
-  document.getElementById('pm-prazo').value = cur.prazo||'';
-  document.getElementById('pm-dt-prev-inicio').value = cur.dt_prev_inicio||'';
+  const _tri = cur.trimestre||'Anual';
+  const _ano = cur.ano||planoAno();
+  document.getElementById('pm-tri').value = _tri;
+  document.getElementById('pm-prazo').value = cur.prazo||(PLANO_FIM_TRI[_tri]?`${_ano}${PLANO_FIM_TRI[_tri]}`:'');
+  document.getElementById('pm-dt-prev-inicio').value = cur.dt_prev_inicio||(PLANO_INI_TRI[_tri]?`${_ano}${PLANO_INI_TRI[_tri]}`:'');
   document.getElementById('pm-dt-efet-inicio').value = cur.dt_efet_inicio||'';
   document.getElementById('pm-dt-efet-conclusao').value = cur.dt_conclusao||'';
-  document.getElementById('pm-tri').value = cur.trimestre||'Anual';
   document.getElementById('pm-status').value = cur.status||'planejado';
   document.getElementById('pm-prio').value = cur.prioridade||'media';
   document.getElementById('pm-cat').value = cur.categoria||'';
@@ -16532,6 +16535,14 @@ function planoAtualizarVinculo(){
   if(!sel) return;
   sel.disabled = !tipo;
   planoPopularVinculoSelect(tipo,'');
+}
+function planoAtualizarTriDatas(){
+  const tri = document.getElementById('pm-tri')?.value||'Anual';
+  const ano = Number.parseInt(document.getElementById('pm-ano')?.value)||planoAno();
+  const fIni = document.getElementById('pm-dt-prev-inicio');
+  const fFim = document.getElementById('pm-prazo');
+  if(fIni && !fIni.value && PLANO_INI_TRI[tri]) fIni.value = `${ano}${PLANO_INI_TRI[tri]}`;
+  if(fFim && !fFim.value && PLANO_FIM_TRI[tri]) fFim.value = `${ano}${PLANO_FIM_TRI[tri]}`;
 }
 
 async function salvarAtividade(){
