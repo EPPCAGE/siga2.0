@@ -15150,31 +15150,30 @@ function _salvarUsrBuildPayload({email, nome, area, perfil, perfisArr, ini, vinc
   };
 }
 async function _salvarUsrCriarConta(email, nome){
-  if(!fbReady()){
-    toast('Usuário salvo (Firebase indisponível — ative o acesso pelo "Primeiro acesso").', 'var(--amber)');
+  const registerUrl = globalThis.CONFIG?.REGISTER_USER_URL;
+  if(!registerUrl){
+    toast('Usuário salvo. Configure REGISTER_USER_URL para envio automático de e-mail.', 'var(--amber)');
     return;
   }
-  const {initializeApp, deleteApp, getAuth, createUserWithEmailAndPassword, FIREBASE_CONFIG} = fb();
-  const senhaTemp = gerarSenhaTemp();
-  let contaCriada = false;
   try {
-    const secApp = initializeApp(FIREBASE_CONFIG, 'sec_usr_'+Date.now());
-    const secAuth = getAuth(secApp);
-    try {
-      await createUserWithEmailAndPassword(secAuth, email, senhaTemp);
-      contaCriada = true;
-    } catch(e){
-      if(e.code !== 'auth/email-already-in-use') console.warn('Firebase Auth create err:', e);
-    } finally {
-      await deleteApp(secApp).catch(()=>{});
+    const token = await firebase.auth().currentUser?.getIdToken();
+    const res = await fetch(registerUrl, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email, nome, _token: token}),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(data.status === 'exists'){
+      toast('Usuário salvo. Link de acesso enviado para '+email+'.', 'var(--teal)');
+    } else if(data.status === 'created' || data.status === 'siga_added'){
+      toast('Usuário criado! Link para definir senha enviado para '+email+'.', 'var(--teal)');
+    } else {
+      toast('Usuário salvo. Verifique se o e-mail de acesso foi enviado.', 'var(--amber)');
     }
-  } catch(e){ console.warn('Erro ao inicializar app secundária:', e); }
-  if(contaCriada){
-    _enviarSenhaAcesso(email, nome, senhaTemp);
-    toast('Usuário criado! Senha temporária enviada para '+email+'.', 'var(--teal)');
-    return;
+  } catch(e){
+    console.warn('_salvarUsrCriarConta error:', e.message);
+    toast('Usuário salvo, mas houve erro ao enviar e-mail: '+e.message, 'var(--amber)');
   }
-  toast('Usuário salvo. Este e-mail já possui conta — o acesso está mantido.', 'var(--amber)');
 }
 function _salvarUsrAtualizarSessao(idx, email, nome, perfil){
   if(usuarioLogado?.email!==email) return;
