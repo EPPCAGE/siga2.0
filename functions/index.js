@@ -364,8 +364,55 @@ exports.registerUser = onRequest(async (req, res) => {
     const listaAtualizada = Array.isArray(lista) ? [...lista, novoUsuario] : [novoUsuario];
     await db.doc("config/usuarios").set({ data: JSON.stringify(listaAtualizada) });
 
-    const result = { status: authStatus };
-    if (senhaTemp) result.senhaTemp = senhaTemp;
+    // Envia e-mail com a senha temporária via EmailJS server-side
+    let emailSent = false;
+    if (senhaTemp) {
+      try {
+        const ejsDoc = await db.doc("config/ejs").get();
+        if (ejsDoc.exists) {
+          const ejs = ejsDoc.data();
+          if (ejs.service && ejs.pubkey && ejs.template) {
+            const fetch = (await import("node-fetch")).default;
+            const ejsPayload = {
+              service_id: ejs.service,
+              template_id: ejs.template,
+              user_id: ejs.pubkey,
+              template_params: {
+                to_name: novoUsuario.nome,
+                to_email: normalizedEmail,
+                from_name: "EPP/CAGE",
+                processo: "Acesso liberado",
+                acao: `Seu acesso ao sistema foi aprovado.\n\nSua senha temporária: ${senhaTemp}\n\nAcesse o sistema e altere sua senha no primeiro login.`,
+                prazo: "Alterar a senha no primeiro acesso",
+                link: "",
+              },
+            };
+            if (ejs.privatekey) ejsPayload.accessToken = ejs.privatekey;
+            const ejsRes = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(ejsPayload),
+            });
+            if (ejsRes.ok) {
+              emailSent = true;
+              console.info("registerUser: e-mail enviado via EmailJS para", normalizedEmail);
+            } else {
+              const body = await ejsRes.text().catch(() => "");
+              console.warn("registerUser: EmailJS retornou", ejsRes.status, body);
+            }
+          } else {
+            console.warn("registerUser: config/ejs incompleto — e-mail não enviado");
+          }
+        } else {
+          console.warn("registerUser: config/ejs não encontrado no Firestore");
+        }
+      } catch (ejsErr) {
+        console.warn("registerUser EmailJS send failed:", ejsErr.message);
+      }
+    }
+
+    const result = { status: authStatus, emailSent };
+    if (senhaTemp && !emailSent) result.senhaTemp = senhaTemp; // fallback: cliente tenta enviar
     res.status(200).json(result);
   } catch (e) {
     console.error("registerUser error:", e);
