@@ -445,8 +445,10 @@
     return arr.join('');
   };
 
-  // Gera link de redefinição de senha via Cloud Function e envia por EmailJS.
-  // Usa template_ufittyp com variáveis: to_name, to_email, email, link.
+  // Gera link de redefinição de senha via Cloud Function.
+  // A CF envia o e-mail via EmailJS server-side (evita depender do ejsConfig
+  // do cliente, que pode estar vazio antes do login do usuário).
+  // Fallback: sendPasswordResetEmail do Firebase caso a CF não esteja configurada.
   globalScope._enviarResetSenha = async function _enviarResetSenha(email, nomeHint) {
     const url = globalThis.CONFIG?.RESET_LINK_URL;
     if (!url) {
@@ -466,19 +468,9 @@
         body: JSON.stringify({ email }),
       });
       const data = await resp.json().catch(function() { return {}; });
-      if (!resp.ok || !data.link) return; // silencioso — não revela se e-mail existe
-      const nome = data.nome || nomeHint || email.split('@')[0];
-      const ejsConfig = globalScope.ejsConfig;
-      const ORG_CONFIG = globalScope.ORG_CONFIG;
-      if (ejsConfig?.service && ejsConfig?.pubkey && typeof emailjs !== 'undefined') {
-        emailjs.send(ejsConfig.service, 'template_ufittyp', {
-          to_name: nome,
-          to_email: email,
-          email,
-          from_name: ORG_CONFIG?.notificationFromName || 'EPP/CAGE',
-          link: data.link,
-        }).catch(function(err) { console.warn('EmailJS reset:', err?.text || err?.message); });
-      }
+      // CF envia o e-mail server-side; cliente não precisa reenviar.
+      // Retorno silencioso quando link é null (e-mail não encontrado — não revela).
+      if (!resp.ok || !data.link) return;
     } catch (e) {
       console.warn('_enviarResetSenha:', e.message);
     }
