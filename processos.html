@@ -15696,10 +15696,6 @@ function planoDashAnual(lista){
   const conclComPrazo = lista.filter(a=>planoStatusEfetivo(a)==='concluida' && a.prazo && a.dt_conclusao);
   const conclEmDia    = conclComPrazo.filter(a=>a.dt_conclusao<=a.prazo).length;
   const pctConclPont  = conclComPrazo.length ? Math.round(conclEmDia/conclComPrazo.length*100) : null;
-  // Pontualidade no início: atividades com ambas as datas de início preenchidas
-  const inicioComAmbasDatas = lista.filter(a=>a.dt_prev_inicio && a.dt_efet_inicio);
-  const inicioEmDia         = inicioComAmbasDatas.filter(a=>a.dt_efet_inicio<=a.dt_prev_inicio).length;
-  const pctInicioPont       = inicioComAmbasDatas.length ? Math.round(inicioEmDia/inicioComAmbasDatas.length*100) : null;
   const _corPont = v => v==null?'#94a3b8':v>=80?'#14b8a6':v>=50?'#f59e0b':'#ef4444';
   const stF = document.getElementById('plano-filt-status')?.value||'';
   const dc = (v,l,c,bg,st)=>{
@@ -15734,11 +15730,6 @@ function planoDashAnual(lista){
       <div style="font-size:22px;font-weight:700;color:${_corPont(pctConclPont)};line-height:1">${pctConclPont!=null?pctConclPont+'%':'—'}</div>
       <div style="font-size:11px;color:var(--ink3);margin-top:2px">Pontualidade na conclusão</div>
       ${conclComPrazo.length?`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">${conclEmDia} em dia · ${conclComPrazo.length-conclEmDia} com atraso</div>`:`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">Sem dados suficientes</div>`}
-    </div>
-    <div style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.7rem 1rem">
-      <div style="font-size:22px;font-weight:700;color:${_corPont(pctInicioPont)};line-height:1">${pctInicioPont!=null?pctInicioPont+'%':'—'}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Pontualidade no início</div>
-      ${inicioComAmbasDatas.length?`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">${inicioEmDia} em dia · ${inicioComAmbasDatas.length-inicioEmDia} com atraso</div>`:`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">Sem dados suficientes</div>`}
     </div>
   </div>`;
 }
