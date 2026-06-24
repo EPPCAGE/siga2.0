@@ -8126,6 +8126,26 @@ async function removerAnexoQuestao(questaoIdx,anexoIdx){
   });
 }
 
+async function gerarFAQIA(){
+  const p=curProc;if(!p)return;
+  const btn=document.getElementById('btn-gerar-faq');
+  const statusEl=document.getElementById('faq-ia-status');
+  if(btn)btn.disabled=true;
+  const etapas=(p.mod?.etapas_proc||[]).map(e=>e.nome||e.desc||'').filter(Boolean).join(', ');
+  const payload=`Processo: ${p.nome}\nMacroprocesso: ${p.macro||''}\nÁrea: ${p.area||''}\nObjetivo: ${p.objetivo||''}\nEntradas: ${p.ent?.entradas||''}\nSaídas: ${p.ent?.saidas||''}\nAtores: ${p.ent?.atores||''}${etapas?'\nEtapas: '+etapas:''}`;
+  const result=await chamarIA('gerar_faq',payload,statusEl);
+  if(result){
+    const textarea=document.getElementById('afaq');
+    if(textarea){
+      const atual=(textarea.value||'').trim();
+      textarea.value=atual?atual+'\n\n'+result:result;
+    }
+    if(statusEl)statusEl.innerHTML='';
+    toast('FAQ gerado pela IA! Revise e edite conforme necessário.','var(--teal)');
+  }
+  if(btn)btn.disabled=false;
+}
+
 async function iaGerarQuestoesAuditoria(){
   const p=curProc;if(!p)return;
   const aud=p.auditoria||{};
