@@ -16767,6 +16767,10 @@ async function fbSaveAll(){
       publicacoes.forEach(p => ops.push({ref: publicacoesRepository.ref(p.id), data: _fsClean(p)}));
       plano.forEach(a => ops.push({ref: planoRepository.ref(a.id), data: _fsClean(a)}));
       PAT_METAS.forEach(m => ops.push({ref: planoMetasRepository.ref(m.id), data: _fsClean(m)}));
+      // Reconcilia com a cópia do servidor para não apagar usuários adicionados
+      // server-side (auto-cadastro via Cloud Function) que ainda não estão na
+      // memória local. Faz união por e-mail antes de regravar o documento.
+      await _reconciliarUsuariosServidor();
       ops.push(
         ...(_arqSaveEnabled ? [{ref: configRepository.ref('arquitetura'), data: {data: JSON.stringify(ARQUITETURA)}}] : []),
         {ref: configRepository.ref('usuarios'),    data: {data: JSON.stringify(USUARIOS.map(u=>{
@@ -16891,6 +16895,26 @@ async function _fbLoadUsuarios(){
     }
   }
   USUARIOS.forEach(_normalizarUsuarioPerfil);
+}
+// Une ao array local em memória qualquer usuário que exista no servidor mas não
+// localmente (ex.: auto-cadastro feito pela Cloud Function enquanto o EP estava
+// com o SIGA aberto). Evita que o fbSaveAll do EP apague esses cadastros.
+async function _reconciliarUsuariosServidor(){
+  try {
+    const snap = await configRepository.get('usuarios', {fromServer:true});
+    if(!snap.exists() || !snap.data().data) return;
+    const servidor = JSON.parse(snap.data().data);
+    if(!Array.isArray(servidor)) return;
+    const emailsLocais = new Set(USUARIOS.map(u=>u.email));
+    servidor.forEach(u=>{
+      if(u?.email && !emailsLocais.has(u.email)){
+        _normalizarUsuarioPerfil(u);
+        USUARIOS.push(u);
+      }
+    });
+  } catch(e){
+    console.warn('_reconciliarUsuariosServidor: não foi possível reconciliar usuarios:', e.message);
+  }
 }
 async function _fbLoadProcessos(){
   const pSnap = await processosRepository.list();
