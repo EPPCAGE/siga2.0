@@ -15698,6 +15698,14 @@ function planoDashAnual(lista){
   const conclEmDia    = conclComPrazo.filter(a=>a.dt_conclusao<=a.prazo).length;
   const pctConclPont  = conclComPrazo.length ? Math.round(conclEmDia/conclComPrazo.length*100) : null;
   const _corPont = v => v==null?'#94a3b8':v>=80?'#14b8a6':v>=50?'#f59e0b':'#ef4444';
+  // Prazo médio de conclusão: média de dias entre dt_efet_inicio e dt_conclusao
+  const conclComAmbas = lista.filter(a=>planoStatusEfetivo(a)==='concluida' && a.dt_efet_inicio && a.dt_conclusao);
+  const mediaDias = conclComAmbas.length
+    ? Math.round(conclComAmbas.reduce((acc,a)=>{
+        const diff=(new Date(a.dt_conclusao)-new Date(a.dt_efet_inicio))/(1000*60*60*24);
+        return acc+(diff<0?0:diff);
+      },0)/conclComAmbas.length)
+    : null;
   const stF = document.getElementById('plano-filt-status')?.value||'';
   const dc = (v,l,c,bg,st)=>{
     const isActive=st&&st===stF;
@@ -15731,6 +15739,11 @@ function planoDashAnual(lista){
       <div style="font-size:22px;font-weight:700;color:${_corPont(pctConclPont)};line-height:1">${pctConclPont!=null?pctConclPont+'%':'—'}</div>
       <div style="font-size:11px;color:var(--ink3);margin-top:2px">Pontualidade na conclusão</div>
       ${conclComPrazo.length?`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">${conclEmDia} em dia · ${conclComPrazo.length-conclEmDia} com atraso</div>`:`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">Sem dados suficientes</div>`}
+    </div>
+    <div style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);padding:.7rem 1rem">
+      <div style="font-size:22px;font-weight:700;color:${mediaDias!=null?'#6366f1':'#94a3b8'};line-height:1">${mediaDias!=null?mediaDias+'d':'—'}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">Prazo médio de conclusão</div>
+      ${conclComAmbas.length?`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">${conclComAmbas.length} atividade${conclComAmbas.length>1?'s':''} com dados</div>`:`<div style="font-size:11px;margin-top:4px;color:var(--ink3)">Sem dados suficientes</div>`}
     </div>
   </div>`;
 }
