@@ -371,20 +371,18 @@ exports.registerUser = onRequest(async (req, res) => {
         const ejsDoc = await db.doc("config/ejs").get();
         if (ejsDoc.exists) {
           const ejs = ejsDoc.data();
-          if (ejs.service && ejs.pubkey && ejs.template) {
+          if (ejs.service && ejs.pubkey && ejs.templateReset) {
             const fetch = (await import("node-fetch")).default;
             const ejsPayload = {
               service_id: ejs.service,
-              template_id: ejs.template,
+              template_id: ejs.templateReset,
               user_id: ejs.pubkey,
               template_params: {
                 to_name: novoUsuario.nome,
                 to_email: normalizedEmail,
+                email: normalizedEmail,
                 from_name: "EPP/CAGE",
-                processo: "Acesso liberado",
-                acao: `Seu acesso ao sistema foi aprovado.\n\nSua senha temporária: ${senhaTemp}\n\nAcesse o sistema e altere sua senha no primeiro login.`,
-                prazo: "Alterar a senha no primeiro acesso",
-                link: "",
+                link: senhaTemp,
               },
             };
             if (ejs.privatekey) ejsPayload.accessToken = ejs.privatekey;
