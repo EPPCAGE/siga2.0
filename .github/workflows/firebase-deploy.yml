@@ -82,20 +82,19 @@ jobs:
           # Revoga credenciais do gcloud para não interferir no hosting deploy a seguir
           gcloud auth revoke --all --quiet || true
 
-      # Autentica via service account → exporta GOOGLE_APPLICATION_CREDENTIALS
-      # para os steps seguintes (firebase-tools e gcloud usam ADC daqui).
+      - name: Deploy para Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: gesproc2
+          channelId: live
+
+      # Autentica via ADC para os steps seguintes (gcloud para Firestore Rules).
       - name: Autenticar no Google Cloud
-        id: auth
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
-      - name: Deploy para Firebase Hosting via firebase-tools
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
-        run: |
-          npm install -g firebase-tools@13
-          firebase deploy --only hosting --project gesproc2 --non-interactive
 
       - name: Configurar gcloud CLI (para Firestore Rules)
         uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2
