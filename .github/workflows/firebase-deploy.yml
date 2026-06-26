@@ -87,13 +87,20 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy para Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: gesproc2
-          channelId: live
+          node-version: '20'
+
+      - name: Deploy para Firebase Hosting
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/firebase-sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-sa.json
+          npm install -g firebase-tools@13
+          firebase deploy --only hosting --project gesproc2 --non-interactive
+          rm -f /tmp/firebase-sa.json
 
       - name: Configurar gcloud CLI (para Firestore Rules)
         uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2
