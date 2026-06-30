@@ -2530,6 +2530,14 @@ function testarEmailJS(){
     res.style.color = 'var(--red)';
   });
 }
+function registrarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
+  if(!para_email) return;
+  const item={id:Date.now(),para:para_nome,para_email,acao,proc_nome,prazo,de:de_nome,data:now(),lida:false};
+  notifs.unshift(item);
+  _notifSalvarFirestore(item);
+  updCounts();
+  rNotif();
+}
 function enviarNotif(para_email,para_nome,acao,proc_nome,prazo,de_nome){
   if(!para_email){
     console.warn('enviarNotif: e-mail do destinatário vazio — notificação não enviada.');
@@ -5365,7 +5373,7 @@ function verificarPrazosProximos(){
     const prazoTs=new Date(atrib.prazo+'T23:59:59').getTime();
     if(prazoTs>agora&&prazoTs<=limite){
       const prazoFmt=atrib.prazo.split('-').reverse().join('/');
-      enviarNotif(atrib.para_email,atrib.para_nome||atrib.para,
+      registrarNotif(atrib.para_email,atrib.para_nome||atrib.para,
         'Lembrete: falta menos de 48h para o encerramento do prazo da tarefa "'+etLb(proc.etapa)+'" no processo "'+proc.nome+'". Prazo: '+prazoFmt,
         proc.nome,prazoFmt,ORG_CONFIG.notificationFromName);
       atrib.lembrete_enviado=true;
