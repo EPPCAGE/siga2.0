@@ -2662,6 +2662,7 @@ async function marcarAvisoLido(fsId){
 }
 
 function _getAvisosPAT(){
+  if(!isEP()) return [];
   const hoje = new Date().toISOString().slice(0,10);
   const ano = planoAno ? planoAno() : new Date().getFullYear();
   const doAno = plano.filter(a=>!a.ano||a.ano===ano);
