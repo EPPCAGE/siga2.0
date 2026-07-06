@@ -14476,7 +14476,7 @@ function rPub(){
           <div class="pub-card-meta">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div class="pub-card-actions">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
-            ${p.categoria==='POPs'&&((p.proc_ids||[]).length||(p.arq_ids||[]).length)?`<button type="button" class="btn btn-a" style="font-size:10px;padding:2px 8px" onclick="_pubGerarPopPdfFromPub(${p.id})">⬇ PDF do POP</button>`:''}
+            ${p.categoria==='POPs'&&!p.url&&((p.proc_ids||[]).length||(p.arq_ids||[]).length)?`<button type="button" class="btn btn-a" style="font-size:10px;padding:2px 8px" onclick="_pubGerarPopPdfFromPub(${p.id})">⬇ PDF do POP</button>`:''}
             ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${_lbl}</a>`:''}).join(''):''}
 
             ${isEP()?`<button type="button" class="btn pub-action-edit" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">Editar</button>
