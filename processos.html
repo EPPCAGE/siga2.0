@@ -10659,10 +10659,8 @@ async function _popPdfAnexo(p){
 
   const volumetriaHtml = _popPdfVolumetriaSection(e, secH, fld);
   if(volumetriaHtml) sections.push(volumetriaHtml);
-  const ilpHtml = _popPdfIlpSection(p, secH);
-  if(ilpHtml) sections.push(ilpHtml);
 
-  // ── 8.0 Maturidade ────────────────────────────────────────────────────────
+  // ── 7.0 Maturidade ────────────────────────────────────────────────────────
   const matNivel=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
   if(matNivel>0){
     const matDescs=['',
@@ -10695,7 +10693,7 @@ async function _popPdfAnexo(p){
       </tr>`;
     }).join('');
     const matTitle=`Maturidade — Nível ${matNivel}/5: ${MATURIDADE_LABELS[matNivel]}`;
-    sections.push(`${secH('8.0',matTitle)}
+    sections.push(`${secH('7.0',matTitle)}
     <div style="margin-bottom:.6rem">${badges}</div>
     <div style="font-size:12px;color:#4a4a6a;line-height:1.55;margin-bottom:.8rem">${matDescs[matNivel]}</div>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:.4rem">Nível por eixo${_pdfMedia?` · <span style="font-weight:400;font-style:normal">Média geral (indicador complementar): ${_pdfMedia}</span>`:''}</div>
@@ -10710,11 +10708,11 @@ async function _popPdfAnexo(p){
     <div style="font-size:10px;color:#9ca3af;margin-top:.4rem">★ Eixo(s) limitante(s): determinam o nível geral de maturidade do processo.</div>`);
   }
 
-  // ── 9.0 SIPOC ────────────────────────────────────────────────────────────
+  // ── 8.0 SIPOC ────────────────────────────────────────────────────────────
   if(e.fornecedores||e.entradas||e.saidas||e.clientes){
     const cols=[['S','Fornecedores',e.fornecedores,'#dbeafe','#1d4ed8'],['I','Entradas',e.entradas,'#dcfce7','#166534'],['P','Processo',p.nome,'#ede9fe','#5b21b6'],['O','Saídas',e.saidas,'#fef3c7','#92400e'],['C','Clientes',e.clientes,'#fce7f3','#9d174d']];
     const atoresHtmlSipoc=e.atores?`<div style="font-size:11px;color:#4a4a6a;margin-top:.5rem"><strong>Atores/participantes:</strong> ${_esc(e.atores)}</div>`:'';
-    sections.push(`${secH('9.0','SIPOC')}
+    sections.push(`${secH('8.0','SIPOC')}
     <table style="width:100%;border-collapse:collapse">
       <tr>${cols.map(([k,lb,,bg,c])=>`<th style="background:${bg};color:${c};padding:8px;text-align:center;font-size:11px;border:1px solid #e0e0f0"><span style="font-size:18px;font-weight:900;font-family:Georgia,serif;display:block">${k}</span>${lb}</th>`).join('')}</tr>
       <tr>${cols.map(([,,v,bg])=>`<td style="background:${bg}55;padding:8px;font-size:11px;vertical-align:top;border:1px solid #e0e0f0;white-space:pre-wrap">${_esc(v||'—')}</td>`).join('')}</tr>
@@ -10722,7 +10720,7 @@ async function _popPdfAnexo(p){
     ${atoresHtmlSipoc}`);
   }
 
-  // ── 10.0 Matriz de Riscos ─────────────────────────────────────────────────
+  // ── 9.0 Matriz de Riscos ─────────────────────────────────────────────────
   const riscos=e.riscos||[];
   if(riscos.length){
     const pS={Alta:3,Media:2,Baixa:1};
@@ -10730,7 +10728,7 @@ async function _popPdfAnexo(p){
     const sev=r=>{const s=(pS[r.prob]||1)*(iS[r.imp]||1);if(s<=2){return['#d1fae5','#065f46','Baixo'];}if(s<=4){return['#fef3c7','#92400e','Moderado'];}if(s<=8){return['#ffedd5','#9a3412','Alto'];}return['#fee2e2','#991b1b','Crítico'];};
     const matrizTitle=`Matriz de Riscos (${riscos.length})`;
     const rRows=riscos.map(r=>{const[bg,c,lbl]=sev(r);return`<div style="display:flex;width:100%;border-bottom:1px solid #e0e0f0;break-inside:avoid"><div style="padding:5px 8px;font-size:11px;width:55%;overflow-wrap:break-word">${_esc(r.desc)}</div><div style="padding:5px 8px;font-size:11px;text-align:center;width:15%">${r.prob||'—'}</div><div style="padding:5px 8px;font-size:11px;text-align:center;width:15%">${r.imp||'—'}</div><div style="padding:5px 8px;font-size:10px;text-align:center;width:15%;background:${bg};color:${c};font-weight:700">${lbl}</div></div>`;}).join('');
-    sections.push(`${secH('10.0',matrizTitle)}
+    sections.push(`${secH('9.0',matrizTitle)}
     <div style="width:100%">
       <div style="display:flex;width:100%;background:#f4f5f8;border-bottom:2px solid #e0e0f0"><div style="padding:5px 8px;font-size:10px;font-weight:700;color:#8888aa;width:55%">Risco</div><div style="padding:5px 8px;font-size:10px;font-weight:700;color:#8888aa;text-align:center;width:15%">Probabilidade</div><div style="padding:5px 8px;font-size:10px;font-weight:700;color:#8888aa;text-align:center;width:15%">Impacto</div><div style="padding:5px 8px;font-size:10px;font-weight:700;color:#8888aa;text-align:center;width:15%">Severidade</div></div>
       <div>${rRows}</div>
@@ -10752,7 +10750,7 @@ async function _popPdfAnexo(p){
     const _wrapPng=(png)=>`<div style="border:1px solid #e0e0f0;border-radius:4px;overflow:hidden;background:#fff;padding:10px"><img src="${png}" alt="Fluxograma do processo" style="max-width:100%;height:auto;display:block"></div>`;
     // Converte SVG para PNG (mais confiável em contexto de impressão); usa SVG inline só como último recurso
     const _svgToPngOrInline=async(svg)=>{const png=await svgStringToPng(svg);return png?_wrapPng(png):_wrapSvg(svg);};
-    let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">12.0 Desenho do Processo</div>`;
+    let bpInner=`<div style="font-size:15px;font-weight:700;color:#1a1a2e;border-bottom:3px solid #1e6bfa;padding-bottom:8px;margin-bottom:1.2rem;font-family:'Segoe UI',Arial,sans-serif">10.0 Desenho do Processo</div>`;
     let hasDiagramContent=false;
     if(hasBpmnT){
       const svg=await _bpmnGetSvg('tobe',p);
