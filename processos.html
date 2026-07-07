@@ -8261,8 +8261,10 @@ async function iaGerarQuestoesAuditoria(){
   if(!result)return;
   try{
     const clean=result.replaceAll(/```json|```/g,'').trim();
-    const lista=JSON.parse(clean);
-    if(!Array.isArray(lista))throw new Error('Formato inválido');
+    const parsed=JSON.parse(clean);
+    // json_object mode pode encapsular o array em um objeto ex: {"questoes":[...]}
+    const lista=Array.isArray(parsed)?parsed:Object.values(parsed).find(Array.isArray)||[];
+    if(!lista.length&&!Array.isArray(parsed))throw new Error('Formato inválido');
     if(!p.auditoria)p.auditoria={};
     if(!p.auditoria.questoes)p.auditoria.questoes=[];
     lista.forEach(item=>{
