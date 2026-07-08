@@ -5643,7 +5643,7 @@ const ACOES = {
           +resumoHtml
           +_iaSection('Gargalos',a.ia_resultado.gargalos)
           +_iaSection('Retrabalhos',a.ia_resultado.retrabalhos)
-          +_iaSection('Gaps de controle',a.ia_resultado.gaps)
+          +(p.status_workflow==='concluido'?_iaSection('Gaps de controle',a.ia_resultado.gaps):'')
           +_iaSection('Oportunidades',a.ia_resultado.oportunidades)
           +complexHtml
           +_iaSection('💡 Soluções para problemas levantados',a.ia_resultado.solucoes_problemas,'color:var(--teal)')
@@ -5749,7 +5749,7 @@ const ACOES = {
         ?(resumoHtml
           +_dfbBlock('analise-gar','Gargalos',gargalos,'gargalos','⚠')
           +_dfbBlock('analise-ret','Retrabalhos',retrabalhos,'retrabalhos','↩')
-          +_dfbBlock('analise-gap','Pontos cegos',gaps,'gaps','○')
+          +(p.status_workflow==='concluido'?_dfbBlock('analise-gap','Pontos cegos',gaps,'gaps','○'):'')
           +_dfbBlock('analise-oport','Oportunidades',oportunidades,'oportunidades','✦')
           +'<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--teal-l);color:var(--teal)">Soluções propostas ('+solucoes.length+')</div>'+solucoes.map(s=>dfbRow('solucoes_problemas',s,'💡')).join('')+'</div>')
         :'<div class="ib iba">Análise inteligente ainda não gerada. Execute a etapa de Análise inteligente antes.</div>';
