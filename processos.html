@@ -17101,8 +17101,13 @@ async function loadFluxoImg(arqId){
 }
 async function verFluxoBizagi(arqId, ev){
   ev&&ev.stopPropagation();
-  const base64 = await loadFluxoImg(arqId);
-  if(!base64){ toast('Nenhuma imagem de fluxo cadastrada para este processo.','var(--amber)'); return; }
+  let base64 = await loadFluxoImg(arqId);
+  if(!base64){
+    // Fallback: processo mapeado internamente — usa BPMN AS IS salvo no processo
+    const proc = processos.find(p=>p.arq_id===arqId);
+    if(proc) base64 = await _getFluxogramaAsIsPng(proc);
+  }
+  if(!base64){ toast('Nenhuma imagem de fluxo disponível para este processo.','var(--amber)'); return; }
   const ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:zoom-out';
   ov.innerHTML = `<img src="${base64}" alt="Visualização ampliada do fluxo" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6);cursor:default" onclick="event.stopPropagation()">
