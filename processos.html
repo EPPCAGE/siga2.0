@@ -17240,6 +17240,7 @@ async function verFluxoBizagi(arqId, ev){
   if(!base64){
     // Fallback: processo mapeado internamente — usa BPMN AS IS salvo no processo
     const proc = processos.find(p=>p.arq_id==arqId);
+    console.log('[verFluxoBizagi] arqId=',arqId,'proc=',proc?.id,'bpmnAsIs=',!!proc?.mod?.bpmnAsIs,'bpmnAsIsSvg=',!!proc?.mod?.bpmnAsIsSvg,'hasFluxoImg=',proc?.mod?.hasFluxoImg);
     if(proc) base64 = await _getFluxogramaAsIsPng(proc);
   }
   if(!base64){ toast('Nenhuma imagem de fluxo disponível para este processo.','var(--amber)'); return; }
