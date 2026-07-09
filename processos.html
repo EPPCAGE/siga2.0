@@ -12639,7 +12639,7 @@ function _metaFieldsMapeamentoHTML(item, proc){
       <span style="font-size:11px;font-weight:600;color:var(--ink2)">Mapeamento vinculado</span>
       <span class="badge ${EBADGE[proc.etapa]||'bgr'}" style="font-size:10px">${etLb(proc.etapa)}</span>
       <span class="badge ${FASE_COR[etFase(proc.etapa)]||'bgr'}" style="font-size:10px">${FASE_LABEL[etFase(proc.etapa)]||etFase(proc.etapa)}</span>
-      ${(isEP()||usuarioLogado?.perfil==='gestor')
+      ${isEP()
         ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="abrirProc(${proc.id})">Abrir mapeamento →</button>`
         : mapeandoBadge
       }
