@@ -81,16 +81,60 @@
     }
   }
 
+  // Cache em memória do último estado gravado por coleção, usada para evitar
+  // regravar documentos que não mudaram desde a última sincronização (custo de
+  // writes cresce com o tamanho da coleção se regravarmos tudo a cada save).
+  // Semeada uma única vez por coleção via repository.list() (1 leitura completa
+  // por sessão, no pior caso) — chamadas seguintes de syncCollection reusam o
+  // cache em memória, sem nova leitura.
+  const _syncCaches = new Map(); // collectionName -> {ready: boolean, map: Map(id -> json)}
+
+  function _syncCacheFor(collectionName){
+    let cache = _syncCaches.get(collectionName);
+    if(!cache){ cache = {ready: false, map: new Map()}; _syncCaches.set(collectionName, cache); }
+    return cache;
+  }
+
+  // Permite que listeners onSnapshot atualizem o cache quando recebem mudanças
+  // remotas, evitando que o próximo syncCollection local regrave (sem necessidade)
+  // documentos que outro usuário já sincronizou.
+  function touchSyncCache(collectionName, id, cleanedData){
+    const cache = _syncCacheFor(collectionName);
+    if(!cache.ready) return;
+    if(cleanedData === null || cleanedData === undefined) cache.map.delete(String(id));
+    else cache.map.set(String(id), JSON.stringify(cleanedData));
+  }
+
   async function syncCollection(repository, items, cleanFn, chunkSize=400){
-    const ids = new Set((items || []).map(item => String(item.id)));
+    const cache = _syncCacheFor(repository.collectionName);
+    if(!cache.ready){
+      const snap = await repository.list();
+      cache.map.clear();
+      snap.docs.forEach(docItem => {
+        cache.map.set(String(docItem.id), JSON.stringify(cleanFn ? cleanFn(docItem.data) : docItem.data));
+      });
+      cache.ready = true;
+    }
+
     const ops = [];
+    const seen = new Set();
     (items || []).forEach(item => {
-      ops.push({type: 'set', ref: repository.ref(item.id), data: cleanFn ? cleanFn(item) : item});
+      const id = String(item.id);
+      seen.add(id);
+      const data = cleanFn ? cleanFn(item) : item;
+      const json = JSON.stringify(data);
+      if(cache.map.get(id) !== json){
+        ops.push({type: 'set', ref: repository.ref(item.id), data});
+        cache.map.set(id, json);
+      }
     });
-    const snap = await repository.list();
-    snap.docs.forEach(docItem => {
-      if(!ids.has(String(docItem.id))) ops.push({type: 'delete', ref: docItem.ref});
+    cache.map.forEach((_json, id) => {
+      if(!seen.has(id)){
+        ops.push({type: 'delete', ref: repository.ref(id)});
+        cache.map.delete(id);
+      }
     });
+
     await batchCommit(ops, chunkSize);
   }
 
@@ -99,6 +143,7 @@
     config: configRepository(),
     batchCommit,
     syncCollection,
+    touchSyncCache,
   };
 
   globalScope.FirestoreRepositories = repositories;

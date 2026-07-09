@@ -103,7 +103,15 @@
 
     _fbState.listenersStarted = true;
 
-    // Tenta onSnapshot (WebSocket); inicia polling como fallback garantido
+    // Tenta onSnapshot (WebSocket); só recorre ao polling se ele de fato falhar
+    // (rede que bloqueia WebSocket, erro de permissão, etc.) — do contrário os
+    // dois mecanismos ficavam ativos ao mesmo tempo, dobrando as leituras.
+    let _usedFallback = false;
+    function _fallbackToPolling(){
+      if(_usedFallback) return;
+      _usedFallback = true;
+      _startPolling();
+    }
     try {
       const {onSnapshot} = globalScope.fb();
       if(onSnapshot){
@@ -127,17 +135,33 @@
                 if(typeof globalScope[item.fn] === 'function') globalScope[item.fn](snap);
                 _cloudRender();
               },
-              function(err){ console.warn('_fbWatchExternalChanges (' + item.repo + '):', err.message); }
+              function(err){
+                console.warn('_fbWatchExternalChanges (' + item.repo + '):', err.message);
+                _fallbackToPolling();
+              }
             )
           );
         });
+      } else {
+        _fallbackToPolling();
       }
     } catch(e){
       console.warn('_fbWatchExternalChanges: onSnapshot indisponível —', e.message);
+      _fallbackToPolling();
     }
+  }
 
-    // Polling sempre ativo como garantia (30s)
-    _startPolling();
+  // ── Desliga listeners e polling (chamado no logout) ───────────────────────
+  function _fbStopWatching(){
+    _fbState.unsubscribers.forEach(function(unsub){
+      try { unsub(); } catch(e){ /* ignora — listener já pode ter caído */ }
+    });
+    _fbState.unsubscribers = [];
+    if(_fbState.pollTimer){
+      clearInterval(_fbState.pollTimer);
+      _fbState.pollTimer = null;
+    }
+    _fbState.listenersStarted = false;
   }
 
   // ── Funções de compatibilidade (banner mantido para erros manuais) ─────────
@@ -178,4 +202,5 @@
   globalScope._fbDismissBanner        = _fbDismissBanner;
   globalScope._fbReloadData           = _fbReloadData;
   globalScope._fbWatchExternalChanges = _fbWatchExternalChanges;
+  globalScope._fbStopWatching         = _fbStopWatching;
 })(globalThis);

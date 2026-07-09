@@ -381,13 +381,19 @@ function projFbStartRealtime(){
     onSnapshot(projetosRepository.colRef(), snap => {
       if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
       PROJETOS = [];
-      snap.forEach(d => PROJETOS.push(projFixDefaults(d.data())));
+      snap.forEach(d => {
+        PROJETOS.push(projFixDefaults(d.data()));
+        FirestoreRepositories.touchSyncCache(PROJ_FB.colProjetos, d.id, _fsClean(d.data()));
+      });
       projCloudRender();
     }, e => console.warn('proj projetos snapshot:', e.message)),
     onSnapshot(programasRepository.colRef(), snap => {
       if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
       PROGRAMAS = [];
-      snap.forEach(d => PROGRAMAS.push(progFixDefaults(d.data())));
+      snap.forEach(d => {
+        PROGRAMAS.push(progFixDefaults(d.data()));
+        FirestoreRepositories.touchSyncCache(PROJ_FB.colProgramas, d.id, _fsClean(d.data()));
+      });
       projCloudRender();
     }, e => console.warn('proj programas snapshot:', e.message)),
     onSnapshot(configRepository.ref(PROJ_FB.cfgMacrosId), snap => {
