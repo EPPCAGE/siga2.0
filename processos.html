@@ -10594,6 +10594,23 @@ function svgStringToPng(svg){
   });
 }
 
+async function renderBpmnToPng(xml){
+  if(!xml||typeof BpmnJS==='undefined') return null;
+  const svg = await new Promise(resolve=>{
+    const tmp=document.createElement('div');
+    tmp.style.cssText='position:fixed;left:-9999px;top:0;width:1600px;height:900px;overflow:hidden;';
+    document.body.appendChild(tmp);
+    const tid=setTimeout(()=>{try{viewer?.destroy();}catch{}tmp.remove();resolve(null);},20000);
+    let viewer;
+    try{viewer=new BpmnJS({container:tmp});}catch(e){clearTimeout(tid);tmp.remove();return resolve(null);}
+    viewer.importXML(xml)
+      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
+      .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg||null);})
+      .catch(()=>{clearTimeout(tid);try{viewer?.destroy();}catch{}tmp.remove();resolve(null);});
+  });
+  return svgStringToPng(svg);
+}
+
 async function _getFluxogramaAsIsPng(p){
   if(!p) return null;
   const linkedImg = p.arq_id ? await loadFluxoImg(p.arq_id) : null;
