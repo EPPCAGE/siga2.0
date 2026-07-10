@@ -7404,7 +7404,7 @@ async function registrarReuniaoAcomp(){
   }
   if(r.data){
     p.reunioes_acomp.push(r);
-    p.dt_proximo_acompanhamento = _addDias(r.data, 180);
+    p.dt_proximo_acompanhamento = _addDias(r.data, p.reunioes_acomp.length>=2?365:180);
     push(p,'acompanha','EP','Reunião de acompanhamento registrada — '+r.data+' — '+r.conformidade);
     await fbSaveAll();
     toast('Reunião registrada!','var(--teal)');
@@ -7466,7 +7466,7 @@ async function salvarEditReuniaoAcomp(){
   };
   p.reunioes_acomp[idx]=updated;
   const _latestAcomp=[...p.reunioes_acomp].sort((a,b)=>a.data<b.data?1:-1)[0];
-  if(_latestAcomp?.data) p.dt_proximo_acompanhamento=_addDias(_latestAcomp.data,180);
+  if(_latestAcomp?.data) p.dt_proximo_acompanhamento=_addDias(_latestAcomp.data,p.reunioes_acomp.length>=2?365:180);
   await fbSaveAll();
   toast('Reunião atualizada!','var(--teal)');
   globalThis._acEditIdx=null;
@@ -7481,7 +7481,7 @@ function excluirReuniaoAcomp(idx){
     const p=curProc;if(!p?.reunioes_acomp)return;
     p.reunioes_acomp.splice(idx,1);
     const _latest=[...p.reunioes_acomp].filter(r=>r.data).sort((a,b)=>a.data<b.data?1:-1)[0];
-    if(_latest?.data) p.dt_proximo_acompanhamento=_addDias(_latest.data,180);
+    if(_latest?.data) p.dt_proximo_acompanhamento=_addDias(_latest.data,p.reunioes_acomp.length>=2?365:180);
     await fbSaveAll();
     toast('Reunião excluída.','var(--amber)');
     rDetalhe();
