@@ -13317,7 +13317,9 @@ async function importarIndicadores(input){
         kpis.filter(k => k.origem === 'importado_editado')
             .map(k => (k.codigo||k.nome||'').trim() + '|' + (k.periodo||'').trim())
       );
-      // Build full config map from edited rows so new periods inherit manual changes
+      // Build full config map from edited rows so new periods inherit manual changes.
+      // meta fica de fora da herança "por linha existente na planilha" — cada mês tem sua própria
+      // meta e não pode ser travada pelo valor de outro período (ver uso de cMeta abaixo).
       const cfgEditadoImport = {};
       kpis.filter(k => k.origem === 'importado_editado' || k.origem === 'manual').forEach(k => {
         const gk = (k.codigo||k.nome||'').trim();
@@ -13367,7 +13369,7 @@ async function importarIndicadores(input){
           ciclo:         cfg.ciclo         || ciclo,
           ppe:           cfg.ppe           || ppe,
           unidade:       cfg.unidade       || '',
-          meta:          cfg.meta ?? meta,
+          meta:          cMeta ? meta : (cfg.meta ?? meta),
           pid:           cfg.pid  ?? null,
           arq_id:        cfg.arq_id ?? null,
           periodo, indice, realizado: real,
@@ -14314,6 +14316,8 @@ async function _fetchGsheetsCsv(url){
     throw new Error('Proxy timeout ou indisponível. Tente novamente.');
   }
 }
+// meta é mantida no mapa apenas como fallback para quando a planilha não tem coluna Meta —
+// _gsheetsRowToKpi usa o valor da planilha sempre que a coluna existir (ver cols.cMeta).
 function _gsheetsEditedConfigMap(){
   const cfgEditadoSync = {};
   kpis
@@ -14362,7 +14366,7 @@ function _gsheetsRowToKpi(row, cols, cfgEditadoSync, editados){
     ciclo: cfg.ciclo || val(cols.cCiclo),
     ppe: cfg.ppe || val(cols.cPPE) || 'Não',
     unidade: cfg.unidade || '',
-    meta: cfg.meta ?? meta,
+    meta: cols.cMeta ? meta : (cfg.meta ?? meta),
     pid: cfg.pid ?? null,
     arq_id: cfg.arq_id ?? null,
     periodo,
