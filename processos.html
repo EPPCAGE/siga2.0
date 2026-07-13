@@ -17815,7 +17815,8 @@ function _calcKpiPct(k){
   if(m<=0) return null;
   const isMenorMelhor = (k.polaridade||'Maior é melhor')==='Menor é melhor';
   if(isMenorMelhor){
-    return r > 0 ? Math.round((m/r)*100) : 0;
+    // realizado=0 com meta positiva é o melhor resultado possível (ex: zero incidentes) — meta cumprida
+    return r > 0 ? Math.round((m/r)*100) : 100;
   }
   return Math.round((r/m)*100);
 }
