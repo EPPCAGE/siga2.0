@@ -17714,17 +17714,6 @@ async function iaAssistente(){
 }
 
 // ── 4. ANALISAR INDICADORES ───────────────
-// Retorna true somente se o período é o 1º mês de um trimestre
-// (jan, abr, jul, out) — únicos meses em que zero pode significar
-// ausência de preenchimento no SISPLAN. O 2º mês (fev, mai, ago, nov)
-// com zero já é resultado real, pois o 1º mês poderia ter valor acumulado.
-function _ehMesNaoFechamento(periodo){
-  if(!periodo) return false;
-  const s = periodo.toString().toLowerCase();
-  // Apenas o 1º mês de cada trimestre: janeiro, abril, julho, outubro
-  return /^(jan|abr|jul|out|janeiro|abril|julho|outubro)/.test(s.trim());
-}
-
 async function iaAnalisarIndicadores(){
   const area      = document.getElementById('ind-area-sel')?.value      || '';
   const ciclo     = document.getElementById('ind-ciclo-sel')?.value     || '';
@@ -17742,17 +17731,11 @@ async function iaAnalisarIndicadores(){
   const el  = document.getElementById('ia-ind-result');
   if(btn) btn.disabled = true;
 
-  // Filtra antes de enviar: remove indicadores sem dados (realizado nulo, vazio ou zero)
-  // Indicadores aguardando fechamento do trimestre também são excluídos — a IA não deve vê-los
-  // Exceção: meta=0 e realizado=0 é resultado válido (ex: zero ocorrências de incidentes)
-  const listaValida = lista.filter(k => {
-    if(k.sem_dado) return false;
-    const r = Number(k.realizado);
-    const isMetaZero = r === 0 && k.meta !== null && k.meta !== undefined && k.meta !== '' && Number(k.meta) === 0;
-    const aguardando = !isMetaZero && (!k.realizado || r === 0) && _ehMesNaoFechamento(k.periodo);
-    if(aguardando) return false;
-    return k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && (r !== 0 || isMetaZero);
-  });
+  // Filtra antes de enviar: remove indicadores sem dados. "Sem dado" é definido pelo
+  // flag sem_dado — realizado=0 é sempre um resultado real (mesma convenção do dashboard).
+  const listaValida = lista.filter(k =>
+    !k.sem_dado && k.realizado !== null && k.realizado !== undefined && k.realizado !== ''
+  );
 
   if(!listaValida.length){
     if(el) el.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">✦ Análise IA dos indicadores</div><div style="line-height:1.7">Nenhum indicador com dados disponíveis para análise neste período.</div></div>`;
@@ -17832,7 +17815,8 @@ function _calcKpiPct(k){
   if(m<=0) return null;
   const isMenorMelhor = (k.polaridade||'Maior é melhor')==='Menor é melhor';
   if(isMenorMelhor){
-    return r > 0 ? Math.round((m/r)*100) : 0;
+    // realizado=0 com meta positiva é o melhor resultado possível (ex: zero incidentes) — meta cumprida
+    return r > 0 ? Math.round((m/r)*100) : 100;
   }
   return Math.round((r/m)*100);
 }
@@ -17875,13 +17859,11 @@ function _buildKpiAreaCards(lista){
   }).join('');
 }
 function _filtrarIndicadoresRelatorioPdf(lista){
-  return lista.filter(k => {
-    if(k.sem_dado) return false;
-    const r = Number(k.realizado);
-    const isMetaZero = r === 0 && k.meta !== null && k.meta !== undefined && k.meta !== '' && Number(k.meta) === 0;
-    const aguardando = !isMetaZero && (!k.realizado || r === 0) && _ehMesNaoFechamento(k.periodo);
-    return !aguardando && k.realizado !== null && k.realizado !== undefined && k.realizado !== '' && (r !== 0 || isMetaZero);
-  });
+  // "Sem dado" é definido pelo flag sem_dado — realizado=0 é sempre um resultado
+  // real (mesma convenção do dashboard, ver _kpiGrpWithData).
+  return lista.filter(k =>
+    !k.sem_dado && k.realizado !== null && k.realizado !== undefined && k.realizado !== ''
+  );
 }
 function _ordenarIndicadoresRelatorioPdf(lista){
   lista.sort((a,b)=>{
