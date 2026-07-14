@@ -3682,6 +3682,12 @@ function projCalcTaskPct(t) {
   return t.conclusao || 0;
 }
 
+function projIsTaskDone(t) {
+  const subs = t?.subtarefas || [];
+  if(subs.length > 0) return subs.every(projIsTaskDone);
+  return !!t?.concluida;
+}
+
 function projCalcDerivedPct(tarefas) {
   if(!tarefas || tarefas.length === 0) return 0;
   const sum = tarefas.reduce((a,t) => a + projCalcTaskPct(t), 0);
@@ -3698,10 +3704,13 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
     const pct = hasSubs ? projCalcTaskPct(t) : (t.conclusao||0);
     const indent = depth * 20;
     const bold = hasSubs ? 'font-weight:700' : '';
-    const strike = t.concluida ? 'text-decoration:line-through;color:#9ca3af' : '';
+    const done = projIsTaskDone(t);
+    const strike = done ? 'text-decoration:line-through;color:#9ca3af' : '';
     const today = new Date().toISOString().slice(0,10);
-    const overdue = !t.concluida && t.dt_fim && t.dt_fim < today;
-    const rowBg = overdue ? 'background:#fef2f2' : (t.concluida ? 'background:#f0fdf4' : '');
+    const overdue = !done && t.dt_fim && t.dt_fim < today;
+    let rowBg = '';
+    if(overdue) rowBg = 'background:#fef2f2';
+    else if(done) rowBg = 'background:#f0fdf4';
     const hasNotes = Array.isArray(t.anotacoes) && t.anotacoes.length > 0;
     const canDrag = canWriteSchedule && !hasSubs && parentIdx !== undefined && parentIdx !== null;
     const canMoveUp = i > 0;
