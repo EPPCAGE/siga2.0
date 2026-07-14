@@ -4896,6 +4896,11 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
     push(curProc, nx, 'Sistema', 'Etapa iniciada');
     // status_workflow é 'em_andamento' por default; muda para aguardando_* só ao atribuir
     curProc.status_workflow='em_andamento';
+    // Mapeamento em si é considerado concluído na publicação — as etapas seguintes
+    // (acompanha, auditoria) são operação/auditoria pós-publicação, não o mapeamento.
+    if(etAtu==='publicacao'){
+      _planoConcluirVinculadosMapeamento(curProc);
+    }
     // Agendar próximo acompanhamento automaticamente ao entrar em etapas mapeadas
     if(['acompanha','auditoria'].includes(nx) && !curProc.dt_proximo_acompanhamento){
       const _hoje = new Date().toISOString().slice(0,10);
@@ -5135,6 +5140,11 @@ function prosseguirFluxo(){
       p.status_workflow='em_andamento';
       if(!p.dt_etapas) p.dt_etapas={};
       if(!p.dt_etapas[etDono]) p.dt_etapas[etDono]=now();
+      // Mapeamento em si é considerado concluído na publicação — as etapas seguintes
+      // (acompanha, auditoria) são operação/auditoria pós-publicação, não o mapeamento.
+      if(etDono==='publicacao'){
+        _planoConcluirVinculadosMapeamento(p);
+      }
       if(['acompanha','auditoria'].includes(nx)&&!p.dt_proximo_acompanhamento){
         const _hoje=new Date().toISOString().slice(0,10);
         const _base=p.ent?.dt_efetiva||p.dt_etapas?.publicacao||_hoje;
@@ -16771,6 +16781,19 @@ function _planoSalvarItem(id, at){
     return;
   }
   plano.push(at);
+}
+// Ao concluir a etapa 'publicacao' do mapeamento, conclui automaticamente a(s)
+// atividade(s) do PAT vinculadas a ele, com entrega efetiva no mesmo dia.
+function _planoConcluirVinculadosMapeamento(p){
+  const hoje = new Date().toISOString().split('T')[0];
+  const vinculadas = plano.filter(a=>a.vinculo_tipo==='mapeamento' && a.vinculo_id===p.id && a.status!=='concluida');
+  vinculadas.forEach(a=>{
+    a.status = 'concluida';
+    a.dt_conclusao = hoje;
+    a.dt_atualizacao = hoje;
+    _planoMarcarConclusao(a);
+  });
+  if(vinculadas.length) toast('Atividade do PAT vinculada marcada como concluída.','var(--teal)');
 }
 
 async function deletarAtividade(id){
