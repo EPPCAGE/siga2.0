@@ -4911,6 +4911,7 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
   } else if(etAtu==='auditoria'){
     // processo concluído (publicacao → acompanha → auditoria)
     curProc.status_workflow='concluido';
+    _planoConcluirVinculadosMapeamento(curProc);
   }
   rDetalhe();updCounts();
   fbSaveNow('av');
@@ -5147,6 +5148,7 @@ function prosseguirFluxo(){
       }
     } else if(etDono==='auditoria'){
       p.status_workflow='concluido';
+      _planoConcluirVinculadosMapeamento(p);
     }
     fbAutoSave('prosseguirFluxo');
     rDetalhe(); updCounts();
@@ -16771,6 +16773,20 @@ function _planoSalvarItem(id, at){
     return;
   }
   plano.push(at);
+}
+// Ao concluir um mapeamento (workflow chega ao fim da etapa 'auditoria'), conclui
+// automaticamente a(s) atividade(s) do PAT vinculadas a ele, com entrega efetiva
+// no mesmo dia da conclusão do mapeamento.
+function _planoConcluirVinculadosMapeamento(p){
+  const hoje = new Date().toISOString().split('T')[0];
+  const vinculadas = plano.filter(a=>a.vinculo_tipo==='mapeamento' && a.vinculo_id===p.id && a.status!=='concluida');
+  vinculadas.forEach(a=>{
+    a.status = 'concluida';
+    a.dt_conclusao = hoje;
+    a.dt_atualizacao = hoje;
+    _planoMarcarConclusao(a);
+  });
+  if(vinculadas.length) toast('Atividade do PAT vinculada marcada como concluída.','var(--teal)');
 }
 
 async function deletarAtividade(id){
