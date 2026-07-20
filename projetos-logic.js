@@ -971,7 +971,7 @@ function projRenderInicio() {
   const emIdeacaoPlan = ativos.filter(p=>p.fase_atual==='ideacao'||p.fase_atual==='planejamento'||p.fase_atual==='aprovacao');
   const concluidos = PROJETOS.filter(p=>p.status==='concluido');
 
-  // ── PROGRESS MAP ──
+  // ── MAPA DE PROGRESSO ──
   const lpContainer = document.getElementById('proj-launchpad-container');
   if(lpContainer) {
     const allProjects = PROJETOS.filter(p => p.status==='ativo');
@@ -985,45 +985,7 @@ function projRenderInicio() {
       ordered = allProjects.slice();
     }
 
-    // Build lanes
-    const gridSegs = Array.from({length:10},()=>'<div class="proj-launchpad-lane-grid-seg"></div>').join('');
-    let lanesHTML = '';
-    ordered.forEach((p, idx) => {
-      const pct = p.percentual || 0;
-      const emoji = projEsc(p.icone_emoji || '📋');
-      const pid = projEsc(String(p.id));
-      const atrasoStatus = projAtrasoStatusProjeto(p);
-      lanesHTML += `
-        <div class="proj-launchpad-lane" id="proj-lane-${pid}" data-id="${pid}" data-idx="${idx}">
-          <div class="proj-launchpad-lane-grid">${gridSegs}</div>
-          <div class="proj-rocket" id="proj-rocket-${pid}"
-               data-id="${pid}" data-pct="${pct}"
-               style="left:${projRocketLeftStyle(pct)}"
-               onmousedown="projRocketUnifiedDrag(event,'${pid}')"
-               ontouchstart="projRocketUnifiedDrag(event,'${pid}')"
-               ondblclick="projAbrirDetalhe('${pid}', true)">
-            <div class="proj-rocket-icon">
-              ${p.icone_url ? `<img src="${projEsc(p.icone_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:9px">` : emoji}
-            </div>
-            <div class="proj-rocket-label">
-              <span class="proj-rocket-status-flag ${atrasoStatus.cls}" title="${projEsc(atrasoStatus.label)}"></span>
-              <div class="proj-rocket-name" title="${projEsc(p.nome)}">${projEsc(p.nome)}</div>
-              <div class="proj-rocket-mgr">${projEsc(p.gerente||'')}</div>
-              <div class="proj-rocket-pct">${pct}%</div>
-              <div class="proj-rocket-bar"><div class="proj-rocket-bar-fill" style="width:${pct}%"></div></div>
-            </div>
-          </div>
-        </div>`;
-    });
-
-    // Build axis — tick marks + labels at absolute % positions
-    let axisInner = '';
-    for(let i = 0; i <= 10; i++) {
-      const pct = i * 10;
-      axisInner += `<div class="proj-launchpad-axis-tick" style="left:${pct}%"></div>`;
-      axisInner += `<div class="proj-launchpad-axis-lbl" style="left:${pct}%">${pct}%</div>`;
-    }
-
+    const rowsHTML = ordered.map(p => projProgressMapRowHtml(p)).join('');
     projSetHtml(lpContainer, `
       <div class="proj-launchpad-wrap">
         <div class="proj-launchpad-grid-bg"></div>
@@ -1035,27 +997,15 @@ function projRenderInicio() {
             </div>
             Mapa de Progresso
           </div>
-          <div class="proj-launchpad-legend">
-            <span><span class="proj-launchpad-legend-key"></span> Arraste na horizontal para ajustar %</span>
-            <span>Arraste na vertical para reordenar</span>
-            <span>Duplo-clique para abrir</span>
-          </div>
+          <div class="proj-launchpad-hint">Clique no ícone do projeto para abrir os detalhes</div>
         </div>
         <div class="proj-launchpad-body">
-          <div class="proj-launchpad-track" id="proj-launchpad-track">
-            <div class="proj-launchpad-lanes" id="proj-launchpad-lanes">
-              ${lanesHTML}
-            </div>
-            <div class="proj-launchpad-progress-line"></div>
-            <div class="proj-launchpad-axis">${axisInner}</div>
+          <div class="proj-pmap">
+            ${rowsHTML || '<div class="proj-pmap-empty">Nenhum projeto ativo no portfólio.</div>'}
           </div>
         </div>
       </div>
     `);
-    requestAnimationFrame(() => {
-      projFitLaunchpadRockets();
-      projBindLaunchpadResize();
-    });
   }
 
   // 2. Painéis executivos v9
@@ -1086,190 +1036,249 @@ function projRenderInicio() {
   `);
 }
 
-// ── UNIFIED DRAG: detects horizontal vs vertical intent ──
-let _rocketDrag = null;
-let _projLaunchpadResizeObserver = null;
-function projDragPoint(ev) {
-  const point = ev.touches ? ev.touches[0] : ev.changedTouches ? ev.changedTouches[0] : ev;
-  return { x: point.clientX, y: point.clientY };
-}
-function projRocketLeftStyle(pct) {
-  return Number(pct) <= 0 ? '4px' : `calc(${pct}% - 22px)`;
-}
-function projRocketApplyPct(rocket, laneRect, pct) {
-  const icon = rocket.querySelector('.proj-rocket-icon');
-  const iconWidth = icon ? icon.offsetWidth : 40;
-  const pctX = (pct / 100) * laneRect.width;
-  rocket.style.left = Math.max(0, pctX - iconWidth / 2) + 'px';
-}
-function projResizeLaunchpadLabels(track, rockets) {
-  const DEFAULT_LABEL_WIDTH = 320;
-  const MIN_LABEL_WIDTH = 210;
-  const ICON_LABEL_GAP = 10;
-  const RIGHT_PAD = 8;
-  let labelWidth = DEFAULT_LABEL_WIDTH;
-  rockets.forEach(rocket => {
-    const lane = rocket.closest('.proj-launchpad-lane');
-    if(!lane) return;
-    const icon = rocket.querySelector('.proj-rocket-icon');
-    const iconWidth = icon ? icon.offsetWidth : 40;
-    const laneWidth = lane.getBoundingClientRect().width;
-    const pct = Math.max(0, Math.min(100, Number.parseInt(rocket.dataset.pct, 10) || 0));
-    const pctX = (pct / 100) * laneWidth;
-    const available = laneWidth - pctX - iconWidth / 2 - ICON_LABEL_GAP - RIGHT_PAD;
-    labelWidth = Math.min(labelWidth, Math.floor(available));
-  });
-  track.style.setProperty('--proj-rocket-label-width', Math.max(MIN_LABEL_WIDTH, labelWidth) + 'px');
-}
-function projFitLaunchpadRockets() {
-  const track = document.getElementById('proj-launchpad-track');
-  const rockets = Array.from(document.querySelectorAll('.proj-rocket'));
-  if(!track || !rockets.length) return;
-  projResizeLaunchpadLabels(track, rockets);
-  rockets.forEach(rocket => {
-    const lane = rocket.closest('.proj-launchpad-lane');
-    if(!lane) return;
-    const pct = Math.max(0, Math.min(100, Number.parseInt(rocket.dataset.pct, 10) || 0));
-    projRocketApplyPct(rocket, lane.getBoundingClientRect(), pct);
-  });
-}
-function projBindLaunchpadResize() {
-  const track = document.getElementById('proj-launchpad-track');
-  if(!track || typeof ResizeObserver === 'undefined') return;
-  if(_projLaunchpadResizeObserver) _projLaunchpadResizeObserver.disconnect();
-  _projLaunchpadResizeObserver = new ResizeObserver(() => projFitLaunchpadRockets());
-  _projLaunchpadResizeObserver.observe(track);
-}
-function projRocketSetPct(rocket, laneRect, clientX) {
-  let relX = clientX - laneRect.left;
-  relX = Math.max(0, Math.min(relX, laneRect.width));
-  const pct = Math.round((relX / laneRect.width) * 100);
-  rocket.dataset.pct = String(pct);
-  const pctEl = rocket.querySelector('.proj-rocket-pct');
-  if(pctEl) pctEl.textContent = pct + '%';
-  const barFill = rocket.querySelector('.proj-rocket-bar-fill');
-  if(barFill) barFill.style.width = pct + '%';
-  projFitLaunchpadRockets();
-}
-function projRocketMarkDropLane(lanes, dragLaneEl, clientY) {
-  lanes.forEach(l => { l.classList.remove('lane-drop-above','lane-drop-below'); });
-  lanes.forEach(lane => {
-    if(lane === dragLaneEl) return;
-    const r = lane.getBoundingClientRect();
-    if(clientY >= r.top && clientY <= r.bottom) {
-      lane.classList.add(clientY < r.top + r.height / 2 ? 'lane-drop-above' : 'lane-drop-below');
-    }
-  });
-}
-function projFindLaneDropIndex(lanes, dragLaneEl, clientY) {
-  const dragIdx = lanes.indexOf(dragLaneEl);
-  for(let i = 0; i < lanes.length; i++) {
-    if(i === dragIdx) continue;
-    const r = lanes[i].getBoundingClientRect();
-    if(clientY < r.top || clientY > r.bottom) continue;
-    const target = clientY < r.top + r.height / 2 ? i : i + 1;
-    return target > dragIdx ? target - 1 : target;
+// ── LINHA DO MAPA DE PROGRESSO ──
+const PROJ_PMAP_MAX_ATRASADAS = 4;
+function projProgressMapRowHtml(p) {
+  const pid = projEsc(String(p.id));
+  const pct = Math.max(0, Math.min(100, Number(p.percentual) || 0));
+  const atrasoStatus = projAtrasoStatusProjeto(p);
+  const atrasadas = projTarefasAtrasadasProjeto(p);
+  const iconInner = p.icone_url
+    ? `<img src="${projEsc(p.icone_url)}" alt="">`
+    : projEsc(p.icone_emoji || '📋');
+
+  let lateCard;
+  if(atrasadas.length) {
+    const itens = atrasadas.slice(0, PROJ_PMAP_MAX_ATRASADAS).map(t => {
+      const nome = `${t._parentName ? `${t._parentName} / ` : ''}${t.nome || 'Tarefa'}`;
+      return `
+          <div class="proj-pmap-late-item">
+            <span class="proj-pmap-late-name" title="${projEsc(nome)}${t.responsavel ? ' — ' + projEsc(t.responsavel) : ''}">${projEsc(nome)}</span>
+            <span class="proj-pmap-late-due">${projFormatDate(t.dt_fim)}</span>
+          </div>`;
+    }).join('');
+    const extra = atrasadas.length > PROJ_PMAP_MAX_ATRASADAS
+      ? `<div class="proj-pmap-late-more">+ ${atrasadas.length - PROJ_PMAP_MAX_ATRASADAS} outra(s) tarefa(s) atrasada(s)</div>`
+      : '';
+    lateCard = `
+        <div class="proj-pmap-late is-late">
+          <div class="proj-pmap-late-title">Tarefas atrasadas (${atrasadas.length})</div>
+          ${itens}${extra}
+        </div>`;
+  } else {
+    lateCard = `
+        <div class="proj-pmap-late is-ok">
+          <span class="proj-pmap-ok-check">
+            <svg viewBox="0 0 16 16" fill="none" width="15" height="15"><path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span>Não há tarefas marcadas como atrasadas</span>
+        </div>`;
   }
-  return dragIdx;
+
+  return `
+      <div class="proj-pmap-row">
+        <button type="button" class="proj-pmap-icon" title="Abrir ${projEsc(p.nome)}" aria-label="Abrir projeto ${projEsc(p.nome)}" onclick="projAbrirDetalhe('${pid}', true)">${iconInner}</button>
+        <div class="proj-pmap-info">
+          <span class="proj-pmap-flag ${atrasoStatus.cls}" title="${projEsc(atrasoStatus.label)}"></span>
+          <div class="proj-pmap-name" title="${projEsc(p.nome)}">${projEsc(p.nome)}</div>
+          <div class="proj-pmap-mgr">${projEsc(p.gerente||'')}</div>
+          <div class="proj-pmap-pct">${pct}%</div>
+          <div class="proj-pmap-bar"><div class="proj-pmap-bar-fill" style="width:${pct}%"></div></div>
+        </div>
+        ${lateCard}
+        <div class="proj-pmap-action">
+          <button type="button" class="proj-btn proj-pmap-report-btn" onclick="projGerarStatusReportPPT('${pid}')">
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="2" y="1.5" width="12" height="13" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 5h6M5 8h6M5 11h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Gerar Status Report Executivo
+          </button>
+        </div>
+      </div>`;
 }
-function projSaveRocketPct(projId, rocket) {
-  const newPct = Number.parseInt(rocket.dataset.pct, 10) || 0;
-  projLoad();
-  const proj = PROJETOS.find(p => String(p.id) === String(projId));
-  if(!proj) return;
-  proj.percentual = newPct;
-  if(!proj.execucao) proj.execucao = { planner_link:'', percentual:0, reunioes:[] };
-  proj.execucao.percentual = newPct;
-  projSave();
-  projToast(`${proj.nome}: ${newPct}%`, 'var(--blue)');
+
+// ════════════════════════════════════════════════════════════════════
+// STATUS REPORT EXECUTIVO — PPT editável por projeto (PptxGenJS)
+// ════════════════════════════════════════════════════════════════════
+async function projFetchImageDataUri(url) {
+  try {
+    const resp = await fetch(url);
+    if(!resp.ok) return null;
+    const blob = await resp.blob();
+    return await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch(e) {
+    return null;
+  }
 }
-function projApplyLaneOrder(lanesContainer, dragLaneEl, targetIdx) {
-  lanesContainer.removeChild(dragLaneEl);
-  const updatedLanes = Array.from(lanesContainer.querySelectorAll('.proj-launchpad-lane'));
-  if(targetIdx >= updatedLanes.length) lanesContainer.appendChild(dragLaneEl);
-  else lanesContainer.insertBefore(dragLaneEl, updatedLanes[targetIdx]);
-  const finalLanes = Array.from(lanesContainer.querySelectorAll('.proj-launchpad-lane'));
-  const order = finalLanes.map(l => l.dataset.id);
-  try { localStorage.setItem('proj_lane_order', JSON.stringify(order)); } catch(e){}
-  projToast('Ordem atualizada','#0e7490');
-}
-function projRocketUnifiedDrag(e, projId) {
-  if(e.type === 'mousedown' && e.button !== 0) return;
-  if(!e.touches && e.detail >= 2) {
-    e.preventDefault();
-    e.stopPropagation();
-    projAbrirDetalhe(projId, true);
+
+async function projGerarStatusReportPPT(projId) {
+  if(typeof PptxGenJS === 'undefined') {
+    projToast('Biblioteca de apresentações não carregada. Recarregue a página.', 'var(--red)');
     return;
   }
-  e.preventDefault();
-  e.stopPropagation();
-  const lane = document.getElementById('proj-lane-' + projId);
-  const rocket = document.getElementById('proj-rocket-' + projId);
-  const lanesContainer = document.getElementById('proj-launchpad-lanes');
-  if(!lane || !rocket || !lanesContainer) return;
+  projLoad();
+  const p = PROJETOS.find(x => String(x.id) === String(projId));
+  if(!p) return;
 
-  const start = projDragPoint(e);
-  const startX = start.x;
-  const startY = start.y;
-  const THRESHOLD = 6;
-  let mode = null;
+  projToast('Gerando Status Report Executivo...', 'var(--blue)');
+  try {
+    const [cageLogo, eppLogo] = await Promise.all([
+      projFetchImageDataUri(PROJ_CAGE_REPORT_LOGO),
+      projFetchImageDataUri('epp-logo.png')
+    ]);
 
-  const laneRect = lane.getBoundingClientRect();
-  let dragLaneEl = lane;
+    // Identidade visual CAGE (cores extraídas dos logos oficiais)
+    const NAVY = '004A87', TEAL = '00C4B4', TEAL_TXT = '008D82',
+          GRAY = '4A5568', GRAY_SOFT = '8A97A6', TRACK = 'E9EEF5',
+          GREEN = '16A34A', RED = 'B91C1C', BORDER = 'D8E2EC', FONT = 'Calibri';
 
-  function onMove(ev) {
-    ev.preventDefault();
-    const {x: cx, y: cy} = projDragPoint(ev);
-    const dx = cx - startX;
-    const dy = cy - startY;
+    const pct = Math.max(0, Math.min(100, Number(p.percentual) || 0));
+    const ciclo = projMonthLabel(projMonthValue());
+    const atrasadas = projTarefasAtrasadasProjeto(p);
+    const indicadores = (p.execucao?.indicadores || []).filter(ind => String(ind.nome||'').trim());
 
-    if(!mode) {
-      if(Math.abs(dx) < THRESHOLD && Math.abs(dy) < THRESHOLD) return;
-      mode = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
-      if(mode === 'h') {
-        rocket.classList.add('dragging');
-      } else {
-        dragLaneEl.classList.add('lane-dragging');
+    const pptx = new PptxGenJS();
+    pptx.layout = 'LAYOUT_16x9';
+    pptx.author = 'SIGA — Escritório de Projetos e Processos · CAGE/RS';
+    pptx.title = `Status Report Executivo — ${p.nome}`;
+
+    // Master dos slides de conteúdo: logo CAGE, filete de destaque e rodapé
+    pptx.defineSlideMaster({
+      title: 'SR_CONTEUDO',
+      background: { color: 'FFFFFF' },
+      objects: [
+        { rect: { x: 0, y: 5.55, w: 10, h: 0.075, fill: { color: TEAL } } },
+        { rect: { x: 0.45, y: 0.45, w: 0.09, h: 0.46, fill: { color: TEAL } } },
+        { text: { text: `${p.nome} · Status Report Executivo · ${ciclo}`, options: { x: 0.45, y: 5.24, w: 7.6, h: 0.24, fontFace: FONT, fontSize: 8, color: GRAY_SOFT, align: 'left' } } },
+        ...(cageLogo ? [{ image: { x: 8.55, y: 0.16, w: 1.15, h: 0.65, data: cageLogo } }] : [])
+      ]
+    });
+
+    const addTitle = (slide, txt) => slide.addText(txt, {
+      x: 0.65, y: 0.42, w: 7.6, h: 0.52, fontFace: FONT, fontSize: 20, bold: true,
+      color: NAVY, align: 'left', valign: 'middle'
+    });
+    const addBottomBars = slide => {
+      slide.addShape(pptx.ShapeType.rect, { x: 0, y: 5.5, w: 6.2, h: 0.125, fill: { color: TEAL } });
+      slide.addShape(pptx.ShapeType.rect, { x: 6.2, y: 5.5, w: 3.8, h: 0.125, fill: { color: NAVY } });
+    };
+
+    // ── Slide 1: Capa ──
+    const capa = pptx.addSlide();
+    capa.background = { color: 'FFFFFF' };
+    addBottomBars(capa);
+    if(cageLogo) capa.addImage({ data: cageLogo, x: 0.3, y: 0.14, w: 2.0, h: 1.125 });
+    if(eppLogo) capa.addImage({ data: eppLogo, x: 8.28, y: 0.44, w: 1.32, h: 0.53 });
+    capa.addText('STATUS REPORT EXECUTIVO', { x: 0.5, y: 1.72, w: 9, h: 0.35, align: 'center', fontFace: FONT, fontSize: 13, bold: true, color: TEAL_TXT, charSpacing: 4 });
+    capa.addText(p.nome || 'Projeto', { x: 0.7, y: 2.1, w: 8.6, h: 1.1, align: 'center', valign: 'middle', fontFace: FONT, fontSize: 32, bold: true, color: NAVY, fit: 'shrink' });
+    capa.addShape(pptx.ShapeType.rect, { x: 4.35, y: 3.35, w: 1.3, h: 0.05, fill: { color: TEAL } });
+    const gerentes = p.gerente_substituto ? `${p.gerente || '—'} / ${p.gerente_substituto}` : (p.gerente || '—');
+    capa.addText([
+      { text: p.gerente_substituto ? 'Gerentes do Projeto: ' : 'Gerente do Projeto: ', options: { bold: true, color: NAVY } },
+      { text: gerentes, options: { color: GRAY, breakLine: true } },
+      { text: 'Patrocinador: ', options: { bold: true, color: NAVY } },
+      { text: p.patrocinador || '—', options: { color: GRAY, breakLine: true } },
+      { text: 'Ciclo: ', options: { bold: true, color: NAVY } },
+      { text: ciclo, options: { color: GRAY } }
+    ], { x: 0.45, y: 4.42, w: 7.2, h: 0.95, fontFace: FONT, fontSize: 12, align: 'left', valign: 'bottom', paraSpaceAfter: 6 });
+
+    // ── Slide 2: Visão Geral do Projeto ──
+    const geral = pptx.addSlide({ masterName: 'SR_CONTEUDO' });
+    addTitle(geral, 'Visão Geral do Projeto');
+    geral.addText(`${pct}%`, { x: 0.55, y: 1.05, w: 2.4, h: 1.0, fontFace: FONT, fontSize: 52, bold: true, color: TEAL_TXT, align: 'left', valign: 'middle' });
+    geral.addText('do projeto concluído', { x: 0.62, y: 2.0, w: 2.5, h: 0.3, fontFace: FONT, fontSize: 11, color: GRAY });
+    geral.addShape(pptx.ShapeType.roundRect, { x: 3.15, y: 1.42, w: 6.25, h: 0.36, rectRadius: 0.08, fill: { color: TRACK } });
+    if(pct > 0) geral.addShape(pptx.ShapeType.roundRect, { x: 3.15, y: 1.42, w: Math.max(0.36, 6.25 * pct / 100), h: 0.36, rectRadius: 0.08, fill: { color: TEAL } });
+    geral.addText('0%', { x: 3.15, y: 1.85, w: 0.6, h: 0.22, fontFace: FONT, fontSize: 8, color: GRAY_SOFT });
+    geral.addText('100%', { x: 8.8, y: 1.85, w: 0.6, h: 0.22, fontFace: FONT, fontSize: 8, color: GRAY_SOFT, align: 'right' });
+
+    const secHeader = (x, w, txt, color) => {
+      geral.addShape(pptx.ShapeType.rect, { x, y: 2.62, w: 0.13, h: 0.13, fill: { color } });
+      geral.addText(txt, { x: x + 0.2, y: 2.5, w: w - 0.2, h: 0.36, fontFace: FONT, fontSize: 13, bold: true, color: NAVY, valign: 'middle' });
+    };
+    const CONT_X = 0.62, CONT_W = 8.76, COL_W = 4.25, COL2_X = 5.13;
+    const temAtraso = atrasadas.length > 0;
+
+    if(indicadores.length) {
+      secHeader(CONT_X, COL_W, 'Indicadores', TEAL);
+      const hdrOpts = { bold: true, color: NAVY, fill: { color: 'EFF6F5' } };
+      const MAX_IND = 6;
+      const fmtVal = (v, unidade) => {
+        const s = String(v ?? '').trim();
+        if(!s) return '—';
+        return unidade === '%' ? `${s}%` : (unidade ? `${s} ${unidade}` : s);
+      };
+      const rows = [
+        [ { text: 'Indicador', options: hdrOpts }, { text: 'Meta', options: hdrOpts }, { text: 'Resultado', options: hdrOpts } ],
+        ...indicadores.slice(0, MAX_IND).map(ind => {
+          const unidade = String(ind.unidade || '').trim();
+          return [
+            { text: String(ind.nome || 'Indicador') },
+            { text: fmtVal(ind.meta, unidade) },
+            { text: fmtVal(ind.resultado ?? ind.atual, unidade) }
+          ];
+        })
+      ];
+      geral.addTable(rows, { x: CONT_X, y: 3.0, w: COL_W, colW: [2.15, 0.95, 1.15], fontFace: FONT, fontSize: 9.5, color: GRAY, border: { pt: 0.5, color: BORDER }, fill: { color: 'FFFFFF' }, valign: 'middle', rowH: 0.26, margin: 0.04 });
+      if(indicadores.length > MAX_IND) {
+        geral.addText(`+ ${indicadores.length - MAX_IND} outros indicadores`, { x: CONT_X, y: 3.0 + (MAX_IND + 1) * 0.26 + 0.06, w: COL_W, h: 0.25, fontFace: FONT, fontSize: 9, italic: true, color: GRAY_SOFT });
       }
     }
 
-    if(mode === 'h') {
-      projRocketSetPct(rocket, laneRect, cx);
+    const lateX = indicadores.length ? COL2_X : CONT_X;
+    const lateW = indicadores.length ? COL_W : CONT_W;
+    if(temAtraso) {
+      secHeader(lateX, lateW, `Tarefas em Atraso (${atrasadas.length})`, RED);
+      const MAX_LATE = 7;
+      const runs = [];
+      atrasadas.slice(0, MAX_LATE).forEach(t => {
+        const nome = `${t._parentName ? `${t._parentName} / ` : ''}${t.nome || 'Tarefa'}`;
+        runs.push({ text: nome, options: { color: GRAY, bullet: { code: '2013' } } });
+        runs.push({ text: `  ·  venc. ${projFormatDate(t.dt_fim)}${t.responsavel ? ` · ${t.responsavel}` : ''}`, options: { color: RED, breakLine: true } });
+      });
+      if(atrasadas.length > MAX_LATE) {
+        runs.push({ text: `+ ${atrasadas.length - MAX_LATE} outras tarefas atrasadas`, options: { color: GRAY_SOFT, italic: true, bullet: { code: '2013' } } });
+      }
+      geral.addText(runs, { x: lateX, y: 3.0, w: lateW, h: 2.05, fontFace: FONT, fontSize: 10, align: 'left', valign: 'top', paraSpaceAfter: 5 });
     } else {
-      dragLaneEl.style.transform = `translateY(${dy}px)`;
-      const lanes = Array.from(lanesContainer.querySelectorAll('.proj-launchpad-lane'));
-      projRocketMarkDropLane(lanes, dragLaneEl, cy);
+      secHeader(lateX, lateW, 'Tarefas em Dia', GREEN);
+      geral.addText([
+        { text: '✓  ', options: { bold: true, color: GREEN, fontSize: 13 } },
+        { text: 'Não há tarefas marcadas como atrasadas.', options: { color: GRAY } }
+      ], { x: lateX, y: 3.0, w: lateW, h: 0.4, fontFace: FONT, fontSize: 11, valign: 'top' });
     }
+
+    // ── Slides 3 e 4: preenchidos pelo gerente ──
+    const addBlankBullets = slide => slide.addText(
+      Array.from({ length: 5 }, () => ({ text: ' ', options: { bullet: { code: '2013' }, breakLine: true } })),
+      { x: 0.65, y: 1.35, w: 8.7, h: 3.6, fontFace: FONT, fontSize: 14, color: GRAY, align: 'left', valign: 'top', paraSpaceAfter: 14 }
+    );
+    const concluidas = pptx.addSlide({ masterName: 'SR_CONTEUDO' });
+    addTitle(concluidas, 'Atividades Concluídas no Último Mês');
+    addBlankBullets(concluidas);
+
+    const previstas = pptx.addSlide({ masterName: 'SR_CONTEUDO' });
+    addTitle(previstas, 'Atividades Previstas para o Mês Atual');
+    addBlankBullets(previstas);
+
+    // ── Slide 5: Obrigado ──
+    const fim = pptx.addSlide();
+    fim.background = { color: 'FFFFFF' };
+    addBottomBars(fim);
+    fim.addText('Obrigado', { x: 0.5, y: 1.75, w: 9, h: 0.95, align: 'center', fontFace: FONT, fontSize: 44, bold: true, color: NAVY });
+    fim.addShape(pptx.ShapeType.rect, { x: 4.35, y: 2.85, w: 1.3, h: 0.05, fill: { color: TEAL } });
+    if(cageLogo) fim.addImage({ data: cageLogo, x: 3.95, y: 3.1, w: 2.1, h: 1.18 });
+    fim.addText('Escritório de Projetos e Processos · CAGE/RS', { x: 0.5, y: 4.5, w: 9, h: 0.3, align: 'center', fontFace: FONT, fontSize: 11, color: GRAY_SOFT });
+
+    const nomeArquivo = String(p.nome || 'Projeto').replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 80);
+    await pptx.writeFile({ fileName: `Status Report Executivo - ${nomeArquivo} - ${ciclo}.pptx` });
+    projToast('Status Report Executivo gerado!', 'var(--green)');
+  } catch(e) {
+    projToast(`Erro ao gerar o Status Report: ${e?.message || e}`, 'var(--red)');
   }
-
-  function onEnd(ev) {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onEnd);
-    document.removeEventListener('touchmove', onMove);
-    document.removeEventListener('touchend', onEnd);
-
-    if(mode === 'h') {
-      rocket.classList.remove('dragging');
-      projSaveRocketPct(projId, rocket);
-    } else if(mode === 'v') {
-      dragLaneEl.classList.remove('lane-dragging');
-      dragLaneEl.style.transform = '';
-      const cy = projDragPoint(ev).y;
-      const lanes = Array.from(lanesContainer.querySelectorAll('.proj-launchpad-lane'));
-      const dragIdx = lanes.indexOf(dragLaneEl);
-      lanes.forEach(l => { l.classList.remove('lane-drop-above','lane-drop-below'); });
-      const targetIdx = projFindLaneDropIndex(lanes, dragLaneEl, cy);
-      if(targetIdx !== dragIdx) {
-        projApplyLaneOrder(lanesContainer, dragLaneEl, targetIdx);
-      }
-    }
-    mode = null;
-  }
-
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onEnd);
-  document.addEventListener('touchmove', onMove, {passive:false});
-  document.addEventListener('touchend', onEnd);
 }
 
 function projRenderReunioesDoMes() {
