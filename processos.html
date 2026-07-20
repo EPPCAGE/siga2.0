@@ -2030,7 +2030,7 @@ const QUESTOES = [
     'A comunicação do padrão é repetida em periodicidade definida (ex.: a cada novo executor ou anualmente para toda a equipe).',
     'A efetividade da comunicação é verificada (ex.: teste de conhecimento, checklist de onboarding assinado).',
   ]},
-  {id:'q5',dim:'Estrutura e padronização',txt:'Os templates e formulários padronizados existentes são efetivamente utilizados pelos executores na realização das atividades do processo.',niveis:[
+  {id:'q5',dim:'Estrutura e padronização',podeNA:true,txt:'Os templates e formulários padronizados existentes são efetivamente utilizados pelos executores na realização das atividades do processo.',niveis:[
     'Não são utilizados templates ou formulários padronizados nas atividades do processo.',
     'Templates ou formulários padronizados existem, mas são utilizados apenas por parte dos executores ou de forma inconsistente.',
     'Templates e formulários padronizados são utilizados pela totalidade dos executores nas principais atividades do processo.',
@@ -2044,7 +2044,7 @@ const QUESTOES = [
     'A documentação de responsáveis é efetivamente consultada e utilizada pela equipe na execução do processo.',
     'A documentação de responsáveis é revisada sempre que há alteração na equipe ou no processo.',
   ]},
-  {id:'q7',dim:'Papéis e responsabilidades',txt:'O dono do processo tem autoridade e autonomia reconhecidas para tomar decisões sobre a execução, prioridades e alocação de recursos do processo.',niveis:[
+  {id:'q7',dim:'Papéis e responsabilidades',txt:'O dono do processo tem autoridade e autonomia reconhecidas para tomar decisões sobre a execução, prioridades e alocação de recursos do processo (ex.: pode remanejar a equipe, aprovar mudança no fluxo ou priorizar demandas sem depender de aprovação superior).',niveis:[
     'O dono do processo não possui autoridade reconhecida para decidir sobre o processo.',
     'O dono do processo decide sobre questões operacionais do dia a dia, mas não sobre prioridades ou alocação de recursos.',
     'A autoridade e a autonomia do dono do processo sobre execução, prioridades e recursos estão formalmente reconhecidas pela instituição.',
@@ -2065,21 +2065,21 @@ const QUESTOES = [
     'A passagem por essas etapas de verificação é registrada e rastreável (ex.: log de aprovação, data/hora, assinatura).',
     'Os dados dessas verificações são utilizados para identificar gargalos ou atrasos no processo.',
   ]},
-  {id:'q10',dim:'Execução e controle',txt:'Problemas e não-conformidades são registrados e tratados sistematicamente.',niveis:[
+  {id:'q10',dim:'Execução e controle',txt:'Problemas e não-conformidades são registrados e tratados sistematicamente (ex.: chamado aberto com prazo e responsável até a solução).',niveis:[
     'Problemas e não conformidades não são registrados.',
     'O registro ocorre de forma pontual, sem tratamento sistemático.',
     'Existe mecanismo formal de registro de problemas e não conformidades, aplicado de forma consistente.',
     'Os registros são categorizados e quantificados em periodicidade definida.',
     'Os registros geram planos de ação formais, com acompanhamento até a conclusão.',
   ]},
-  {id:'q11',dim:'Automação e tecnologia',txt:'O processo utiliza sistema de informação ou ferramenta digital de suporte.',niveis:[
+  {id:'q11',dim:'Automação e tecnologia',podeNA:true,txt:'O processo utiliza sistema de informação ou ferramenta digital de suporte.',niveis:[
     'O processo é executado de forma integralmente manual.',
     'O processo utiliza ferramenta genérica, não desenvolvida especificamente para sua execução (ex.: planilha avulsa, e-mail).',
     'O processo utiliza sistema ou ferramenta digital dedicada à sua execução.',
     'O sistema utilizado gera dados ou relatórios que subsidiam formalmente a gestão do processo.',
     'O sistema automatiza etapas do processo sem necessidade de intervenção manual.',
   ]},
-  {id:'q12',dim:'Automação e tecnologia',txt:'O processo possui integrações automatizadas com outros sistemas ou processos.',niveis:[
+  {id:'q12',dim:'Automação e tecnologia',podeNA:true,txt:'O processo possui integrações automatizadas com outros sistemas ou processos (ex.: dados enviados automaticamente para outro sistema, sem precisar digitar de novo).',niveis:[
     'Não há integração entre o processo e outros sistemas ou processos.',
     'A troca de dados com outros sistemas ou processos ocorre de forma manual e recorrente.',
     'Existe ao menos uma integração automatizada formalmente implementada.',
@@ -2093,7 +2093,7 @@ const QUESTOES = [
     'Os resultados do indicador são reportados formalmente à gestão em cada ciclo de medição.',
     'Resultados fora da meta estabelecida geram ação corretiva formalmente registrada.',
   ]},
-  {id:'q14',dim:'Monitoramento e melhoria',txt:'Existe um ciclo formal de análise e melhoria contínua do processo.',niveis:[
+  {id:'q14',dim:'Monitoramento e melhoria',txt:'Existe um ciclo formal de análise e melhoria contínua do processo (ex.: revisão periódica do processo, reunião de melhoria, comitê de revisão).',niveis:[
     'Não existe ciclo de análise ou melhoria do processo.',
     'Melhorias ocorrem de forma pontual, sem processo ou periodicidade formalmente definidos.',
     'Existe ciclo formal de análise e melhoria do processo, com periodicidade definida.',
@@ -5686,6 +5686,7 @@ const ACOES = {
             <div class="quest-txt">${q.id.toUpperCase().replaceAll('Q','')}. ${q.txt}</div>
             <div class="likert">
               ${LIKERT.map((l,i)=>`<button type="button" class="lk-btn ${resp[q.id]===i+1?'on':''}" onclick="setLikert('${q.id}',${i+1},this)" title="${esc(q.niveis[i])}">${i+1}. ${l}</button>`).join('')}
+              ${q.podeNA?`<button type="button" class="lk-btn lk-na ${resp[q.id]==='na'?'on':''}" onclick="setLikert('${q.id}','na',this)" title="Esta afirmação não se aplica à realidade deste processo.">Não se aplica</button>`:''}
             </div>
           </div>`).join('')}
       </div>
@@ -7066,7 +7067,7 @@ function _calcNivelMaturidadeMin(resp){
   const dims={};
   QUESTOES.forEach(q=>{
     if(!dims[q.dim])dims[q.dim]={sum:0,cnt:0};
-    if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
+    if(typeof resp[q.id]==='number'){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const niveis=Object.values(dims).filter(d=>d.cnt>0).map(d=>_calcNivelMaturidade(d.sum/d.cnt));
   return niveis.length?Math.min(...niveis):1;
@@ -7104,8 +7105,8 @@ function _migrarQuestHist(p){
   const resp=e.quest_resp||{};
   const respondidas=Object.keys(resp).length;
   if(!respondidas||!e.mat) return;
-  const total=Object.values(resp).reduce((a,b)=>a+b,0);
-  const media=(total/respondidas).toFixed(1);
+  const numVals=Object.values(resp).filter(v=>typeof v==='number');
+  const media=numVals.length?(numVals.reduce((a,b)=>a+b,0)/numVals.length).toFixed(1):0;
   const nivel=_calcNivelMaturidadeMin(resp);
   e.quest_hist=[{dt:'(retroativo)',nivel,media,respondidas,nota:e.quest_nota||''}];
   fbAutoSave('salvar');
@@ -7117,8 +7118,8 @@ function salvarQuestionario(){
   const resp=p.ent.quest_resp||{};
   const respondidas=Object.keys(resp).length;
   const _enviarQuestionario = () => {
-    const total=Object.values(resp).reduce((a,b)=>a+b,0);
-    const media=respondidas>0?(total/respondidas).toFixed(1):0;
+    const numVals=Object.values(resp).filter(v=>typeof v==='number');
+    const media=numVals.length?(numVals.reduce((a,b)=>a+b,0)/numVals.length).toFixed(1):0;
     const nivel=_calcNivelMaturidadeMin(resp);
     p.ent.mat=nivel;
     const nota=document.getElementById('quest-nota')?.value||'';
@@ -7135,12 +7136,15 @@ function salvarQuestionario(){
 function mostrarResultadoMaturidade(p,nivel,media){
   const resp=p.ent.quest_resp||{};
   const dims={};
-  QUESTOES.forEach(q=>{if(!dims[q.dim]){dims[q.dim]={sum:0,cnt:0};} if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
+  QUESTOES.forEach(q=>{if(!dims[q.dim]){dims[q.dim]={sum:0,cnt:0};} if(typeof resp[q.id]==='number'){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
   const corNivel=['','var(--red)','var(--amber)','var(--amber)','var(--teal)','var(--green)'][nivel]||'var(--blue)';
-  const dimNiveis=Object.fromEntries(Object.entries(dims).map(([dim,d])=>[dim,d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):1]));
-  const nivelMin=Math.min(...Object.values(dimNiveis));
-  const dimRows=Object.entries(dims).map(([dim,d])=>{
-    const nota=d.cnt>0?(d.sum/d.cnt):0;
+  // Eixos sem nenhuma resposta numérica (todas as perguntas marcadas "Não se aplica")
+  // ficam fora do cálculo de nível — não podem ser tratados como nível 1 nem virar "eixo limitante".
+  const dimEntries=Object.entries(dims).filter(([,d])=>d.cnt>0);
+  const dimNiveis=Object.fromEntries(dimEntries.map(([dim,d])=>[dim,_calcNivelMaturidade(d.sum/d.cnt)]));
+  const nivelMin=Object.values(dimNiveis).length?Math.min(...Object.values(dimNiveis)):1;
+  const dimRows=dimEntries.map(([dim,d])=>{
+    const nota=d.sum/d.cnt;
     const nivelDim=dimNiveis[dim];
     const isLimitante=nivelDim===nivelMin;
     const pct=Math.round(nota/5*100);
@@ -10371,7 +10375,7 @@ function rEnt(p){
   const dims={};
   QUESTOES.forEach(q=>{
     if(!dims[q.dim])dims[q.dim]={sum:0,cnt:0};
-    if(resp[q.id]){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
+    if(typeof resp[q.id]==='number'){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
   // Nível por eixo e eixo(s) limitante(s) — recomputado direto de resp para garantir consistência
@@ -10379,7 +10383,7 @@ function rEnt(p){
   const nivelMin=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
   const eixosLimitantes=new Set(Object.entries(dimNiveis).filter(([,n])=>n===nivelMin&&n>0).map(([d])=>d));
   // Média geral como indicador complementar
-  const _valsAll=Object.values(resp);
+  const _valsAll=Object.values(resp).filter(v=>typeof v==='number');
   const _mediaGeral=_valsAll.length?(_valsAll.reduce((a,b)=>a+b,0)/_valsAll.length).toFixed(1):null;
   const _matDesc=[
     '',
@@ -10449,12 +10453,11 @@ function rEnt(p){
       ${matDescHtml}
       <div class="sec-lbl">Nível por eixo (${respondidas}/15 respostas)${_mediaGeral?` · <span style="font-weight:400;font-style:italic">Média geral: ${_mediaGeral}</span>`:''}</div>
       ${Object.entries(dims).map(([dim,d])=>{
-        const nota=d.cnt>0?(d.sum/d.cnt).toFixed(1):'-';
-        const nivelDim=dimNiveis[dim]||0;
         const isLim=eixosLimitantes.has(dim);
+        const valorHtml=d.cnt>0?`Nível ${dimNiveis[dim]||0} · ${(d.sum/d.cnt).toFixed(1)}`:'<span style="font-style:italic;color:var(--ink3)">Não se aplica</span>';
         return `<div style="display:flex;align-items:center;gap:8px;padding:4px ${isLim?'6px':'0'};font-size:12px;${isLim?'background:#fff7ed;border-left:2px solid #f97316;padding-left:6px;border-radius:0 4px 4px 0;margin-left:-2px':''}">
           <span style="flex:1;color:var(--ink2);font-weight:${isLim?'600':'400'}">${dim}${isLim?' <span style="font-size:10px;background:#f97316;color:#fff;padding:1px 5px;border-radius:3px;margin-left:3px">limitante</span>':''}</span>
-          <span style="font-weight:600;color:var(--blue)">Nível ${nivelDim} · ${nota}</span>
+          <span style="font-weight:600;color:var(--blue)">${valorHtml}</span>
         </div>`;
       }).join('')}
       ${(e.quest_hist||[]).length>0?`<hr><div class="sec-lbl" style="margin-bottom:.4rem">Histórico de aplicações</div>
@@ -10816,12 +10819,18 @@ async function _popPdfAnexo(p){
     }).join('');
     // Nível por eixo e eixo(s) limitante(s)
     const _pdfDims={};
-    QUESTOES.forEach(q=>{if(!_pdfDims[q.dim]){_pdfDims[q.dim]={sum:0,cnt:0};}if(resp[q.id]){_pdfDims[q.dim].sum+=resp[q.id];_pdfDims[q.dim].cnt++;}});
-    const _pdfValsAll=Object.values(resp);
+    QUESTOES.forEach(q=>{if(!_pdfDims[q.dim]){_pdfDims[q.dim]={sum:0,cnt:0};}if(typeof resp[q.id]==='number'){_pdfDims[q.dim].sum+=resp[q.id];_pdfDims[q.dim].cnt++;}});
+    const _pdfValsAll=Object.values(resp).filter(v=>typeof v==='number');
     const _pdfMedia=_pdfValsAll.length?(_pdfValsAll.reduce((a,b)=>a+b,0)/_pdfValsAll.length).toFixed(1):null;
     const _pdfDimRows=Object.entries(_pdfDims).map(([dim,d])=>{
-      const nota=d.cnt>0?(d.sum/d.cnt).toFixed(1):'-';
-      const nivelDim=d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):0;
+      if(d.cnt===0){
+        return `<tr>
+          <td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;color:#374151">${dim}</td>
+          <td colspan="2" style="padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;text-align:center;font-style:italic;color:#9ca3af">Não se aplica</td>
+        </tr>`;
+      }
+      const nota=(d.sum/d.cnt).toFixed(1);
+      const nivelDim=_calcNivelMaturidade(d.sum/d.cnt);
       const isLim=nivelDim===matNivel&&matNivel>0;
       return `<tr style="${isLim?'background:#fff7ed':''}">
         <td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;font-weight:${isLim?'700':'400'};color:${isLim?'#c2410c':'#374151'}">${dim}${isLim?' ★':''}</td>

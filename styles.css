@@ -154,6 +154,7 @@ select.fi{cursor:pointer}
 .likert{display:flex;gap:6px;flex-wrap:wrap}
 .lk-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--bdr2);font-size:12px;cursor:pointer;background:var(--surf);color:var(--ink3);transition:all .11s;font-family:var(--f)}
 .lk-btn:hover{border-color:var(--blue-b)}.lk-btn.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.lk-btn.lk-na{border-style:dashed;font-style:italic;margin-left:4px}.lk-btn.lk-na.on{background:var(--ink3);color:#fff;border-color:var(--ink3);border-style:solid}
 /* etapas do processo */
 .etapa-proc{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:.85rem 1rem;margin-bottom:.5rem;transition:all .12s}
 .etapa-proc:hover{border-color:var(--bdr2)}
