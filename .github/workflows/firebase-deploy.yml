@@ -37,7 +37,7 @@ jobs:
           "
 
       - name: Instalar dependências das Cloud Functions
-        run: npm ci --prefix functions
+        run: npm ci --prefix functions --ignore-scripts
 
       - name: Deploy das Cloud Functions via gcloud
         # gcloud já vem pré-instalado no ubuntu-latest — não precisa de setup-gcloud.
@@ -98,7 +98,7 @@ jobs:
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/firebase-sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-sa.json
-          npm install -g firebase-tools@13
+          npm install -g firebase-tools@13.35.1 --ignore-scripts
           firebase deploy --only hosting --project gesproc2 --non-interactive
           rm -f /tmp/firebase-sa.json
 
