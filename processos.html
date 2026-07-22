@@ -14665,7 +14665,8 @@ function _pubProcsHtml(p){
   return '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">'+chips+'</div>';
 }
 function rPub(){
-  const lista = _pubFiltro ? publicacoes.filter(p=>p.categoria===_pubFiltro) : publicacoes;
+  const lista = (_pubFiltro ? publicacoes.filter(p=>p.categoria===_pubFiltro) : publicacoes.slice())
+    .sort((a,b)=>(a.titulo||'').localeCompare(b.titulo||'', 'pt-BR', {sensitivity:'base'}));
   const el = document.getElementById('pub-list');
   if(!el) return;
   document.getElementById('pub-sub').textContent =
