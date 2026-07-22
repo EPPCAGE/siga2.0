@@ -5804,6 +5804,7 @@ const ACOES = {
       <button type="button" class="btn" style="font-size:11px;padding:3px 10px" onclick="exportarEtapasAsIsXlsx()" title="Exportar todas as etapas para planilha Excel">⬇ Exportar Excel</button>
     </div>
     <div id="etapas-proc-list">${renderEtapasProc(p.mod.etapas_proc||[], _mkReworkData(p,'asis'))}</div>
+    ${_rVersoesAnteriores(p,'asis')}
     `},
 
 
@@ -5820,6 +5821,7 @@ const ACOES = {
     <div id="tobe-relatorio-outer" style="margin-top:.4rem;border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2)">
       ${_rTobeRelatorioSecao(p)}
     </div>
+    ${_rVersoesAnteriores(p,'tobe')}
     `},
 
   det_valid_tobe:{titulo:'Detalhamento e Validação TO BE',sub:'O dono detalha as etapas do fluxo futuro e valida o desenho TO BE elaborado pelo EP.',role:'Dono do processo',rk:'dono',tobe:true,
@@ -6633,16 +6635,53 @@ function _rsAcompanha(p){
     registrada_em:now()
   });
 }
+// Preserva o desenho/etapas anteriores antes de uma "Refazer etapa" apagá-los,
+// para não perder o histórico de mapeamentos de AS IS / TO BE (ver esboco_asis/esboco_tobe abaixo).
+function _arquivarVersaoAnterior(p,tipo,dados){
+  if(!p.mod.versoes_anteriores) p.mod.versoes_anteriores=[];
+  p.mod.versoes_anteriores.push({tipo,data:now(),por:usuarioLogado?.nome||'',...dados});
+}
+function _rVersoesAnteriores(p,tipo){
+  const todas=p.mod?.versoes_anteriores||[];
+  const versoes=todas.filter(v=>v.tipo===tipo);
+  if(!versoes.length) return '';
+  return `<div style="margin:.8rem 0">
+    <div style="font-weight:600;font-size:13px;margin-bottom:.4rem">🕓 Versões anteriores (${versoes.length})</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${versoes.slice().reverse().map(v=>{
+        const idx=todas.indexOf(v);
+        const etapas=(tipo==='asis'?v.etapas_proc:v.etapas_proc_tobe)||[];
+        const desc=(tipo==='asis'?v.asIs:v.toBe)||'';
+        const descResumo=desc?esc(desc.slice(0,80))+(desc.length>80?'…':''):'';
+        const temXml=!!(tipo==='asis'?v.bpmnAsIs:v.bpmnToBe);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;font-size:12px">
+          <div style="flex:1;min-width:0">
+            <div style="color:var(--ink2)"><strong>${v.data}</strong> · refeito por ${esc(v.por||'—')}</div>
+            <div style="color:var(--ink3);font-size:11px">${etapas.length} etapa(s)${descResumo?' · '+descResumo:''}</div>
+          </div>
+          ${temXml?`<button type="button" class="btn" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="verVersaoAnteriorDiagrama(${idx})">🖼 Ver diagrama</button>
+          <button type="button" class="btn" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="baixarVersaoAnteriorXml(${idx})">⬇ XML</button>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
 const _RESET_MAP={
   abertura:      p=>{ if(p.ent){p.ent.dt_inicio='';p.ent.escopo='';p.ent.equipe='';} p.objetivo=''; },
   reuniao:       p=>{ if(p.ent){p.ent.fornecedores='';p.ent.clientes='';p.ent.entradas='';p.ent.saidas='';p.ent.atores='';p.ent.t_ciclo='';p.ent.t_real='';p.ent.prob=[];p.ent.atividades_principais='';} },
   riscos:        p=>{ if(p.ent) p.ent.riscos=[]; },
   questionario:  p=>{ if(p.ent){p.ent.quest_resp={};p.ent.quest_nota='';p.ent.mat=null;} },
   analise:       p=>{ if(p.ent){p.ent.analise={gargalos:[],retrabalhos:[],gaps:[],oportunidades:[]};} },
-  esboco_asis:   p=>{ if(p.mod){p.mod.asIs='';p.mod.bpmnAsIs=null;p.mod.etapas_proc=[];} },
+  esboco_asis:   p=>{ if(p.mod){
+    if(p.mod.bpmnAsIs||p.mod.asIs||(p.mod.etapas_proc||[]).length) _arquivarVersaoAnterior(p,'asis',{asIs:p.mod.asIs||'',bpmnAsIs:p.mod.bpmnAsIs||null,etapas_proc:p.mod.etapas_proc||[]});
+    p.mod.asIs='';p.mod.bpmnAsIs=null;p.mod.etapas_proc=[];
+  } },
 
   melhorias:     p=>{ if(p.ent?.analise) p.ent.analise.feedback_dono={}; },
-  esboco_tobe:   p=>{ if(p.mod){p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];p.mod.tobe_relatorio=null;} },
+  esboco_tobe:   p=>{ if(p.mod){
+    if(p.mod.bpmnToBe||p.mod.toBe||(p.mod.etapas_proc_tobe||[]).length) _arquivarVersaoAnterior(p,'tobe',{toBe:p.mod.toBe||'',bpmnToBe:p.mod.bpmnToBe||null,etapas_proc_tobe:p.mod.etapas_proc_tobe||[],tobe_relatorio:p.mod.tobe_relatorio||null});
+    p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];p.mod.tobe_relatorio=null;
+  } },
   det_valid_tobe:p=>{ if(p.ent?.evidencias) p.ent.evidencias.det_valid_tobe=[]; },
   indicadores_proc: p=>{ if(p.form) p.form.indicadores_proc=[]; },
   pop:           p=>{ if(p.form){p.form.pop=null;p.form.faq='';p.form.excecoes='';p.form.contatos='';p.form.forms='';p.form.obs_complement='';} },
@@ -11617,6 +11656,36 @@ function bpmnExport(which){
     const b=new Blob([xml],{type:'text/xml'});const a=document.createElement('a');
     a.href=URL.createObjectURL(b);a.download=curProc.nome.replaceAll(/\s+/g,'_').slice(0,30)+'_'+which+'.bpmn';a.click();
   }).catch(err=>console.warn('bpmnExport error:',err.message||err));
+}
+async function verVersaoAnteriorDiagrama(idx){
+  const p=curProc; if(!p) return;
+  const v=p.mod?.versoes_anteriores?.[idx]; if(!v) return;
+  const xml=v.tipo==='asis'?v.bpmnAsIs:v.bpmnToBe;
+  if(!xml){toast('Esta versão não possui diagrama salvo.','var(--amber)');return;}
+  toast('Gerando visualização…','var(--ink3)');
+  const png=await renderBpmnToPng(xml);
+  if(!png){toast('Não foi possível gerar a visualização.','var(--red)');return;}
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+  ov.onclick=ev=>{if(ev.target===ov)ov.remove();};
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:12px;padding:1rem;max-width:95vw;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:1rem">
+      <div style="font-size:13px;font-weight:600;color:var(--ink)">Diagrama ${v.tipo==='asis'?'AS IS':'TO BE'} — versão de ${esc(v.data)}</div>
+      <button type="button" class="btn" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="this.closest('[style*=fixed]').remove()">Fechar ✕</button>
+    </div>
+    <img src="${png}" style="max-width:100%;height:auto;display:block;border:1px solid var(--bdr);border-radius:6px">
+  </div>`;
+  document.body.appendChild(ov);
+}
+function baixarVersaoAnteriorXml(idx){
+  const p=curProc; if(!p) return;
+  const v=p.mod?.versoes_anteriores?.[idx]; if(!v) return;
+  const xml=v.tipo==='asis'?v.bpmnAsIs:v.bpmnToBe;
+  if(!xml){toast('Esta versão não possui diagrama salvo.','var(--amber)');return;}
+  const b=new Blob([xml],{type:'text/xml'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download=(p.nome||'processo').replaceAll(/\s+/g,'_').slice(0,30)+'_'+v.tipo+'_'+v.data.replaceAll('/','-')+'.bpmn';
+  a.click();
 }
 function bpmnImport(which){
   const ta=document.getElementById('bpmn-'+which+'-xml');
