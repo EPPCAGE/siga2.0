@@ -1315,6 +1315,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('acao',this)">Ação atual</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('ent',this)">Visão Geral</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('form',this)">Formalização</div>
+    <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('plim',this)">Plano de Ação</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('mon',this)">Monitoramento</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('anex',this)">Anexos</div>
     <div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('reun',this)">Reuniões</div>
@@ -1323,6 +1324,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="tab-acao"  class="tab-p on"></div>
   <div id="tab-ent"   class="tab-p"></div>
   <div id="tab-form"  class="tab-p"></div>
+  <div id="tab-plim"  class="tab-p"></div>
   <div id="tab-mon"   class="tab-p"></div>
   <div id="tab-anex"  class="tab-p"></div>
   <div id="tab-reun"  class="tab-p"></div>
@@ -2474,7 +2476,7 @@ function stab(id,el){
   document.querySelectorAll('.tab-p').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
   document.getElementById('tab-'+id).classList.add('on');
-  ({acao:()=>rAcao(curProc),ent:()=>rEnt(curProc),form:()=>rForm(curProc),mon:()=>rMon(curProc),anex:()=>rAnexos(curProc),reun:()=>rReun(curProc),hist:()=>rHist(curProc)}[id]||function(){})();
+  ({acao:()=>rAcao(curProc),ent:()=>rEnt(curProc),form:()=>rForm(curProc),plim:()=>rPlanoImpl(curProc),mon:()=>rMon(curProc),anex:()=>rAnexos(curProc),reun:()=>rReun(curProc),hist:()=>rHist(curProc)}[id]||function(){})();
 }
 
 // ═══════════════════════════════════════════
@@ -4489,7 +4491,7 @@ function rDetalhe(){
     document.getElementById('det-tabs').innerHTML=
       `<div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('acao',this)">${minhaTarefa?'Minha tarefa':'Sobre o processo'}</div>`+
       `<div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('hist',this)">Histórico</div>`;
-    ['ent','form','mon'].forEach(id=>{
+    ['ent','form','plim','mon'].forEach(id=>{
       const el=document.getElementById('tab-'+id);
       if(el){el.innerHTML='';el.classList.remove('on');}
     });
@@ -11070,6 +11072,118 @@ async function baixarFluxogramas(btn){
     toast('Download iniciado.','var(--teal)');
   }catch(e){console.warn('baixarFluxogramas:',e);toast('Erro ao gerar imagens.','var(--red)');}
   finally{btn.disabled=false;btn.textContent=orig;}
+}
+// ─── Plano de Ação de Implementação ─────────────────────────────────────────
+// Ações concretas (com prazo e responsável) para a equipe do processo colocar
+// o redesenho em prática. Fica fora do fluxo de etapas — não trava o pipeline
+// de mapeamento — e é de uso exclusivo do EP (não aparece para o dono do
+// processo, igual às demais abas persistentes desta tela). Diferente do PAT
+// (plano de trabalho do próprio EPP) e do plano de ação da Análise de
+// Aderência (que trata de não conformidades pós-publicação).
+function rPlanoImpl(p){
+  const el=document.getElementById('tab-plim');
+  if(!el) return;
+  const itens=p.ent?.plano_acao||[];
+  const formHtml=isEP()?`<div style="border:1px solid var(--bdr);border-radius:var(--r);padding:.8rem;background:var(--bg2);margin-top:.8rem">
+    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.5px">Nova ação</div>
+    <div class="g2" style="margin-bottom:6px">
+      <input class="fi" id="plim-titulo" placeholder="Ação a ser executada *">
+      <input class="fi" id="plim-resp" placeholder="Responsável *">
+    </div>
+    <div class="g3">
+      <input class="fi" id="plim-prazo" type="date">
+      <select class="fi" id="plim-status"><option>Planejado</option><option>Em andamento</option><option>Concluída</option></select>
+      <button type="button" class="btn btn-p" onclick="addAcaoImplementacao()">+ Adicionar ação</button>
+    </div>
+  </div>`:'';
+  el.innerHTML=`<div class="card">
+    <div class="card-t" style="margin-bottom:.3rem">Plano de Ação de Implementação</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:1rem">Ações concretas para a equipe do processo implementar o redesenho — com prazo e responsável. Independente das etapas do mapeamento: pode ser criado e atualizado a qualquer momento.</div>
+    <div id="plim-list">${rPlanoImplList(itens)}</div>
+    ${formHtml}
+  </div>`;
+}
+function rPlanoImplList(itens){
+  if(!itens.length) return '<div class="ib ibsl" style="font-size:12px">Nenhuma ação cadastrada ainda.</div>';
+  const hoje=new Date().toISOString().slice(0,10);
+  return itens.map((a,i)=>{
+    const atrasada = !!a.prazo && a.prazo<hoje && a.status!=='Concluída';
+    const statusLbl = atrasada?'Atrasada':a.status;
+    let statusCls='bt';
+    if(a.status==='Concluída') statusCls='bg';
+    else if(atrasada) statusCls='br';
+    else if(a.status==='Em andamento') statusCls='ba';
+    const prazoFmt = a.prazo?a.prazo.split('-').reverse().join('/'):'—';
+    const acoesBtns = isEP()?`<button type="button" class="btn" style="font-size:11px;padding:2px 8px;flex-shrink:0" onclick="editarAcaoImplementacao(${i})" aria-label="Editar ação">✎</button>
+      <button type="button" class="btn" style="font-size:11px;padding:2px 8px;flex-shrink:0;color:var(--red);border-color:var(--red)" onclick="excluirAcaoImplementacaoConfirm(${i})" aria-label="Remover ação">×</button>`:'';
+    return `<div style="display:flex;align-items:flex-start;gap:8px;padding:.6rem;border:1px solid var(--bdr);border-radius:var(--r);margin-bottom:6px;background:var(--surf)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--ink)">${esc(a.titulo)}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">👤 ${esc(a.responsavel||'—')} · ⏱ ${prazoFmt}</div>
+      </div>
+      <span class="badge ${statusCls}" style="font-size:10px;flex-shrink:0;white-space:nowrap">${esc(statusLbl)}</span>
+      ${acoesBtns}
+    </div>`;
+  }).join('');
+}
+function addAcaoImplementacao(){
+  const p=curProc;if(!p||!isEP())return;
+  const titulo=document.getElementById('plim-titulo')?.value.trim();
+  const responsavel=document.getElementById('plim-resp')?.value.trim();
+  if(!titulo||!responsavel){toast('Preencha a ação e o responsável.','var(--amber)');return;}
+  const prazo=document.getElementById('plim-prazo')?.value||'';
+  const status=document.getElementById('plim-status')?.value||'Planejado';
+  if(!p.ent)p.ent={};
+  if(!p.ent.plano_acao)p.ent.plano_acao=[];
+  p.ent.plano_acao.push({titulo,responsavel,prazo,status,criada_em:now()});
+  rPlanoImpl(p);
+  fbAutoSave('plano_acao');
+  toast('Ação adicionada!','var(--teal)');
+}
+function editarAcaoImplementacao(i){
+  const p=curProc;if(!p||!isEP())return;
+  const a=p.ent?.plano_acao?.[i];if(!a)return;
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center;padding:1rem';
+  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:480px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1.2rem">✎ Editar ação</div>
+    <div class="fg" style="margin-bottom:.8rem"><label class="fl">Ação</label><input class="fi" id="epa-titulo" value="${esc(a.titulo)}"></div>
+    <div class="fg" style="margin-bottom:.8rem"><label class="fl">Responsável</label><input class="fi" id="epa-resp" value="${esc(a.responsavel||'')}"></div>
+    <div class="g2" style="margin-bottom:1.2rem">
+      <div class="fg"><label class="fl">Prazo</label><input class="fi" id="epa-prazo" type="date" value="${a.prazo||''}"></div>
+      <div class="fg"><label class="fl">Status</label><select class="fi" id="epa-status">${['Planejado','Em andamento','Concluída'].map(s=>`<option ${a.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn" onclick="this.closest('div[style*=fixed]').remove()">Cancelar</button>
+      <button type="button" class="btn btn-p" onclick="salvarEdicaoAcaoImplementacao(${i},this)">Salvar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function salvarEdicaoAcaoImplementacao(i,el){
+  const p=curProc;if(!p)return;
+  const titulo=document.getElementById('epa-titulo')?.value.trim();
+  const responsavel=document.getElementById('epa-resp')?.value.trim();
+  if(!titulo||!responsavel){toast('Preencha a ação e o responsável.','var(--amber)');return;}
+  const a=p.ent.plano_acao[i];
+  a.titulo=titulo;a.responsavel=responsavel;
+  a.prazo=document.getElementById('epa-prazo')?.value||'';
+  a.status=document.getElementById('epa-status')?.value||'Planejado';
+  el.closest('div[style*=fixed]').remove();
+  rPlanoImpl(p);
+  fbAutoSave('plano_acao');
+  toast('Ação atualizada!','var(--teal)');
+}
+function excluirAcaoImplementacaoConfirm(i){
+  confirmar('Excluir esta ação do plano de implementação?',()=>excluirAcaoImplementacao(i));
+}
+function excluirAcaoImplementacao(i){
+  const p=curProc;if(!p?.ent?.plano_acao)return;
+  p.ent.plano_acao.splice(i,1);
+  rPlanoImpl(p);
+  fbAutoSave('plano_acao');
+  toast('Ação removida.','var(--amber)');
 }
 function rMon(p){
   const inds=kpis.filter(d=>d.pid===p.id);
