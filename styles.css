@@ -654,22 +654,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
 .proj-pmap-late.is-late {
   border: 1px solid transparent;
-  color: #fff;
 }
 
 .proj-pmap-late.is-late.is-warn {
-  background: #f59e0b;
-  border-color: #d97706;
-}
-
-.proj-pmap-late.is-late.is-danger {
-  background: #dc2626;
-  border-color: #b91c1c;
-}
-
-.proj-pmap-late.is-late.is-warn {
-  background: #FFF7ED;
-  border-color: #FED7AA;
+  background: #FFF8F1;
+  border-color: #F7D9B1;
 }
 
 .proj-pmap-late.is-late.is-danger {
