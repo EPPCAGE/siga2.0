@@ -1061,7 +1061,7 @@ function projProgressMapRowHtml(p) {
       ? `<div class="proj-pmap-late-more">+ ${atrasadas.length - PROJ_PMAP_MAX_ATRASADAS} outra(s) tarefa(s) atrasada(s)</div>`
       : '';
     lateCard = `
-        <div class="proj-pmap-late is-late">
+        <div class="proj-pmap-late is-late is-${atrasoStatus.cls}">
           <div class="proj-pmap-late-title">Tarefas atrasadas (${atrasadas.length})</div>
           ${itens}${extra}
         </div>`;
@@ -5355,11 +5355,6 @@ function projRenderDashV9() {
   const filtrosEl = document.getElementById('proj-dash-filtros');
   if(filtrosEl) projSetHtml(filtrosEl, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros</div><div class="proj-v9-filter-grid">${sel('proj-f-patrocinador','Patrocinador',opts.patrocinador,cur.patrocinador)}${sel('proj-f-objetivo','Objetivo Estratégico',opts.objetivo,cur.objetivo)}${sel('proj-f-macro','Macroprocesso',opts.macro,cur.macro)}${sel('proj-f-divisao','Divisão',opts.divisao,cur.divisao)}</div></div>`);
 
-  const alertasEl = document.getElementById('proj-dash-alertas');
-  if(alertasEl) {
-    const comAtraso = filtrados.map(p => ({ p, tarefas:projTarefasAtrasadasProjeto(p) })).filter(x => x.tarefas.length);
-    projSetHtml(alertasEl, `<div class="proj-v9-alert-card"><div class="proj-card-t">Painel de Alertas</div>${comAtraso.length ? comAtraso.map(({p,tarefas}) => `<div class="proj-v9-alert-project"><div style="display:flex;justify-content:space-between;gap:10px"><a href="#" onclick="event.preventDefault();projAbrirDetalhe('${projEsc(String(p.id))}', true)" style="font-weight:800;color:var(--blue);text-decoration:none">${projIconHtml(p)} ${projEsc(p.nome)}</a><span style="font-size:11px;color:#dc2626;font-weight:800">${tarefas.length} atrasada(s)</span></div>${tarefas.slice(0,6).map(t => `<div class="proj-v9-alert-task"><span>${t._parentName ? `${projEsc(t._parentName)} / ` : ''}${projEsc(t.nome)}</span><span>${projEsc(t.responsavel||'')}</span><strong>${projFormatDate(t.dt_fim)}</strong></div>`).join('')}</div>`).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum projeto com tarefas atrasadas nos filtros atuais.</div>'}</div>`);
-  }
 
   const graficosEl = document.getElementById('proj-dash-graficos');
   if(graficosEl) {
