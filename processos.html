@@ -2221,7 +2221,6 @@ let filtFaseAtual = '';
 let epRetroEtapa = null; // etapa sendo revisada retroativamente pelo EP
 let mapeadosManual = new Set();
 let criticosManual = new Set();
-let fluxosCache = {};
 let bpmnModelers = {};
 let bpmnDirty = {};
 let bpmnProcIds = {}; // tracks which process ID each modeler was loaded for
@@ -10773,16 +10772,6 @@ async function renderBpmnToPng(xml){
 
 async function _getFluxogramaAsIsPng(p){
   if(!p) return null;
-  const linkedImg = p.arq_id ? await loadFluxoImg(p.arq_id) : null;
-  if(linkedImg) return linkedImg;
-  if(p.mod?.hasFluxoImg || p.mod?.fluxoImgBase64){
-    const imported = p.mod?.fluxoImgBase64 || await loadFluxoImg(p.id);
-    if(imported) return imported;
-  }
-  if(!p.mod?.hasFluxoImg && !p.mod?.fluxoImgBase64){
-    const byId = await loadFluxoImg(p.id);
-    if(byId) return byId;
-  }
   // SVG salvo junto com o XML — converte diretamente sem BpmnJS
   if(p.mod?.bpmnAsIsSvg){const png=await svgStringToPng(p.mod.bpmnAsIsSvg);if(png)return png;}
   if(p.mod?.bpmnAsIs) return renderBpmnToPng(p.mod.bpmnAsIs);
@@ -10939,7 +10928,7 @@ async function _popPdfAnexo(p){
   let bpmnLandscape='';
   const hasAsIsModeler=!!(bpmnModelers['asis']&&bpmnProcIds['asis']===p?.id);
   const hasTobeModeler=!!(bpmnModelers['tobe']&&bpmnProcIds['tobe']===p?.id);
-  const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs||p.mod?.hasFluxoImg||p.mod?.fluxoImgBase64||hasAsIsModeler||p.id);
+  const hasFluxoA=!!(p.arq_id||p.mod?.bpmnAsIs||hasAsIsModeler||p.id);
   const _comTobe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
   const hasBpmnT=_comTobe&&!!(p.mod?.bpmnToBe||p.mod?.bpmnToBeSvg||hasTobeModeler);
   if(hasFluxoA||hasBpmnT){
@@ -11842,29 +11831,6 @@ function bpmnCloseFullscreen(which){
     _bpmnActivateKeyboard(which);
   }
   overlay.remove();
-}
-
-async function vincularDesenhoFinalArq(){
-  if(!curProc){toast('Nenhum processo selecionado.','var(--amber)');return;}
-  if(!curProc.arq_id){toast('Este processo não está vinculado a um item da arquitetura.','var(--amber)');return;}
-  const btn=document.querySelector('[onclick="vincularDesenhoFinalArq()"]');
-  if(btn){btn.disabled=true;btn.textContent='⏳ Gerando...';}
-  const restore=()=>{if(btn){btn.disabled=false;btn.textContent='📎 Vincular imagem à arquitetura';}};
-  try{
-    // Obtém SVG — pelo modeler ativo ou pelo XML já salvo via renderer offscreen
-    let svg=null;
-    const m=bpmnModelers['asis'];
-    if(m&&bpmnProcIds['asis']===curProc.id){
-      try{const r=await m.saveSVG();svg=r.svg||null;}catch{}
-    }
-    if(!svg) svg=await _bpmnGetSvg('asis',curProc);
-    if(!svg){restore();toast('Salve o diagrama BPMN AS IS antes de vincular.','var(--amber)');return;}
-    // Armazena o SVG diretamente como data URI — evita canvas taint por fontes externas
-    const svgUri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
-    await saveFluxoImg(curProc.arq_id, svgUri);
-    restore();
-    toast('✓ Imagem do fluxo vinculada à arquitetura!','var(--teal)');
-  }catch(e){restore();toast('Erro: '+(e.message||e),'var(--red)');}
 }
 
 // ─── Sugestão TO BE em texto — gerada por IA ────────────────────────────────
@@ -12856,8 +12822,6 @@ function _metaFieldsMapeamentoHTML(item, proc){
         ? `<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="abrirProc(${proc.id})">Abrir mapeamento →</button>`
         : mapeandoBadge
       }
-      <button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="verFluxoBizagi('${item.id}',event)">🗺 Ver fluxo Bizagi</button>
-      ${isEP()?`<label class="btn" style="font-size:10px;padding:2px 8px;cursor:pointer" title="Carregar imagem de fluxo Bizagi">📎 Alterar imagem<input type="file" accept="image/*" style="display:none" onchange="uploadFluxoArq('${item.id}',this)"></label>`:''}
     </div>
     <div style="display:flex;gap:2px;margin-bottom:.6rem">${progBar}</div>
     ${_procCentralInteligenciaHTML(proc)}
@@ -17430,64 +17394,6 @@ async function fbSaveEjs(){
   }
 }
 
-// ── FLUXO BIZAGI (imagens) ────────────────
-async function saveFluxoImg(arqId, base64){
-  if(!fbReady()){ fluxosCache[arqId]=base64; return; }
-  try {
-    await fluxosRepository.set(arqId, {data: base64, updatedAt: Date.now()});
-    fluxosCache[arqId] = base64;
-  } catch(e){ console.warn('saveFluxoImg:', e.message); toast('⚠ Erro ao salvar imagem: '+e.message,'var(--red)'); }
-}
-async function loadFluxoImg(arqId){
-  if(fluxosCache[arqId] !== undefined) return fluxosCache[arqId];
-  if(!fbReady()) return null;
-  try {
-    const snap = await fluxosRepository.get(arqId);
-    const data = snap.exists() ? (snap.data().data||null) : null;
-    fluxosCache[arqId] = data;
-    return data;
-  } catch(e){ console.warn('loadFluxoImg:', e.message); return null; }
-}
-async function verFluxoBizagi(arqId, ev){
-  ev&&ev.stopPropagation();
-  let base64 = await loadFluxoImg(arqId);
-  if(!base64){
-    // Fallback: processo mapeado internamente — usa BPMN AS IS salvo no processo
-    const proc = processos.find(p=>p.arq_id==arqId);
-    console.log('[verFluxoBizagi] arqId=',arqId,'proc=',proc?.id,'bpmnAsIs=',!!proc?.mod?.bpmnAsIs,'bpmnAsIsSvg=',!!proc?.mod?.bpmnAsIsSvg,'hasFluxoImg=',proc?.mod?.hasFluxoImg);
-    if(proc) base64 = await _getFluxogramaAsIsPng(proc);
-  }
-  if(!base64){ toast('Nenhuma imagem de fluxo disponível para este processo.','var(--amber)'); return; }
-  const ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:zoom-out';
-  ov.innerHTML = `<img src="${base64}" alt="Visualização ampliada do fluxo" style="max-width:95vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6);cursor:default" onclick="event.stopPropagation()">
-    <button type="button" style="margin-top:1rem;background:#fff;border:none;border-radius:6px;padding:6px 18px;cursor:pointer;font-size:13px" onclick="event.stopPropagation();this.parentNode.remove()">✕ Fechar</button>`;
-  ov.onclick = () => ov.remove();
-  document.body.appendChild(ov);
-}
-function uploadFluxoArq(arqId, input){
-  const file = input.files[0];
-  if(!file) return;
-  if(file.size > 3*1024*1024){ toast('Imagem muito grande (máx. 3 MB). Comprima antes de enviar.','var(--amber)'); input.value=''; return; }
-  const reader = new FileReader();
-  reader.onload = async e => {
-    await saveFluxoImg(arqId, e.target.result);
-    toast('✓ Imagem do fluxo Bizagi salva!', 'var(--teal)');
-  };
-  reader.readAsDataURL(file);
-}
-function previewFluxoImg(input){
-  const file = input.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const prev = document.getElementById('pop-fluxo-preview');
-    const img  = document.getElementById('pop-fluxo-img-prev');
-    if(prev && img){ img.src = e.target.result; prev.style.display = 'block'; }
-  };
-  reader.readAsDataURL(file);
-}
-
 // ── SAVE BUTTON ───────────────────────────
 // Add a persistent "Salvar na nuvem" button to the sidebar footer
 function injectSaveBtn(){
@@ -18460,10 +18366,6 @@ function abrirImportPOP(){
 }
 function fecharImportPOP(){
   document.getElementById('pop-import-modal').style.display='none';
-  const prev = document.getElementById('pop-fluxo-preview');
-  if(prev) prev.style.display = 'none';
-  const fi = document.getElementById('pop-fluxo-img');
-  if(fi) fi.value = '';
 }
 function voltarImportPOP(){
   document.getElementById('pop-step2').style.display='none';
@@ -18575,26 +18477,6 @@ function confirmarImportPOP(){
   if(arqId){mapeadosManual.add(arqId);lsSet('mapeadosManual',JSON.stringify([...mapeadosManual]));fbAutoSave('mapeados');}
   updCounts();
   fbAutoSave('importPOP');
-  // Salva imagem do fluxo Bizagi se selecionada
-  const fluxoInput = document.getElementById('pop-fluxo-img');
-  const fluxoFile = fluxoInput?.files?.[0];
-  if(fluxoFile){
-    if(fluxoFile.size > 3*1024*1024){ toast('Imagem de fluxo muito grande (máx. 3 MB). Processo salvo sem a imagem.','var(--amber)'); }
-    else {
-      const reader = new FileReader();
-      reader.onload = async e => {
-        const base64 = e.target.result;
-        // Salva na coleção fluxos com chave do processo (não depende de arq_id)
-        await saveFluxoImg(novoProc.id, base64);
-        // Marca o processo com flag leve (sem base64 inline no documento)
-        novoProc.mod.hasFluxoImg = true;
-        fbAutoSave('importPOP_fluxo');
-        // Salva também indexado pelo arq_id se disponível
-        if(arqId) await saveFluxoImg(arqId, base64);
-      };
-      reader.readAsDataURL(fluxoFile);
-    }
-  }
   fecharImportPOP();
   toast('POP importado! Processo criado em "Publicação".');
   renderProcs();
@@ -18634,13 +18516,6 @@ function confirmarImportPOP(){
       <div class="fg" style="margin-bottom:.8rem">
         <label class="fl" for="pop-arq-sel">Vincular à arquitetura (processo já cadastrado)</label>
         <select class="fi" id="pop-arq-sel"><option value="">— Selecione —</option></select>
-      </div>
-      <div class="fg" style="margin-bottom:1rem">
-        <label class="fl" for="pop-fluxo-img">Imagem do fluxo Bizagi (opcional — PNG, JPG, máx. 3 MB)</label>
-        <input type="file" id="pop-fluxo-img" accept="image/*" class="fi" onchange="previewFluxoImg(this)">
-        <div id="pop-fluxo-preview" style="display:none;margin-top:.5rem;text-align:center">
-          <img id="pop-fluxo-img-prev" alt="Pré-visualização do fluxo" style="max-width:100%;max-height:200px;border-radius:6px;border:1px solid var(--bdr)">
-        </div>
       </div>
       <div class="btn-row">
         <button type="button" class="btn" onclick="voltarImportPOP()">← Voltar</button>
