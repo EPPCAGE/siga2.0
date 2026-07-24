@@ -667,6 +667,16 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   border-color: #b91c1c;
 }
 
+.proj-pmap-late.is-late.is-warn {
+  background: #FFF7ED;
+  border-color: #FED7AA;
+}
+
+.proj-pmap-late.is-late.is-danger {
+  background: #FEF6F5;
+  border-color: #F3CFCA;
+}
+
 .proj-pmap-late.is-ok {
   background: #F2FBF6;
   border: 1px solid #BFE8CE;
@@ -695,11 +705,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   margin-bottom: 2px;
 }
 
-.proj-pmap-late.is-late .proj-pmap-late-title,
-.proj-pmap-late.is-late .proj-pmap-late-name,
-.proj-pmap-late.is-late .proj-pmap-late-due,
-.proj-pmap-late.is-late .proj-pmap-late-more {
-  color: #fff;
+.proj-pmap-late.is-late.is-warn .proj-pmap-late-title,
+.proj-pmap-late.is-late.is-warn .proj-pmap-late-name,
+.proj-pmap-late.is-late.is-warn .proj-pmap-late-due,
+.proj-pmap-late.is-late.is-warn .proj-pmap-late-more {
+  color: #9A3412;
 }
 
 .proj-pmap-late-item {
