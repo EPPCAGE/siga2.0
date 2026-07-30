@@ -1847,11 +1847,19 @@ Não responda este e-mail.</pre>
 // ── Sessão única ─────────────────────────────────────────────────────────────
 let _sessionUnsub = null;
 
+// Incrementado a cada logout e a cada nova sessão única iniciada. Um fbSaveAll()
+// já em andamento (ex.: commit de rede lento) confere esse número antes de
+// gravar — se mudou nesse meio-tempo (sessão encerrada por outro dispositivo,
+// ou nova sessão local iniciada), o save é abortado em vez de gravar dados
+// desatualizados sobre o que já foi sincronizado na sessão nova.
+let _fbSessionGen = 0;
+
 let _sessaoInicializando = false;
 async function _iniciarSessaoUnica(uid) {
   if (!fbReady()) return;
   if (_sessaoInicializando) return;
   _sessaoInicializando = true;
+  _fbSessionGen++;
   // Cancela listener anterior antes do write para evitar comparação com sid stale.
   if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
   const { onSnapshot } = fb();
@@ -2149,6 +2157,9 @@ globalThis._replaceProcessos = function(snap){
       });
       if(conflict){
         const byEmail = conflict.doc.data()._lastSavedBy || '';
+        // Marca o processo como conflitante: fbSaveAll() não regrava este
+        // documento até o usuário resolver pelo banner (recarregar ou manter).
+        globalThis._fbConflictedProcIds?.add(curProc.id);
         if(typeof globalThis._fbShowConcurrentBanner === 'function'){
           globalThis._fbShowConcurrentBanner(byEmail);
         }
@@ -2383,6 +2394,8 @@ function simularPerfil(perfil){
 
 async function doLogout(){
   _stopInactivityWatch();
+  _fbSessionGen++;
+  clearTimeout(globalThis._fbSaveTimer);
   if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
   lsRemove('siga_sid');
   if(typeof globalThis._fbStopWatching === 'function') globalThis._fbStopWatching();
@@ -17124,11 +17137,15 @@ function _fbSeedCollectionCache(cacheMap, items, withStamp){
 
 // Compara cada item com o cache e só empilha operações para o que mudou
 // (incluindo deleções de ids que saíram da lista local desde o último sync).
-function _fbDiffCollection(ops, repo, items, cacheMap, withStamp, savedBy){
+// skipIds: ids com conflito remoto não resolvido (ver _fbConflictedProcIds) —
+// entram em "seen" (para não disparar delete) mas não são comparados/regravados,
+// preservando a versão do servidor até o usuário resolver pelo banner.
+function _fbDiffCollection(ops, repo, items, cacheMap, withStamp, savedBy, skipIds){
   const seen = new Set();
   (items||[]).forEach(item => {
     const id = String(item.id);
     seen.add(id);
+    if(skipIds?.has(item.id)) return;
     const core = JSON.stringify(_fsClean(withStamp ? _fbStripStamp(item) : item));
     if(cacheMap.get(id) === core) return; // sem mudança — não regrava
     cacheMap.set(id, core);
@@ -17152,9 +17169,16 @@ function _fbConfigOpIfChanged(ops, key, value){
 
 async function fbSaveAll(){
   if(!fbReady() || !globalThis._fbLoadedAt) return;
+  // Foto da geração de sessão local no início do save — se um logout (ou nova
+  // sessão) acontecer enquanto este commit ainda está em rede (write lento),
+  // o valor vai divergir e o commit é abortado logo abaixo em vez de gravar
+  // dados de uma sessão já encerrada por cima do que a sessão nova já sincronizou.
+  const _saveGen = _fbSessionGen;
   // O listener onSnapshot faz processos[idx] = newObj quebrando a invariante
-  // curProc === processos[idx]. Re-sincroniza curProc no array antes de salvar.
-  if(curProc?.id){
+  // curProc === processos[idx]. Re-sincroniza curProc no array antes de salvar —
+  // exceto se o processo está com conflito remoto pendente, caso em que o array
+  // deve manter a versão do servidor (a de curProc não será salva mesmo assim).
+  if(curProc?.id && !globalThis._fbConflictedProcIds?.has(curProc.id)){
     const _cpIdx = processos.findIndex(p => p.id === curProc.id);
     if(_cpIdx >= 0 && processos[_cpIdx] !== curProc) processos[_cpIdx] = curProc;
   }
@@ -17165,7 +17189,7 @@ async function fbSaveAll(){
     // (strip undefined — Firestore rejects it — já feito dentro de _fsClean)
     const ops = [];
     const _savedBy = usuarioLogado?.email || '';
-    _fbDiffCollection(ops, processosRepository, processos, _fbSyncCache.processos, true, _savedBy);
+    _fbDiffCollection(ops, processosRepository, processos, _fbSyncCache.processos, true, _savedBy, globalThis._fbConflictedProcIds);
     _fbDiffCollection(ops, kpisRepository, kpis, _fbSyncCache.kpis, true, _savedBy);
     // Coleções restritas ao EP — ignoradas se o usuário não tiver permissão
     if(isEP()){
@@ -17186,8 +17210,18 @@ async function fbSaveAll(){
       _fbConfigOpIfChanged(ops, 'criticos', [...criticosManual]);
     }
 
+    // Sessão local mudou (logout ou nova sessão única) enquanto montávamos as
+    // operações — aborta sem gravar. Evita que um save iniciado antes do
+    // logout complete depois, sobrescrevendo dados já atualizados na sessão nova.
+    if(_saveGen !== _fbSessionGen) return;
+
     // Firestore batch limit is 500 — split into chunks of 450
     if(ops.length) await FirestoreRepositories.batchCommit(ops, 450);
+
+    // Confere de novo após o commit de rede (pode ter demorado) — se a sessão
+    // local mudou nesse meio-tempo, não atualiza o sentinel/estado: quem
+    // assumiu a sessão (fbLoad da nova sessão) já tem sua própria visão do mundo.
+    if(_saveGen !== _fbSessionGen) return;
 
     const now = Date.now();
     globalThis._fbLoadedAt = now;

@@ -2,6 +2,12 @@
   globalScope._fbLoadedAt    = 0;
   globalScope._fbDataReady   = false;
 
+  // IDs de processos com alteração remota detectada e ainda não resolvida pelo
+  // usuário (banner de conflito). fbSaveAll() não regrava esses documentos
+  // enquanto estiverem aqui — evita que o autosave local sobrescreva silenciosamente
+  // dados salvos por outro dispositivo/sessão. Ver _replaceProcessos e fbSaveAll.
+  globalScope._fbConflictedProcIds = new Set();
+
   // Estado compartilhado — espelhado no padrão do módulo de projetos
   const _fbState = {
     saving:        false,  // true durante fbSaveAll; snapshots são pausados
@@ -177,12 +183,17 @@
     const banner = document.getElementById('concurrent-banner');
     if(banner) banner.style.display = 'none';
     globalScope._fbLoadedAt = Date.now();
+    // "Manter meus dados": usuário optou conscientemente por sobrescrever a
+    // versão remota — libera o(s) processo(s) para o próximo autosave.
+    globalScope._fbConflictedProcIds.clear();
   }
 
   async function _fbReloadData(){
     const banner = document.getElementById('concurrent-banner');
     if(banner) banner.style.display = 'none';
     clearTimeout(globalScope._fbSaveTimer);
+    // Recarregando do servidor — os dados locais conflitantes deixam de existir.
+    globalScope._fbConflictedProcIds.clear();
     if(typeof globalScope.toast === 'function') globalScope.toast('Recarregando dados do servidor…', 'var(--blue)');
     try {
       if(typeof globalScope.fbLoad === 'function') await globalScope.fbLoad();
