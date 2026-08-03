@@ -5525,6 +5525,37 @@ function dfbRow(tipo,texto,emoji){
     <button type="button" id="dfb-d-${idx}" onclick="dfbToggle(${idx},'descartado')" style="border:1.5px solid ${discarded?'var(--red)':'var(--bdr)'};background:${discarded?'var(--red-l)':'transparent'};color:${discarded?'var(--red)':'var(--ink4)'};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer">✗</button>
   </div>`;
 }
+// Item de "Soluções propostas" (etapa Melhorias): a IA gera o texto no formato
+// "[Problema: <problema>] <sugestão>" — aqui ele é quebrado em Problema levantado
+// / Solução proposta pela IA, com um terceiro campo editável para a solução
+// definitiva (a IA às vezes não atende e a equipe quer registrar algo diferente).
+function dfbSolucaoRow(texto){
+  const idx=globalThis._dfbItems.length;
+  globalThis._dfbItems.push({tipo:'solucoes_problemas',texto});
+  const fb=globalThis._dfb.solucoes_problemas?.[texto];
+  const confirmed=fb==='confirmado',discarded=fb==='descartado';
+  const m=/^\[Problema:\s*([\s\S]*?)\]\s*([\s\S]*)$/.exec(texto);
+  const problema=m?m[1].trim():texto;
+  const sugestaoIA=m?m[2].trim():'';
+  const solDef=globalThis._dfbSolDef?.[texto]||'';
+  return `<div style="padding:8px 0;border-bottom:1px solid var(--bdr)" id="dfb-row-${idx}">
+    <div style="display:flex;align-items:flex-start;gap:8px">
+      <span id="dfb-txt-${idx}" style="flex:1;font-size:12.5px;color:var(--ink)${discarded?';text-decoration:line-through;opacity:.5':''}">
+        <div style="font-size:10.5px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Problema levantado</div>
+        <div>⚠ ${esc(problema)}</div>
+        ${sugestaoIA?`<div style="font-size:10.5px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;margin:6px 0 2px">Solução proposta pela IA</div><div style="color:var(--teal)">💡 ${esc(sugestaoIA)}</div>`:''}
+      </span>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button type="button" id="dfb-c-${idx}" onclick="dfbToggle(${idx},'confirmado')" style="border:1.5px solid ${confirmed?'var(--green)':'var(--bdr)'};background:${confirmed?'var(--green-l)':'transparent'};color:${confirmed?'var(--green)':'var(--ink4)'};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer">✓</button>
+        <button type="button" id="dfb-d-${idx}" onclick="dfbToggle(${idx},'descartado')" style="border:1.5px solid ${discarded?'var(--red)':'var(--bdr)'};background:${discarded?'var(--red-l)':'transparent'};color:${discarded?'var(--red)':'var(--ink4)'};border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer">✗</button>
+      </div>
+    </div>
+    <div class="fg" style="margin:6px 0 0">
+      <label class="fl" style="font-size:10.5px">Solução definitiva</label>
+      <textarea class="fi" id="dfb-def-${idx}" style="min-height:46px;font-size:12px" placeholder="Escreva a solução que será efetivamente adotada, se diferente da sugestão da IA...">${esc(solDef)}</textarea>
+    </div>
+  </div>`;
+}
 function _dfbStyleBtn(btn, active, colorOn, bgOn){
   if(!btn) return;
   btn.style.borderColor = active ? colorOn : 'var(--bdr)';
@@ -5547,11 +5578,17 @@ function salvarMelhorias(avancar=true){
   const p=curProc;
   if(!p.ent.analise)p.ent.analise={};
   const fb={};
-  (globalThis._dfbItems||[]).forEach(({tipo,texto})=>{
+  const solDef={};
+  (globalThis._dfbItems||[]).forEach(({tipo,texto},idx)=>{
     const val=globalThis._dfb?.[tipo]?.[texto];
     if(val){if(!fb[tipo]){fb[tipo]={};} fb[tipo][texto]=val;}
+    if(tipo==='solucoes_problemas'){
+      const def=(document.getElementById('dfb-def-'+idx)?.value||'').trim();
+      if(def) solDef[texto]=def;
+    }
   });
   p.ent.analise.feedback_dono=fb;
+  p.ent.analise.solucao_definitiva=solDef;
   if(avancar) av('melhorias','EP','Melhorias e mitigações revisadas pelo EP');
   else{fbAutoSave('salvarMelhorias');toast('Dados salvos!','var(--teal)');}
 }
@@ -5885,6 +5922,7 @@ const ACOES = {
       globalThis._dfb={};globalThis._dfbItems=[];
       const savedFb=a.feedback_dono||{};
       Object.keys(savedFb).forEach(t=>{globalThis._dfb[t]={...savedFb[t]};});
+      globalThis._dfbSolDef={...(a.solucao_definitiva||{})};
       const resumoHtml=ia.resumo?'<div class="card" style="margin-bottom:.8rem"><div class="card-t">Resumo da análise</div><div style="font-size:13px;color:var(--ink2);line-height:1.7">'+esc(ia.resumo)+'</div></div>':'';
       const analiseHtml=temAnalise
         ?(resumoHtml
@@ -5892,7 +5930,7 @@ const ACOES = {
           +_dfbBlock('analise-ret','Retrabalhos',retrabalhos,'retrabalhos','↩')
           +(p.status_workflow==='concluido'?_dfbBlock('analise-gap','Pontos cegos',gaps,'gaps','○'):'')
           +_dfbBlock('analise-oport','Oportunidades',oportunidades,'oportunidades','✦')
-          +'<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--teal-l);color:var(--teal)">Soluções propostas ('+solucoes.length+')</div>'+solucoes.map(s=>dfbRow('solucoes_problemas',s,'💡')).join('')+'</div>')
+          +'<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat" style="background:var(--teal-l);color:var(--teal)">Soluções propostas ('+solucoes.length+')</div>'+solucoes.map(s=>dfbSolucaoRow(s)).join('')+'</div>')
         :'<div class="ib iba">Análise inteligente ainda não gerada. Execute a etapa de Análise inteligente antes.</div>';
       return `<div class="ib ibp" style="margin-bottom:1.2rem">Com base na análise inteligente e nos riscos identificados, confirme (✓) os itens que serão trabalhados como melhorias ou descarte (✗) os que não se aplicam.</div>
       ${analiseHtml}
@@ -6691,7 +6729,7 @@ const _RESET_MAP={
     p.mod.asIs='';p.mod.bpmnAsIs=null;p.mod.etapas_proc=[];
   } },
 
-  melhorias:     p=>{ if(p.ent?.analise) p.ent.analise.feedback_dono={}; },
+  melhorias:     p=>{ if(p.ent?.analise){ p.ent.analise.feedback_dono={}; p.ent.analise.solucao_definitiva={}; } },
   esboco_tobe:   p=>{ if(p.mod){
     if(p.mod.bpmnToBe||p.mod.toBe||(p.mod.etapas_proc_tobe||[]).length) _arquivarVersaoAnterior(p,'tobe',{toBe:p.mod.toBe||'',bpmnToBe:p.mod.bpmnToBe||null,etapas_proc_tobe:p.mod.etapas_proc_tobe||[],tobe_relatorio:p.mod.tobe_relatorio||null});
     p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];p.mod.tobe_relatorio=null;
@@ -12041,7 +12079,7 @@ async function iaGerarTobeRelatorio(){
   const gargalos=_conf('gargalos').length?_conf('gargalos'):(p.ent?.analise?.gargalos||[]);
   const retrabalhos=_conf('retrabalhos').length?_conf('retrabalhos'):(p.ent?.analise?.retrabalhos||[]);
   const oportunidades=_conf('oportunidades').length?_conf('oportunidades'):(p.ent?.analise?.oportunidades||[]);
-  const solucoes=_conf('solucoes_problemas').length?_conf('solucoes_problemas'):(p.ent?.analise?.solucoes_problemas||[]);
+  const solucoes=_comSolucaoDefinitiva(p, _conf('solucoes_problemas').length?_conf('solucoes_problemas'):(p.ent?.analise?.solucoes_problemas||[]));
   const _lst=arr=>arr.length?arr.map(x=>'• '+(typeof x==='string'?x:x.desc||x)).join('\n'):'(nenhum)';
 
   const payload=`Você é especialista em BPM e redesenho de processos da administração pública brasileira. Com base no fluxo AS IS e nas melhorias identificadas, gere um Relatório de Sugestões TO BE com recomendações concretas. Estruture em texto puro (sem markdown, sem asteriscos, sem #) com estas seções:
@@ -17904,13 +17942,25 @@ async function iaAnalisarBpmn(which){
 
 // ── 2. GERAR POP ─────────────────────────
 function _confirmadosDeFeedback(fb, tipo){ return Object.entries(fb[tipo]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k); }
+// Troca a sugestão da IA pela solução definitiva registrada pelo EP na etapa
+// Melhorias, quando existir — usada sempre que "soluções propostas" alimenta
+// outra geração de IA (relatório TO BE, POP) para refletir o que foi decidido.
+function _comSolucaoDefinitiva(p, textos){
+  const solDef=p.ent?.analise?.solucao_definitiva||{};
+  return (textos||[]).map(t=>{
+    const def=solDef[t];
+    if(!def) return t;
+    const m=/^\[Problema:\s*([\s\S]*?)\]/.exec(t);
+    return m?`[Problema: ${m[1].trim()}] ${def}`:def;
+  });
+}
 function _iaGerarPopPayload(p, etapas){
   const a = p.ent?.analise || {};
   const fb = a.feedback_dono || {};
   const hasFeedback = Object.keys(fb).length > 0;
   const gargalosConf = hasFeedback ? _confirmadosDeFeedback(fb,'gargalos') : (a.gargalos||[]);
   const oportunidadesConf = hasFeedback ? _confirmadosDeFeedback(fb,'oportunidades') : (a.oportunidades||[]);
-  const solucoesConf = hasFeedback ? _confirmadosDeFeedback(fb,'solucoes_problemas') : (a.solucoes_problemas||[]);
+  const solucoesConf = _comSolucaoDefinitiva(p, hasFeedback ? _confirmadosDeFeedback(fb,'solucoes_problemas') : (a.solucoes_problemas||[]));
   return {
     nome: p.nome,
     area: p.area,
