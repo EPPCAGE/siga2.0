@@ -186,6 +186,7 @@ let _progCurrentId = null; // ID do programa em visualização
 const PROJ_STORAGE_KEY = 'cagePROJETOS_v6';
 const PROG_STORAGE_KEY = 'cagePROGRAMAS_v6';
 const PROJ_SCHEDULE_BACKUP_MAX_DAYS = 14;
+const PROJ_CRON_NAME_WIDTH_MAX_FACTOR = 2;
 
 // ── Fases do workflow ────────────────────────────────────────────
 const PROJ_FASES = [
@@ -292,7 +293,11 @@ async function projFbSaveCurrentScheduleProject(){
       tarefas: exec.tarefas || [],
       cron_backups: exec.cron_backups || {},
       cron_mode: exec.cron_mode || 'planner',
-      pct_mode: exec.pct_mode || 'manual'
+      pct_mode: exec.pct_mode || 'manual',
+      cron_wrap_names: exec.cron_wrap_names === true,
+      cron_nome_col_width: exec.cron_nome_col_width || null,
+      cron_nome_col_saved_width: exec.cron_nome_col_saved_width || null,
+      cron_nome_col_base_width: exec.cron_nome_col_base_width || null
     }
   }), { merge: true });
 }
@@ -2719,7 +2724,7 @@ function projDetalheTab(faseId, tabEl) {
     case 'aprovacao':    projSetHtml(content, projTabAprovacao(proj)); setTimeout(projPopulateVinculacoes,50); break;
     case 'ideacao':      projSetHtml(content, projTabIdeacao(proj)); projScheduleCanvasLayout(); break;
     case 'planejamento': projSetHtml(content, projTabPlanejamento(proj)); break;
-    case 'execucao':     projSetHtml(content, projTabExecucao(proj)); break;
+    case 'execucao':     projSetHtml(content, projTabExecucao(proj)); setTimeout(projInitCronNameColumn, 0); break;
     case 'conclusao':    projSetHtml(content, projTabConclusao(proj)); break;
   }
   projApplyProjectReadonly(faseId);
@@ -3444,6 +3449,9 @@ function projTabExecucao(p) {
   const reunioes = exec.reunioes || [];
   const cronMode = exec.cron_mode || 'planner'; // 'planner' or 'siga'
   const pctMode = exec.pct_mode || 'manual'; // 'manual' or 'derivado'
+  const cronWrapNames = exec.cron_wrap_names === true;
+  const cronNameWidth = Number.parseInt(exec.cron_nome_col_width, 10) || 0;
+  const cronNameBaseWidth = Number.parseInt(exec.cron_nome_col_base_width, 10) || 0;
   const tarefas = exec.tarefas || [];
   const canScheduleIO = projCanWriteSchedule(String(p.id));
   const todayBackup = projScheduleBackupForDate(p);
@@ -3552,14 +3560,26 @@ function projTabExecucao(p) {
         ` : ''}
         <!-- Tabela de tarefas -->
         ${projProjectResponsibleOptions(p.id)}
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <div class="proj-cron-name-mode-toggle">
+          <span class="${cronWrapNames?'':'active'}">Redimensionar Nome</span>
+          <label class="proj-switch" title="Quebrar linhas e ajustar altura das tarefas">
+            <input type="checkbox" id="proj-cron-wrap-toggle" ${cronWrapNames?'checked':''} ${canScheduleIO?'':'disabled'} onchange="projToggleCronWrapNames()">
+            <span></span>
+          </label>
+          <span class="${cronWrapNames?'active':''}">Quebrar Linhas</span>
+        </div>
+        <div class="proj-cron-scroll-top" id="proj-cron-scroll-top" style="display:${cronNameWidth && !cronWrapNames ? 'block' : 'none'}" onscroll="projSyncCronScroll(this,'top')"><div id="proj-cron-scroll-top-inner"></div></div>
+        <div class="proj-cron-table-wrap ${cronWrapNames?'wrap-names':''}" id="proj-cron-table-wrap" onscroll="projSyncCronScroll(this,'main')">
+          <table class="proj-cron-table" id="proj-cron-table" data-base-name-width="${cronNameBaseWidth || ''}" style="${cronNameWidth && !cronWrapNames ? `--proj-cron-name-width:${cronNameWidth}px` : ''}">
+            <colgroup>
+              <col class="proj-cron-col-drag"><col class="proj-cron-col-num"><col class="proj-cron-col-check"><col class="proj-cron-col-name"><col class="proj-cron-col-ppe"><col class="proj-cron-col-marco"><col class="proj-cron-col-date"><col class="proj-cron-col-date"><col class="proj-cron-col-resp"><col class="proj-cron-col-pct"><col class="proj-cron-col-note"><col class="proj-cron-col-sub"><col class="proj-cron-col-del"><col class="proj-cron-col-order">
+            </colgroup>
             <thead>
               <tr style="background:#f0f4ff">
                 <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:28px"></th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3;width:70px">Nº</th>
                 <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:24px">✓</th>
-                <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3">Nome</th>
+                <th class="proj-cron-name-th" style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3">Nome${canScheduleIO ? '<span class="proj-cron-name-resizer" title="Redimensionar coluna Nome" onmousedown="projStartCronNameResize(event)"></span>' : ''}</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:68px">PPE</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:78px">Marco</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:100px">Início</th>
@@ -3707,6 +3727,8 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
   if(!tarefas) return '';
   let html = '';
   const canWriteSchedule = projCanWriteSchedule();
+  const currentProj = (PROJETOS||[]).find(p => String(p.id) === String(_projCurrentId));
+  const wrapNames = currentProj?.execucao?.cron_wrap_names === true;
   tarefas.forEach((t, i) => {
     const path = parentIdx !== undefined && parentIdx !== null ? parentIdx+'.'+i : ''+i;
     const hasSubs = t.subtarefas && t.subtarefas.length > 0;
@@ -3733,7 +3755,7 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
         ${!hasSubs ? `<input type="checkbox" ${t.concluida?'checked':''} onchange="projToggleTarefa('${path}')">` : ''}
       </td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;padding-left:${8+indent}px;${bold};${strike}">
-        <input type="text" class="proj-task-name-input" value="${projEsc(t.nome||'Nova tarefa')}" placeholder="Nova tarefa" aria-label="Nome da tarefa" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+        ${wrapNames ? `<textarea class="proj-task-name-input proj-task-name-textarea" rows="1" placeholder="Nova tarefa" aria-label="Nome da tarefa" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')">${projEsc(t.nome||'Nova tarefa')}</textarea>` : `<input type="text" class="proj-task-name-input" value="${projEsc(t.nome||'Nova tarefa')}" placeholder="Nova tarefa" aria-label="Nome da tarefa" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}
       </td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3">
         <button type="button" class="proj-task-flag ppe ${t.ppe?'on':''}" onclick="projToggleTarefaFlag('${path}','ppe')">PPE</button>
@@ -4170,6 +4192,94 @@ function projToggleTarefa(path) {
   }
   projSave();
   projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
+  });
+}
+
+function projCronSetTopScrollbarVisible(visible) {
+  const top = document.getElementById('proj-cron-scroll-top');
+  if(top) top.style.display = visible ? 'block' : 'none';
+}
+
+function projInitCronNameColumn() {
+  const table = document.getElementById('proj-cron-table');
+  const wrap = document.getElementById('proj-cron-table-wrap');
+  const top = document.getElementById('proj-cron-scroll-top');
+  const topInner = document.getElementById('proj-cron-scroll-top-inner');
+  if(!table || !wrap) return;
+  const explicit = Number.parseInt(table.style.getPropertyValue('--proj-cron-name-width'), 10) || 0;
+  if(!explicit && !table.classList.contains('wrap-names')) {
+    const cell = table.querySelector('.proj-cron-name-th');
+    const currentWidth = Math.round(cell?.getBoundingClientRect().width || 0);
+    if(currentWidth > 0) {
+      table.style.setProperty('--proj-cron-name-width', currentWidth + 'px');
+      if(!table.dataset.baseNameWidth) table.dataset.baseNameWidth = String(currentWidth);
+    }
+  }
+  if(topInner) topInner.style.width = table.scrollWidth + 'px';
+  const nameWidth = Number.parseInt(table.style.getPropertyValue('--proj-cron-name-width'), 10) || 0;
+  const baseWidth = Number.parseInt(table.dataset.baseNameWidth, 10) || nameWidth;
+  projCronSetTopScrollbarVisible(!wrap.classList.contains('wrap-names') && nameWidth > baseWidth && table.scrollWidth > wrap.clientWidth);
+}
+
+function projSyncCronScroll(source, mode) {
+  const wrap = document.getElementById('proj-cron-table-wrap');
+  const top = document.getElementById('proj-cron-scroll-top');
+  if(!wrap || !top) return;
+  if(mode === 'top' && wrap.scrollLeft !== source.scrollLeft) wrap.scrollLeft = source.scrollLeft;
+  if(mode === 'main' && top.scrollLeft !== source.scrollLeft) top.scrollLeft = source.scrollLeft;
+}
+
+function projPersistCronNamePreferences(values) {
+  projLoad();
+  const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
+  if(!proj) return;
+  if(!proj.execucao) proj.execucao = {planner_link:'',percentual:0,reunioes:[],tarefas:[]};
+  Object.assign(proj.execucao, values || {});
+  projWithScheduleWrite(() => projSave());
+}
+
+function projStartCronNameResize(event) {
+  event.preventDefault();
+  const table = document.getElementById('proj-cron-table');
+  const wrap = document.getElementById('proj-cron-table-wrap');
+  if(!table || !wrap || wrap.classList.contains('wrap-names')) return;
+  const startX = event.clientX;
+  const startWidth = Number.parseInt(table.style.getPropertyValue('--proj-cron-name-width'), 10)
+    || Math.round(table.querySelector('.proj-cron-name-th')?.getBoundingClientRect().width || 0);
+  const baseWidth = Number.parseInt(table.dataset.baseNameWidth, 10) || startWidth;
+  const minWidth = baseWidth;
+  const maxWidth = Math.round(baseWidth * PROJ_CRON_NAME_WIDTH_MAX_FACTOR);
+  const move = ev => {
+    const nextWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + ev.clientX - startX));
+    table.style.setProperty('--proj-cron-name-width', Math.round(nextWidth) + 'px');
+    projInitCronNameColumn();
+  };
+  const up = () => {
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    const finalWidth = Number.parseInt(table.style.getPropertyValue('--proj-cron-name-width'), 10) || startWidth;
+    projPersistCronNamePreferences({cron_nome_col_width: finalWidth, cron_nome_col_saved_width: finalWidth, cron_nome_col_base_width: baseWidth});
+  };
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up);
+}
+
+function projToggleCronWrapNames() {
+  return projWithScheduleWrite(() => {
+    projLoad();
+    const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
+    if(!proj) return;
+    if(!proj.execucao) proj.execucao = {planner_link:'',percentual:0,reunioes:[],tarefas:[]};
+    const enabled = !!document.getElementById('proj-cron-wrap-toggle')?.checked;
+    proj.execucao.cron_wrap_names = enabled;
+    if(enabled) {
+      if(proj.execucao.cron_nome_col_width) proj.execucao.cron_nome_col_saved_width = proj.execucao.cron_nome_col_width;
+      delete proj.execucao.cron_nome_col_width;
+    } else if(proj.execucao.cron_nome_col_saved_width) {
+      proj.execucao.cron_nome_col_width = proj.execucao.cron_nome_col_saved_width;
+    }
+    projSave();
+    projDetalheTab('execucao', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(4)'));
   });
 }
 
