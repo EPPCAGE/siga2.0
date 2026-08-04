@@ -1362,6 +1362,116 @@ select.proj-fi { cursor:pointer; }
   background:#fff;
   box-shadow:0 0 0 3px rgba(26,93,200,.08);
 }
+.proj-cron-name-mode-toggle {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  justify-content:flex-end;
+  margin:.35rem 0 .5rem;
+  font-size:11px;
+  font-weight:700;
+  color:var(--ink3);
+}
+.proj-cron-name-mode-toggle .active { color:var(--blue); }
+.proj-switch {
+  position:relative;
+  width:38px;
+  height:21px;
+  cursor:pointer;
+  flex:none;
+}
+.proj-switch input {
+  opacity:0;
+  width:0;
+  height:0;
+}
+.proj-switch span {
+  position:absolute;
+  inset:0;
+  background:#cbd5e1;
+  border-radius:999px;
+  transition:.2s;
+}
+.proj-switch span:before {
+  content:'';
+  position:absolute;
+  width:17px;
+  height:17px;
+  left:2px;
+  top:2px;
+  background:#fff;
+  border-radius:50%;
+  box-shadow:0 1px 3px rgba(0,0,0,.2);
+  transition:.2s;
+}
+.proj-switch input:checked + span { background:var(--blue); }
+.proj-switch input:checked + span:before { transform:translateX(17px); }
+.proj-cron-scroll-top,
+.proj-cron-table-wrap {
+  overflow-x:auto;
+}
+.proj-cron-scroll-top {
+  height:14px;
+  margin-bottom:4px;
+}
+.proj-cron-scroll-top > div { height:1px; }
+.proj-cron-table {
+  width:100%;
+  min-width:100%;
+  table-layout:fixed;
+  border-collapse:collapse;
+  font-size:12px;
+}
+.proj-cron-col-drag { width:28px; }
+.proj-cron-col-num { width:70px; }
+.proj-cron-col-check { width:24px; }
+.proj-cron-col-name { width:var(--proj-cron-name-width, auto); }
+.proj-cron-col-ppe { width:68px; }
+.proj-cron-col-marco { width:78px; }
+.proj-cron-col-date { width:100px; }
+.proj-cron-col-resp { width:120px; }
+.proj-cron-col-pct { width:70px; }
+.proj-cron-col-note { width:42px; }
+.proj-cron-col-sub { width:40px; }
+.proj-cron-col-del { width:30px; }
+.proj-cron-col-order { width:56px; }
+.proj-cron-name-th {
+  position:relative;
+  min-width:var(--proj-cron-name-width, 160px);
+}
+.proj-cron-name-resizer {
+  position:absolute;
+  right:-4px;
+  top:0;
+  bottom:0;
+  width:8px;
+  cursor:col-resize;
+  z-index:1;
+}
+.proj-cron-name-resizer:after {
+  content:'';
+  position:absolute;
+  top:6px;
+  bottom:6px;
+  left:3px;
+  border-left:2px solid #aeb8cc;
+}
+.proj-cron-table-wrap.wrap-names .proj-cron-name-resizer {
+  cursor:not-allowed;
+  opacity:.35;
+}
+.proj-cron-table-wrap.wrap-names .proj-task-name-input {
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  height:auto;
+  min-height:30px;
+  line-height:1.35;
+}
+.proj-task-name-textarea {
+  display:block;
+  resize:none;
+}
 .proj-task-flag {
   min-width:48px;
   padding:3px 8px;
