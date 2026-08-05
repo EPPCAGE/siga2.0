@@ -1462,15 +1462,15 @@ select.proj-fi { cursor:pointer; }
 }
 .proj-cron-table-wrap.wrap-names .proj-task-name-input {
   white-space:normal;
-  overflow:visible;
+  overflow:hidden;
   text-overflow:clip;
-  height:auto;
-  min-height:30px;
-  line-height:1.35;
+  min-height:32px;
+  line-height:1.4;
 }
 .proj-task-name-textarea {
   display:block;
   resize:none;
+  box-sizing:border-box;
 }
 .proj-task-flag {
   min-width:48px;
