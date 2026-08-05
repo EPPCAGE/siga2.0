@@ -2724,7 +2724,7 @@ function projDetalheTab(faseId, tabEl) {
     case 'aprovacao':    projSetHtml(content, projTabAprovacao(proj)); setTimeout(projPopulateVinculacoes,50); break;
     case 'ideacao':      projSetHtml(content, projTabIdeacao(proj)); projScheduleCanvasLayout(); break;
     case 'planejamento': projSetHtml(content, projTabPlanejamento(proj)); break;
-    case 'execucao':     projSetHtml(content, projTabExecucao(proj)); setTimeout(projInitCronNameColumn, 0); break;
+    case 'execucao':     projSetHtml(content, projTabExecucao(proj)); setTimeout(() => { projInitCronNameColumn(); projInitCronTaskNameTextareas(); }, 0); break;
     case 'conclusao':    projSetHtml(content, projTabConclusao(proj)); break;
   }
   projApplyProjectReadonly(faseId);
@@ -3755,7 +3755,7 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
         ${!hasSubs ? `<input type="checkbox" ${t.concluida?'checked':''} onchange="projToggleTarefa('${path}')">` : ''}
       </td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;padding-left:${8+indent}px;${bold};${strike}">
-        ${wrapNames ? `<textarea class="proj-task-name-input proj-task-name-textarea" rows="1" placeholder="Nova tarefa" aria-label="Nome da tarefa" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')">${projEsc(t.nome||'Nova tarefa')}</textarea>` : `<input type="text" class="proj-task-name-input" value="${projEsc(t.nome||'Nova tarefa')}" placeholder="Nova tarefa" aria-label="Nome da tarefa" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}
+        ${wrapNames ? `<textarea class="proj-task-name-input proj-task-name-textarea" rows="1" placeholder="Nova tarefa" aria-label="Nome da tarefa" oninput="projAutoResizeCronTaskName(this)" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')">${projEsc(t.nome||'Nova tarefa')}</textarea>` : `<input type="text" class="proj-task-name-input" value="${projEsc(t.nome||'Nova tarefa')}" placeholder="Nova tarefa" aria-label="Nome da tarefa" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}
       </td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3">
         <button type="button" class="proj-task-flag ppe ${t.ppe?'on':''}" onclick="projToggleTarefaFlag('${path}','ppe')">PPE</button>
@@ -4198,6 +4198,17 @@ function projToggleTarefa(path) {
 function projCronSetTopScrollbarVisible(visible) {
   const top = document.getElementById('proj-cron-scroll-top');
   if(top) top.style.display = visible ? 'block' : 'none';
+}
+
+
+function projAutoResizeCronTaskName(el) {
+  if(!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.max(32, el.scrollHeight + 2) + 'px';
+}
+
+function projInitCronTaskNameTextareas() {
+  document.querySelectorAll('.proj-task-name-textarea').forEach(projAutoResizeCronTaskName);
 }
 
 function projInitCronNameColumn() {
