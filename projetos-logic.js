@@ -3578,7 +3578,7 @@ function projTabExecucao(p) {
               <tr style="background:#f0f4ff">
                 <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:28px"></th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3;width:70px">Nº</th>
-                <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:24px">✓</th>
+                <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:34px">✓</th>
                 <th class="proj-cron-name-th" style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3">Nome${canScheduleIO ? '<span class="proj-cron-name-resizer" title="Redimensionar coluna Nome" onmousedown="projStartCronNameResize(event)"></span>' : ''}</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:68px">PPE</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:78px">Marco</th>
@@ -3752,7 +3752,13 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
       </td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike};font-family:'DM Mono',monospace;font-size:11px;white-space:nowrap">${path.split('.').map(n=>Number.parseInt(n,10)+1).join('.')}.</td>
       <td style="padding:5px 4px;text-align:center;border-bottom:1px solid #eaecf3">
-        ${!hasSubs ? `<input type="checkbox" ${t.concluida?'checked':''} onchange="projToggleTarefa('${path}')">` : ''}
+        ${!hasSubs ? `<button type="button" class="proj-task-eye-toggle${t.concluida?' done':''}" aria-pressed="${t.concluida?'true':'false'}" aria-label="${t.concluida?'Marcar como pendente':'Marcar como concluída'}" onclick="projToggleTarefa('${path}')">
+          <svg viewBox="0 0 40 40">
+            <path class="proj-task-eye-outline" d="M4 20C8 12 14 8 20 8s12 4 16 12c-4 8-10 12-16 12S8 28 4 20Z"/>
+            <circle class="proj-task-eye-pupil" cx="20" cy="20" r="7"/>
+            <circle class="proj-task-eye-highlight" cx="23" cy="17" r="2.1"/>
+          </svg>
+        </button>` : ''}
       </td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;padding-left:${8+indent}px;${bold};${strike}">
         ${wrapNames ? `<textarea class="proj-task-name-input proj-task-name-textarea" rows="1" placeholder="Nova tarefa" aria-label="Nome da tarefa" oninput="projAutoResizeCronTaskName(this)" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')">${projEsc(t.nome||'Nova tarefa')}</textarea>` : `<input type="text" class="proj-task-name-input" value="${projEsc(t.nome||'Nova tarefa')}" placeholder="Nova tarefa" aria-label="Nome da tarefa" onchange="projUpdateTarefa('${path}','nome',this.value.trim()||'Nova tarefa')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`}
