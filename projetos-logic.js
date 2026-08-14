@@ -3578,7 +3578,7 @@ function projTabExecucao(p) {
               <tr style="background:#f0f4ff">
                 <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:28px"></th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3;width:70px">Nº</th>
-                <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:34px">✓</th>
+                <th style="padding:6px 4px;text-align:center;border-bottom:2px solid #d0d5e3;width:40px">✓</th>
                 <th class="proj-cron-name-th" style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3">Nome${canScheduleIO ? '<span class="proj-cron-name-resizer" title="Redimensionar coluna Nome" onmousedown="projStartCronNameResize(event)"></span>' : ''}</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:68px">PPE</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:78px">Marco</th>
