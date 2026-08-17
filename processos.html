@@ -14091,7 +14091,12 @@ function createKpiChart(key, items){
   const unidade = items[0].unidade||'';
   const realizados = withData.map(i=>Number.parseFloat(i.realizado)||0);
   const realMetasData = withData.map(i=>{
-    if(i.meta!==null&&i.meta!==undefined&&i.meta!==''){const m=Number.parseFloat(i.meta);return Number.isNaN(m)?null:m;}
+    if(i.meta!==null&&i.meta!==undefined&&i.meta!==''){
+      const m=Number.parseFloat(i.meta);
+      // Meta 0 é usada por importações como equivalente a "sem meta"; não deve
+      // suprimir a linha de média histórica nem virar uma linha de meta no eixo zero.
+      return Number.isNaN(m)||m<=0 ? null : m;
+    }
     return null;
   });
   const hasRealMeta = realMetasData.some(m=>m!==null);
