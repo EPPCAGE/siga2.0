@@ -33,6 +33,12 @@ function projApplyOrgBranding(){
 }
 projApplyOrgBranding();
 function projCanWriteAll(){ return isEP(); }
+function projApplyPermissions(){
+  const canEdit = projCanWriteAll();
+  document.querySelectorAll('.ep-only').forEach(el => {
+    el.style.display = canEdit ? '' : 'none';
+  });
+}
 function projProjetosVinculadosUsuario(u = usuarioLogado){
   return Array.isArray(u?.projetos_vinculados) ? u.projetos_vinculados.map(id => String(id)) : [];
 }
@@ -6003,12 +6009,10 @@ function projGovRenderDemandas() {
     '<div class="proj-fg"><label class="proj-fl" for="gov-dem-solicitante">Solicitante<span>*</span></label><input class="proj-fi" id="gov-dem-solicitante"></div>',
     '<div class="proj-fg"><label class="proj-fl" for="gov-dem-data">Data de recebimento<span>*</span></label><input type="date" class="proj-fi" id="gov-dem-data" value="', projLocalDateKey(), '"></div></div>',
     '<div class="proj-fg"><label class="proj-fl" for="gov-dem-descricao">Descrição da demanda<span>*</span></label><textarea class="proj-fi" id="gov-dem-descricao" rows="3"></textarea></div>',
-    '<div class="proj-g2"><div class="proj-fg"><label class="proj-fl" for="gov-dem-alinhamento">Alinhamento aos objetivos estratégicos</label><textarea class="proj-fi" id="gov-dem-alinhamento" rows="3"></textarea></div>',
-    '<div class="proj-fg"><label class="proj-fl" for="gov-dem-capacidade">Capacidade institucional e viabilidade</label><textarea class="proj-fi" id="gov-dem-capacidade" rows="3"></textarea></div></div>',
     '<button type="button" class="proj-btn primary" onclick="projGovAddDemand()">Registrar demanda</button></div>',
     '<div class="proj-card"><div class="proj-card-t">Demandas para inclusão no portfólio estratégico</div><div class="proj-gov-table-wrap"><table class="proj-gov-table"><thead><tr><th>Demanda</th><th>Solicitante</th><th>Recebida em</th><th>Situação</th><th></th></tr></thead><tbody>', rows || empty, '</tbody></table></div></div>'
   ].join(''));
-  aplicarPermissoes();
+  projApplyPermissions();
 }
 
 function projGovAddDemand() {
@@ -6018,7 +6022,7 @@ function projGovAddDemand() {
   const recebida = projGovValue('gov-dem-data');
   const descricao = projGovValue('gov-dem-descricao');
   if(!titulo || !solicitante || !recebida || !descricao) { projToast('Preencha os campos obrigatórios.', '#d97706'); return; }
-  PROJ_GOVERNANCA.demandas.push({ id:projGovNewId('dem'), titulo, solicitante, recebida_em:recebida, descricao, alinhamento:projGovValue('gov-dem-alinhamento'), capacidade:projGovValue('gov-dem-capacidade'), status:'recebida' });
+  PROJ_GOVERNANCA.demandas.push({ id:projGovNewId('dem'), titulo, solicitante, recebida_em:recebida, descricao, status:'recebida' });
   projGovSave();
   projRenderGovernancaPage();
   projToast('Demanda registrada.');
@@ -6045,7 +6049,7 @@ function projGovRenderReunioes() {
     '<button type="button" class="proj-btn primary" onclick="projGovAddMeeting()">Criar reunião</button></div>',
     cards || '<div class="proj-gov-empty">Nenhuma reunião trimestral registrada.</div>'
   ].join(''));
-  aplicarPermissoes();
+  projApplyPermissions();
 }
 
 function projGovMeetingCard(meeting) {
