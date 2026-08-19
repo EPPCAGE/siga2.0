@@ -975,6 +975,33 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   text-align:right;
 }
 
+/* Governança do portfólio / CGP */
+.proj-gov-stats { margin-bottom:1rem; }
+.proj-gov-form-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;margin-bottom:.8rem; }
+.proj-gov-form-grid + .proj-fl,.proj-gov-form-grid ~ .proj-fl { margin-top:.65rem; }
+.proj-gov-form-grid ~ .proj-btn { margin-top:.8rem; }
+.proj-gov-table-wrap { overflow-x:auto; }
+.proj-gov-table { width:100%;border-collapse:collapse;font-size:12.5px; }
+.proj-gov-table th { padding:9px 10px;text-align:left;color:var(--ink3);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid var(--bdr); }
+.proj-gov-table td { padding:10px;border-bottom:1px solid var(--bdr);vertical-align:top; }
+.proj-gov-muted { color:var(--ink3);font-size:11.5px;margin-top:3px; }
+.proj-gov-status { display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2f7;color:#475569;font-size:10.5px;font-weight:700;white-space:nowrap; }
+.proj-gov-status.recebida { background:#eff6ff;color:#1d4ed8; }
+.proj-gov-status.em_analise,.proj-gov-status.pautada { background:#fff7ed;color:#c2410c; }
+.proj-gov-status.deliberada { background:#ecfdf5;color:#047857; }
+.proj-gov-status-select { width:auto;min-width:105px;margin-top:5px;padding:4px 6px;font-size:10.5px; }
+.proj-gov-meeting { border-left:4px solid var(--blue); }
+.proj-gov-meeting-head { display:flex;align-items:flex-start;justify-content:space-between;gap:1rem; }
+.proj-gov-part,.proj-gov-pauta { margin-top:.75rem;font-size:12.5px;line-height:1.55;white-space:pre-wrap; }
+.proj-gov-delib { margin:.55rem 0;padding:.7rem .8rem;background:#f8fafc;border:1px solid var(--bdr);border-radius:8px; }
+.proj-gov-delib span { margin-left:.5rem;color:var(--blue);font-size:11.5px; }
+.proj-gov-delib p { margin:.35rem 0 0;white-space:pre-wrap;font-size:12px; }
+.proj-gov-delib-form { display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--bdr); }
+.proj-gov-delib-form textarea { grid-column:1 / -1; }
+.proj-gov-delib-form .proj-btn { justify-self:start;grid-column:1 / -1; }
+.proj-gov-empty { padding:1.25rem;text-align:center;color:var(--ink3); }
+@media (max-width:760px){.proj-gov-form-grid,.proj-gov-delib-form{grid-template-columns:1fr}.proj-gov-meeting-head{flex-direction:column}.proj-gov-delib-form textarea,.proj-gov-delib-form .proj-btn{grid-column:1}}
+
 /* Lista de projetos no portfolio */
 .proj-list-item {
   background:#fff;border:1px solid var(--bdr);border-radius:12px;
