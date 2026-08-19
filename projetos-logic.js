@@ -177,6 +177,7 @@ function _fsClean(v, insideArray){
 
 let PROJETOS = [];
 let PROGRAMAS = [];
+let PROJ_GOVERNANCA = { demandas: [], reunioes: [] };
 let _projCurrentId = null; // ID do projeto em visualização
 let _projCurrentPage = 'inicio';
 let _projCurrentWorkflowTab = null;
@@ -185,6 +186,7 @@ let _projReunioesCalendarMonth = null;
 let _progCurrentId = null; // ID do programa em visualização
 const PROJ_STORAGE_KEY = 'cagePROJETOS_v6';
 const PROG_STORAGE_KEY = 'cagePROGRAMAS_v6';
+const PROJ_GOV_STORAGE_KEY = 'cagePROJ_GOVERNANCA_v1';
 const PROJ_SCHEDULE_BACKUP_MAX_DAYS = 14;
 const PROJ_CRON_NAME_WIDTH_MAX_FACTOR = 2;
 
@@ -230,7 +232,8 @@ const PROJ_FB = Object.freeze({
   colProgramas: 'projPROGRAMAS',
   cfgCol: 'config',
   cfgMacrosId: 'projPROJ_MACROS',
-  cfgObjetivosId: 'proj_objetivos'
+  cfgObjetivosId: 'proj_objetivos',
+  cfgGovernancaId: 'proj_governanca'
 });
 const _projFbState = {loaded:false, loading:false, saveTimer:null, listenersStarted:false, unsubscribers:[], saving:false, pendingRender:false};
 
@@ -312,12 +315,14 @@ async function projFbSaveAll(options){
     if(includeConfig){
       await configRepository.set(PROJ_FB.cfgMacrosId, {data: JSON.stringify(PROJ_MACROS||[])});
       await configRepository.set(PROJ_FB.cfgObjetivosId, {data: JSON.stringify(PROJ_OBJETIVOS||[])});
+      await configRepository.set(PROJ_FB.cfgGovernancaId, {data: JSON.stringify(PROJ_GOVERNANCA)});
     }
     try{
       localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS||[]));
       localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS||[]));
       localStorage.setItem('cagePROJ_MACROS_v6', JSON.stringify(PROJ_MACROS||[]));
       localStorage.setItem('cage_objetivos_v6', JSON.stringify(PROJ_OBJETIVOS||[]));
+      localStorage.setItem(PROJ_GOV_STORAGE_KEY, JSON.stringify(PROJ_GOVERNANCA));
     }catch(_e){}
   } finally {
     _projFbState.saving = false;
@@ -334,7 +339,7 @@ function projFbAutoSave(label){
   _projFbState.saving = true;
   return new Promise((resolve, reject)=>{
     _projFbState.saveTimer = setTimeout(()=>{
-    projFbSaveAll({includeConfig: label === 'listas' || label === 'importar'}).catch(e=>{
+    projFbSaveAll({includeConfig: label === 'listas' || label === 'importar' || label === 'governanca'}).catch(e=>{
       console.warn('projFbAutoSave('+label+'):', e.message);
       try { projToast('Erro ao salvar na nuvem: ' + e.message, '#dc2626'); } catch(_e){}
       _projFbState.saving = false;
@@ -363,6 +368,7 @@ function projCacheCloudState(){
     localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS||[]));
     localStorage.setItem('cagePROJ_MACROS_v6', JSON.stringify(PROJ_MACROS||[]));
     localStorage.setItem('cage_objetivos_v6', JSON.stringify(PROJ_OBJETIVOS||[]));
+    localStorage.setItem(PROJ_GOV_STORAGE_KEY, JSON.stringify(PROJ_GOVERNANCA));
   }catch(_e){}
 }
 
@@ -414,7 +420,14 @@ function projFbStartRealtime(){
         try{ PROJ_OBJETIVOS = JSON.parse(snap.data().data); }catch(_e){}
         projCloudRender();
       }
-    }, e => console.warn('proj objetivos snapshot:', e.message))
+    }, e => console.warn('proj objetivos snapshot:', e.message)),
+    onSnapshot(configRepository.ref(PROJ_FB.cfgGovernancaId), snap => {
+      if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
+      if(snap.exists() && typeof snap.data()?.data === 'string'){
+        try{ PROJ_GOVERNANCA = projGovFixData(JSON.parse(snap.data().data)); }catch(_e){}
+        projCloudRender();
+      }
+    }, e => console.warn('proj governanca snapshot:', e.message))
   ];
 }
 
@@ -467,7 +480,8 @@ async function projFbLoadOnce(){
     if(!seeded) projFbApplyCollectionSnaps(pSnap, gSnap);
     await Promise.all([
       projFbLoadConfigDoc(PROJ_FB.cfgMacrosId, PROJ_MACROS, data => { PROJ_MACROS = data; }),
-      projFbLoadConfigDoc(PROJ_FB.cfgObjetivosId, PROJ_OBJETIVOS, data => { PROJ_OBJETIVOS = data; })
+      projFbLoadConfigDoc(PROJ_FB.cfgObjetivosId, PROJ_OBJETIVOS, data => { PROJ_OBJETIVOS = data; }),
+      projFbLoadConfigDoc(PROJ_FB.cfgGovernancaId, PROJ_GOVERNANCA, data => { PROJ_GOVERNANCA = projGovFixData(data); })
     ]);
 
     projFbStartRealtime();
@@ -499,6 +513,7 @@ function projLoad() {
   // Load programas and lists too
   progLoad();
   projLoadListas();
+  projGovLoad();
   projFbLoadOnce().catch(e=>console.warn('projLoad/fb:',e.message));
 }
 
@@ -674,7 +689,7 @@ function projGo(pageId, btnEl) {
     case 'concluidos': projRenderConcluidos(); break;
     case 'programas': progRenderPage(); break;
     case 'estrategia': projRenderEstrategiaPage(); break;
-    case 'reunioes':  projRenderReunioesPage(); break;
+    case 'governanca': projRenderGovernancaPage(); break;
     case 'usuarios':  projRenderUsuariosPage(); break;
     case 'status-report': projRenderStatusReport(); break;
     case 'indicadores': projRenderIndicadoresPage(); break;
@@ -1016,11 +1031,7 @@ function projRenderInicio() {
   // 2. Painéis executivos v9
   projRenderDashV9();
 
-  // 3. Reuniões do mês
-  projRenderReunioesDoMes();
-  projAtualizarBadgeReunioes();
-
-  // 4. Estatísticas
+  // 3. Estatísticas
   const statsRow = document.getElementById('proj-stats-row');
   if(statsRow) projSetHtml(statsRow, `
     <div class="proj-stat s-amber">
@@ -5890,4 +5901,222 @@ function projRenderMemorial(p) {
   const licoes = [conc.licoes_data, conc.licoes_participantes, conc.licoes_certo, conc.licoes_melhorar, conc.licoes_ideias].some(Boolean);
   const imgs = projMemorialImagesHtml(conc);
   projSetHtml(content, `<div class="proj-ph"><div><div class="proj-ph-t">Memorial do Projeto</div><div class="proj-ph-s">${projEsc(p.nome||'Projeto')}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="proj-btn primary" style="font-size:12px;padding:5px 11px" onclick="projAbrirDetalhe('${projEsc(String(p.id))}', true)">Ver Workflow</button><button type="button" class="proj-btn" style="font-size:12px;padding:5px 11px" onclick="projGo('portfolio',document.getElementById('pnb-portfolio'))">Voltar ao Portfólio</button></div></div><div class="proj-form-section"><div class="proj-form-section-title">Informações Gerais</div><div class="proj-g3"><div><div class="proj-fl">Projeto</div><strong>${projEsc(p.nome||'')}</strong></div><div><div class="proj-fl">Patrocinador</div><strong>${projEsc(p.patrocinador||'Não informado')}</strong></div><div><div class="proj-fl">Gerente</div><strong>${projEsc(p.gerente||'Não informado')}</strong></div></div></div><div class="proj-form-section"><div class="proj-form-section-title">História do Projeto</div><div style="font-size:13px;color:#334155;line-height:1.7;white-space:pre-wrap">${projEsc(conc.historia||'História ainda não registrada.')}</div></div>${projMemorialNewsEmbeds(conc)}<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Imagens do Memorial</div>${imgs}</div>${licoes ? `<div class="proj-form-section" style="margin-top:1rem"><div class="proj-form-section-title">Lições Aprendidas</div><div class="proj-g2"><div><div class="proj-fl">Data da reunião</div><strong>${projFormatDate(conc.licoes_data)||'Não informada'}</strong></div><div><div class="proj-fl">Participantes</div><strong>${projEsc(conc.licoes_participantes||'Não informado')}</strong></div></div><div class="proj-g3" style="margin-top:1rem"><div><div class="proj-fl">O que deu certo?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_certo||'')}</div></div><div><div class="proj-fl">O que pode melhorar?</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_melhorar||'')}</div></div><div><div class="proj-fl">Sugestões / ideias</div><div style="white-space:pre-wrap">${projEsc(conc.licoes_ideias||'')}</div></div></div></div>` : ''}`);
+}
+
+// ── Governança do portfólio (CGP) ───────────────────────────────
+let _projGovIdSequence = 0;
+function projGovFixData(data) {
+  return {
+    demandas: Array.isArray(data?.demandas) ? data.demandas : [],
+    reunioes: Array.isArray(data?.reunioes) ? data.reunioes : []
+  };
+}
+
+function projGovLoad() {
+  if(fbReady()) return;
+  try {
+    PROJ_GOVERNANCA = projGovFixData(JSON.parse(localStorage.getItem(PROJ_GOV_STORAGE_KEY) || '{}'));
+  } catch(_e) {
+    PROJ_GOVERNANCA = projGovFixData({});
+  }
+}
+
+function projGovSave() {
+  if(!projEnsureWriteAll('Apenas EPP pode alterar os registros de governança.')) return false;
+  try { localStorage.setItem(PROJ_GOV_STORAGE_KEY, JSON.stringify(PROJ_GOVERNANCA)); } catch(_e) {}
+  projFbAutoSave('governanca').catch(()=>{});
+  return true;
+}
+
+function projGovNewId(prefix) {
+  _projGovIdSequence += 1;
+  return prefix + '-' + Date.now().toString(36) + '-' + _projGovIdSequence.toString(36);
+}
+
+function projGovValue(id) {
+  return document.getElementById(id)?.value.trim() || '';
+}
+
+function projGovStatusLabel(status) {
+  const labels = { recebida:'Recebida', em_analise:'Em análise', pautada:'Pautada', deliberada:'Deliberada' };
+  return labels[status] || status;
+}
+
+function projGovDecisionLabel(decision) {
+  const labels = { incluir:'Inclusão aprovada', replanejar:'Replanejamento', suspender:'Suspensão', encerrar:'Encerramento', diligencia:'Diligência', rejeitar:'Não inclusão' };
+  return labels[decision] || decision;
+}
+
+function projGovDemandOptions(selectedId) {
+  const available = PROJ_GOVERNANCA.demandas.filter(d => d.status !== 'deliberada' || String(d.id) === String(selectedId));
+  const options = available.map(d => '<option value="' + projEsc(d.id) + '">' + projEsc(d.titulo) + '</option>').join('');
+  return '<option value="">Deliberação geral do portfólio</option>' + options;
+}
+
+function projRenderGovernancaPage() {
+  projGovLoad();
+  const el = document.getElementById('proj-governanca-content');
+  if(!el) return;
+  const demandas = PROJ_GOVERNANCA.demandas;
+  const reunioes = PROJ_GOVERNANCA.reunioes;
+  const pendentes = demandas.filter(d => d.status !== 'deliberada').length;
+  const deliberacoes = reunioes.reduce((total, r) => total + (r.deliberacoes || []).length, 0);
+  const html = [
+    '<div class="proj-gov-stats">',
+    '<div class="proj-stat s-amber"><div class="proj-stat-n">', pendentes, '</div><div class="proj-stat-l">Demandas pendentes</div></div>',
+    '<div class="proj-stat s-blue"><div class="proj-stat-n">', reunioes.length, '</div><div class="proj-stat-l">Reuniões do CGP</div></div>',
+    '<div class="proj-stat s-green"><div class="proj-stat-n">', deliberacoes, '</div><div class="proj-stat-l">Deliberações registradas</div></div>',
+    '</div>',
+    '<div class="proj-gov-tabs" role="tablist">',
+    '<button type="button" class="proj-btn primary" onclick="projGovShowPanel(\'demandas\',this)">Demandas de projetos</button>',
+    '<button type="button" class="proj-btn" onclick="projGovShowPanel(\'reunioes\',this)">Reuniões e atas</button>',
+    '</div>',
+    '<div id="proj-gov-panel-demandas"></div><div id="proj-gov-panel-reunioes" hidden></div>'
+  ].join('');
+  projSetHtml(el, html);
+  projGovRenderDemandas();
+  projGovRenderReunioes();
+}
+
+function projGovShowPanel(panel, button) {
+  const demands = document.getElementById('proj-gov-panel-demandas');
+  const meetings = document.getElementById('proj-gov-panel-reunioes');
+  if(!demands || !meetings) return;
+  demands.hidden = panel !== 'demandas';
+  meetings.hidden = panel !== 'reunioes';
+  button?.parentElement?.querySelectorAll('button').forEach(btn => btn.classList.toggle('primary', btn === button));
+}
+
+function projGovRenderDemandas() {
+  const el = document.getElementById('proj-gov-panel-demandas');
+  if(!el) return;
+  const rows = PROJ_GOVERNANCA.demandas.slice().sort((a,b) => (b.recebida_em || '').localeCompare(a.recebida_em || '')).map(d => [
+    '<tr><td><strong>', projEsc(d.titulo), '</strong><div class="proj-gov-muted">', projEsc(d.descricao), '</div></td>',
+    '<td>', projEsc(d.solicitante), '</td><td>', projFormatDate(d.recebida_em), '</td>',
+    '<td><span class="proj-gov-badge ', projEsc(d.status), '">', projEsc(projGovStatusLabel(d.status)), '</span></td>',
+    '<td><button type="button" class="proj-btn danger ep-only" onclick="projGovDeleteDemand(\'', projEsc(d.id), '\')">Excluir</button></td></tr>'
+  ].join('')).join('');
+  const empty = '<tr><td colspan="5" class="proj-gov-empty">Nenhuma demanda recebida.</td></tr>';
+  projSetHtml(el, [
+    '<div class="proj-form-section ep-only"><div class="proj-form-section-title">Registrar demanda recebida pelo EPP</div>',
+    '<div class="proj-g3"><div class="proj-fg"><label class="proj-fl" for="gov-dem-titulo">Projeto ou programa proposto<span>*</span></label><input class="proj-fi" id="gov-dem-titulo"></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-dem-solicitante">Solicitante<span>*</span></label><input class="proj-fi" id="gov-dem-solicitante"></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-dem-data">Data de recebimento<span>*</span></label><input type="date" class="proj-fi" id="gov-dem-data" value="', projLocalDateKey(), '"></div></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-dem-descricao">Descrição da demanda<span>*</span></label><textarea class="proj-fi" id="gov-dem-descricao" rows="3"></textarea></div>',
+    '<div class="proj-g2"><div class="proj-fg"><label class="proj-fl" for="gov-dem-alinhamento">Alinhamento aos objetivos estratégicos</label><textarea class="proj-fi" id="gov-dem-alinhamento" rows="3"></textarea></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-dem-capacidade">Capacidade institucional e viabilidade</label><textarea class="proj-fi" id="gov-dem-capacidade" rows="3"></textarea></div></div>',
+    '<button type="button" class="proj-btn primary" onclick="projGovAddDemand()">Registrar demanda</button></div>',
+    '<div class="proj-card"><div class="proj-card-t">Demandas para inclusão no portfólio estratégico</div><div class="proj-gov-table-wrap"><table class="proj-gov-table"><thead><tr><th>Demanda</th><th>Solicitante</th><th>Recebida em</th><th>Situação</th><th></th></tr></thead><tbody>', rows || empty, '</tbody></table></div></div>'
+  ].join(''));
+  aplicarPermissoes();
+}
+
+function projGovAddDemand() {
+  if(!projEnsureWriteAll()) return;
+  const titulo = projGovValue('gov-dem-titulo');
+  const solicitante = projGovValue('gov-dem-solicitante');
+  const recebida = projGovValue('gov-dem-data');
+  const descricao = projGovValue('gov-dem-descricao');
+  if(!titulo || !solicitante || !recebida || !descricao) { projToast('Preencha os campos obrigatórios.', '#d97706'); return; }
+  PROJ_GOVERNANCA.demandas.push({ id:projGovNewId('dem'), titulo, solicitante, recebida_em:recebida, descricao, alinhamento:projGovValue('gov-dem-alinhamento'), capacidade:projGovValue('gov-dem-capacidade'), status:'recebida' });
+  projGovSave();
+  projRenderGovernancaPage();
+  projToast('Demanda registrada.');
+}
+
+function projGovDeleteDemand(id) {
+  if(!projEnsureWriteAll()) return;
+  const linked = PROJ_GOVERNANCA.reunioes.some(r => (r.deliberacoes || []).some(d => String(d.demanda_id) === String(id)));
+  if(linked) { projToast('A demanda já possui deliberação vinculada.', '#d97706'); return; }
+  projConfirmar('Excluir esta demanda?', () => { PROJ_GOVERNANCA.demandas = PROJ_GOVERNANCA.demandas.filter(d => String(d.id) !== String(id)); projGovSave(); projRenderGovernancaPage(); });
+}
+
+function projGovRenderReunioes() {
+  const el = document.getElementById('proj-gov-panel-reunioes');
+  if(!el) return;
+  const cards = PROJ_GOVERNANCA.reunioes.slice().sort((a,b) => (b.data || '').localeCompare(a.data || '')).map(projGovMeetingCard).join('');
+  projSetHtml(el, [
+    '<div class="proj-form-section ep-only"><div class="proj-form-section-title">Registrar reunião trimestral do CGP</div>',
+    '<div class="proj-g3"><div class="proj-fg"><label class="proj-fl" for="gov-reu-data">Data<span>*</span></label><input type="date" class="proj-fi" id="gov-reu-data"></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-reu-trimestre">Trimestre<span>*</span></label><select class="proj-fi" id="gov-reu-trimestre">', projQuarterOptionsHtml(), '</select></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-reu-local">Local ou link</label><input class="proj-fi" id="gov-reu-local"></div></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-reu-participantes">Participantes<span>*</span></label><textarea class="proj-fi" id="gov-reu-participantes" rows="2" placeholder="Um nome por linha ou separados por vírgula"></textarea></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-reu-pauta">Pauta e informações apresentadas</label><textarea class="proj-fi" id="gov-reu-pauta" rows="3" placeholder="Andamento do portfólio, dados e informações de interesse do Comitê"></textarea></div>',
+    '<button type="button" class="proj-btn primary" onclick="projGovAddMeeting()">Criar reunião</button></div>',
+    cards || '<div class="proj-gov-empty">Nenhuma reunião trimestral registrada.</div>'
+  ].join(''));
+  aplicarPermissoes();
+}
+
+function projGovMeetingCard(meeting) {
+  const decisions = (meeting.deliberacoes || []).map(d => {
+    const demand = PROJ_GOVERNANCA.demandas.find(item => String(item.id) === String(d.demanda_id));
+    const subject = demand ? demand.titulo : (d.assunto || 'Portfólio estratégico');
+    return '<li><strong>' + projEsc(subject) + ' — ' + projEsc(projGovDecisionLabel(d.decisao)) + '</strong><div>' + projEsc(d.fundamentacao) + '</div><div class="proj-gov-muted">Encaminhamento: ' + projEsc(d.encaminhamento || 'Não informado') + '</div></li>';
+  }).join('');
+  const id = projEsc(meeting.id);
+  return [
+    '<article class="proj-card proj-gov-meeting"><div class="proj-gov-meeting-head"><div><div class="proj-card-t">Reunião do CGP — ', projEsc(meeting.trimestre), '</div><div class="proj-gov-muted">', projFormatDate(meeting.data), ' · ', projEsc(meeting.local || 'Local não informado'), '</div></div>',
+    '<button type="button" class="proj-btn" onclick="projGovGenerateMinutes(\'', id, '\')">Gerar ata</button></div>',
+    '<div class="proj-g2"><div><span class="proj-fl">Participantes</span><div class="proj-gov-pre">', projEsc(meeting.participantes), '</div></div><div><span class="proj-fl">Pauta e informações</span><div class="proj-gov-pre">', projEsc(meeting.pauta || 'Não informada'), '</div></div></div>',
+    '<div class="proj-form-section-title">Deliberações</div><ol class="proj-gov-decisions">', decisions || '<li>Nenhuma deliberação registrada.</li>', '</ol>',
+    '<div class="proj-gov-decision-form ep-only"><div class="proj-g3"><select class="proj-fi" id="gov-del-dem-', id, '">', projGovDemandOptions(), '</select>',
+    '<input class="proj-fi" id="gov-del-assunto-', id, '" placeholder="Assunto geral, se não houver demanda">',
+    '<select class="proj-fi" id="gov-del-tipo-', id, '"><option value="incluir">Inclusão aprovada</option><option value="diligencia">Diligência</option><option value="rejeitar">Não inclusão</option><option value="replanejar">Replanejamento</option><option value="suspender">Suspensão</option><option value="encerrar">Encerramento</option></select></div>',
+    '<div class="proj-g2"><textarea class="proj-fi" id="gov-del-fund-', id, '" rows="2" placeholder="Fundamentação da deliberação"></textarea><textarea class="proj-fi" id="gov-del-enc-', id, '" rows="2" placeholder="Encaminhamento, responsável e prazo"></textarea></div>',
+    '<button type="button" class="proj-btn primary" onclick="projGovAddDecision(\'', id, '\')">Registrar deliberação</button></div></article>'
+  ].join('');
+}
+
+function projGovAddMeeting() {
+  if(!projEnsureWriteAll()) return;
+  const data = projGovValue('gov-reu-data');
+  const participantes = projGovValue('gov-reu-participantes');
+  if(!data || !participantes) { projToast('Informe data e participantes.', '#d97706'); return; }
+  PROJ_GOVERNANCA.reunioes.push({ id:projGovNewId('reu'), data, trimestre:projGovValue('gov-reu-trimestre'), local:projGovValue('gov-reu-local'), participantes, pauta:projGovValue('gov-reu-pauta'), deliberacoes:[] });
+  projGovSave(); projRenderGovernancaPage(); projGovShowPanel('reunioes', document.querySelector('.proj-gov-tabs button:nth-child(2)')); projToast('Reunião registrada.');
+}
+
+function projGovAddDecision(meetingId) {
+  if(!projEnsureWriteAll()) return;
+  const meeting = PROJ_GOVERNANCA.reunioes.find(r => String(r.id) === String(meetingId));
+  if(!meeting) return;
+  const demandId = projGovValue('gov-del-dem-' + meetingId);
+  const assunto = projGovValue('gov-del-assunto-' + meetingId);
+  const fundamentacao = projGovValue('gov-del-fund-' + meetingId);
+  if(!demandId && !assunto) { projToast('Selecione uma demanda ou informe o assunto.', '#d97706'); return; }
+  if(!fundamentacao) { projToast('Informe a fundamentação da deliberação.', '#d97706'); return; }
+  meeting.deliberacoes = meeting.deliberacoes || [];
+  meeting.deliberacoes.push({ id:projGovNewId('del'), demanda_id:demandId, assunto, decisao:projGovValue('gov-del-tipo-' + meetingId), fundamentacao, encaminhamento:projGovValue('gov-del-enc-' + meetingId) });
+  const demand = PROJ_GOVERNANCA.demandas.find(d => String(d.id) === String(demandId));
+  if(demand) { demand.status = 'deliberada'; demand.reuniao_id = meeting.id; }
+  projGovSave(); projRenderGovernancaPage(); projGovShowPanel('reunioes', document.querySelector('.proj-gov-tabs button:nth-child(2)')); projToast('Deliberação vinculada à reunião.');
+}
+
+function projGovMinutesHtml(meeting) {
+  const decisionRows = (meeting.deliberacoes || []).map((d, index) => {
+    const demand = PROJ_GOVERNANCA.demandas.find(item => String(item.id) === String(d.demanda_id));
+    const subject = demand ? demand.titulo : d.assunto;
+    return '<h3>' + (index + 1) + '. ' + projEsc(subject || 'Portfólio estratégico') + '</h3><p><b>Deliberação:</b> ' + projEsc(projGovDecisionLabel(d.decisao)) + '</p><p><b>Fundamentação:</b> ' + projEsc(d.fundamentacao) + '</p><p><b>Encaminhamento:</b> ' + projEsc(d.encaminhamento || 'Não informado') + '</p>';
+  }).join('');
+  return ['<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ata do CGP</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1a2540;line-height:1.55}h1{text-align:center;color:#005a9c}h2{border-bottom:2px solid #00a89a;padding-bottom:6px}p{white-space:pre-wrap}</style></head><body>',
+    '<h1>ATA DA REUNIÃO DO COMITÊ DE GESTÃO DE PROJETOS</h1><p><b>Trimestre:</b> ', projEsc(meeting.trimestre), '<br><b>Data:</b> ', projFormatDate(meeting.data), '<br><b>Local:</b> ', projEsc(meeting.local || 'Não informado'), '</p>',
+    '<h2>Participantes</h2><p>', projEsc(meeting.participantes), '</p><h2>Pauta e informações apresentadas</h2><p>', projEsc(meeting.pauta || 'Não informada'), '</p><h2>Deliberações</h2>', decisionRows || '<p>Nenhuma deliberação registrada.</p>',
+    '<h2>Encerramento</h2><p>Nada mais havendo a tratar, a reunião foi encerrada, sendo lavrada a presente ata pelo Escritório de Projetos.</p><br><br><p>________________________________________<br>Secretaria do CGP</p></body></html>'
+  ].join('');
+}
+
+function projGovGenerateMinutes(meetingId) {
+  const meeting = PROJ_GOVERNANCA.reunioes.find(r => String(r.id) === String(meetingId));
+  if(!meeting) return;
+  const blob = new Blob([projGovMinutesHtml(meeting)], {type:'application/msword;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'ata-cgp-' + (meeting.data || meeting.id) + '.doc';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  projToast('Ata gerada com sucesso.');
 }
