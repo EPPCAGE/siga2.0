@@ -11511,6 +11511,29 @@ function _salvarReuniaoAvulsaMensagem(editId, vinculouEtapa){
 // ═══════════════════════════════════════════
 // BPMN EDITOR
 // ═══════════════════════════════════════════
+function _bpmnIsActivity(el){
+  const type=el?.type||'';
+  return type.endsWith('Task')||type.includes('Activity')||type==='bpmn:SubProcess';
+}
+function _bpmnAutoResizeActivity(mod, el){
+  if(!_bpmnIsActivity(el)) return;
+  const text=(el.businessObject?.name||'').trim();
+  if(!text) return;
+  const words=text.split(/\s+/);
+  const longestWord=Math.max(...words.map(word=>word.length));
+  const width=Math.min(280,Math.max(120,longestWord*7+32,Math.min(text.length*7+32,280)));
+  const charsPerLine=Math.max(10,Math.floor((width-32)/7));
+  let lines=1;
+  let lineLength=0;
+  words.forEach(word=>{
+    const nextLength=lineLength?lineLength+1+word.length:word.length;
+    if(lineLength&&nextLength>charsPerLine){lines++;lineLength=word.length;}
+    else lineLength=nextLength;
+  });
+  const height=Math.max(80,lines*18+32);
+  if(Math.abs(el.width-width)<1&&Math.abs(el.height-height)<1) return;
+  mod.get('modeling').resizeShape(el,{x:el.x,y:el.y,width,height});
+}
 function _syncBpmnElName(epId, newName){
   const which=['esboco_tobe','det_valid_tobe'].includes(epRetroEtapa||curProc?.etapa)?'tobe':'asis';
   const mod=bpmnModelers[which];
@@ -11743,6 +11766,9 @@ function _bpmnBindCanvasMousedown(which, canvasEl){
 function _bpmnInitModelerEvents(mod, which){
   const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
   _bpmnBindCanvasMousedown(which, canvasEl);
+  mod.get('eventBus').on('commandStack.element.updateLabel.executed',event=>{
+    _bpmnAutoResizeActivity(mod,event.context.element);
+  });
   mod.on('commandStack.changed',()=>{
     bpmnDirty[which]=true;
     const dirtyEl=document.getElementById('bpmn-'+which+'-dirty');
@@ -11883,25 +11909,21 @@ function bpmnColorize(which){
     const reg=m.get('elementRegistry');
     reg.getAll().forEach(el=>{
       const t=el.type||'';
-      if(t.includes('StartEvent')){
-        modeling.setColor(el,{fill:'#D1FAE5',stroke:'#059669'});
-      } else if(t.includes('EndEvent')){
-        modeling.setColor(el,{fill:'#FEE2E2',stroke:'#DC2626'});
-      } else if(t.includes('Gateway')){
-        modeling.setColor(el,{fill:'#FEF3C7',stroke:'#D97706'});
-      } else if(t==='bpmn:Task'||t.includes('Activity')){
+      if(t==='label') return;
+      if(_bpmnIsActivity(el)){
         modeling.setColor(el,{fill:'#DBEAFE',stroke:'#2563EB'});
-      } else if(t==='bpmn:SubProcess'){
-        modeling.setColor(el,{fill:'#EDE9FE',stroke:'#7C3AED'});
-      } else if(t==='bpmn:Participant'||t==='bpmn:Lane'){
-        modeling.setColor(el,{fill:'#F0F9FF',stroke:'#0EA5E9'});
+      } else {
+        // Participantes e raias podem ocupar toda a área visível do diagrama.
+        // Mantê-los brancos evita que o canvas seja preenchido de azul.
+        modeling.setColor(el,{fill:'#FFFFFF',stroke:'#000000'});
       }
     });
     // Texto preto em todos os labels (o bpmn-js não expõe font color via setColor)
     const canvasDiv=document.getElementById('bpmn-'+which+'-canvas');
-    if(canvasDiv) canvasDiv.querySelectorAll('text').forEach(tx=>{
-      tx.style.fill='#000000';
-    });
+    if(canvasDiv){
+      canvasDiv.style.backgroundColor='#FFFFFF';
+      canvasDiv.querySelectorAll('text').forEach(tx=>{tx.style.fill='#000000';});
+    }
     bpmnDirty[which]=true;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
     if(lbl)lbl.style.display='inline';
@@ -14091,7 +14113,12 @@ function createKpiChart(key, items){
   const unidade = items[0].unidade||'';
   const realizados = withData.map(i=>Number.parseFloat(i.realizado)||0);
   const realMetasData = withData.map(i=>{
-    if(i.meta!==null&&i.meta!==undefined&&i.meta!==''){const m=Number.parseFloat(i.meta);return Number.isNaN(m)?null:m;}
+    if(i.meta!==null&&i.meta!==undefined&&i.meta!==''){
+      const m=Number.parseFloat(i.meta);
+      // Meta 0 é usada por importações como equivalente a "sem meta"; não deve
+      // suprimir a linha de média histórica nem virar uma linha de meta no eixo zero.
+      return Number.isNaN(m)||m<=0 ? null : m;
+    }
     return null;
   });
   const hasRealMeta = realMetasData.some(m=>m!==null);
