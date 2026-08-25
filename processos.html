@@ -11910,7 +11910,13 @@ function bpmnColorize(which){
     reg.getAll().forEach(el=>{
       const t=el.type||'';
       if(t==='label') return;
-      if(_bpmnIsActivity(el)){
+      if(t.includes('StartEvent')){
+        modeling.setColor(el,{fill:'#D1FAE5',stroke:'#059669'});
+      } else if(t.includes('EndEvent')){
+        modeling.setColor(el,{fill:'#FEE2E2',stroke:'#DC2626'});
+      } else if(t.includes('Gateway')){
+        modeling.setColor(el,{fill:'#FEF3C7',stroke:'#D97706'});
+      } else if(_bpmnIsActivity(el)){
         modeling.setColor(el,{fill:'#DBEAFE',stroke:'#2563EB'});
       } else {
         // Participantes e raias podem ocupar toda a área visível do diagrama.
