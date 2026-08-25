@@ -2416,3 +2416,25 @@ select.proj-fi { cursor:pointer; }
   .proj-v9-chart-grid,
   .proj-v9-ind-grid { grid-template-columns:1fr; }
 }
+
+/* Governança do portfólio */
+.proj-gov-stats { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:1rem; }
+.proj-gov-tabs { display:flex;gap:8px;margin:0 0 1rem; }
+.proj-gov-table-wrap { overflow-x:auto; }
+.proj-gov-table { width:100%;border-collapse:collapse;font-size:12.5px; }
+.proj-gov-table th { padding:10px;text-align:left;color:var(--ink3);border-bottom:1px solid var(--bdr);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em; }
+.proj-gov-table td { padding:11px 10px;border-bottom:1px solid var(--bdr);vertical-align:top; }
+.proj-gov-muted { color:var(--ink3);font-size:11.5px;margin-top:3px;line-height:1.5; }
+.proj-gov-badge { display:inline-flex;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#44506a;font-size:10.5px;font-weight:700;white-space:nowrap; }
+.proj-gov-badge.deliberada { background:#dcfce7;color:#166534; }
+.proj-gov-badge.pautada { background:#dbeafe;color:#1d4ed8; }
+.proj-gov-badge.em_analise { background:#fef3c7;color:#92400e; }
+.proj-gov-empty { padding:2rem;text-align:center;color:var(--ink3);font-size:13px; }
+.proj-gov-meeting { margin-bottom:1rem;padding:1.2rem; }
+.proj-gov-meeting-head { display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:1rem; }
+.proj-gov-pre { white-space:pre-wrap;font-size:12.5px;line-height:1.55;color:var(--ink2); }
+.proj-gov-decisions { margin:.5rem 0 1rem;padding-left:1.3rem;font-size:12.5px; }
+.proj-gov-decisions li { padding:.45rem 0;line-height:1.5; }
+.proj-gov-decision-form { padding:1rem;background:#f7f9fc;border:1px solid var(--bdr);border-radius:9px; }
+.proj-gov-decision-form .proj-g2 { margin:.6rem 0; }
+@media (max-width:800px) { .proj-gov-stats { grid-template-columns:1fr; } .proj-gov-meeting-head { align-items:stretch;flex-direction:column; } }
