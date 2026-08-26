@@ -11515,6 +11515,7 @@ function _bpmnIsActivity(el){
   const type=el?.type||'';
   return type.endsWith('Task')||type.includes('Activity')||type==='bpmn:SubProcess';
 }
+const _bpmnResizeTimers=new Map();
 function _bpmnAutoResizeActivity(mod, el){
   if(!_bpmnIsActivity(el)) return;
   const text=(el.businessObject?.name||'').trim();
@@ -11533,6 +11534,26 @@ function _bpmnAutoResizeActivity(mod, el){
   const height=Math.max(80,lines*18+32);
   if(Math.abs(el.width-width)<1&&Math.abs(el.height-height)<1) return;
   mod.get('modeling').resizeShape(el,{x:el.x,y:el.y,width,height});
+}
+function _bpmnScheduleActivityResize(mod, el){
+  if(!_bpmnIsActivity(el)) return;
+  const id=el.id;
+  clearTimeout(_bpmnResizeTimers.get(id));
+  _bpmnResizeTimers.set(id,setTimeout(()=>{
+    _bpmnResizeTimers.delete(id);
+    const current=mod.get('elementRegistry').get(id);
+    if(current) _bpmnAutoResizeActivity(mod,current);
+  },0));
+}
+function _bpmnApplyElementColor(mod, el){
+  if(!el||el.type==='label') return;
+  const type=el.type||'';
+  let color={fill:'#FFFFFF',stroke:'#000000'};
+  if(type.includes('StartEvent')) color={fill:'#D1FAE5',stroke:'#059669'};
+  else if(type.includes('EndEvent')) color={fill:'#FEE2E2',stroke:'#DC2626'};
+  else if(type.includes('Gateway')) color={fill:'#FEF3C7',stroke:'#D97706'};
+  else if(_bpmnIsActivity(el)) color={fill:'#DBEAFE',stroke:'#2563EB'};
+  mod.get('modeling').setColor(el,color);
 }
 function _syncBpmnElName(epId, newName){
   const which=['esboco_tobe','det_valid_tobe'].includes(epRetroEtapa||curProc?.etapa)?'tobe':'asis';
@@ -11766,8 +11787,17 @@ function _bpmnBindCanvasMousedown(which, canvasEl){
 function _bpmnInitModelerEvents(mod, which){
   const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
   _bpmnBindCanvasMousedown(which, canvasEl);
-  mod.get('eventBus').on('commandStack.element.updateLabel.executed',event=>{
-    _bpmnAutoResizeActivity(mod,event.context.element);
+  const eventBus=mod.get('eventBus');
+  eventBus.on('commandStack.element.updateLabel.postExecuted',event=>{
+    _bpmnScheduleActivityResize(mod,event.context.element);
+  });
+  eventBus.on('commandStack.shape.create.postExecuted',event=>{
+    const el=event.context.shape;
+    if(!_bpmnIsActivity(el)) return;
+    setTimeout(()=>{
+      const current=mod.get('elementRegistry').get(el.id);
+      if(current) _bpmnApplyElementColor(mod,current);
+    },0);
   });
   mod.on('commandStack.changed',()=>{
     bpmnDirty[which]=true;
@@ -11810,25 +11840,33 @@ function initBpmnMod(which, p){
     if(l)l.innerHTML='<div style="color:var(--red);padding:1rem;font-size:13px">Erro: '+(err.message||err)+'</div>';
   });
 }
-function bpmnSave(which){
+async function bpmnSave(which){
   const mod=bpmnModelers[which];
   if(!mod||!curProc)return;
   const xmlKey=which==='asis'?'bpmnAsIs':'bpmnToBe';
   const svgKey=which==='asis'?'bpmnAsIsSvg':'bpmnToBeSvg';
   if(!curProc.mod)curProc.mod={asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,etapas_proc:[],obs:''};
-  mod.saveXML({format:true}).then(({xml})=>{
+  try{
+    const {xml}=await mod.saveXML({format:true});
     curProc.mod[xmlKey]=xml;
+    push(curProc,curProc.etapa,'EP','Fluxo BPMN '+which.toUpperCase()+' salvo');
+    // O SVG é auxiliar; uma falha ao gerá-lo não impede a persistência do XML.
+    try{
+      const {svg}=await mod.saveSVG();
+      if(svg&&curProc?.mod) curProc.mod[svgKey]=svg;
+    }catch{}
+    const saved=await fbSaveAll();
+    if(!saved) throw new Error('não foi possível confirmar a gravação no servidor');
     bpmnDirty[which]=false;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');
     if(lbl)lbl.style.display='none';
-    push(curProc,curProc.etapa,'EP','Fluxo BPMN '+which.toUpperCase()+' salvo');
-    fbAutoSave('bpmnSave');
     toast('✓ Fluxo '+which.toUpperCase()+' salvo no servidor');
-    // SVG salvo opcionalmente após o XML — não bloqueia nem falha o save principal
-    mod.saveSVG().then(({svg})=>{
-      if(svg&&curProc?.mod){curProc.mod[svgKey]=svg;fbAutoSave('bpmnSaveSvg');}
-    }).catch(()=>{});
-  }).catch(err=>toast('Erro ao salvar: '+(err.message||err),'var(--red)'));
+  }catch(err){
+    bpmnDirty[which]=true;
+    const lbl=document.getElementById('bpmn-'+which+'-dirty');
+    if(lbl)lbl.style.display='inline';
+    toast('Erro ao salvar: '+(err.message||err),'var(--red)');
+  }
 }
 function bpmnTogglePalette(which){
   const canvas=document.getElementById('bpmn-'+which+'-canvas');
@@ -11905,24 +11943,9 @@ function bpmnColorize(which){
   const m=bpmnModelers[which];
   if(!m){toast('Editor BPMN não carregado.','var(--amber)');return;}
   try{
-    const modeling=m.get('modeling');
     const reg=m.get('elementRegistry');
     reg.getAll().forEach(el=>{
-      const t=el.type||'';
-      if(t==='label') return;
-      if(t.includes('StartEvent')){
-        modeling.setColor(el,{fill:'#D1FAE5',stroke:'#059669'});
-      } else if(t.includes('EndEvent')){
-        modeling.setColor(el,{fill:'#FEE2E2',stroke:'#DC2626'});
-      } else if(t.includes('Gateway')){
-        modeling.setColor(el,{fill:'#FEF3C7',stroke:'#D97706'});
-      } else if(_bpmnIsActivity(el)){
-        modeling.setColor(el,{fill:'#DBEAFE',stroke:'#2563EB'});
-      } else {
-        // Participantes e raias podem ocupar toda a área visível do diagrama.
-        // Mantê-los brancos evita que o canvas seja preenchido de azul.
-        modeling.setColor(el,{fill:'#FFFFFF',stroke:'#000000'});
-      }
+      _bpmnApplyElementColor(m,el);
     });
     // Texto preto em todos os labels (o bpmn-js não expõe font color via setColor)
     const canvasDiv=document.getElementById('bpmn-'+which+'-canvas');
@@ -17211,7 +17234,7 @@ function _fbSeedCollectionCache(cacheMap, items, withStamp){
 // skipIds: ids com conflito remoto não resolvido (ver _fbConflictedProcIds) —
 // entram em "seen" (para não disparar delete) mas não são comparados/regravados,
 // preservando a versão do servidor até o usuário resolver pelo banner.
-function _fbDiffCollection(ops, repo, items, cacheMap, withStamp, savedBy, skipIds){
+function _fbDiffCollection(ops, cacheUpdates, repo, items, cacheMap, withStamp, savedBy, skipIds){
   const seen = new Set();
   (items||[]).forEach(item => {
     const id = String(item.id);
@@ -17219,27 +17242,27 @@ function _fbDiffCollection(ops, repo, items, cacheMap, withStamp, savedBy, skipI
     if(skipIds?.has(item.id)) return;
     const core = JSON.stringify(_fsClean(withStamp ? _fbStripStamp(item) : item));
     if(cacheMap.get(id) === core) return; // sem mudança — não regrava
-    cacheMap.set(id, core);
     const data = withStamp ? _fsClean({...item, _lastSavedBy: savedBy}) : _fsClean(item);
     ops.push({ref: repo.ref(item.id), data});
+    cacheUpdates.push(()=>cacheMap.set(id, core));
   });
   Array.from(cacheMap.keys()).forEach(id => {
     if(!seen.has(id)){
-      cacheMap.delete(id);
       ops.push({type: 'delete', ref: repo.ref(id)});
+      cacheUpdates.push(()=>cacheMap.delete(id));
     }
   });
 }
 
-function _fbConfigOpIfChanged(ops, key, value){
+function _fbConfigOpIfChanged(ops, cacheUpdates, key, value){
   const json = JSON.stringify(value);
   if(_fbConfigCache.get(key) === json) return;
-  _fbConfigCache.set(key, json);
   ops.push({ref: configRepository.ref(key), data: {data: json}});
+  cacheUpdates.push(()=>_fbConfigCache.set(key, json));
 }
 
 async function fbSaveAll(){
-  if(!fbReady() || !globalThis._fbLoadedAt) return;
+  if(!fbReady() || !globalThis._fbLoadedAt) return false;
   // Foto da geração de sessão local no início do save — se um logout (ou nova
   // sessão) acontecer enquanto este commit ainda está em rede (write lento),
   // o valor vai divergir e o commit é abortado logo abaixo em vez de gravar
@@ -17259,40 +17282,42 @@ async function fbSaveAll(){
     // Monta só as operações de documentos que mudaram desde o último sync
     // (strip undefined — Firestore rejects it — já feito dentro de _fsClean)
     const ops = [];
+    const cacheUpdates = [];
     const _savedBy = usuarioLogado?.email || '';
-    _fbDiffCollection(ops, processosRepository, processos, _fbSyncCache.processos, true, _savedBy, globalThis._fbConflictedProcIds);
-    _fbDiffCollection(ops, kpisRepository, kpis, _fbSyncCache.kpis, true, _savedBy);
+    _fbDiffCollection(ops, cacheUpdates, processosRepository, processos, _fbSyncCache.processos, true, _savedBy, globalThis._fbConflictedProcIds);
+    _fbDiffCollection(ops, cacheUpdates, kpisRepository, kpis, _fbSyncCache.kpis, true, _savedBy);
     // Coleções restritas ao EP — ignoradas se o usuário não tiver permissão
     if(isEP()){
-      _fbDiffCollection(ops, publicacoesRepository, publicacoes, _fbSyncCache.publicacoes, false);
-      _fbDiffCollection(ops, planoRepository, plano, _fbSyncCache.plano, false);
-      _fbDiffCollection(ops, planoMetasRepository, PAT_METAS, _fbSyncCache.plano_metas, false);
+      _fbDiffCollection(ops, cacheUpdates, publicacoesRepository, publicacoes, _fbSyncCache.publicacoes, false);
+      _fbDiffCollection(ops, cacheUpdates, planoRepository, plano, _fbSyncCache.plano, false);
+      _fbDiffCollection(ops, cacheUpdates, planoMetasRepository, PAT_METAS, _fbSyncCache.plano_metas, false);
       // Reconcilia com a cópia do servidor para não apagar usuários adicionados
       // server-side (auto-cadastro via Cloud Function) que ainda não estão na
       // memória local. Faz união por e-mail antes de regravar o documento.
       await _reconciliarUsuariosServidor();
-      if(_arqSaveEnabled) _fbConfigOpIfChanged(ops, 'arquitetura', ARQUITETURA);
-      _fbConfigOpIfChanged(ops, 'usuarios', USUARIOS.map(u=>{
+      if(_arqSaveEnabled) _fbConfigOpIfChanged(ops, cacheUpdates, 'arquitetura', ARQUITETURA);
+      _fbConfigOpIfChanged(ops, cacheUpdates, 'usuarios', USUARIOS.map(u=>{
         if(!u._perfil_original) return u;
         const {_perfil_original,...rest}=u;
         return {...rest,perfil:_perfil_original};
       }));
-      _fbConfigOpIfChanged(ops, 'mapeados', [...mapeadosManual]);
-      _fbConfigOpIfChanged(ops, 'criticos', [...criticosManual]);
+      _fbConfigOpIfChanged(ops, cacheUpdates, 'mapeados', [...mapeadosManual]);
+      _fbConfigOpIfChanged(ops, cacheUpdates, 'criticos', [...criticosManual]);
     }
 
     // Sessão local mudou (logout ou nova sessão única) enquanto montávamos as
     // operações — aborta sem gravar. Evita que um save iniciado antes do
     // logout complete depois, sobrescrevendo dados já atualizados na sessão nova.
-    if(_saveGen !== _fbSessionGen) return;
+    if(_saveGen !== _fbSessionGen) return false;
 
     // Firestore batch limit is 500 — split into chunks of 450
     if(ops.length) await FirestoreRepositories.batchCommit(ops, 450);
+    cacheUpdates.forEach(apply=>apply());
 
     // Confere de novo após o commit de rede (pode ter demorado) — se a sessão
     // local mudou nesse meio-tempo, não atualiza o sentinel/estado: quem
     // assumiu a sessão (fbLoad da nova sessão) já tem sua própria visão do mundo.
-    if(_saveGen !== _fbSessionGen) return;
+    if(_saveGen !== _fbSessionGen) return false;
 
     const now = Date.now();
     globalThis._fbLoadedAt = now;
@@ -17305,8 +17330,10 @@ async function fbSaveAll(){
     if(_cb) _cb.style.display = 'none';
 
     if(ops.length) toast('✓ Dados salvos na nuvem', 'var(--teal)');
+    return true;
   } catch(e){
     console.warn('fbSaveAll error:', e.message); toast('⚠ Erro ao salvar na nuvem: '+e.message,'var(--red)');
+    return false;
   } finally {
     // Retoma os listeners — se chegou update remoto durante o save, re-renderiza.
     // ownSaveGrace: janela de 3s que impede o banner de conflito disparar para o
