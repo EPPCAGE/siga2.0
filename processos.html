@@ -11515,36 +11515,6 @@ function _bpmnIsActivity(el){
   const type=el?.type||'';
   return type.endsWith('Task')||type.includes('Activity')||type==='bpmn:SubProcess';
 }
-const _bpmnResizeTimers=new Map();
-function _bpmnAutoResizeActivity(mod, el){
-  if(!_bpmnIsActivity(el)) return;
-  const text=(el.businessObject?.name||'').trim();
-  if(!text) return;
-  const words=text.split(/\s+/);
-  const longestWord=Math.max(...words.map(word=>word.length));
-  const width=Math.min(280,Math.max(120,longestWord*7+32,Math.min(text.length*7+32,280)));
-  const charsPerLine=Math.max(10,Math.floor((width-32)/7));
-  let lines=1;
-  let lineLength=0;
-  words.forEach(word=>{
-    const nextLength=lineLength?lineLength+1+word.length:word.length;
-    if(lineLength&&nextLength>charsPerLine){lines++;lineLength=word.length;}
-    else lineLength=nextLength;
-  });
-  const height=Math.max(80,lines*18+32);
-  if(Math.abs(el.width-width)<1&&Math.abs(el.height-height)<1) return;
-  mod.get('modeling').resizeShape(el,{x:el.x,y:el.y,width,height});
-}
-function _bpmnScheduleActivityResize(mod, el){
-  if(!_bpmnIsActivity(el)) return;
-  const id=el.id;
-  clearTimeout(_bpmnResizeTimers.get(id));
-  _bpmnResizeTimers.set(id,setTimeout(()=>{
-    _bpmnResizeTimers.delete(id);
-    const current=mod.get('elementRegistry').get(id);
-    if(current) _bpmnAutoResizeActivity(mod,current);
-  },0));
-}
 function _bpmnApplyElementColor(mod, el){
   if(!el||el.type==='label') return;
   const type=el.type||'';
@@ -11788,9 +11758,6 @@ function _bpmnInitModelerEvents(mod, which){
   const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
   _bpmnBindCanvasMousedown(which, canvasEl);
   const eventBus=mod.get('eventBus');
-  eventBus.on('commandStack.element.updateLabel.postExecuted',event=>{
-    _bpmnScheduleActivityResize(mod,event.context.element);
-  });
   eventBus.on('commandStack.shape.create.postExecuted',event=>{
     const el=event.context.shape;
     if(!_bpmnIsActivity(el)) return;

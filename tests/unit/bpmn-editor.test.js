@@ -5,12 +5,6 @@ const html = readFileSync(new URL('../../processos.html', import.meta.url), 'utf
 const css = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 describe('editor BPMN', () => {
-  it('redimensiona atividades somente depois de concluir a edição do rótulo', () => {
-    expect(html).toContain("commandStack.element.updateLabel.postExecuted");
-    expect(html).toContain('_bpmnScheduleActivityResize(mod,event.context.element)');
-    expect(html).not.toContain("commandStack.element.updateLabel.executed'");
-  });
-
   it('aplica automaticamente a cor em novas atividades', () => {
     expect(html).toContain("commandStack.shape.create.postExecuted");
     expect(html).toContain('_bpmnApplyElementColor(mod,current)');
