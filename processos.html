@@ -6255,7 +6255,10 @@ const ACOES = {
             <option ${aud.metodologia==='Mista'?'selected':''}>Mista</option>
           </select>
         </div>
-        <button type="button" class="btn" onclick="salvarPlanejamentoAuditoria()">Salvar planejamento</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn" onclick="salvarPlanejamentoAuditoria()">Salvar planejamento</button>
+          <button type="button" class="btn btn-a" onclick="exportarPlanejamentoAuditoriaPdf()">📄 Gerar planejamento em PDF</button>
+        </div>
       </div>
       <div id="aud2" class="tab-p" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:6px">
@@ -8286,6 +8289,63 @@ function salvarPlanejamentoAuditoria(){
     metodologia:document.getElementById('aud-metod')?.value||''
   });
   fbAutoSave('salvar');toast('Planejamento salvo!','var(--teal)');
+}
+function exportarPlanejamentoAuditoriaPdf(){
+  const p=curProc;
+  if(!p){toast('Processo não encontrado.','var(--red)');return;}
+  const aud=p.auditoria||{};
+  const domValue=(id,fallback='')=>document.getElementById(id)?.value?.trim()||fallback||'';
+  const escapeHtml=value=>String(value||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+  const text=value=>escapeHtml(value||'Não informado').replaceAll(/\r?\n/g,'<br>');
+  const date=value=>value?escapeHtml(value.split('-').reverse().join('/')):'Não informada';
+  const planejamento={
+    data_inicio:domValue('aud-ini',aud.data_inicio),
+    data_fim:domValue('aud-fim',aud.data_fim),
+    objetivo:domValue('aud-obj',aud.objetivo),
+    escopo:domValue('aud-escopo',aud.escopo),
+    equipe:domValue('aud-equipe',aud.equipe),
+    criterios:domValue('aud-crit',aud.criterios),
+    metodologia:domValue('aud-metod',aud.metodologia)
+  };
+  const questoes=(aud.questoes||[]).map((q,index)=>({
+    ...q,
+    resposta:document.getElementById('aud-q-resposta-'+index)?.value?.trim()||q.resposta||''
+  }));
+  const questoesHtml=questoes.length?questoes.map((q,index)=>`
+    <section class="question">
+      <div class="question-title"><span>Q${index+1}</span>${text(q.questao||'Questão sem texto')}</div>
+      ${q.criterio?`<div class="meta"><strong>Critério relacionado:</strong> ${text(q.criterio)}</div>`:''}
+      ${q.responsavel?`<div class="meta"><strong>Responsável:</strong> ${text(q.responsavel)}</div>`:''}
+      <div class="answer"><strong>Resposta</strong><div class="answer-text ${q.resposta?'':'empty'}">${q.resposta?text(q.resposta):'Não respondida'}</div></div>
+    </section>`).join(''):'<p class="empty-block">Nenhuma questão cadastrada.</p>';
+  const generatedAt=new Date().toLocaleString('pt-BR');
+  const orgName=escapeHtml(typeof ORG_CONFIG!=='undefined'&&ORG_CONFIG?.name||'');
+  const fullHtml=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+    <title>Planejamento da análise de aderência — ${escapeHtml(p.nome||'Processo')}</title>
+    <style>
+      *{box-sizing:border-box}body{font-family:"Segoe UI",Arial,sans-serif;color:#1f2937;margin:0;padding:28px 34px;font-size:11.5px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      header{background:#1e3a5f;color:#fff;padding:20px 22px;border-radius:8px;margin-bottom:20px}h1{font-size:19px;margin:0 0 4px}header p{margin:0;color:#dbeafe}
+      h2{font-size:14px;color:#1e3a5f;border-bottom:2px solid #0d9488;padding-bottom:5px;margin:22px 0 12px}.dates{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{border:1px solid #dbe2ea;border-radius:6px;padding:10px 12px;margin-bottom:9px;page-break-inside:avoid}.label{font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}.value{white-space:normal}
+      .question{border:1px solid #dbe2ea;border-radius:6px;margin-bottom:10px;overflow:hidden;page-break-inside:avoid}.question-title{background:#eff6ff;padding:9px 11px;font-weight:600}.question-title span{display:inline-block;background:#2563eb;color:#fff;border-radius:4px;padding:1px 6px;margin-right:7px}.meta{padding:5px 11px;color:#64748b;border-top:1px solid #eef2f7;font-size:10.5px}.answer{padding:9px 11px;border-top:1px solid #dbe2ea}.answer-text{margin-top:4px;white-space:normal}.empty{color:#9ca3af;font-style:italic}.empty-block{padding:16px;background:#f8fafc;color:#64748b;border-radius:6px}.footer{margin-top:22px;padding-top:8px;border-top:1px solid #dbe2ea;color:#94a3b8;text-align:right;font-size:9px}.no-print{display:flex;justify-content:flex-end;margin-bottom:14px}.print-btn{background:#1e3a5f;color:#fff;border:0;border-radius:5px;padding:7px 14px;cursor:pointer}
+      @page{size:A4 portrait;margin:18mm 16mm 20mm}@media print{body{padding:0}.no-print{display:none}}
+    </style></head><body>
+    <div class="no-print"><button class="print-btn" onclick="window.print()">Imprimir / Salvar PDF</button></div>
+    <header><h1>Relatório de Planejamento de Trabalho</h1><p>Análise de aderência — ${escapeHtml(p.nome||'Processo não informado')}</p></header>
+    <h2>Planejamento</h2>
+    <div class="dates"><div class="field"><div class="label">Data de início</div><div class="value">${date(planejamento.data_inicio)}</div></div><div class="field"><div class="label">Conclusão prevista</div><div class="value">${date(planejamento.data_fim)}</div></div></div>
+    <div class="field"><div class="label">Objetivo</div><div class="value">${text(planejamento.objetivo)}</div></div>
+    <div class="field"><div class="label">Escopo</div><div class="value">${text(planejamento.escopo)}</div></div>
+    <div class="field"><div class="label">Equipe</div><div class="value">${text(planejamento.equipe)}</div></div>
+    <div class="field"><div class="label">Critérios</div><div class="value">${text(planejamento.criterios)}</div></div>
+    <div class="field"><div class="label">Metodologia</div><div class="value">${text(planejamento.metodologia)}</div></div>
+    <h2>Questões e respostas</h2>${questoesHtml}
+    <div class="footer">${orgName}${orgName?' · ':''}Gerado em ${escapeHtml(generatedAt)}</div>
+    </body></html>`;
+  const reportWindow=globalThis.open('','_blank');
+  if(!reportWindow){toast('Pop-up bloqueado. Permita pop-ups para gerar o PDF.','var(--amber)');return;}
+  reportWindow.document.write(fullHtml);
+  reportWindow.document.close();
+  setTimeout(()=>reportWindow.print(),700);
 }
 async function salvarQuestaoAuditoria(){
   const p=curProc;if(!p)return;
