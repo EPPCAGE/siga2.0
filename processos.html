@@ -3771,22 +3771,7 @@ function _rAudRestoreRelatorio(p){
     const conf = aud.conformidade || '';
     const node = renderRelatorioAuditoria(aud.relatorio_json, conf, p, aud);
     el.replaceChildren(node);
-    _getFluxogramaAsIsPng(p).then(pngUrl => {
-      if(!pngUrl) return;
-      const report = el.querySelector('.aud-report');
-      if(!report) return;
-      const fluxSec = document.createElement('div');
-      fluxSec.className = 'aud-rep-section';
-      const title = document.createElement('div');
-      title.className = 'aud-rep-stitle';
-      title.textContent = 'Fluxograma do Processo';
-      const img = document.createElement('img');
-      img.src = pngUrl;
-      img.alt = 'Fluxograma AS IS';
-      img.style.cssText = 'width:100%;max-width:100%;border-radius:6px;margin-top:.5rem;border:1px solid var(--bdr)';
-      fluxSec.append(title, img);
-      report.append(fluxSec);
-    }).catch(()=>{});
+    _anexarFluxogramaRelatorio(p, el).catch(()=>{});
   } catch(e) {
     console.warn('_rAudRestoreRelatorio:', e.message);
   }
@@ -8067,24 +8052,9 @@ async function iaGerarRelatorioAuditoria(){
       const conf = document.getElementById('aud-conf')?.value || aud.conformidade || '';
       const _node = renderRelatorioAuditoria(json, conf, p, aud);
       el.replaceChildren(_node);
-      // Anexa fluxograma AS IS ao final do relatório (só na sessão — não salvo no Firestore
-      // pois imagem base64 ultrapassa o limite de 1 MB do documento)
-      _getFluxogramaAsIsPng(p).then(pngUrl => {
-        if(!pngUrl) return;
-        const report = el.querySelector('.aud-report');
-        if(!report) return;
-        const fluxSec = document.createElement('div');
-        fluxSec.className = 'aud-rep-section';
-        const title = document.createElement('div');
-        title.className = 'aud-rep-stitle';
-        title.textContent = 'Fluxograma do Processo';
-        const img = document.createElement('img');
-        img.src = pngUrl;
-        img.alt = 'Fluxograma AS IS';
-        img.style.cssText = 'width:100%;max-width:100%;border-radius:6px;margin-top:.5rem;border:1px solid var(--bdr)';
-        fluxSec.append(title, img);
-        report.append(fluxSec);
-      }).catch(()=>{});
+      // A imagem é anexada apenas à sessão (base64 pode ultrapassar 1 MB no Firestore).
+      // Sem desenho interno, usa os fluxos vinculados no módulo Publicações.
+      _anexarFluxogramaRelatorio(p, el).catch(()=>{});
       // Salva o JSON da IA (pequeno) em vez do HTML completo — evita estourar o limite de 1 MB do Firestore
       p.auditoria.relatorio_json = json;
       delete p.auditoria.relatorio_html;
@@ -10898,6 +10868,69 @@ async function _getFluxogramaAsIsPng(p){
     try{const{xml}=await m.saveXML({format:true});if(xml)return renderBpmnToPng(xml);}catch{}
   }
   return null;
+}
+
+function _getFluxogramasPublicados(p){
+  if(!p) return [];
+  const mesmoId=(a,b)=>a!=null&&b!=null&&String(a)===String(b);
+  return (publicacoes||[])
+    .filter(pub=>{
+      const vinculada=(pub.proc_ids||[]).some(id=>mesmoId(id,p.id))
+        ||(pub.arq_ids||[]).some(id=>mesmoId(id,p.arq_id));
+      return vinculada&&(pub.categoria==='Fluxos'||pub.categoria==='POPs');
+    })
+    .sort((a,b)=>(a.categoria==='Fluxos'?-1:1)-(b.categoria==='Fluxos'?-1:1))
+    .flatMap(pub=>{
+      const imagens=_pubGetBpmnUrls(pub).map(item=>({url:item.url,label:item.label||pub.titulo}));
+      // Publicações antigas de fluxos armazenavam a imagem enviada em thumb_url.
+      // `url` é o link genérico do documento e pode apontar para a página inicial,
+      // portanto não deve ser tratado como se fosse a imagem do fluxograma.
+      if(pub.categoria==='Fluxos'&&pub.thumb_url){
+        imagens.push({url:pub.thumb_url,label:pub.titulo});
+      }
+      return imagens;
+    })
+    .filter((item,index,all)=>safeUrl(item.url)&&all.findIndex(x=>x.url===item.url)===index);
+}
+
+async function _anexarFluxogramaRelatorio(p, container){
+  const report=container?.querySelector('.aud-report');
+  if(!report||report.querySelector('[data-aud-fluxograma]')) return;
+  const pngUrl=await _getFluxogramaAsIsPng(p);
+  const fluxos=pngUrl?[{url:pngUrl,label:'AS IS'}]:_getFluxogramasPublicados(p);
+  if(!fluxos.length) return;
+
+  const fluxSec=document.createElement('div');
+  fluxSec.className='aud-rep-section';
+  fluxSec.dataset.audFluxograma='true';
+  const title=document.createElement('div');
+  title.className='aud-rep-stitle';
+  title.textContent='Fluxograma do Processo';
+  fluxSec.append(title);
+  fluxos.forEach((fluxo,index)=>{
+    if(fluxos.length>1||fluxo.label){
+      const label=document.createElement('div');
+      label.textContent=fluxo.label||`Fluxograma ${index+1}`;
+      label.style.cssText='font-size:11px;font-weight:600;color:var(--ink3);margin-top:.65rem';
+      fluxSec.append(label);
+    }
+    const img=document.createElement('img');
+    img.src=safeUrl(fluxo.url);
+    img.alt='Fluxograma do processo'+(fluxo.label?' — '+fluxo.label:'');
+    img.style.cssText='width:100%;max-width:100%;border-radius:6px;margin-top:.5rem;border:1px solid var(--bdr)';
+    img.onerror=()=>{
+      const link=document.createElement('a');
+      link.href=safeUrl(fluxo.url);
+      link.target='_blank';
+      link.rel='noopener noreferrer';
+      link.textContent='Abrir arquivo do fluxograma'+(fluxo.label?' — '+fluxo.label:'');
+      link.className='btn';
+      link.style.cssText='margin-top:.5rem;font-size:11px';
+      img.replaceWith(link);
+    };
+    fluxSec.append(img);
+  });
+  report.append(fluxSec);
 }
 
 async function _getFluxogramaToBePng(p){
@@ -14930,7 +14963,7 @@ function rPub(){
           <div class="pub-card-actions">
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
             ${p.categoria==='POPs'&&!p.url&&((p.proc_ids||[]).length||(p.arq_ids||[]).length)?`<button type="button" class="btn btn-a" style="font-size:10px;padding:2px 8px" onclick="_pubGerarPopPdfFromPub(${p.id})">⬇ PDF do POP</button>`:''}
-            ${p.categoria==='POPs'?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${_lbl}</a>`:''}).join(''):''}
+            ${['POPs','Fluxos'].includes(p.categoria)?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${_lbl}</a>`:''}).join(''):''}
 
             ${isEP()?`<button type="button" class="btn pub-action-edit" style="font-size:10px;padding:2px 8px" onclick="editarPub(${p.id})">Editar</button>
             <button type="button" class="btn pub-action-delete" style="font-size:10px;padding:2px 8px" onclick="deletarPub(${p.id})">Excluir</button>`:''}
@@ -14979,7 +15012,7 @@ function _pubCatChange(cat){
   const wrap = document.getElementById('pub-procs-wrap');
   if(wrap) wrap.style.display = (isPop||isFluxo) ? '' : 'none';
   const bwrap = document.getElementById('pub-bpmn-wrap');
-  if(bwrap) bwrap.style.display = isPop ? '' : 'none';
+  if(bwrap) bwrap.style.display = (isPop||isFluxo) ? '' : 'none';
 }
 function abrirModalPub(){
   if(!isEP()){toast('Ação restrita ao '+ORG_CONFIG.supportTeamLabel+'.','var(--amber)');return;}

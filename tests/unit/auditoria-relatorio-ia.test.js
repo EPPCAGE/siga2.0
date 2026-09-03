@@ -24,4 +24,12 @@ describe('geração do relatório de análise de aderência com IA', () => {
   it('não inclui o token de autenticação no limite do payload da função', () => {
     expect(functions).toContain('JSON.stringify(req.body?.payload ?? "").length > MAX_PAYLOAD_BYTES');
   });
+
+  it('usa fluxogramas vinculados em Publicações quando não há desenho interno', () => {
+    expect(html).toContain("pngUrl?[{url:pngUrl,label:'AS IS'}]:_getFluxogramasPublicados(p)");
+    expect(html).toContain("pub.categoria==='Fluxos'||pub.categoria==='POPs'");
+    expect(html).toContain("imagens.push({url:pub.thumb_url,label:pub.titulo})");
+    expect(html).not.toContain("imagens.push({url:pub.url,label:pub.titulo})");
+    expect(source).toContain('_anexarFluxogramaRelatorio(p, el)');
+  });
 });
