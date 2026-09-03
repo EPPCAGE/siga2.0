@@ -28,6 +28,8 @@ describe('geração do relatório de análise de aderência com IA', () => {
   it('usa fluxogramas vinculados em Publicações quando não há desenho interno', () => {
     expect(html).toContain("pngUrl?[{url:pngUrl,label:'AS IS'}]:_getFluxogramasPublicados(p)");
     expect(html).toContain("pub.categoria==='Fluxos'||pub.categoria==='POPs'");
+    expect(html).toContain("if(!imagens.length&&pub.categoria==='Fluxos'&&pub.thumb_url)");
+    expect(html).not.toContain("if(!imagens.length&&pub.categoria==='Fluxos'&&pub.url)");
     expect(source).toContain('_anexarFluxogramaRelatorio(p, el)');
   });
 });

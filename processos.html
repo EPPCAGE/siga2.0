@@ -10882,7 +10882,12 @@ function _getFluxogramasPublicados(p){
     .sort((a,b)=>(a.categoria==='Fluxos'?-1:1)-(b.categoria==='Fluxos'?-1:1))
     .flatMap(pub=>{
       const imagens=_pubGetBpmnUrls(pub).map(item=>({url:item.url,label:item.label||pub.titulo}));
-      if(pub.categoria==='Fluxos'&&pub.url) imagens.push({url:pub.url,label:pub.titulo});
+      // Publicações de Fluxos anteriores ao campo `bpmn_urls` guardavam a
+      // imagem vinculada em `thumb_url`. `pub.url` é o link do documento/site
+      // e nunca deve ser tratado como imagem do relatório.
+      if(!imagens.length&&pub.categoria==='Fluxos'&&pub.thumb_url){
+        imagens.push({url:pub.thumb_url,label:pub.titulo});
+      }
       return imagens;
     })
     .filter((item,index,all)=>safeUrl(item.url)&&all.findIndex(x=>x.url===item.url)===index);
