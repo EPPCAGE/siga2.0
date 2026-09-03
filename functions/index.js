@@ -466,7 +466,9 @@ exports.ai = onRequest(
     }
 
     // Validate payload size
-    if (JSON.stringify(req.body).length > MAX_PAYLOAD_BYTES) {
+    // O token de autenticação não faz parte do conteúdo enviado à IA e pode ter
+    // alguns KB. Contabilizá-lo fazia relatórios válidos ultrapassarem o limite.
+    if (JSON.stringify(req.body?.payload ?? "").length > MAX_PAYLOAD_BYTES) {
       res.status(413).json({ error: "Payload muito grande" });
       return;
     }
