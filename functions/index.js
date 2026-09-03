@@ -448,7 +448,16 @@ exports.registerUser = onRequest(async (req, res) => {
 // ai — proxy autenticado para Azure OpenAI.
 // ---------------------------------------------------------------------------
 exports.ai = onRequest(
-  { secrets: [AZURE_KEY, AZURE_ENDPOINT, AZURE_DEPLOY] },
+  {
+    secrets: [AZURE_KEY, AZURE_ENDPOINT, AZURE_DEPLOY],
+    // O preflight OPTIONS não leva o token Firebase. A função precisa ser
+    // publicamente invocável no Cloud Run; a autenticação da operação continua
+    // sendo exigida e validada por verifyToken logo abaixo.
+    invoker: "public",
+    // Faz o runtime v2 responder o preflight antes de entregar a requisição ao
+    // handler, inclusive quando a infraestrutura rejeitaria a chamada.
+    cors: Array.from(ALLOWED_ORIGINS),
+  },
   async (req, res) => {
     setCorsHeaders(req, res);
 
@@ -667,4 +676,3 @@ exports.migrateAllUserClaims = onCall(async (request) => {
     );
   }
 });
-
