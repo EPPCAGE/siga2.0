@@ -10882,7 +10882,10 @@ function _getFluxogramasPublicados(p){
     .sort((a,b)=>(a.categoria==='Fluxos'?-1:1)-(b.categoria==='Fluxos'?-1:1))
     .flatMap(pub=>{
       const imagens=_pubGetBpmnUrls(pub).map(item=>({url:item.url,label:item.label||pub.titulo}));
-      if(pub.categoria==='Fluxos'&&pub.url) imagens.push({url:pub.url,label:pub.titulo});
+      // Em publicações de Fluxos, `url` aponta para a página da publicação e
+      // `bpmn_urls`/`bpmn_url` contém a imagem que deve aparecer no relatório.
+      // Mantém `url` apenas como fallback para registros legados sem imagem.
+      if(!imagens.length&&pub.categoria==='Fluxos'&&pub.url) imagens.push({url:pub.url,label:pub.titulo});
       return imagens;
     })
     .filter((item,index,all)=>safeUrl(item.url)&&all.findIndex(x=>x.url===item.url)===index);
