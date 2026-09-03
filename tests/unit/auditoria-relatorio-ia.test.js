@@ -25,10 +25,10 @@ describe('geração do relatório de análise de aderência com IA', () => {
     expect(functions).toContain('JSON.stringify(req.body?.payload ?? "").length > MAX_PAYLOAD_BYTES');
   });
 
-  it('usa fluxogramas vinculados em Publicações quando não há desenho interno', () => {
-    expect(html).toContain("pngUrl?[{url:pngUrl,label:'AS IS'}]:_getFluxogramasPublicados(p)");
-    expect(html).toContain("pub.categoria==='Fluxos'||pub.categoria==='POPs'");
-    expect(html).toContain("if(!imagens.length&&pub.categoria==='Fluxos'&&pub.url)");
+  it('usa apenas o fluxograma construído no módulo de Mapeamento', () => {
+    expect(html).not.toContain('function _getFluxogramasPublicados');
+    expect(html).toContain('const pngUrl=await _getFluxogramaAsIsPng(p)');
+    expect(html).toContain('if(!pngUrl) return');
     expect(source).toContain('_anexarFluxogramaRelatorio(p, el)');
   });
 });
