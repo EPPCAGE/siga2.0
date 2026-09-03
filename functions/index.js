@@ -448,7 +448,17 @@ exports.registerUser = onRequest(async (req, res) => {
 // ai — proxy autenticado para Azure OpenAI.
 // ---------------------------------------------------------------------------
 exports.ai = onRequest(
-  { secrets: [AZURE_KEY, AZURE_ENDPOINT, AZURE_DEPLOY] },
+  {
+    secrets: [AZURE_KEY, AZURE_ENDPOINT, AZURE_DEPLOY],
+    // O preflight OPTIONS não leva o token Firebase. A função precisa ser
+    // publicamente invocável no Cloud Run; a autenticação da operação continua
+    // sendo exigida e validada por verifyToken logo abaixo.
+    invoker: "public",
+    // Faz o runtime v2 responder o preflight antes de entregar a requisição ao
+    // handler. Isso evita que erros da infraestrutura cheguem ao navegador sem
+    // o Access-Control-Allow-Origin.
+    cors: Array.from(ALLOWED_ORIGINS),
+  },
   async (req, res) => {
     setCorsHeaders(req, res);
 
@@ -466,7 +476,9 @@ exports.ai = onRequest(
     }
 
     // Validate payload size
-    if (JSON.stringify(req.body).length > MAX_PAYLOAD_BYTES) {
+    // O token de autenticação não faz parte do conteúdo enviado à IA e pode ter
+    // alguns KB. Contabilizá-lo fazia relatórios válidos ultrapassarem o limite.
+    if (JSON.stringify(req.body?.payload ?? "").length > MAX_PAYLOAD_BYTES) {
       res.status(413).json({ error: "Payload muito grande" });
       return;
     }
@@ -665,4 +677,3 @@ exports.migrateAllUserClaims = onCall(async (request) => {
     );
   }
 });
-
