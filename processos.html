@@ -11913,7 +11913,47 @@ function _bpmnBindCanvasMousedown(which, canvasEl){
     _bpmnActivateKeyboard(which);
   },true);
 }
+function _bpmnFitActivityText(mod, shape){
+  if(!_bpmnIsActivity(shape) || shape.labelTarget || shape.di?.isExpanded) return;
+  const gfx=mod.get('elementRegistry').getGraphics(shape);
+  if(!gfx) return;
+  // Atualiza o rótulo antes de medir: postExecuted ainda precede elements.changed.
+  mod.get('graphicsFactory').update('shape',shape,gfx);
+  const label=gfx.querySelector('.djs-visual > .djs-label');
+  if(!label) return;
+  const textHeight=label.getBBox().height;
+  if(!Number.isFinite(textHeight) || (shape.businessObject?.name && !textHeight)) return;
+  // Margem para o texto centralizado e para os marcadores das atividades.
+  const bo=shape.businessObject;
+  const hasMarker=bo?.loopCharacteristics || bo?.isForCompensation || shape.type==='bpmn:SubProcess';
+  const height=Math.max(80,Math.ceil(textHeight)+(hasMarker?40:20));
+  if(Math.abs(height-shape.height)<1) return;
+  mod.get('modeling').resizeShape(shape,{
+    x:shape.x, y:shape.y+(shape.height-height)/2,
+    width:shape.width, height
+  });
+}
+function _bpmnInitActivityTextSizing(mod){
+  const eventBus=mod.get('eventBus');
+  let resizing=false;
+  const fit=shape=>{
+    if(resizing || !shape) return;
+    resizing=true;
+    try{_bpmnFitActivityText(mod,shape);}finally{resizing=false;}
+  };
+  // Comandos aninhados mantêm texto e altura juntos no desfazer/refazer.
+  eventBus.on([
+    'commandStack.shape.create.postExecuted',
+    'commandStack.element.updateLabel.postExecuted',
+    'commandStack.element.updateProperties.postExecuted',
+    'commandStack.shape.resize.postExecuted'
+  ],event=>fit(event.context.shape || event.context.element));
+  eventBus.on('import.done',event=>{
+    if(!event.error) mod.get('elementRegistry').getAll().forEach(fit);
+  });
+}
 function _bpmnInitModelerEvents(mod, which){
+  _bpmnInitActivityTextSizing(mod);
   const canvasEl=document.getElementById('bpmn-'+which+'-canvas');
   _bpmnBindCanvasMousedown(which, canvasEl);
   const eventBus=mod.get('eventBus');
@@ -12051,13 +12091,13 @@ function bpmnImport(which){
   const xml=ta.value.trim();
   if(!xml){ta.style.display='none';return;}
   const m=bpmnModelers[which];if(!m)return;
-  m.importXML(xml).then(()=>{
+  m.importXML(xml).then(async()=>{
     m.get('canvas').zoom('fit-viewport');
     ta.style.display='none';ta.value='';
     // Persiste imediatamente — evita perda se o usuário sair sem clicar Salvar
     const key=which==='asis'?'bpmnAsIs':'bpmnToBe';
     if(!curProc.mod)curProc.mod={asIs:'',toBe:'',bpmnAsIs:null,bpmnToBe:null,etapas_proc:[],obs:''};
-    curProc.mod[key]=xml;
+    curProc.mod[key]=(await m.saveXML({format:true})).xml;
     bpmnDirty[which]=false;
     const lbl=document.getElementById('bpmn-'+which+'-dirty');if(lbl)lbl.style.display='none';
     fbAutoSave('bpmnImport');
