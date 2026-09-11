@@ -6431,6 +6431,7 @@ function rAcaoRetro(){
   document.querySelectorAll('#tab-acao .card .btn-row').forEach(r=>r.style.display='none');
   if(etId==='esboco_asis') setTimeout(()=>initBpmnMod('asis',p),120);
   if(etId==='esboco_tobe'||etId==='det_valid_tobe') setTimeout(()=>initBpmnMod('tobe',p),120);
+  if(etId==='auditoria') _rAudRestoreRelatorio(p);
 }
 function _publicacaoCard(titulo, descricao, botaoHtml){
   return `<div style="margin-top:.6rem;padding:.8rem 1rem;background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -6853,6 +6854,7 @@ const _BPMN_INIT = {
   pop:            ()     => { setTimeout(injectIaPop,100); },
 };
 function _rAcaoInitBpmn(p, minhaTarefa){
+  if(p.etapa==='auditoria') _rAudRestoreRelatorio(p);
   _BPMN_INIT[p.etapa]?.(p, minhaTarefa);
 }
 // Q019: Checklist de pendências por etapa em tempo real
@@ -8058,6 +8060,7 @@ async function iaGerarRelatorioAuditoria(){
       _anexarFluxogramaRelatorio(p, el).catch(()=>{});
       // Salva o JSON da IA (pequeno) em vez do HTML completo — evita estourar o limite de 1 MB do Firestore
       p.auditoria.relatorio_json = json;
+      p.auditoria.conformidade = conf;
       delete p.auditoria.relatorio_html;
       fbAutoSave('salvar');
     } catch(e) {
@@ -8067,6 +8070,9 @@ async function iaGerarRelatorioAuditoria(){
       const _body=document.createElement('div'); _body.style.cssText='white-space:pre-wrap;font-size:12px'; _body.textContent=result;
       _wrap.append(_lbl,_body);
       el.replaceChildren(_wrap);
+      p.auditoria.relatorio_html = _wrap.outerHTML;
+      delete p.auditoria.relatorio_json;
+      fbAutoSave('salvar');
     }
   } catch(e) {
     console.error('iaGerarRelatorioAuditoria:', e);
@@ -8096,8 +8102,6 @@ function _fixTermoAnalise(s){
     .replace(/\bauditor\b/g,'responsável pela análise');
 }
 function renderRelatorioAuditoria(json, conf, p, aud){
-  const nc  = (aud.achados_list||[]).filter(a=>a.tipo==='Não conformidade').length;
-  const obs = (aud.achados_list||[]).filter(a=>a.tipo==='Observação'||a.tipo==='Ponto de melhoria').length;
   const confOk   = conf==='Conforme';
   const confWarn = conf==='Conforme com ressalvas';
   let confColor, confBg;
@@ -8141,21 +8145,6 @@ function renderRelatorioAuditoria(json, conf, p, aud){
   badgeWrap.append(mk('div',null,'Conformidade geral','font-size:10px;color:rgba(255,255,255,.7);margin-bottom:5px'), bdg);
   hR.append(logoWrap, badgeWrap);
   hdr.append(hL, hR);
-
-  // ── Stats
-  const stats = mk('div','aud-rep-stats');
-  for(const [n,l,color] of [
-    [(aud.questoes||[]).length,'Questões',null],
-    [nc,'Não conformidades','#dc2626'],
-    [obs,'Observações','#d97706'],
-    [(aud.achados_list||[]).filter(a=>a.acao_corretiva).length,'Ações corretivas',null]
-  ]){
-    const sd = mk('div','aud-stat');
-    const sn = mk('div','aud-stat-n',String(n));
-    if(color) sn.style.color = color;
-    sd.append(sn, mk('div','aud-stat-l',l));
-    stats.append(sd);
-  }
 
   // ── Sumário
   const sumSec = sec('Sumário Executivo');
@@ -8244,7 +8233,7 @@ function renderRelatorioAuditoria(json, conf, p, aud){
   const conclSec = sec('Conclusão');
   conclSec.append(mk('p','aud-rep-p', _fixTermoAnalise(json.conclusao)));
 
-  root.append(hdr, stats, sumSec);
+  root.append(hdr, sumSec);
   if(prAchSec) root.append(prAchSec);
   if(achSec)   root.append(achSec);
   if(recSec)   root.append(recSec);
@@ -9005,7 +8994,7 @@ async function excluirAcaoAuditoria(idx){
     await fbSaveAll();
   });
 }
-function salvarRelatorioAuditoria(concluir){
+async function salvarRelatorioAuditoria(concluir){
   const p=curProc;if(!p)return;
   if(!p.auditoria)p.auditoria={};
   const conf = document.getElementById('aud-conf')?.value || p.auditoria.conformidade || '';
@@ -9019,7 +9008,11 @@ function salvarRelatorioAuditoria(concluir){
     concluida:concluir
   });
   if(concluir)push(p,'auditoria','EP','Análise de Aderência concluída. Conformidade: '+conf);
-  fbAutoSave('salvar');toast(concluir?'Análise de Aderência concluída!':'Relatório salvo!','var(--teal)');
+  clearTimeout(globalThis._fbSaveTimer);
+  const salvo = await fbSaveAll();
+  if(!salvo){toast('Não foi possível salvar o relatório. Verifique sua conexão e tente novamente.','var(--red)');return;}
+  _rAudRestoreRelatorio(p);
+  toast(concluir?'Análise de Aderência concluída!':'Relatório salvo!','var(--teal)');
   if(concluir){updCounts();rDetalhe();}
 }
 function exportarAuditoriaRelPdf(){
