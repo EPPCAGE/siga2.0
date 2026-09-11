@@ -2007,6 +2007,18 @@ function projQuarterOptionsHtml() {
   }
   return html;
 }
+function projGovQuarterOptionsHtml() {
+  const selected = Math.floor(new Date().getMonth() / 3) + 1;
+  return [1,2,3,4].map(q => `<option value="${q}" ${q===selected?'selected':''}>${q}º trimestre</option>`).join('');
+}
+function projGovYearOptionsHtml() {
+  const currentYear = new Date().getFullYear();
+  let html = '';
+  for(let year=2026; year<=2036; year++) {
+    html += `<option value="${year}" ${year===currentYear?'selected':''}>${year}</option>`;
+  }
+  return html;
+}
 function projExportReunioesRealizadasPDF() {
   projLoad();
   const quarterValue = document.getElementById('greuniao-rel-tri')?.value || projQuarterValue();
@@ -6041,9 +6053,10 @@ function projGovRenderReunioes() {
   const cards = PROJ_GOVERNANCA.reunioes.slice().sort((a,b) => (b.data || '').localeCompare(a.data || '')).map(projGovMeetingCard).join('');
   projSetHtml(el, [
     '<div class="proj-form-section ep-only"><div class="proj-form-section-title">Registrar reunião trimestral do CGP</div>',
-    '<div class="proj-g3"><div class="proj-fg"><label class="proj-fl" for="gov-reu-data">Data<span>*</span></label><input type="date" class="proj-fi" id="gov-reu-data"></div>',
-    '<div class="proj-fg"><label class="proj-fl" for="gov-reu-trimestre">Trimestre<span>*</span></label><select class="proj-fi" id="gov-reu-trimestre">', projQuarterOptionsHtml(), '</select></div>',
+    '<div class="proj-g2"><div class="proj-fg"><label class="proj-fl" for="gov-reu-data">Data<span>*</span></label><input type="date" class="proj-fi" id="gov-reu-data"></div>',
     '<div class="proj-fg"><label class="proj-fl" for="gov-reu-local">Local ou link</label><input class="proj-fi" id="gov-reu-local"></div></div>',
+    '<div class="proj-g2"><div class="proj-fg"><label class="proj-fl" for="gov-reu-trimestre">Trimestre<span>*</span></label><select class="proj-fi" id="gov-reu-trimestre">', projGovQuarterOptionsHtml(), '</select></div>',
+    '<div class="proj-fg"><label class="proj-fl" for="gov-reu-ano">Ano<span>*</span></label><select class="proj-fi" id="gov-reu-ano">', projGovYearOptionsHtml(), '</select></div></div>',
     '<div class="proj-fg"><label class="proj-fl" for="gov-reu-participantes">Participantes<span>*</span></label><textarea class="proj-fi" id="gov-reu-participantes" rows="2" placeholder="Um nome por linha ou separados por vírgula"></textarea></div>',
     '<div class="proj-fg"><label class="proj-fl" for="gov-reu-pauta">Pauta e informações apresentadas</label><textarea class="proj-fi" id="gov-reu-pauta" rows="3" placeholder="Andamento do portfólio, dados e informações de interesse do Comitê"></textarea></div>',
     '<button type="button" class="proj-btn primary" onclick="projGovAddMeeting()">Criar reunião</button></div>',
@@ -6060,7 +6073,7 @@ function projGovMeetingCard(meeting) {
   }).join('');
   const id = projEsc(meeting.id);
   return [
-    '<article class="proj-card proj-gov-meeting"><div class="proj-gov-meeting-head"><div><div class="proj-card-t">Reunião do CGP — ', projEsc(meeting.trimestre), '</div><div class="proj-gov-muted">', projFormatDate(meeting.data), ' · ', projEsc(meeting.local || 'Local não informado'), '</div></div>',
+    '<article class="proj-card proj-gov-meeting"><div class="proj-gov-meeting-head"><div><div class="proj-card-t">Reunião do CGP — ', projEsc(projQuarterLabel(meeting.trimestre)), '</div><div class="proj-gov-muted">', projFormatDate(meeting.data), ' · ', projEsc(meeting.local || 'Local não informado'), '</div></div>',
     '<button type="button" class="proj-btn" onclick="projGovGenerateMinutes(\'', id, '\')">Gerar ata</button></div>',
     '<div class="proj-g2"><div><span class="proj-fl">Participantes</span><div class="proj-gov-pre">', projEsc(meeting.participantes), '</div></div><div><span class="proj-fl">Pauta e informações</span><div class="proj-gov-pre">', projEsc(meeting.pauta || 'Não informada'), '</div></div></div>',
     '<div class="proj-form-section-title">Deliberações</div><ol class="proj-gov-decisions">', decisions || '<li>Nenhuma deliberação registrada.</li>', '</ol>',
@@ -6076,8 +6089,10 @@ function projGovAddMeeting() {
   if(!projEnsureWriteAll()) return;
   const data = projGovValue('gov-reu-data');
   const participantes = projGovValue('gov-reu-participantes');
-  if(!data || !participantes) { projToast('Informe data e participantes.', '#d97706'); return; }
-  PROJ_GOVERNANCA.reunioes.push({ id:projGovNewId('reu'), data, trimestre:projGovValue('gov-reu-trimestre'), local:projGovValue('gov-reu-local'), participantes, pauta:projGovValue('gov-reu-pauta'), deliberacoes:[] });
+  const trimestre = projGovValue('gov-reu-trimestre');
+  const ano = projGovValue('gov-reu-ano');
+  if(!data || !participantes || !trimestre || !ano) { projToast('Informe data, trimestre, ano e participantes.', '#d97706'); return; }
+  PROJ_GOVERNANCA.reunioes.push({ id:projGovNewId('reu'), data, trimestre:ano + '-T' + trimestre, local:projGovValue('gov-reu-local'), participantes, pauta:projGovValue('gov-reu-pauta'), deliberacoes:[] });
   projGovSave(); projRenderGovernancaPage(); projGovShowPanel('reunioes', document.querySelector('.proj-gov-tabs button:nth-child(2)')); projToast('Reunião registrada.');
 }
 
@@ -6104,7 +6119,7 @@ function projGovMinutesHtml(meeting) {
     return '<h3>' + (index + 1) + '. ' + projEsc(subject || 'Portfólio estratégico') + '</h3><p><b>Deliberação:</b> ' + projEsc(projGovDecisionLabel(d.decisao)) + '</p><p><b>Fundamentação:</b> ' + projEsc(d.fundamentacao) + '</p><p><b>Encaminhamento:</b> ' + projEsc(d.encaminhamento || 'Não informado') + '</p>';
   }).join('');
   return ['<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ata do CGP</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1a2540;line-height:1.55}h1{text-align:center;color:#005a9c}h2{border-bottom:2px solid #00a89a;padding-bottom:6px}p{white-space:pre-wrap}</style></head><body>',
-    '<h1>ATA DA REUNIÃO DO COMITÊ DE GESTÃO DE PROJETOS</h1><p><b>Trimestre:</b> ', projEsc(meeting.trimestre), '<br><b>Data:</b> ', projFormatDate(meeting.data), '<br><b>Local:</b> ', projEsc(meeting.local || 'Não informado'), '</p>',
+    '<h1>ATA DA REUNIÃO DO COMITÊ DE GESTÃO DE PROJETOS</h1><p><b>Trimestre:</b> ', projEsc(projQuarterLabel(meeting.trimestre)), '<br><b>Data:</b> ', projFormatDate(meeting.data), '<br><b>Local:</b> ', projEsc(meeting.local || 'Não informado'), '</p>',
     '<h2>Participantes</h2><p>', projEsc(meeting.participantes), '</p><h2>Pauta e informações apresentadas</h2><p>', projEsc(meeting.pauta || 'Não informada'), '</p><h2>Deliberações</h2>', decisionRows || '<p>Nenhuma deliberação registrada.</p>',
     '<h2>Encerramento</h2><p>Nada mais havendo a tratar, a reunião foi encerrada, sendo lavrada a presente ata pelo Escritório de Projetos.</p><br><br><p>________________________________________<br>Secretaria do CGP</p></body></html>'
   ].join('');

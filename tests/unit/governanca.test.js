@@ -28,4 +28,13 @@ describe('governança do portfólio', () => {
     expect(source).toContain('function projGovAddDecision(meetingId)');
     expect(source).toContain('function projGovGenerateMinutes(meetingId)');
   });
+
+  it('separa trimestre e ano nas reuniões de governança', () => {
+    expect(source).toContain('id="gov-reu-trimestre"');
+    expect(source).toContain('id="gov-reu-ano"');
+    expect(source).toContain('function projGovQuarterOptionsHtml()');
+    expect(source).toContain('function projGovYearOptionsHtml()');
+    expect(source).toContain('for(let year=2026; year<=2036; year++)');
+    expect(source).toContain("trimestre:ano + '-T' + trimestre");
+  });
 });
