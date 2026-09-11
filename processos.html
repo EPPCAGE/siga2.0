@@ -1948,7 +1948,31 @@ let ARQUITETURA = [
       ]},
   ]},
 ];
-let arqIdC = 200;
+// Identificadores independentes da sessão e de contadores locais.
+function _arqEntries(){
+  return ARQUITETURA.flatMap(m=>[
+    {item:m,prefix:'m',label:m.nome},
+    ...(m.processos||[]).flatMap(p=>[
+      {item:p,prefix:'ap',label:m.nome+' › '+p.nome},
+      ...(p.subprocessos||[]).map(s=>({item:s,prefix:'s',label:m.nome+' › '+p.nome+' › '+s.nome}))
+    ])
+  ]);
+}
+function _novoArqId(prefix){
+  const used=new Set(_arqEntries().map(e=>e.item.id));
+  processos.forEach(p=>used.add(p.arq_id));
+  let id;
+  do{id=prefix+'-'+crypto.randomUUID();}while(used.has(id));
+  return id;
+}
+function _arqDuplicateIds(){
+  const seen=new Set(), duplicates=new Set();
+  _arqEntries().forEach(({item})=>{
+    if(seen.has(item.id)) duplicates.add(item.id);
+    seen.add(item.id);
+  });
+  return duplicates;
+}
 let _arqSaveEnabled = false; // set true only after fbLoad confirms Firestore state; blocks accidental demo-data overwrite
 
 // PIPELINE
@@ -12800,12 +12824,56 @@ function _faqCountLabel(totalPerguntas){
   return `${totalPerguntas} pergunta${pergPlural} encontrada${pergPlural}`;
 }
 
+function _separarItemArqDuplicado(item){
+  const entry=_arqEntries().find(e=>e.item===item);
+  if(!entry || entry.prefix==='m' || !_arqDuplicateIds().has(item.id)) return false;
+  // O identificador anterior continua pertencendo ao outro item e ao seu mapeamento.
+  item.id=_novoArqId(entry.prefix);
+  item.proc_id=null;
+  return true;
+}
+function _rArqDuplicateWarning(container){
+  document.getElementById('arq-duplicados')?.remove();
+  if(!isEP()) return;
+  const duplicates=_arqDuplicateIds();
+  const entries=_arqEntries().filter(e=>e.prefix!=='m' && duplicates.has(e.item.id));
+  if(!entries.length) return;
+  const warning=document.createElement('div');
+  warning.id='arq-duplicados';
+  warning.className='ib iba';
+  const title=document.createElement('div');
+  title.textContent='Há processos compartilhando o mesmo vínculo. Selecione o processo criado indevidamente vinculado para liberá-lo para um novo mapeamento. O mapeamento existente permanecerá no outro processo.';
+  warning.append(title);
+  entries.forEach(({item,label})=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:12px;margin-top:8px';
+    const name=document.createElement('span');
+    name.textContent=label;
+    const btn=document.createElement('button');
+    btn.type='button';btn.className='btn';btn.textContent='Liberar para novo mapeamento';
+    btn.onclick=()=>confirmar('Liberar "'+label+'" para um novo mapeamento? O mapeamento existente será preservado no outro processo.',async()=>{
+      if(!isEP() || !_separarItemArqDuplicado(item)) return;
+      syncArquiteturaProcessos();
+      clearTimeout(globalThis._fbSaveTimer);
+      const saved=await fbSaveAll();
+      if(saved){rArq();toast('Processo liberado para criar um novo mapeamento.','var(--teal)');}
+      else{
+        toast('A correção ainda não foi salva. Tente salvar novamente.','var(--red)');
+        btn.textContent='Salvar correção';
+        btn.onclick=async()=>{if(await fbSaveAll()){rArq();toast('Correção salva.','var(--teal)');}};
+      }
+    });
+    row.append(name,btn);warning.append(row);
+  });
+  container.before(warning);
+}
 function rArq(){
   aplicarPermissoes();
   syncArquiteturaProcessos();
   rArqPopulateFilters();
   const el = document.getElementById('arq-content');
   if(!el) return;
+  _rArqDuplicateWarning(el);
 
   // Preserva quais seções estão abertas para restaurar após re-render
   const _openIds = new Set(
@@ -13072,6 +13140,7 @@ function _metaFieldsProgBar(proc){
 }
 
 function syncArquiteturaProcessos(){
+  const duplicates=_arqDuplicateIds();
   const byArqId = new Map(processos.filter(p=>p.arq_id).map(p=>[p.arq_id, p]));
   let nomesAlterados = false;
   ARQUITETURA.forEach(m=>{
@@ -13079,6 +13148,7 @@ function syncArquiteturaProcessos(){
       if(p.subprocessos && p.subprocessos.length){
         p.proc_id = null;
         p.subprocessos.forEach(s=>{
+          if(duplicates.has(s.id)) return;
           const linked = byArqId.get(s.id);
           s.proc_id = linked ? linked.id : null;
           if(linked){
@@ -13087,6 +13157,7 @@ function syncArquiteturaProcessos(){
           }
         });
       } else {
+        if(duplicates.has(p.id)) return;
         const linked = byArqId.get(p.id);
         p.proc_id = linked ? linked.id : null;
         if(linked){
@@ -13304,7 +13375,7 @@ function salvarModalMeta(){
   if(!modal)return;
   const item=modal._item;
   const novoNome=document.getElementById('mm-nome').value.trim()||item.nome;
-  if(novoNome!==item.nome){
+  if(novoNome!==item.nome && !_arqDuplicateIds().has(item.id)){
     processos.forEach(proc=>{if(proc.arq_id===item.id)proc.nome=novoNome;});
   }
   item.nome=novoNome;
@@ -13361,7 +13432,7 @@ function toggleEl(id,chvId){
 function novoMacro(){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
   _pedirNome('Novo macroprocesso','',nome=>{
-    ARQUITETURA.push({id:'m'+arqIdC++,nome,processos:[]});
+    ARQUITETURA.push({id:_novoArqId('m'),nome,processos:[]});
     rArq();
     fbAutoSave('novoMacro');
   });
@@ -13417,7 +13488,7 @@ function editMacro(mid){
 function novoProcArq(mid){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
   const m=ARQUITETURA.find(x=>x.id===mid);if(!m)return;
-  const newItem={id:'ap'+arqIdC++,nome:'',natureza:'',gerente:'',area:'',objetivo:'',objetivo_estrategico:'',entradas:'',entregas:'',clientes:'',docs:'',subprocessos:[],proc_id:null};
+  const newItem={id:_novoArqId('ap'),nome:'',natureza:'',gerente:'',area:'',objetivo:'',objetivo_estrategico:'',entradas:'',entregas:'',clientes:'',docs:'',subprocessos:[],proc_id:null};
   abrirModalMeta(newItem, ()=>{
     if(!newItem.nome.trim()){toast('Informe o nome do processo.','var(--amber)');return;}
     m.processos.push(newItem);
@@ -13430,7 +13501,7 @@ function novoSubArq(mid,pid){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
   const m=ARQUITETURA.find(x=>x.id===mid);if(!m)return;
   const p=m.processos.find(x=>x.id===pid);if(!p)return;
-  const newSub={id:'s'+arqIdC++,nome:'',natureza:'',area:'',gerente:'',objetivo:'',objetivo_estrategico:'',entradas:'',entregas:'',clientes:'',docs:''};
+  const newSub={id:_novoArqId('s'),nome:'',natureza:'',area:'',gerente:'',objetivo:'',objetivo_estrategico:'',entradas:'',entregas:'',clientes:'',docs:''};
   abrirModalMeta(newSub, ()=>{
     if(!newSub.nome.trim()){toast('Informe o nome do subprocesso.','var(--amber)');return;}
     p.subprocessos.push(newSub);
@@ -13521,11 +13592,11 @@ async function importarArqExcel(input){
         if(!macro||!proc)return;
 
         let m=ARQUITETURA.find(x=>x.nome===macro);
-        if(!m){m={id:'m'+arqIdC++,nome:macro,processos:[]};ARQUITETURA.push(m);}
+        if(!m){m={id:_novoArqId('m'),nome:macro,processos:[]};ARQUITETURA.push(m);}
 
         let p=m.processos.find(x=>x.nome===proc);
         if(!p){
-          p={id:'ap'+arqIdC++,nome:proc,
+          p={id:_novoArqId('ap'),nome:proc,
             natureza:           gv(row,cNat) ? gv(row,cNat).charAt(0).toUpperCase()+gv(row,cNat).slice(1).toLowerCase() : '',
             gerente:            gv(row,cGer),
             area:               gv(row,cArea),
@@ -13543,7 +13614,7 @@ async function importarArqExcel(input){
         const subValido = sub && !/^n[ãa]o[\s_-]*h[aá]/i.test(sub) && sub.toLowerCase()!=='nenhum' && sub.toLowerCase()!=='-' && sub.toLowerCase()!=='n/a';
         if(subValido && !p.subprocessos.some(s=>s.nome===sub)){
           const newSub={
-            id:'s'+arqIdC++, nome:sub,
+            id:_novoArqId('s'), nome:sub,
             natureza:             gv(row,cNat) ? gv(row,cNat).charAt(0).toUpperCase()+gv(row,cNat).slice(1).toLowerCase() : '',
             gerente:              gv(row,cGer),
             area:                 gv(row,cArea),
