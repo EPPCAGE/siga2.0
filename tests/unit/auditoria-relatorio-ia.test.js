@@ -1,8 +1,48 @@
 import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 const html = readFileSync(new URL('../../processos.html', import.meta.url), 'utf8');
 const functions = readFileSync(new URL('../../functions/index.js', import.meta.url), 'utf8');
+
+const functionSource = (start, end) => html.slice(html.indexOf(start), html.indexOf(end, html.indexOf(start)));
+
+describe('relatório salvo de aderência', () => {
+  const restore = functionSource('function _rAudRestoreRelatorio(p)', '\nfunction salvarTratamentoRisco');
+  const init = functionSource('function _rAcaoInitBpmn(p, minhaTarefa)', '\n// Q019');
+  const save = functionSource('async function salvarRelatorioAuditoria(concluir)', '\nfunction exportarAuditoriaRelPdf');
+
+  it('restaura o JSON carregado de uma nova sessão ao abrir a etapa', () => {
+    const p = JSON.parse(JSON.stringify({ etapa: 'auditoria', auditoria: {
+      conformidade: 'Conforme', relatorio_json: { sumario: 'Análise já salva' }
+    } }));
+    let displayed;
+    runInNewContext(`${restore}\n${init}\n_rAcaoInitBpmn(p, false);`, {
+      p, _BPMN_INIT: {},
+      document: { getElementById: () => ({ replaceChildren: node => { displayed = node; } }) },
+      renderRelatorioAuditoria: (json, conf) => ({ text: json.sumario, conf }),
+      _anexarFluxogramaRelatorio: async () => {},
+    });
+    expect(displayed).toEqual({ text: 'Análise já salva', conf: 'Conforme' });
+  });
+
+  it.each([true, false])('só confirma o salvamento após a nuvem responder: %s', async saved => {
+    let finishSave;
+    const messages = [];
+    const p = { auditoria: { relatorio_json: { sumario: 'Conteúdo persistente' } } };
+    const pending = runInNewContext(`${save}\nsalvarRelatorioAuditoria(false);`, {
+      curProc: p, document: { getElementById: () => null }, now: () => '11/09/2026',
+      clearTimeout: () => {}, fbSaveAll: () => new Promise(resolve => { finishSave = resolve; }),
+      _rAudRestoreRelatorio: () => {}, toast: message => messages.push(message),
+    });
+    expect(messages).toEqual([]);
+    finishSave(saved);
+    await pending;
+    expect(messages.some(message => message === 'Relatório salvo!')).toBe(saved);
+    expect(p.auditoria.relatorio_json.sumario).toBe('Conteúdo persistente');
+    if(!saved) expect(messages[0]).toContain('Não foi possível salvar');
+  });
+});
 
 describe('geração do relatório de análise de aderência com IA', () => {
   const start = html.indexOf('async function iaGerarRelatorioAuditoria()');
