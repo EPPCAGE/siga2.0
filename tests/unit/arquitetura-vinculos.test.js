@@ -9,6 +9,43 @@ const helpers=source('function _arqEntries()', 'let _arqSaveEnabled');
 const sync=source('function syncArquiteturaProcessos()', 'function _normIntel');
 const separate=source('function _separarItemArqDuplicado(', 'function _rArqDuplicateWarning(');
 const filter=source('function filtrarProcArq()', 'function previewProcArq()');
+const transfer=source('function _transferirProcArq(', '// ── Modal simples');
+
+describe('transferência entre macroprocessos',()=>{
+  function setup(){
+    const item={id:'p1',nome:'Processo',proc_id:1,subprocessos:[{id:'s1',proc_id:2}]};
+    const origem={id:'m1',nome:'Origem',processos:[item]};
+    const destino={id:'m2',nome:'Destino',processos:[]};
+    return {item,origem,destino,ARQUITETURA:[origem,destino],
+      processos:[{id:1,arq_id:'p1',macro:'Origem',mod:{bpmn:'preservado'}},{id:2,arq_id:'s1',macro:'Origem'},{id:3,arq_id:'outro',macro:'Origem'}],
+      isEP:()=>true,toast:()=>{}};
+  }
+  const move=context=>runInNewContext(`${helpers}\n${transfer}\n_transferirProcArq(item,origem,destino)`,context);
+  it('move o processo com subprocessos, preservando identidade e mapeamentos',()=>{
+    const context=setup();
+    expect(move(context)).toBe(true);
+    expect(context.origem.processos).toEqual([]);
+    expect(context.destino.processos[0]).toBe(context.item);
+    expect(context.item.subprocessos[0].proc_id).toBe(2);
+    expect(context.processos.map(p=>p.macro)).toEqual(['Destino','Destino','Origem']);
+    expect(context.processos[0].mod.bpmn).toBe('preservado');
+  });
+  it.each(['permissao','destino','duplicado'])('recusa transferência inválida: %s',reason=>{
+    const context=setup();
+    if(reason==='permissao')context.isEP=()=>false;
+    if(reason==='destino')context.destino=undefined;
+    if(reason==='duplicado')context.destino.processos.push({id:'s1',subprocessos:[]});
+    const before=JSON.stringify([context.ARQUITETURA,context.processos]);
+    expect(move(context)).toBe(false);
+    expect(JSON.stringify([context.ARQUITETURA,context.processos])).toBe(before);
+  });
+  it('mantém a estrutura ao salvar no mesmo macroprocesso',()=>{
+    const context=setup();
+    context.destino=context.origem;
+    expect(move(context)).toBe(true);
+    expect(context.origem.processos).toHaveLength(1);
+  });
+});
 
 function fixture(){
   const original={id:'ap200',nome:'Gerenciar afastamentos, diárias e passagens',subprocessos:[],proc_id:7};
