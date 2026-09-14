@@ -13328,6 +13328,7 @@ function editSubArqFull(mid, pid, sid){
 
 // Modal genérico de edição de metadados
 function abrirModalMeta(item, onSave){
+  const macroAtual=isEP()?ARQUITETURA.find(m=>m.processos.includes(item)):null;
   // Remove existing modal if any
   document.getElementById('meta-modal')?.remove();
   const modal=document.createElement('div');
@@ -13336,6 +13337,10 @@ function abrirModalMeta(item, onSave){
   modal.innerHTML=`<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
     <div style="font-family:var(--fh);font-size:16px;font-weight:600;margin-bottom:1rem">Editar dados do processo/subprocesso</div>
     <div class="fg"><label class="fl">Nome<span>*</span></label><input class="fi" id="mm-nome" value="${item.nome||''}"></div>
+    ${macroAtual?`<div class="fg"><label class="fl" for="mm-macro">Macroprocesso</label>
+      <select class="fi" id="mm-macro">${ARQUITETURA.map(m=>`<option value="${esc(m.id)}" ${m===macroAtual?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>
+      <div style="font-size:12px;color:var(--ink3)">Ao alterar, os subprocessos e seus mapeamentos acompanham o processo.</div>
+    </div>`:''}
     <div class="g3">
       <div class="fg"><label class="fl">Natureza</label>
         <select class="fi" id="mm-nat">
@@ -13366,6 +13371,7 @@ function abrirModalMeta(item, onSave){
   document.body.appendChild(modal);
   // Store reference to item
   modal._item=item;
+  modal._macroOrigem=macroAtual;
   modal._onSave=onSave;
   modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
 }
@@ -13374,6 +13380,10 @@ function salvarModalMeta(){
   const modal=document.getElementById('meta-modal');
   if(!modal)return;
   const item=modal._item;
+  if(modal._macroOrigem){
+    const destino=ARQUITETURA.find(m=>m.id===document.getElementById('mm-macro')?.value);
+    if(!_transferirProcArq(item,modal._macroOrigem,destino))return;
+  }
   const novoNome=document.getElementById('mm-nome').value.trim()||item.nome;
   if(novoNome!==item.nome && !_arqDuplicateIds().has(item.id)){
     processos.forEach(proc=>{if(proc.arq_id===item.id)proc.nome=novoNome;});
@@ -13392,6 +13402,23 @@ function salvarModalMeta(){
   modal.remove();
   fbAutoSave('salvarMeta');
   toast('Dados atualizados');
+}
+
+function _transferirProcArq(item, origem, destino){
+  if(!isEP() || !ARQUITETURA.includes(origem) || !ARQUITETURA.includes(destino) || !origem.processos.includes(item)){
+    toast('Não foi possível transferir. Reabra a edição e selecione um macroprocesso válido.','var(--amber)');
+    return false;
+  }
+  if(origem===destino)return true;
+  const ids=new Set([item.id,...(item.subprocessos||[]).map(s=>s.id)]);
+  if([...ids].some(id=>_arqDuplicateIds().has(id))){
+    toast('Resolva os IDs duplicados deste processo ou de seus subprocessos antes de transferir.','var(--amber)');
+    return false;
+  }
+  origem.processos.splice(origem.processos.indexOf(item),1);
+  destino.processos.push(item);
+  processos.forEach(proc=>{if(ids.has(proc.arq_id))proc.macro=destino.nome;});
+  return true;
 }
 
 // ── Modal simples para pedir um nome (substitui prompt()) ─────────────────────
