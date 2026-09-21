@@ -9791,13 +9791,15 @@ function _bpmnPopulateGatewayPaths(elem, id, outgoing, flowLabels){
   }
 }
 function _bpmnQueueNext({queue, nexts, visited, isGw, id, myCtx, xmlToEpId, flowLabels}){
+  const pending=[];
   nexts.forEach((tgt, idx)=>{
     if(visited.has(tgt)) return;
     const nextCtx=isGw
       ? {gw_id:id, epId:xmlToEpId[id]||null, label:flowLabels[id+'→'+tgt]||('Caminho '+(idx+1))}
       : myCtx;
-    queue.push({id:tgt,gwCtx:nextCtx});
+    pending.push({id:tgt,gwCtx:nextCtx});
   });
+  queue.unshift(...pending);
 }
 function _bpmnAddDisconnectedNodes(ordered, visited, nodeInfo){
   Object.keys(nodeInfo).forEach(id=>{
@@ -9807,19 +9809,43 @@ function _bpmnAddDisconnectedNodes(ordered, visited, nodeInfo){
 }
 function _bpmnBuildFlatGwAware(outgoing, nodeInfo, flowLabels){
   const incoming={};
+  const predecessors={};
+  const active=new Set(), scanned=new Set(), backEdges=new Set();
+  // Ignore return edges when waiting for a join, so rework loops cannot block it.
+  function scan(id){
+    if(scanned.has(id)) return;
+    scanned.add(id); active.add(id);
+    (outgoing[id]||[]).forEach(tgt=>{
+      if(active.has(tgt)) backEdges.add(id+'→'+tgt);
+      else scan(tgt);
+    });
+    active.delete(id);
+  }
   Object.entries(outgoing).forEach(([src,tgts])=>{
     tgts.forEach(tgt=>{ incoming[tgt]=(incoming[tgt]||0)+1; });
   });
   const startIds=Object.entries(nodeInfo)
     .filter(([,n])=>n.tipo==='Evento'&&n.subtipo==='Início')
     .map(([id])=>id);
+  startIds.forEach(scan);
+  Object.keys(nodeInfo).forEach(scan);
+  Object.entries(outgoing).forEach(([src,tgts])=>{
+    tgts.forEach(tgt=>{
+      if(!backEdges.has(src+'→'+tgt)) (predecessors[tgt]??=[]).push(src);
+    });
+  });
   const visited=new Set();
   const ordered=[];
-  const queue=startIds.map(id=>({id,gwCtx:null}));
+  const roots=Object.keys(nodeInfo).filter(id=>!(predecessors[id]||[]).length);
+  const queue=[...new Set([...startIds,...roots])].map(id=>({id,gwCtx:null}));
   const xmlToEpId={};
 
   while(queue.length){
-    const {id,gwCtx}=queue.shift();
+    // Depth first within each branch; postpone shared continuation until all
+    // forward predecessors have been listed, including branches of unequal size.
+    const ready=queue.findIndex(({id})=>visited.has(id)||(predecessors[id]||[]).every(src=>visited.has(src)));
+    if(ready<0) break;
+    const {id,gwCtx}=queue.splice(ready,1)[0];
     if(visited.has(id)) continue;
     visited.add(id);
     const myCtx=(incoming[id]||0)>1?null:gwCtx;
@@ -9880,6 +9906,29 @@ function _bpmnExpandSubprocesses(elems, xml, GW_TAGS, TASK_TAGS, laneMap){
   });
   return result;
 }
+function _bpmnMergeExtractedEtapas(existentes, extraidas){
+  const used=new Set(), idMap=new Map();
+  let novas=0;
+  const ordered=extraidas.map(elem=>{
+    const match=existentes.find(e=>!used.has(e)&&e.bpmn_id===elem.bpmn_id)
+      ||existentes.find(e=>!used.has(e)&&!e.bpmn_id&&e.nome===elem.nome);
+    if(match){
+      used.add(match);
+      idMap.set(elem.id,match.id);
+      return match;
+    }
+    novas++;
+    return elem;
+  });
+  ordered.forEach(elem=>{
+    if(!used.has(elem)&&elem.vinculo_gw&&idMap.has(elem.vinculo_gw.gw_ep_id)){
+      elem.vinculo_gw.gw_ep_id=idMap.get(elem.vinculo_gw.gw_ep_id);
+    }
+  });
+  ordered.push(...existentes.filter(e=>!used.has(e)));
+  ordered.forEach((e,i)=>e.seq=i+1);
+  return {etapas:ordered,novas};
+}
 function extrairBpmn(){
   const p=curProc;
   const etapaAtiva=epRetroEtapa||p.etapa;
@@ -9902,13 +9951,11 @@ function extrairBpmn(){
   if(!elems.length){toast('Nenhum elemento encontrado no BPMN.','var(--amber)');return;}
   const key=isTobe?'etapas_proc_tobe':'etapas_proc';
   if(!p.mod[key]) p.mod[key]=[];
-  const existentes=new Set(p.mod[key].map(e=>e.nome));
-  const novas=elems.filter(e=>!existentes.has(e.nome));
-  p.mod[key]=[...p.mod[key],...novas];
-  p.mod[key].forEach((e,i)=>e.seq=i+1);
+  const {etapas,novas}=_bpmnMergeExtractedEtapas(p.mod[key],elems);
+  p.mod[key]=etapas;
   _refreshEtapasList();
   fbAutoSave('extrairBpmn');
-  toast(novas.length+' etapas extraídas do BPMN na ordem do fluxo!');
+  toast(novas+' novas etapas extraídas; lista organizada na ordem do fluxo!');
 }
 
 // ═══════════════════════════════════════════
