@@ -18503,21 +18503,24 @@ function _calcKpiPct(k){
   return Math.round((r/m)*100);
 }
 
-function _buildKpiAreaCards(lista){
-  const areaMap = {};
+function _macroprocessoIndicador(k){
+  return _kpiGetMacroProc(k).macro || '(sem macroprocesso)';
+}
+function _buildKpiMacroprocessoCards(lista){
+  const macroMap = {};
   lista.forEach(k=>{
-    const a = k.area||'(sem área)';
-    if(!areaMap[a]) areaMap[a]={total:0,comMeta:0,atingiram:0,destaque:0,critico:0};
+    const macro = _macroprocessoIndicador(k);
+    if(!macroMap[macro]) macroMap[macro]={total:0,comMeta:0,atingiram:0,destaque:0,critico:0};
     const pct = _calcKpiPct(k);
-    areaMap[a].total++;
+    macroMap[macro].total++;
     if(pct!==null){
-      areaMap[a].comMeta++;
-      if(pct>=100) areaMap[a].atingiram++;
-      if(pct>=130) areaMap[a].destaque++;
-      if(pct<50)   areaMap[a].critico++;
+      macroMap[macro].comMeta++;
+      if(pct>=100) macroMap[macro].atingiram++;
+      if(pct>=130) macroMap[macro].destaque++;
+      if(pct<50)   macroMap[macro].critico++;
     }
   });
-  return Object.entries(areaMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([nome,d])=>{
+  return Object.entries(macroMap).sort((a,b)=>a[0].localeCompare(b[0],'pt-BR',{sensitivity:'base'})).map(([nome,d])=>{
     const taxa = d.comMeta ? Math.round((d.atingiram/d.comMeta)*100) : null;
     let cl, bg, border;
     if(taxa===null){ cl='#6b7280'; bg='#f3f4f6'; border='#d1d5db'; }
@@ -18549,6 +18552,8 @@ function _filtrarIndicadoresRelatorioPdf(lista){
 }
 function _ordenarIndicadoresRelatorioPdf(lista){
   lista.sort((a,b)=>{
+    const mc = _macroprocessoIndicador(a).localeCompare(_macroprocessoIndicador(b),'pt-BR',{sensitivity:'base'});
+    if(mc!==0) return mc;
     const ac = (a.area||'').localeCompare(b.area||'','pt-BR',{sensitivity:'base'});
     if(ac!==0) return ac;
     const nc = (a.nome||'').localeCompare(b.nome||'','pt-BR',{sensitivity:'base'});
@@ -18571,6 +18576,7 @@ function _rowIndicadorRelatorioPdf(k){
     : '';
   return `<tr style="background:${st.rowBg}">
     <td>${k.codigo?'<strong>'+esc(k.codigo)+'</strong> — ':''}${esc(k.nome)}${ppeBadge}</td>
+    <td style="font-size:10px;color:#6b7280">${esc(_macroprocessoIndicador(k))}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
     <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
@@ -18616,7 +18622,7 @@ function gerarRelatorioIndPdf(){
 
   if(!lista.length){ toast('Nenhum indicador com dados para o relatório.','var(--amber)'); return; }
 
-  const areaCards = _buildKpiAreaCards(lista);
+  const macroprocessoCards = _buildKpiMacroprocessoCards(lista);
 
   _ordenarIndicadoresRelatorioPdf(lista);
   const rows = _rowsIndicadoresRelatorioPdf(lista);
@@ -18658,14 +18664,14 @@ function gerarRelatorioIndPdf(){
     ${resumo.criticoHtml}
   </div>
 </div>
-<div class="sec">Taxa de atingimento por área</div>
-<div class="area-grid">${areaCards}</div>
+<div class="sec">Taxa de atingimento por macroprocesso</div>
+<div class="area-grid">${macroprocessoCards}</div>
 <div class="sec">Análise dos Resultados</div>
 <div class="ia-box">${esc(_lastIndAnalise).replaceAll('\n','<br>')}</div>
 <div class="sec">Indicadores com dados no período</div>
 <table>
   <thead><tr>
-    <th>Indicador</th><th>Área</th><th>Período</th>
+    <th>Indicador</th><th>Macroprocesso</th><th>Área</th><th>Período</th>
     <th style="text-align:center">Meta</th>
     <th style="text-align:center">Realizado</th>
     <th style="text-align:center">Desempenho</th>
@@ -18673,7 +18679,7 @@ function gerarRelatorioIndPdf(){
   </tr></thead>
   <tbody>${rows}</tbody>
   ${resumo.taxaGeral===null?'':`<tfoot><tr class="tfoot-row">
-    <td colspan="5">Taxa de atingimento geral (indicadores com meta)</td>
+    <td colspan="6">Taxa de atingimento geral (indicadores com meta)</td>
     <td style="text-align:center;font-size:14px;color:${resumo.taxaCl}">${resumo.atingiramG}/${resumo.comMeta.length} — ${resumo.taxaGeral}%</td>
     <td></td>
   </tr></tfoot>`}
