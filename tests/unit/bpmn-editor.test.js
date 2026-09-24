@@ -15,6 +15,11 @@ describe('editor BPMN', () => {
     expect(css).toContain('fill:#000!important');
   });
 
+  it('aplica os ajustes do botão Colorir no canvas atualmente visível', () => {
+    expect(html).toContain("fullscreenCanvas?.querySelector('.djs-container')");
+    expect(html).toContain('const canvasDiv=_bpmnActiveCanvasElement(which)');
+  });
+
   it('só confirma o salvamento depois da gravação no servidor', () => {
     expect(html).toContain('async function bpmnSave(which)');
     expect(html).toContain('const saved=await fbSaveAll()');

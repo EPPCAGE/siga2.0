@@ -12176,6 +12176,15 @@ function bpmnImport(which){
   }).catch(err=>toast('XML inválido: '+(err.message||err),'var(--red)'));
 }
 
+function _bpmnActiveCanvasElement(which){
+  const fullscreenCanvas=document.getElementById('bpmn-fs-canvas');
+  // Ao ampliar, o bpmn-js move o seu container para o canvas de tela cheia.
+  // Portanto, os ajustes visuais devem ser aplicados nele, e não no canvas
+  // normal que fica temporariamente vazio.
+  if(fullscreenCanvas?.querySelector('.djs-container')) return fullscreenCanvas;
+  return document.getElementById('bpmn-'+which+'-canvas');
+}
+
 function bpmnColorize(which){
   const m=bpmnModelers[which];
   if(!m){toast('Editor BPMN não carregado.','var(--amber)');return;}
@@ -12185,7 +12194,7 @@ function bpmnColorize(which){
       _bpmnApplyElementColor(m,el);
     });
     // Texto preto em todos os labels (o bpmn-js não expõe font color via setColor)
-    const canvasDiv=document.getElementById('bpmn-'+which+'-canvas');
+    const canvasDiv=_bpmnActiveCanvasElement(which);
     if(canvasDiv){
       canvasDiv.style.backgroundColor='#FFFFFF';
       canvasDiv.querySelectorAll('text').forEach(tx=>{tx.style.fill='#000000';});
