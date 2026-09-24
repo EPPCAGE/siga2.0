@@ -4087,16 +4087,16 @@ function _aplicarPermissoesNavBtns(){
     ? '<button type="button" class="btn btn-p" onclick="abrirNovoProc()">+ Novo processo</button>'
     : '';
   const btnArq = document.getElementById('btn-arq-actions');
-  if(btnArq) btnArq.innerHTML = isEP()
-    ? `<div style="display:flex;gap:8px">
+  if(btnArq) btnArq.innerHTML = `<div style="display:flex;gap:8px">
+        <button type="button" class="btn" onclick="exportarArquiteturaExcel()" title="Baixar a arquitetura organizada por macroprocessos, processos e subprocessos">⬇ Exportar Excel</button>
+        ${isEP() ? `
         <label class="btn" style="cursor:pointer">↑ Importar Excel
           <input type="file" id="xlsx-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarArqExcel(this)">
         </label>
         <button type="button" class="btn" style="font-size:11px" onclick="deduplicarArquitetura()" title="Remove processos e subprocessos com nome duplicado">🧹 Limpar duplicatas</button>
         <button type="button" class="btn" style="font-size:11px" onclick="revinculaArquitetura()" title="Reconcilia arq_id dos processos em mapeamento pelo nome, após reimportação da arquitetura">🔗 Revincular processos</button>
-        <button type="button" class="btn btn-p" onclick="novoMacro()">+ Macroprocesso</button>
-       </div>`
-    : '';
+        <button type="button" class="btn btn-p" onclick="novoMacro()">+ Macroprocesso</button>` : ''}
+       </div>`;
 }
 function _aplicarPermissoesAdminBadge(){
   const nbAdmin = document.getElementById('nb-admin');
@@ -13601,7 +13601,60 @@ function remSubArq(mid,pid,sid){
   });
 }
 
-// IMPORTAR EXCEL ARQUITETURA
+// EXPORTAR / IMPORTAR EXCEL ARQUITETURA
+function exportarArquiteturaExcel(){
+  if(!globalThis.XLSX){
+    toast('Não foi possível carregar o recurso de exportação. Recarregue a página e tente novamente.','var(--red)');
+    return;
+  }
+  if(!ARQUITETURA.length){
+    toast('Não há itens na arquitetura para exportar.','var(--amber)');
+    return;
+  }
+
+  const cabecalho = [
+    'Macroprocesso','Processo','Subprocesso','Natureza','Gerente do processo','Área',
+    'Objetivo do processo','Objetivos estratégicos','Entradas do processo','Entregas do processo',
+    'Clientes do processo','Documentação e regulamentações','Processo mapeado','Processo crítico'
+  ];
+  const linhas = [cabecalho];
+  const valor = (item, pai, campo) => item?.[campo] || pai?.[campo] || '';
+  const addLinha = (macro, processo, subprocesso) => {
+    const item = subprocesso || processo;
+    linhas.push([
+      macro.nome || '', processo.nome || '', subprocesso?.nome || '',
+      valor(item, processo, 'natureza'), valor(item, processo, 'gerente'),
+      valor(item, processo, 'area'), valor(item, processo, 'objetivo'),
+      valor(item, processo, 'objetivo_estrategico'), valor(item, processo, 'entradas'),
+      valor(item, processo, 'entregas'), valor(item, processo, 'clientes'),
+      valor(item, processo, 'docs'), isMapeado(item.id) ? 'Sim' : 'Não',
+      isCritico(item.id) ? 'Sim' : 'Não'
+    ]);
+  };
+
+  ARQUITETURA.forEach(macro => {
+    (macro.processos || []).forEach(processo => {
+      if(processo.subprocessos?.length){
+        processo.subprocessos.forEach(subprocesso => addLinha(macro, processo, subprocesso));
+      } else {
+        addLinha(macro, processo, null);
+      }
+    });
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(linhas);
+  ws['!cols'] = [
+    {wch:30},{wch:36},{wch:36},{wch:16},{wch:24},{wch:22},
+    {wch:45},{wch:40},{wch:40},{wch:40},{wch:32},{wch:42},{wch:18},{wch:17}
+  ];
+  ws['!autofilter'] = {ref:`A1:N${linhas.length}`};
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Arquitetura');
+  const data = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `arquitetura_processos_${data}.xlsx`);
+  toast(`Arquitetura exportada: ${linhas.length-1} item(ns).`);
+}
+
 async function importarArqExcel(input){
   if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
   const file=input.files[0];if(!file)return;
