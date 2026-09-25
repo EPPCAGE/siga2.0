@@ -18643,30 +18643,70 @@ function _ordenarIndicadoresRelatorioPdf(lista){
     return parsePeriodSort(a.periodo) - parsePeriodSort(b.periodo);
   });
 }
-function _mediaHistoricaIndicadorRelatorio(k, historico){
-  if(_kpiMeta(k) !== null) return null;
+function _periodoIndicadorRelatorio(periodo, periodicidade = ''){
+  const texto = String(periodo || '').trim().toLowerCase();
+  const ano = texto.match(/\b(\d{4})\b/);
+  if(!ano) return null;
+  const duracoes = {mensal:1, bimestral:2, trimestral:3, quadrimestral:4, semestral:6, anual:12};
+  const duracao = duracoes[String(periodicidade).trim().toLowerCase()];
+  const grupos = [
+    [/^(?:t([1-4])\b|([1-4])[º°o\s]*trim)/, 3],
+    [/^(?:s([1-2])\b|([1-2])[º°o\s]*sem)/, 6],
+    [/^(?:b([1-6])\b|([1-6])[º°o\s]*bim)/, 2],
+    [/^(?:q([1-3])\b|([1-3])[º°o\s]*quadr)/, 4],
+  ];
+  for(const [regex, meses] of grupos){
+    const match = texto.match(regex);
+    if(match) return {inicio:Number(ano[1])*12+(Number(match[1] || match[2])-1)*meses, meses};
+  }
+  const nomes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const nome = texto.match(/^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/);
+  const numerico = texto.match(/^(\d{1,2})[/-]\d{4}$/);
+  const iso = texto.match(/^\d{4}-(\d{2})$/);
+  const mes = nome ? nomes.indexOf(nome[1])+1 : Number(numerico?.[1] || iso?.[1]);
+  if(mes >= 1 && mes <= 12) return {inicio:Number(ano[1])*12+mes-1, meses:duracao || 1};
+  if(/^\d{4}$/.test(texto)) return {inicio:Number(ano[1])*12, meses:12};
+  return null;
+}
+function _resultadoAnteriorIndicadorRelatorio(k, historico, filtros = {}){
   const chave = (k.codigo || k.nome || '').trim();
-  const limite = periodoToNum(k.periodo);
-  if(!chave || !limite) return null;
+  const atual = _periodoIndicadorRelatorio(k.periodo, k.periodicidade);
+  if(!chave || !atual) return null;
+  const selecionado = _periodoIndicadorRelatorio(filtros.period || filtros.intervalo);
+  const referencia = selecionado || atual;
+  if(referencia.meses % atual.meses !== 0) return null;
+  const inicioAnterior = referencia.inicio - referencia.meses;
   const porPeriodo = new Map();
   historico.forEach(item => {
     if((item.codigo || item.nome || '').trim() !== chave
       || (item.area || '') !== (k.area || '')
-      || (item.unidade || '') !== (k.unidade || '')
-      || (item.periodicidade || 'Mensal') !== (k.periodicidade || 'Mensal')) return;
-    const periodo = periodoToNum(item.periodo);
-    if(!periodo || periodo > limite) return;
-    const valor = parseNumBR(item.realizado, null);
-    if(item.sem_dado || valor === null || !Number.isFinite(valor)) return;
-    // Importações antigas convertiam células vazias em zero, sem registrar sem_dado.
-    // Sem confirmação de medição, esse zero não comprova histórico disponível.
-    if(valor === 0 && /^(importado|gsheets)(_editado)?$/.test(item.origem || '') && item.sem_dado !== false) return;
-    porPeriodo.set(periodo, valor);
+      || (item.unidade || '') !== (k.unidade || '')) return;
+    const periodo = _periodoIndicadorRelatorio(item.periodo, item.periodicidade);
+    if(periodo?.meses === atual.meses && periodo.inicio >= inicioAnterior && periodo.inicio < referencia.inicio){
+      porPeriodo.set(periodo.inicio, item);
+    }
   });
-  if(porPeriodo.size < 2) return null;
-  return [...porPeriodo.values()].reduce((soma, valor) => soma + valor, 0) / porPeriodo.size;
+  let total = 0;
+  for(let inicio = inicioAnterior; inicio < referencia.inicio; inicio += atual.meses){
+    const anterior = porPeriodo.get(inicio);
+    if(!anterior || anterior.sem_dado) return null;
+    const valor = parseNumBR(anterior.realizado, null);
+    if(!Number.isFinite(valor)) return null;
+    // Zeros legados sem confirmação podem ter vindo de células vazias.
+    if(valor === 0 && /^(importado|gsheets)(_editado)?$/.test(anterior.origem || '') && anterior.sem_dado !== false) return null;
+    total += valor;
+  }
+  const ano = Math.floor(inicioAnterior / 12);
+  const mes = inicioAnterior % 12;
+  const nomes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const prefixos = {2:'B', 3:'T', 4:'Q', 6:'S'};
+  let periodo = `${nomes[mes]}/${ano}`;
+  if(referencia.meses === atual.meses) periodo = porPeriodo.get(inicioAnterior).periodo;
+  else if(referencia.meses === 12) periodo = String(ano);
+  else if(prefixos[referencia.meses]) periodo = `${prefixos[referencia.meses]}${Math.floor(mes/referencia.meses)+1}/${ano}`;
+  return {valor:total, periodo};
 }
-function _rowIndicadorRelatorioPdf(k, mediaHistorica = null){
+function _rowIndicadorRelatorioPdf(k, resultadoAnterior = null){
   const und = k.unidade ? ' '+k.unidade : '';
   const hasMeta = _kpiMeta(k) !== null;
   const pct = _calcKpiPct(k);
@@ -18685,14 +18725,14 @@ function _rowIndicadorRelatorioPdf(k, mediaHistorica = null){
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
     <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
-    <td style="text-align:center">${!hasMeta && Number.isFinite(mediaHistorica) ? mediaHistorica.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und) : '—'}</td>
+    <td style="text-align:center">${resultadoAnterior ? resultadoAnterior.valor.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und)+`<div style="font-size:9px;color:#6b7280">${esc(resultadoAnterior.periodo)}</div>` : '—'}</td>
     <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
     <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
     <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
   </tr>`;
 }
-function _rowsIndicadoresRelatorioPdf(lista, historico = kpis){
-  return lista.map(k => _rowIndicadorRelatorioPdf(k, _mediaHistoricaIndicadorRelatorio(k, historico))).join('');
+function _rowsIndicadoresRelatorioPdf(lista, historico = kpis, filtros = {}){
+  return lista.map(k => _rowIndicadorRelatorioPdf(k, _resultadoAnteriorIndicadorRelatorio(k, historico, filtros))).join('');
 }
 function _resumoIndicadoresRelatorioPdf(lista){
   const comMeta = lista.filter(k=>_calcKpiPct(k)!==null);
@@ -18731,7 +18771,7 @@ function gerarRelatorioIndPdf(){
   const macroprocessoCards = _buildKpiMacroprocessoCards(lista);
 
   _ordenarIndicadoresRelatorioPdf(lista);
-  const rows = _rowsIndicadoresRelatorioPdf(lista);
+  const rows = _rowsIndicadoresRelatorioPdf(lista, kpis, {period, intervalo});
   const resumo = _resumoIndicadoresRelatorioPdf(lista);
   const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:'', period?'Período: '+period:'', intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
   const _kpiHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
@@ -18779,7 +18819,7 @@ function gerarRelatorioIndPdf(){
   <thead><tr>
     <th>Indicador</th><th>Macroprocesso</th><th>Área</th><th>Período</th>
     <th style="text-align:center">Meta</th>
-    <th style="text-align:center">Média histórica</th>
+    <th style="text-align:center">Resultado do período anterior</th>
     <th style="text-align:center">Realizado</th>
     <th style="text-align:center">Desempenho</th>
     <th style="text-align:center">Status</th>
@@ -18791,7 +18831,7 @@ function gerarRelatorioIndPdf(){
     <td></td>
   </tr></tfoot>`}
 </table>
-<p style="margin-top:6px;font-size:9.5px;color:#6b7280">Média histórica: referência para indicadores sem meta, calculada com pelo menos dois períodos medidos até o período da linha, incluindo-o. Resultados zero são incluídos; períodos sem dado são desconsiderados.</p>
+<p style="margin-top:6px;font-size:9.5px;color:#6b7280">Resultado anterior: valor do período imediatamente anterior ao selecionado. Em intervalos maiores, soma os resultados que compõem o período anterior (ex.: os três meses do trimestre anterior). Sem filtro, segue a periodicidade de cada linha. “—” indica ausência de dados completos para a comparação.</p>
 <div class="legend">
   <span><span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-weight:700">⭐ Destaque</span> ≥ 130% da meta</span>
   <span><span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:10px;font-weight:700">✓ Meta atingida</span> ≥ 100%</span>
