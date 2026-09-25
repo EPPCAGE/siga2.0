@@ -18,6 +18,29 @@ function context() {
 }
 
 describe('indicadores sem meta', () => {
+  it.each(['', ' ', 'Sem dado', '—', null, undefined])('não transforma resultado ausente em histórico zero: %s', async value => {
+    const c = context();
+    const row = { Área: 'A', Indicador: 'I1', Meta: 10, Realizado: value };
+    const synced = c._gsheetsRowToKpi(row, { cCodigo: 'Indicador', cMeta: 'Meta', cReal: 'Realizado' }, {}, new Set());
+    await c.importarIndicadores({ files: [{ arrayBuffer: async () => [row] }], value: 'file' });
+    for (const k of [synced, c.kpis[0]]) {
+      expect(k.realizado).toBeNull();
+      expect(k.sem_dado).toBe(true);
+      expect(k.pct_realizado).toBeNull();
+    }
+  });
+
+  it.each([0, '0', '0,00'])('preserva resultado zero explicitamente informado: %s', async value => {
+    const c = context();
+    const row = { Área: 'A', Indicador: 'I1', Meta: 10, Realizado: value };
+    const synced = c._gsheetsRowToKpi(row, { cCodigo: 'Indicador', cMeta: 'Meta', cReal: 'Realizado' }, {}, new Set());
+    await c.importarIndicadores({ files: [{ arrayBuffer: async () => [row] }], value: 'file' });
+    for (const k of [synced, c.kpis[0]]) {
+      expect(k.realizado).toBe(0);
+      expect(k.sem_dado).toBe(false);
+    }
+  });
+
   it.each(['', ' ', 'Sem meta', '—', null, undefined])('preserva ausência de meta na importação: %s', async value => {
     const c = context();
     const row = { Indicador: 'I1', Meta: value, Realizado: 0 };

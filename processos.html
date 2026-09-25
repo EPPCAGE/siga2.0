@@ -14101,7 +14101,7 @@ async function importarIndicadores(input){
         const ppe     = (cPPE     ? row[cPPE]     : 'Não').toString().trim();
         const indice  = parseNumBR(cIndice  ? row[cIndice]  : 0);
         const meta    = parseNumBR(cMeta    ? row[cMeta]    : null, null);
-        const real    = parseNumBR(cReal    ? row[cReal]    : 0);
+        const real    = parseNumBR(cReal    ? row[cReal]    : null, null);
         const analise = (cAnalise  ? row[cAnalise]  : '').toString().trim();
         let pctReal = parseNumBR(cPctReal ? row[cPctReal] : 0);
         if(!pctReal && meta > 0){
@@ -14114,7 +14114,7 @@ async function importarIndicadores(input){
         if(editadosImport.has(chaveImp)) return; // skip manually edited periods
         const cfg = cfgEditadoImport[groupKey] || {};
         const metaFinal = cMeta ? meta : (cfg.meta ?? null);
-        if(metaFinal === null) pctReal = null;
+        if(metaFinal === null || real === null) pctReal = null;
         const polaridade = cfg.polaridade
           || (polSheet === 'Menor é melhor' ? 'Menor é melhor' : 'Maior é melhor');
         kpis.push({
@@ -14132,6 +14132,7 @@ async function importarIndicadores(input){
           pid:           cfg.pid  ?? null,
           arq_id:        cfg.arq_id ?? null,
           periodo, indice, realizado: real,
+          sem_dado: real === null,
           analise, pct_realizado: pctReal,
           polaridade, origem: 'importado',
         });
@@ -15117,7 +15118,7 @@ function _gsheetsRowToKpi(row, cols, cfgEditadoSync, editados){
   const chave = (nome||enunc||'').trim() + '|' + periodo.trim();
   if(editados.has(chave)) return null;
   const meta = parseNumBR(cols.cMeta ? row[cols.cMeta] : null, null);
-  const real = parseNumBR(cols.cReal ? row[cols.cReal] : 0);
+  const real = parseNumBR(cols.cReal ? row[cols.cReal] : null, null);
   const pctReal = parseNumBR(cols.cPctReal ? row[cols.cPctReal] : 0) || (meta>0 ? Math.round((real/meta)*100) : 0);
   const polSheet = cols.cPol ? (row[cols.cPol]||'').toString().trim() : '';
   const cfg = cfgEditadoSync[(nome||enunc||'').trim()] || {};
@@ -15140,8 +15141,9 @@ function _gsheetsRowToKpi(row, cols, cfgEditadoSync, editados){
     periodo,
     indice: parseNumBR(cols.cIndice ? row[cols.cIndice] : 0),
     realizado: real,
+    sem_dado: real === null,
     analise: val(cols.cAnalise),
-    pct_realizado: metaFinal === null ? null : pctReal,
+    pct_realizado: metaFinal === null || real === null ? null : pctReal,
     polaridade,
     origem: 'gsheets',
   };
@@ -18656,6 +18658,9 @@ function _mediaHistoricaIndicadorRelatorio(k, historico){
     if(!periodo || periodo > limite) return;
     const valor = parseNumBR(item.realizado, null);
     if(item.sem_dado || valor === null || !Number.isFinite(valor)) return;
+    // Importações antigas convertiam células vazias em zero, sem registrar sem_dado.
+    // Sem confirmação de medição, esse zero não comprova histórico disponível.
+    if(valor === 0 && /^(importado|gsheets)(_editado)?$/.test(item.origem || '') && item.sem_dado !== false) return;
     porPeriodo.set(periodo, valor);
   });
   if(porPeriodo.size < 2) return null;
@@ -18680,7 +18685,7 @@ function _rowIndicadorRelatorioPdf(k, mediaHistorica = null){
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
     <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
-    <td style="text-align:center">${!hasMeta && mediaHistorica !== null ? mediaHistorica.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und) : '—'}</td>
+    <td style="text-align:center">${!hasMeta && Number.isFinite(mediaHistorica) ? mediaHistorica.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und) : '—'}</td>
     <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
     <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
     <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
