@@ -60,6 +60,27 @@ describe('média histórica no relatório de indicadores', () => {
     expect(c.rows([kpi], values)).toContain('>1,63 dias</td>');
   });
 
+  it.each(['importado', 'gsheets', 'importado_editado', 'gsheets_editado'])('mostra traço para zeros antigos sem confirmação de medição: %s', origem => {
+    const c = context();
+    const zeros = historico.map(k => ({ ...k, origem, realizado: 0 }));
+    const mediaCell = rows => [...rows.matchAll(/<td[^>]*>(.*?)<\/td>/g)][5][1];
+    expect(c.media(zeros[2], zeros)).toBeNull();
+    expect(mediaCell(c.rows([zeros[2]], zeros))).toBe('—');
+    // Um único resultado válido também não forma histórico suficiente.
+    expect(mediaCell(c.rows([kpi], [...zeros.slice(0, 2), kpi]))).toBe('—');
+    const confirmados = zeros.map(k => ({ ...k, sem_dado: false }));
+    expect(c.media(confirmados[2], confirmados)).toBe(0);
+    expect(mediaCell(c.rows([confirmados[2]], confirmados))).toBe('0 dias');
+  });
+
+  it('mostra traço na célula da média para histórico vazio ou sem dados', () => {
+    const c = context();
+    for (const history of [[], [kpi], historico.map(k => ({ ...k, realizado: 0, sem_dado: true }))]) {
+      const cells = [...c.rows([kpi], history).matchAll(/<td[^>]*>(.*?)<\/td>/g)];
+      expect(cells[5][1]).toBe('—');
+    }
+  });
+
   it('não usa média como meta nem mostra média para indicador com meta explícita', () => {
     const c = context();
     expect(c.media({ ...kpi, meta: 30 }, historico)).toBeNull();
