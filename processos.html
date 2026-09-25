@@ -14005,10 +14005,11 @@ function fmtPeriodo(v){
 
 // Parses numbers from Brazilian-locale spreadsheets (comma as decimal separator,
 // dot as thousands separator). Also strips % suffix and handles already-numeric values.
-function parseNumBR(v){
+function parseNumBR(v, fallback = 0){
+  if(v === null || v === undefined) return fallback;
   if(typeof v === 'number') return v;
   let s = v.toString().trim().replaceAll('%','').trim();
-  if(!s) return 0;
+  if(!s) return fallback;
   const hasDot   = s.includes('.');
   const hasComma = s.includes(',');
   if(hasDot && hasComma){
@@ -14019,7 +14020,16 @@ function parseNumBR(v){
   } else if(hasComma){
     s = s.replaceAll(',','.');                 // 95,09 → 95.09
   }
-  return Number.parseFloat(s) || 0;
+  const n = Number.parseFloat(s);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function _kpiMeta(k){
+  const meta = parseNumBR(k.meta, null);
+  // Importações antigas perderam a distinção entre célula sem meta e zero.
+  // Um zero só é meta nesses registros quando confirmado pela nova importação/edição.
+  if(meta === 0 && /^(importado|gsheets)(_editado)?$/.test(k.origem || '') && k.meta_definida !== true) return null;
+  return meta;
 }
 
 function _xlsNorm(s){ return s.toString().replaceAll(/[^\w\s]/gu,'').replaceAll(/\s+/g,' ').trim().toLowerCase(); }
@@ -14073,7 +14083,7 @@ async function importarIndicadores(input){
         cfgEditadoImport[gk] = {
           area: k.area, nome: k.nome, desc: k.desc,
           periodicidade: k.periodicidade, ciclo: k.ciclo, ppe: k.ppe,
-          polaridade: k.polaridade, meta: k.meta, unidade: k.unidade,
+          polaridade: k.polaridade, meta: _kpiMeta(k), unidade: k.unidade,
           pid: k.pid ?? null,
           arq_id: k.arq_id ?? null,
         };
@@ -14090,7 +14100,7 @@ async function importarIndicadores(input){
         const ciclo   = (cCiclo   ? row[cCiclo]   : '').toString().trim();
         const ppe     = (cPPE     ? row[cPPE]     : 'Não').toString().trim();
         const indice  = parseNumBR(cIndice  ? row[cIndice]  : 0);
-        const meta    = parseNumBR(cMeta    ? row[cMeta]    : 0);
+        const meta    = parseNumBR(cMeta    ? row[cMeta]    : null, null);
         const real    = parseNumBR(cReal    ? row[cReal]    : 0);
         const analise = (cAnalise  ? row[cAnalise]  : '').toString().trim();
         let pctReal = parseNumBR(cPctReal ? row[cPctReal] : 0);
@@ -14103,6 +14113,8 @@ async function importarIndicadores(input){
         if(!area && !nome && !enunc) return; // skip empty rows
         if(editadosImport.has(chaveImp)) return; // skip manually edited periods
         const cfg = cfgEditadoImport[groupKey] || {};
+        const metaFinal = cMeta ? meta : (cfg.meta ?? null);
+        if(metaFinal === null) pctReal = null;
         const polaridade = cfg.polaridade
           || (polSheet === 'Menor é melhor' ? 'Menor é melhor' : 'Maior é melhor');
         kpis.push({
@@ -14115,7 +14127,8 @@ async function importarIndicadores(input){
           ciclo:         cfg.ciclo         || ciclo,
           ppe:           cfg.ppe           || ppe,
           unidade:       cfg.unidade       || '',
-          meta:          cMeta ? meta : (cfg.meta ?? meta),
+          meta:          metaFinal,
+          meta_definida: metaFinal !== null,
           pid:           cfg.pid  ?? null,
           arq_id:        cfg.arq_id ?? null,
           periodo, indice, realizado: real,
@@ -14242,7 +14255,7 @@ function _kpiGrpStatus(items){
   if(!withData.length) return null; // sem dados no período
   const last = withData[withData.length-1];
   const r = Number.parseFloat(last.realizado);
-  const m = Number.parseFloat(last.meta);
+  const m = Number.parseFloat(_kpiMeta(last));
   // meta=0 e realizado=0 → meta cumprida (ex: zero ocorrências de incidentes)
   // Só dispara quando meta foi EXPLICITAMENTE definida como 0 (m===0, não NaN)
   if(r === 0 && m === 0 && !Number.isNaN(m)) return 'ok';
@@ -14340,7 +14353,7 @@ function kpiGrupoCardHTML(key, items){
   });
   const last = withData.length ? withData[withData.length-1] : null;
   const lastR = last ? Number.parseFloat(last.realizado) : null;
-  const lastM = last ? Number.parseFloat(last.meta) : null;
+  const lastM = last ? Number.parseFloat(_kpiMeta(last)) : null;
   // hasMeta: meta explícita (>0) OU meta=0 explícita com real=0 (não NaN = não preenchida)
   const hasMeta = last && !Number.isNaN(lastM) && (lastM > 0 || (lastR === 0 && lastM === 0));
   let borderColor = 'var(--bdr)';
@@ -14591,7 +14604,7 @@ function kpiCard(k){
   const polaridade = k.polaridade || 'Maior é melhor';
   const unidade    = k.unidade ? ' '+k.unidade : '';
   const polIcon    = polaridade === 'Menor é melhor' ? '↓' : '↑';
-  const hasMeta    = k.meta !== null && k.meta !== undefined && k.meta !== '';
+  const hasMeta    = _kpiMeta(k) !== null;
 
   let pct = null, color, status, barW;
   if(hasMeta){
@@ -14669,7 +14682,7 @@ function _kpiFormSetFields(k){
   fv('nkpi-ciclo',      k.ciclo      || '');
   fv('nkpi-ppe',        k.ppe        || 'Não');
   fv('nkpi-indice',     k.indice     || '');
-  fv('nkpi-meta',       k.meta       || '');
+  fv('nkpi-meta',       _kpiMeta(k) ?? '');
   fv('nkpi-real',       k.realizado  || '');
   fv('nkpi-pct-real',   k.pct_realizado == null ? '' : k.pct_realizado+'%');
   fv('nkpi-unidade',    k.unidade    || '');
@@ -14808,7 +14821,7 @@ function _kpiNavLoadCurrent(){
   fv('nkpi-real',     edits ? edits.realizado  : (k.realizado || ''));
   fv('nkpi-indice',   edits ? edits.indice     : (k.indice    || ''));
   fv('nkpi-analise',  edits ? edits.analise    : (k.analise   || ''));
-  const metaVal = edits ? edits.meta : k.meta;
+  const metaVal = edits ? edits.meta : _kpiMeta(k);
   fv('nkpi-meta', metaVal == null ? '' : metaVal);
   const sdEl2 = document.getElementById('nkpi-sem-dado');
   if(sdEl2) sdEl2.checked = !!(edits ? edits.sem_dado : k.sem_dado);
@@ -14932,6 +14945,7 @@ function _kpiReadSinglePayload(area, nome, origem, id){
     indice: Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
     polaridade: periodo.polaridade,
     meta: periodo.metaVal,
+    meta_definida: periodo.metaVal !== null,
     realizado: periodo.realVal,
     analise: document.getElementById('nkpi-analise').value.trim(),
     pct_realizado: periodo.pct,
@@ -14946,6 +14960,7 @@ function _kpiApplyPeriodEdits(target, edits){
   target.analise   = edits.analise;
   target.sem_dado  = !!edits.sem_dado;
   target.meta      = edits.meta;
+  target.meta_definida = parseNumBR(edits.meta, null) !== null;
 }
 function _kpiRefreshPct(target){
   const meta = Number.parseFloat(target.meta);
@@ -15079,7 +15094,7 @@ function _gsheetsEditedConfigMap(){
       cfgEditadoSync[gk] = {
         area: k.area, nome: k.nome, desc: k.desc,
         periodicidade: k.periodicidade, ciclo: k.ciclo, ppe: k.ppe,
-        polaridade: k.polaridade, meta: k.meta, unidade: k.unidade,
+        polaridade: k.polaridade, meta: _kpiMeta(k), unidade: k.unidade,
         pid: k.pid ?? null,
         arq_id: k.arq_id ?? null,
       };
@@ -15101,11 +15116,12 @@ function _gsheetsRowToKpi(row, cols, cfgEditadoSync, editados){
   const periodo = fmtPeriodo(cols.cPeriodo ? row[cols.cPeriodo] : '');
   const chave = (nome||enunc||'').trim() + '|' + periodo.trim();
   if(editados.has(chave)) return null;
-  const meta = parseNumBR(cols.cMeta ? row[cols.cMeta] : 0);
+  const meta = parseNumBR(cols.cMeta ? row[cols.cMeta] : null, null);
   const real = parseNumBR(cols.cReal ? row[cols.cReal] : 0);
   const pctReal = parseNumBR(cols.cPctReal ? row[cols.cPctReal] : 0) || (meta>0 ? Math.round((real/meta)*100) : 0);
   const polSheet = cols.cPol ? (row[cols.cPol]||'').toString().trim() : '';
   const cfg = cfgEditadoSync[(nome||enunc||'').trim()] || {};
+  const metaFinal = cols.cMeta ? meta : (cfg.meta ?? null);
   const polaridade = cfg.polaridade || (polSheet === 'Menor é melhor' ? 'Menor é melhor' : 'Maior é melhor');
   return {
     id: _kpiIdC++,
@@ -15117,14 +15133,15 @@ function _gsheetsRowToKpi(row, cols, cfgEditadoSync, editados){
     ciclo: cfg.ciclo || val(cols.cCiclo),
     ppe: cfg.ppe || val(cols.cPPE) || 'Não',
     unidade: cfg.unidade || '',
-    meta: cols.cMeta ? meta : (cfg.meta ?? meta),
+    meta: metaFinal,
+    meta_definida: metaFinal !== null,
     pid: cfg.pid ?? null,
     arq_id: cfg.arq_id ?? null,
     periodo,
     indice: parseNumBR(cols.cIndice ? row[cols.cIndice] : 0),
     realizado: real,
     analise: val(cols.cAnalise),
-    pct_realizado: pctReal,
+    pct_realizado: metaFinal === null ? null : pctReal,
     polaridade,
     origem: 'gsheets',
   };
@@ -18505,7 +18522,7 @@ async function iaAnalisarIndicadores(){
         if(r===0&&m===0){ return false; } if(m<=0){ return false; }
         return pol==='Menor é melhor'?r>m:r<m;
       });
-      const hasMeta = last.meta !== null && last.meta !== undefined && last.meta !== '';
+      const hasMeta = _kpiMeta(last) !== null;
       return {
         area:last.area, nome:last.nome,
         ...(hasMeta ? {meta:last.meta} : {sem_meta:true}),
@@ -18554,8 +18571,9 @@ function parsePeriodSort(p){
 
 function _calcKpiPct(k){
   const r = Number(k.realizado);
-  const m = Number(k.meta);
-  if(r===0 && k.meta!==null && k.meta!==undefined && k.meta!=='' && m===0) return 100;
+  const m = _kpiMeta(k);
+  if(m === null || !Number.isFinite(r)) return null;
+  if(r===0 && m===0) return 100;
   if(m<=0) return null;
   const isMenorMelhor = (k.polaridade||'Maior é melhor')==='Menor é melhor';
   if(isMenorMelhor){
@@ -18625,7 +18643,7 @@ function _ordenarIndicadoresRelatorioPdf(lista){
 }
 function _rowIndicadorRelatorioPdf(k){
   const und = k.unidade ? ' '+k.unidade : '';
-  const hasMeta = k.meta !== null && k.meta !== undefined && k.meta !== '';
+  const hasMeta = _kpiMeta(k) !== null;
   const pct = _calcKpiPct(k);
   const st = statusInfo(pct, hasMeta);
   let pctStyle;
