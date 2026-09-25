@@ -18641,7 +18641,27 @@ function _ordenarIndicadoresRelatorioPdf(lista){
     return parsePeriodSort(a.periodo) - parsePeriodSort(b.periodo);
   });
 }
-function _rowIndicadorRelatorioPdf(k){
+function _mediaHistoricaIndicadorRelatorio(k, historico){
+  if(_kpiMeta(k) !== null) return null;
+  const chave = (k.codigo || k.nome || '').trim();
+  const limite = periodoToNum(k.periodo);
+  if(!chave || !limite) return null;
+  const porPeriodo = new Map();
+  historico.forEach(item => {
+    if((item.codigo || item.nome || '').trim() !== chave
+      || (item.area || '') !== (k.area || '')
+      || (item.unidade || '') !== (k.unidade || '')
+      || (item.periodicidade || 'Mensal') !== (k.periodicidade || 'Mensal')) return;
+    const periodo = periodoToNum(item.periodo);
+    if(!periodo || periodo > limite) return;
+    const valor = parseNumBR(item.realizado, null);
+    if(item.sem_dado || valor === null || !Number.isFinite(valor)) return;
+    porPeriodo.set(periodo, valor);
+  });
+  if(porPeriodo.size < 2) return null;
+  return [...porPeriodo.values()].reduce((soma, valor) => soma + valor, 0) / porPeriodo.size;
+}
+function _rowIndicadorRelatorioPdf(k, mediaHistorica = null){
   const und = k.unidade ? ' '+k.unidade : '';
   const hasMeta = _kpiMeta(k) !== null;
   const pct = _calcKpiPct(k);
@@ -18655,18 +18675,19 @@ function _rowIndicadorRelatorioPdf(k){
     ? '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#dbeafe;color:#1e40af;margin-left:5px;vertical-align:middle">PPE</span>'
     : '';
   return `<tr style="background:${st.rowBg}">
-    <td>${k.codigo?'<strong>'+esc(k.codigo)+'</strong> — ':''}${esc(k.nome)}${ppeBadge}</td>
+    <td>${esc(k.nome)}${ppeBadge}</td>
     <td style="font-size:10px;color:#6b7280">${esc(_macroprocessoIndicador(k))}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
     <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
+    <td style="text-align:center">${!hasMeta && mediaHistorica !== null ? mediaHistorica.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und) : '—'}</td>
     <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
     <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
     <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
   </tr>`;
 }
-function _rowsIndicadoresRelatorioPdf(lista){
-  return lista.map(_rowIndicadorRelatorioPdf).join('');
+function _rowsIndicadoresRelatorioPdf(lista, historico = kpis){
+  return lista.map(k => _rowIndicadorRelatorioPdf(k, _mediaHistoricaIndicadorRelatorio(k, historico))).join('');
 }
 function _resumoIndicadoresRelatorioPdf(lista){
   const comMeta = lista.filter(k=>_calcKpiPct(k)!==null);
@@ -18753,17 +18774,19 @@ function gerarRelatorioIndPdf(){
   <thead><tr>
     <th>Indicador</th><th>Macroprocesso</th><th>Área</th><th>Período</th>
     <th style="text-align:center">Meta</th>
+    <th style="text-align:center">Média histórica</th>
     <th style="text-align:center">Realizado</th>
     <th style="text-align:center">Desempenho</th>
     <th style="text-align:center">Status</th>
   </tr></thead>
   <tbody>${rows}</tbody>
   ${resumo.taxaGeral===null?'':`<tfoot><tr class="tfoot-row">
-    <td colspan="6">Taxa de atingimento geral (indicadores com meta)</td>
+    <td colspan="7">Taxa de atingimento geral (indicadores com meta)</td>
     <td style="text-align:center;font-size:14px;color:${resumo.taxaCl}">${resumo.atingiramG}/${resumo.comMeta.length} — ${resumo.taxaGeral}%</td>
     <td></td>
   </tr></tfoot>`}
 </table>
+<p style="margin-top:6px;font-size:9.5px;color:#6b7280">Média histórica: referência para indicadores sem meta, calculada com pelo menos dois períodos medidos até o período da linha, incluindo-o. Resultados zero são incluídos; períodos sem dado são desconsiderados.</p>
 <div class="legend">
   <span><span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-weight:700">⭐ Destaque</span> ≥ 130% da meta</span>
   <span><span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:10px;font-weight:700">✓ Meta atingida</span> ≥ 100%</span>

@@ -12,7 +12,7 @@
     processPresentationFooter: 'EP·CAGE — Escritório de Processos — CAGE/Sefaz-RS',
     processPresentationClosingMessage: 'Processo mapeado e documentado pela EP·CAGE.',
     processPresentationClosingFooter: 'EP·CAGE — Gestão de Processos Institucionais',
-    indicatorReportOrgLabel: 'EP·CAGE · Escritório de Processos',
+    indicatorReportOrgLabel: 'EPP CAGE - ESCRITÓRIO DE PROJETOS E PROCESSOS',
     indicatorReportFooter: 'Gerado pelo sistema SIGA 2.0 — EP·CAGE/Sefaz-RS',
     supportTeamLabel: 'EPP',
     epProfileLabel: 'EPP',
