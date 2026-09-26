@@ -24,7 +24,7 @@ describe('resultado do período anterior no relatório', () => {
     ['T1/2026', 'T4/2025', 'Trimestral'], ['2º trimestre/2026', 'T1/2026', 'Trimestral'],
     ['S1/2026', '2º semestre/2025', 'Semestral'], ['S2/2026', 'S1/2026', 'Semestral'],
     ['B1/2026', 'B6/2025', 'Bimestral'], ['Q1/2026', 'Q3/2025', 'Quadrimestral'],
-    ['2026', '2025', 'Anual'], ['abr/2026', 'jan/2026', 'Trimestral'],
+    ['2026', '2025', 'Anual'], ['abr/2026', 'mar/2026', 'Trimestral'],
   ])('compara %s com %s (%s), inclusive na virada do ano', (periodo, anterior, periodicidade) => {
     const current = { ...kpi, periodo, periodicidade };
     expect(context().anterior(current, [{ ...current, periodo: anterior, realizado: 7 }, current])).toEqual({ valor: 7, periodo: anterior });
@@ -85,10 +85,24 @@ describe('resultado do período anterior no relatório', () => {
 
   it('não mistura indicadores, áreas, unidades ou periodicidades', () => {
     const c = context();
-    for (const fields of [{ codigo: 'OUTRO' }, { area: 'B' }, { unidade: 'dias' }, { periodicidade: 'Trimestral' }]) {
+    for (const fields of [{ codigo: 'OUTRO' }, { area: 'B' }, { unidade: 'dias' }, { periodo: 'T3/2026' }]) {
       expect(c.anterior(kpi, [{ ...kpi, periodo: 'jul/2026', ...fields }])).toBeNull();
     }
     expect(c.anterior({ ...kpi, periodo: 'inválido' }, [kpi])).toBeNull();
+  });
+
+  it.each([{}, { period: 'agosto/2026' }])('compara os meses do indicador 387.442 apesar do cadastro anual: %j', filtros => {
+    const history = [
+      ['maio/2026', 8.3], ['junho/2026', 8.26], ['julho/2026', 9.17], ['agosto/2026', 8.37],
+    ].map(([periodo, realizado]) => ({ ...kpi, codigo: '387.442', area: 'DCO', unidade: 'horas', periodicidade: 'Anual', origem: 'gsheets_editado', periodo, realizado }));
+    const c = context();
+    expect(c.anterior(history[3], history, filtros)).toEqual({ valor: 9.17, periodo: 'julho/2026' });
+    expect(cell(c.rows([history[3]], history, filtros))).toContain('9,17 horas');
+  });
+
+  it('soma os meses do trimestre anterior mesmo com periodicidade cadastral anual', () => {
+    const history = ['abr/2026', 'mai/2026', 'jun/2026'].map(periodo => ({ ...kpi, periodo, periodicidade: 'Anual', realizado: 2 }));
+    expect(context().anterior({ ...kpi, periodicidade: 'Anual' }, history, { intervalo: 'T3/2026' })).toEqual({ valor: 6, periodo: 'T2/2026' });
   });
 
   it('mostra comparação com e sem meta, preservando desempenho e removendo códigos', () => {
