@@ -9,7 +9,8 @@ function source(start, end) {
 }
 const report = { id: 123, filtros: 'Agosto de 2026', data: '25/09/2026', publicadoPor: 'EPP', html: '<html>Relatório salvo</html>' };
 function context({ reports = [report], filter = 'Relatórios', ep = true, publications = [] } = {}) {
-  const nodes = Object.fromEntries(['pub-list', 'pub-sub', 'pub-relatorios-ind-panel'].map(id => [id, { innerHTML: '', textContent: '' }]));
+  const nodes = Object.fromEntries(['pub-list', 'pub-sub', 'pub-relatorios-ind-panel', 'ia-ind-pub-btn'].map(id => [id, { innerHTML: '', textContent: '', disabled: false }]));
+  nodes['ia-ind-pub-btn'].textContent = '★ Publicar como oficial';
   let confirm;
   const repository = { set: vi.fn(async () => {}), remove: vi.fn(async () => {}) };
   const ctx = {
@@ -18,6 +19,7 @@ function context({ reports = [report], filter = 'Relatórios', ep = true, public
     isEP: () => ep, esc: value => String(value ?? ''), safeUrl: () => '', _pubProcsHtml: () => '',
     fbReady: () => true, relatoriosIndicadoresRepository: repository, _fsClean: value => value,
     confirmar: (_message, callback) => { confirm = callback; }, toast: vi.fn(),
+    console: { error: vi.fn() },
     _lastRelatorioIndHtml: '<html>Novo relatório</html>', _lastRelatorioIndFiltros: 'Setembro de 2026', usuarioLogado: { nome: 'EPP' },
   };
   const api = runInNewContext([
@@ -69,11 +71,49 @@ describe('relatórios oficiais de indicadores em Publicações', () => {
   it('publica na coleção existente e atualiza a listagem em Publicações', async () => {
     const c = context({ reports: [] });
     await c.api.publicarRelatorioOficial();
-    await c.confirm();
     expect(c.repository.set).toHaveBeenCalledOnce();
     expect(c.repository.set.mock.calls[0][1].html).toBe('<html>Novo relatório</html>');
     expect(c.nodes['pub-relatorios-ind-panel'].innerHTML).toContain('Setembro de 2026');
     expect(c.ctx.toast).toHaveBeenCalledWith('Relatório oficial salvo em Publicações → Relatórios.', 'var(--green)');
+  });
+
+  it('indica progresso, evita publicação duplicada e só lista depois da confirmação do servidor', async () => {
+    const c = context({ reports: [] });
+    let complete;
+    c.repository.set.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+    const pending = c.api.publicarRelatorioOficial();
+    expect(c.nodes['ia-ind-pub-btn'].disabled).toBe(true);
+    expect(c.nodes['ia-ind-pub-btn'].textContent).toBe('Publicando…');
+    expect(c.ctx.RELATORIOS_IND).toHaveLength(0);
+    await c.api.publicarRelatorioOficial();
+    expect(c.repository.set).toHaveBeenCalledOnce();
+    complete();
+    await pending;
+    expect(c.ctx.RELATORIOS_IND).toHaveLength(1);
+    expect(c.nodes['ia-ind-pub-btn'].disabled).toBe(false);
+    expect(c.nodes['ia-ind-pub-btn'].textContent).toBe('★ Publicar como oficial');
+  });
+
+  it('trata falha de gravação e libera o botão para tentar novamente', async () => {
+    const c = context({ reports: [] });
+    c.repository.set.mockRejectedValueOnce(new Error('permission-denied'));
+    await c.api.publicarRelatorioOficial();
+    expect(c.ctx.RELATORIOS_IND).toHaveLength(0);
+    expect(c.ctx.toast).toHaveBeenCalledWith(expect.stringContaining('Não foi possível publicar'), 'var(--red)');
+    expect(c.nodes['ia-ind-pub-btn'].disabled).toBe(false);
+    await c.api.publicarRelatorioOficial();
+    expect(c.ctx.RELATORIOS_IND).toHaveLength(1);
+  });
+
+  it.each(['servidor', 'offline'])('não simula publicação sem conexão: %s', failure => {
+    const c = context({ reports: [] });
+    if(failure === 'servidor') c.ctx.fbReady = () => false;
+    else c.ctx.navigator = { onLine: false };
+    return c.api.publicarRelatorioOficial().then(() => {
+      expect(c.repository.set).not.toHaveBeenCalled();
+      expect(c.ctx.RELATORIOS_IND).toHaveLength(0);
+      expect(c.ctx.toast).toHaveBeenCalledWith(expect.stringContaining('Sem conexão'), 'var(--amber)');
+    });
   });
 
   it('atualiza a listagem e o total quando o último relatório oficial é excluído', async () => {

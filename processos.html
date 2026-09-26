@@ -18935,10 +18935,20 @@ async function excluirRelatorioOficial(id){
   },'Excluir',true);
 }
 
+let _publicandoRelatorioOficial = false;
 async function publicarRelatorioOficial(){
+  if(_publicandoRelatorioOficial) return;
   if(!isEP()){ toast('Apenas membros do EP podem publicar relatórios oficiais.','var(--amber)'); return; }
   if(!_lastRelatorioIndHtml){ toast('Gere o relatório PDF primeiro.','var(--amber)'); return; }
-  confirmar('Publicar este relatório como oficial? Ele ficará disponível em Publicações → Relatórios.', async ()=>{
+  if(!fbReady() || globalThis.navigator?.onLine === false){
+    toast('Sem conexão com o servidor. Reconecte-se para publicar o relatório oficial.','var(--amber)');
+    return;
+  }
+  const btn = document.getElementById('ia-ind-pub-btn');
+  const label = btn?.textContent;
+  _publicandoRelatorioOficial = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'Publicando…'; }
+  try {
     const rel = {
       id: Date.now(),
       filtros: _lastRelatorioIndFiltros || 'Todos os indicadores',
@@ -18947,13 +18957,17 @@ async function publicarRelatorioOficial(){
       publicadoEm: new Date().toISOString(),
       html: _lastRelatorioIndHtml
     };
-    if(fbReady()){
-      await relatoriosIndicadoresRepository.set(rel.id, _fsClean(rel));
-    }
+    await relatoriosIndicadoresRepository.set(rel.id, _fsClean(rel));
     RELATORIOS_IND.unshift(rel);
     rPub();
     toast('Relatório oficial salvo em Publicações → Relatórios.','var(--green)');
-  },'Publicar',false);
+  } catch(err){
+    console.error('Erro ao publicar relatório oficial:', err);
+    toast('Não foi possível publicar o relatório oficial. Verifique sua conexão e tente novamente.','var(--red)');
+  } finally {
+    _publicandoRelatorioOficial = false;
+    if(btn){ btn.disabled = false; btn.textContent = label; }
+  }
 }
 
 // ── INJECT IA BUTTONS INTO PAGES ─────────
