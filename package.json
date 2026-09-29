@@ -7,7 +7,6 @@
     "test:unit:coverage": "vitest run --coverage",
     "test:e2e:smoke":         "node tests/e2e/smoke.cjs",
     "test:e2e:projetos":      "node tests/e2e/projetos-smoke.cjs",
-    "site:check":                 "node tools/check-site.mjs",
     "tenant:migration:plan":      "node tools/migrate-firestore-tenant.mjs --tenant=cage-rs",
     "tenant:migration:validate":  "node tools/migrate-firestore-tenant.mjs --tenant=cage-rs --validate",
     "docs:diagrama-pdf": "PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node tools/gerar-diagrama-pdf.mjs"
