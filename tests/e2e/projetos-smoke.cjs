@@ -17,4 +17,7 @@ const { chromium } = require('playwright');
   }));
   console.log(JSON.stringify({ state, logs: logs.slice(-80) }, null, 2));
   await browser.close();
-})();
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

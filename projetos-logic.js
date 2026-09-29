@@ -281,7 +281,7 @@ function projSaveListas(){
     localStorage.setItem('cagePROJ_MACROS_v6',JSON.stringify(PROJ_MACROS));
     localStorage.setItem('cage_objetivos_v6',JSON.stringify(PROJ_OBJETIVOS));
   }
-  projFbAutoSave('listas');
+  void projFbAutoSave('listas').catch(() => {});
   return true;
 }
 
@@ -345,12 +345,12 @@ function projFbAutoSave(label){
   _projFbState.saving = true;
   return new Promise((resolve, reject)=>{
     _projFbState.saveTimer = setTimeout(()=>{
-    projFbSaveAll({includeConfig: label === 'listas' || label === 'importar' || label === 'governanca'}).catch(e=>{
+    void projFbSaveAll({includeConfig: label === 'listas' || label === 'importar' || label === 'governanca'}).then(resolve, e=>{
       console.warn('projFbAutoSave('+label+'):', e.message);
       try { projToast('Erro ao salvar na nuvem: ' + e.message, '#dc2626'); } catch(_e){}
       _projFbState.saving = false;
       reject(e);
-    }).then(resolve);
+    });
     }, 500);
   });
 }
@@ -550,7 +550,7 @@ function projSave() {
   }
   try {
     localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS));
-    projFbAutoSave('projetos');
+    void projFbAutoSave('projetos').catch(() => {});
     return true;
   } catch(e) {
     projToast('Erro ao salvar dados.', 'var(--red)');
@@ -595,7 +595,7 @@ function progSave() {
   }
   try {
     localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS));
-    projFbAutoSave('programas');
+    void projFbAutoSave('programas').catch(() => {});
     return true;
   } catch(e) {
     projToast('Erro ao salvar programas.', 'var(--red)');
