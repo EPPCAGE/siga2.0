@@ -396,21 +396,6 @@ Push para `main` → workflow `firebase-deploy.yml` executa automaticamente:
 1. Injeta credenciais dos Secrets do GitHub em `processos.html`
 2. Publica em: `https://sigaepp.web.app`
 
-### Diagnóstico de indisponibilidade
-
-Para separar problemas do domínio personalizado de falhas no Firebase Hosting,
-execute:
-
-```bash
-npm run site:check
-```
-
-O comando testa DNS e HTTPS tanto em `https://eppcage.com.br/` quanto no endereço
-canônico `https://sigaepp.web.app/`. Se apenas o domínio personalizado falhar,
-revise os registros DNS e o status do domínio no console do Firebase Hosting. Se
-ambos falharem, confira a execução mais recente do workflow de deploy e o status
-do serviço de Hosting.
-
 **Secrets necessários no GitHub** (`Settings → Secrets and variables → Actions`):
 
 | Secret | Descrição |
