@@ -3111,7 +3111,7 @@ function rPainelGestor(){
   todas.filter(u=>u.proc).forEach(u=>{
     const ent=u.proc?.ent||{};
     const resp=ent.quest_resp||{};
-    const m=Object.keys(resp).length?_calcNivelMaturidadeModa(resp):(ent.mat||0);
+    const m=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(ent.mat||0);
     (matGrps[m]||matGrps[0]).push(u);
   });
   const matLabels={0:'Não avaliada',1:'Inicial',2:'Gerenciado',3:'Padronizado',4:'Quantitativo',5:'Otimizado'};
@@ -4495,7 +4495,7 @@ function abrirProc(id){
 }
 function rDetalhe(){
   const p=curProc;
-  _migrarMatModa(p);
+  _migrarMatMin(p);
   _migrarQuestHist(p);
   _migrarQuestHistNivel(p);
   document.getElementById('det-titulo').textContent=p.nome;
@@ -5132,7 +5132,7 @@ function jaFoiRespondido(etapa){
 function _salvarDonoQuestionario(p){
   const resp=p.ent.quest_resp||{};
   const vals=Object.values(resp);
-  if(vals.length>0) p.ent.mat=_calcNivelMaturidadeModa(resp);
+  if(vals.length>0) p.ent.mat=_calcNivelMaturidadeMin(resp);
   p.ent.quest_nota=document.getElementById('quest-nota')?.value??p.ent.quest_nota??'';
 }
 
@@ -6622,7 +6622,7 @@ function _rsApresentacao(p){
 }
 function _rsQuestionario(p){
   const resp=p.ent.quest_resp||{};
-  if(Object.keys(resp).length>0) p.ent.mat=_calcNivelMaturidadeModa(resp);
+  if(Object.keys(resp).length>0) p.ent.mat=_calcNivelMaturidadeMin(resp);
 }
 function _rsAnalise(p){
   p.ent.analise=document.getElementById('a-anal')?.value||p.ent.analise;
@@ -7183,33 +7183,21 @@ function _calcNivelMaturidade(media){
   if(media<=4.5) return 4;
   return 5;
 }
-function _calcModaNiveis(niveis){
-  if(!niveis.length) return 1;
-  const frequencias=niveis.reduce((acc,nivel)=>{
-    acc[nivel]=(acc[nivel]||0)+1;
-    return acc;
-  },{});
-  const maiorFrequencia=Math.max(...Object.values(frequencias));
-  // Em caso de empate entre modas, preserva o critério conservador e retorna o menor nível.
-  return Math.min(...Object.entries(frequencias)
-    .filter(([,frequencia])=>frequencia===maiorFrequencia)
-    .map(([nivel])=>Number(nivel)));
-}
-function _calcNivelMaturidadeModa(resp){
+function _calcNivelMaturidadeMin(resp){
   const dims={};
   QUESTOES.forEach(q=>{
     if(!dims[q.dim])dims[q.dim]={sum:0,cnt:0};
     if(typeof resp[q.id]==='number'){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const niveis=Object.values(dims).filter(d=>d.cnt>0).map(d=>_calcNivelMaturidade(d.sum/d.cnt));
-  return _calcModaNiveis(niveis);
+  return niveis.length?Math.min(...niveis):1;
 }
 function _migrarQuestHistNivel(p){
   const e=p.ent;
   if(!e?.quest_hist?.length) return;
   const resp=e.quest_resp||{};
   if(!Object.keys(resp).length) return;
-  const nivelCorreto=_calcNivelMaturidadeModa(resp);
+  const nivelCorreto=_calcNivelMaturidadeMin(resp);
   let mudou=false;
   e.quest_hist.forEach((h,i)=>{
     const isLast=i===e.quest_hist.length-1;
@@ -7220,12 +7208,12 @@ function _migrarQuestHistNivel(p){
   });
   if(mudou) fbAutoSave('salvar');
 }
-function _migrarMatModa(p){
+function _migrarMatMin(p){
   const e=p.ent;
   if(!e) return;
   const resp=e.quest_resp||{};
   if(!Object.keys(resp).length) return;
-  const nivelCorreto=_calcNivelMaturidadeModa(resp);
+  const nivelCorreto=_calcNivelMaturidadeMin(resp);
   if(e.mat===nivelCorreto) return;
   e.mat=nivelCorreto;
   fbAutoSave('salvar');
@@ -7239,7 +7227,7 @@ function _migrarQuestHist(p){
   if(!respondidas||!e.mat) return;
   const numVals=Object.values(resp).filter(v=>typeof v==='number');
   const media=numVals.length?(numVals.reduce((a,b)=>a+b,0)/numVals.length).toFixed(1):0;
-  const nivel=_calcNivelMaturidadeModa(resp);
+  const nivel=_calcNivelMaturidadeMin(resp);
   e.quest_hist=[{dt:'(retroativo)',nivel,media,respondidas,nota:e.quest_nota||''}];
   fbAutoSave('salvar');
 }
@@ -7252,7 +7240,7 @@ function salvarQuestionario(){
   const _enviarQuestionario = () => {
     const numVals=Object.values(resp).filter(v=>typeof v==='number');
     const media=numVals.length?(numVals.reduce((a,b)=>a+b,0)/numVals.length).toFixed(1):0;
-    const nivel=_calcNivelMaturidadeModa(resp);
+    const nivel=_calcNivelMaturidadeMin(resp);
     p.ent.mat=nivel;
     const nota=document.getElementById('quest-nota')?.value||'';
     p.ent.quest_nota=nota;
@@ -7271,14 +7259,14 @@ function mostrarResultadoMaturidade(p,nivel,media){
   QUESTOES.forEach(q=>{if(!dims[q.dim]){dims[q.dim]={sum:0,cnt:0};} if(typeof resp[q.id]==='number'){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}});
   const corNivel=['','var(--red)','var(--amber)','var(--amber)','var(--teal)','var(--green)'][nivel]||'var(--blue)';
   // Eixos sem nenhuma resposta numérica (todas as perguntas marcadas "Não se aplica")
-  // ficam fora do cálculo de nível — não podem ser tratados como nível 1 nem influenciar a moda.
+  // ficam fora do cálculo de nível — não podem ser tratados como nível 1 nem virar "eixo limitante".
   const dimEntries=Object.entries(dims).filter(([,d])=>d.cnt>0);
   const dimNiveis=Object.fromEntries(dimEntries.map(([dim,d])=>[dim,_calcNivelMaturidade(d.sum/d.cnt)]));
-  const nivelModa=_calcModaNiveis(Object.values(dimNiveis));
+  const nivelMin=Object.values(dimNiveis).length?Math.min(...Object.values(dimNiveis)):1;
   const dimRows=dimEntries.map(([dim,d])=>{
     const nota=d.sum/d.cnt;
     const nivelDim=dimNiveis[dim];
-    const isModal=nivelDim===nivelModa;
+    const isLimitante=nivelDim===nivelMin;
     const pct=Math.round(nota/5*100);
     let cor;
     if(nota<2) cor='#ef4444';
@@ -7286,9 +7274,9 @@ function mostrarResultadoMaturidade(p,nivel,media){
     else if(nota<4) cor='#eab308';
     else if(nota<4.5) cor='#22c55e';
     else cor='#16a34a';
-    return `<div style="margin-bottom:.55rem;${isModal?'background:#eff6ff;border-left:3px solid var(--blue);padding:.35rem .5rem;border-radius:0 6px 6px 0;margin-left:-2px':''}">
+    return `<div style="margin-bottom:.55rem;${isLimitante?'background:#fff7ed;border-left:3px solid #f97316;padding:.35rem .5rem;border-radius:0 6px 6px 0;margin-left:-2px':''}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
-        <span style="font-size:12px;color:var(--ink2);font-weight:${isModal?'700':'400'}">${dim}${isModal?' <span style="font-size:10px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle">nível modal</span>':''}</span>
+        <span style="font-size:12px;color:var(--ink2);font-weight:${isLimitante?'700':'400'}">${dim}${isLimitante?' <span style="font-size:10px;background:#f97316;color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle">eixo limitante</span>':''}</span>
         <span style="font-size:12px;font-weight:700;color:${cor}">${nota.toFixed(1)}/5 · Nível ${nivelDim}</span>
       </div>
       <div style="height:7px;background:var(--bg3);border-radius:4px;overflow:hidden">
@@ -7303,7 +7291,7 @@ function mostrarResultadoMaturidade(p,nivel,media){
       <div style="font-size:13px;color:var(--ink3);margin-bottom:.3rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Resultado do Questionário de Maturidade</div>
       <div style="font-size:48px;font-weight:900;color:${corNivel};line-height:1">${nivel}</div>
       <div style="font-size:22px;font-weight:700;color:${corNivel};margin-bottom:.3rem">${MATURIDADE_LABELS[nivel]||''}</div>
-      <div style="font-size:12px;color:var(--ink3);margin-bottom:.15rem">Determinado pela moda dos níveis de maturidade dos eixos</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:.15rem">Determinado pelo eixo com menor nível de maturidade</div>
       <div style="font-size:11px;color:var(--ink3);background:var(--bg2);display:inline-block;padding:2px 10px;border-radius:20px">Média geral (indicador complementar): <strong>${media}</strong></div>
     </div>
     <div style="border-top:1px solid var(--bdr);padding-top:1.2rem;margin-bottom:1.4rem">
@@ -10620,10 +10608,10 @@ function rEnt(p){
     if(typeof resp[q.id]==='number'){dims[q.dim].sum+=resp[q.id];dims[q.dim].cnt++;}
   });
   const matBadges=_rEntMatBadges(e);
-  // Nível por eixo e eixo(s) na moda — recomputado direto de resp para garantir consistência
+  // Nível por eixo e eixo(s) limitante(s) — recomputado direto de resp para garantir consistência
   const dimNiveis=Object.fromEntries(Object.entries(dims).map(([dim,d])=>[dim,d.cnt>0?_calcNivelMaturidade(d.sum/d.cnt):0]));
-  const nivelModa=Object.keys(resp).length?_calcNivelMaturidadeModa(resp):(e.mat||0);
-  const eixosNaModa=new Set(Object.entries(dimNiveis).filter(([,n])=>n===nivelModa&&n>0).map(([d])=>d));
+  const nivelMin=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
+  const eixosLimitantes=new Set(Object.entries(dimNiveis).filter(([,n])=>n===nivelMin&&n>0).map(([d])=>d));
   // Média geral como indicador complementar
   const _valsAll=Object.values(resp).filter(v=>typeof v==='number');
   const _mediaGeral=_valsAll.length?(_valsAll.reduce((a,b)=>a+b,0)/_valsAll.length).toFixed(1):null;
@@ -10695,10 +10683,10 @@ function rEnt(p){
       ${matDescHtml}
       <div class="sec-lbl">Nível por eixo (${respondidas}/15 respostas)${_mediaGeral?` · <span style="font-weight:400;font-style:italic">Média geral: ${_mediaGeral}</span>`:''}</div>
       ${Object.entries(dims).map(([dim,d])=>{
-        const isLim=eixosNaModa.has(dim);
+        const isLim=eixosLimitantes.has(dim);
         const valorHtml=d.cnt>0?`Nível ${dimNiveis[dim]||0} · ${(d.sum/d.cnt).toFixed(1)}`:'<span style="font-style:italic;color:var(--ink3)">Não se aplica</span>';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:4px ${isLim?'6px':'0'};font-size:12px;${isLim?'background:#eff6ff;border-left:2px solid var(--blue);padding-left:6px;border-radius:0 4px 4px 0;margin-left:-2px':''}">
-          <span style="flex:1;color:var(--ink2);font-weight:${isLim?'600':'400'}">${dim}${isLim?' <span style="font-size:10px;background:var(--blue);color:#fff;padding:1px 5px;border-radius:3px;margin-left:3px">na moda</span>':''}</span>
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px ${isLim?'6px':'0'};font-size:12px;${isLim?'background:#fff7ed;border-left:2px solid #f97316;padding-left:6px;border-radius:0 4px 4px 0;margin-left:-2px':''}">
+          <span style="flex:1;color:var(--ink2);font-weight:${isLim?'600':'400'}">${dim}${isLim?' <span style="font-size:10px;background:#f97316;color:#fff;padding:1px 5px;border-radius:3px;margin-left:3px">limitante</span>':''}</span>
           <span style="font-weight:600;color:var(--blue)">${valorHtml}</span>
         </div>`;
       }).join('')}
@@ -11123,7 +11111,7 @@ async function _popPdfAnexo(p){
   if(volumetriaHtml) sections.push(volumetriaHtml);
 
   // ── 7.0 Maturidade ────────────────────────────────────────────────────────
-  const matNivel=Object.keys(resp).length?_calcNivelMaturidadeModa(resp):(e.mat||0);
+  const matNivel=Object.keys(resp).length?_calcNivelMaturidadeMin(resp):(e.mat||0);
   if(matNivel>0){
     const matDescs=['',
       'O processo é executado de forma ad hoc, sem padronização documentada. Os resultados dependem do esforço individual e do conhecimento tácito dos executores.',
@@ -11139,7 +11127,7 @@ async function _popPdfAnexo(p){
       else{bg='#f4f5f8';c='#8888aa';}
       return `<span style="background:${bg};color:${c};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px">${n} ${MATURIDADE_LABELS[n]}</span>`;
     }).join('');
-    // Nível por eixo e eixo(s) na moda
+    // Nível por eixo e eixo(s) limitante(s)
     const _pdfDims={};
     QUESTOES.forEach(q=>{if(!_pdfDims[q.dim]){_pdfDims[q.dim]={sum:0,cnt:0};}if(typeof resp[q.id]==='number'){_pdfDims[q.dim].sum+=resp[q.id];_pdfDims[q.dim].cnt++;}});
     const _pdfValsAll=Object.values(resp).filter(v=>typeof v==='number');
@@ -11173,7 +11161,7 @@ async function _popPdfAnexo(p){
       </tr></thead>
       <tbody>${_pdfDimRows}</tbody>
     </table>
-    <div style="font-size:10px;color:#9ca3af;margin-top:.4rem">★ Eixo(s) na moda: representam o nível geral de maturidade do processo.</div>`);
+    <div style="font-size:10px;color:#9ca3af;margin-top:.4rem">★ Eixo(s) limitante(s): determinam o nível geral de maturidade do processo.</div>`);
   }
 
   // ── 8.0 SIPOC ────────────────────────────────────────────────────────────
