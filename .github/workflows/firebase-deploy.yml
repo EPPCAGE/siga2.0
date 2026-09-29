@@ -92,15 +92,41 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Instalar Firebase CLI
+        run: npm install -g firebase-tools@13.35.1 --ignore-scripts
+
+      # Desde 15/10/2026, projetos novos não recebem mais um site padrão
+      # automaticamente. O site atual já existe; esta etapa torna o mesmo fluxo
+      # compatível também com um projeto novo ou recriado.
+      - name: Garantir que o site do Firebase Hosting existe
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/firebase-sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-sa.json
+          trap 'rm -f /tmp/firebase-sa.json /tmp/hosting-sites.json' EXIT
+
+          PROJECT_ID=gesproc2
+          SITE_ID=sigaepp
+          firebase hosting:sites:list --project "$PROJECT_ID" --json > /tmp/hosting-sites.json
+
+          if ! jq -e --arg site_path "projects/${PROJECT_ID}/sites/${SITE_ID}" \
+            '.result.sites[]? | select(.name == $site_path)' \
+            /tmp/hosting-sites.json > /dev/null; then
+            echo "Site ${SITE_ID} ainda não existe; criando antes do primeiro deploy."
+            firebase hosting:sites:create "$SITE_ID" \
+              --project "$PROJECT_ID" \
+              --non-interactive
+          fi
+
       - name: Deploy para Firebase Hosting
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/firebase-sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-sa.json
-          npm install -g firebase-tools@13.35.1 --ignore-scripts
+          trap 'rm -f /tmp/firebase-sa.json' EXIT
           firebase deploy --only hosting --project gesproc2 --non-interactive
-          rm -f /tmp/firebase-sa.json
 
       - name: Configurar gcloud CLI (para Firestore Rules)
         uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2

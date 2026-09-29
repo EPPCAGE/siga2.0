@@ -411,6 +411,13 @@ revise os registros DNS e o status do domínio no console do Firebase Hosting. S
 ambos falharem, confira a execução mais recente do workflow de deploy e o status
 do serviço de Hosting.
 
+O aviso do Firebase sobre provisionamento sob demanda a partir de 15/10/2026 só
+afeta o primeiro deploy de projetos novos. O site existente `sigaepp` não é
+removido por essa mudança. Mesmo assim, o workflow verifica se o site existe e o
+cria antes do deploy quando necessário. Para essa criação, a conta de serviço
+usada no secret `FIREBASE_SERVICE_ACCOUNT` precisa ter a permissão
+`firebasehosting.sites.create`.
+
 **Secrets necessários no GitHub** (`Settings → Secrets and variables → Actions`):
 
 | Secret | Descrição |
