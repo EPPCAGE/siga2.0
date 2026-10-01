@@ -10282,7 +10282,15 @@ function calcILPFromBpmn(bpmnXml, etapas, retrabalhosConfirmados=undefined){
 // ILP = (A×0,20) + (T×0,40) + (G×0,40) — sem retrabalho confirmado
 // ILP = (A×0,20) + (T×0,30) + (G×0,30) + (R×0,20) — com retrabalho confirmado
 function calcILP(etapas, bpmnXml, retrabalhosConfirmados=undefined){
-  if(!bpmnXml) return calcILPFromEtapas(etapas,retrabalhosConfirmados);
+  // O Esboço é a fonte de verdade do ILP: nele o usuário pode incluir,
+  // excluir e alterar tarefas, atores e gateways depois de importar o BPMN.
+  // Calcular primeiro pelo XML fazia o TO BE ignorar justamente essas revisões
+  // (e também etapas novas sem bpmn_id), deixando os totais desatualizados.
+  if(Array.isArray(etapas)&&etapas.length){
+    const r=calcILPFromEtapas(etapas,retrabalhosConfirmados);
+    if(r)return r;
+  }
+  if(!bpmnXml)return null;
   try{const r=calcILPFromBpmn(bpmnXml,etapas,retrabalhosConfirmados);if(r)return r;}catch(e){console.warn('calcILPFromBpmn falhou:',e.message);}
   return calcILPFromEtapas(etapas,retrabalhosConfirmados);
 }
