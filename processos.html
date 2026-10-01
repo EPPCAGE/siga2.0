@@ -9741,8 +9741,8 @@ function _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap){
   const nodeInfo={};
   const tags=[
     'startEvent','endEvent','intermediateThrowEvent','intermediateCatchEvent',
-    'task','userTask','serviceTask','sendTask','receiveTask','manualTask','scriptTask',
-    'exclusiveGateway','inclusiveGateway','parallelGateway','complexGateway',
+    'task','userTask','serviceTask','sendTask','receiveTask','manualTask','scriptTask','businessRuleTask','callActivity',
+    'exclusiveGateway','inclusiveGateway','parallelGateway','complexGateway','eventBasedGateway',
     'subProcess'
   ];
   _bpmnFindAll(xml, tags).forEach(e=>{
@@ -9877,8 +9877,8 @@ function _bpmnBuildFlatGwAware(outgoing, nodeInfo, flowLabels){
 }
 function _bpmnGetSubprocessChildren(subEl, GW_TAGS, TASK_TAGS, laneMap){
   const taskTags=['startEvent','endEvent','intermediateThrowEvent','intermediateCatchEvent',
-    'task','userTask','serviceTask','sendTask','receiveTask','manualTask','scriptTask',
-    'exclusiveGateway','inclusiveGateway','parallelGateway','complexGateway'];
+    'task','userTask','serviceTask','sendTask','receiveTask','manualTask','scriptTask','businessRuleTask','callActivity',
+    'exclusiveGateway','inclusiveGateway','parallelGateway','complexGateway','eventBasedGateway'];
   const nodeInfo={};
   // Busca em todos os descendentes (não só filhos diretos) para suportar subprocessos aninhados
   _bpmnFindAll(subEl, taskTags).forEach(e=>{
@@ -9950,8 +9950,8 @@ function extrairBpmn(){
     return;
   }
   const xml=new DOMParser().parseFromString(bpmnXml,'text/xml');
-  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
-  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
+  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask','businessruletask','callactivity']);
+  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway','eventbasedgateway']);
   const laneMap   = _bpmnBuildLaneMap(xml);
   const nodeInfo  = _bpmnBuildNodeInfo(xml, GW_TAGS, TASK_TAGS, laneMap);
   const outgoing  = _bpmnBuildOutgoing(xml);
@@ -10096,6 +10096,30 @@ function _ilpGetAllAtividades(etapas){
   if(!etapas||!etapas.length)return[];
   return etapas.filter(e=>!e.tipo||e.tipo==='Atividade');
 }
+function _ilpEtapasByBpmnId(etapas){
+  const byBpmnId=new Map();
+  const visit=lista=>(lista||[]).forEach(etapa=>{
+    if(!etapa)return;
+    if(etapa.bpmn_id)byBpmnId.set(etapa.bpmn_id,etapa);
+    (etapa.caminhos||[]).forEach(caminho=>visit(caminho?.acoes));
+  });
+  visit(etapas);
+  return byBpmnId;
+}
+function _ilpGetBpmnMetadata(nodeInfo,etapas){
+  const etapasByBpmnId=_ilpEtapasByBpmnId(etapas);
+  return id=>{
+    const node=nodeInfo[id]||{};
+    const etapa=etapasByBpmnId.get(id)||{};
+    // A lista detalhada é onde o usuário revisa ator e modo de execução após
+    // extrair o BPMN. Esses valores devem prevalecer sobre os defaults do XML.
+    return {
+      executor:(etapa.executor||node.executor||'').trim(),
+      modo:etapa.modo||node.modo||'Manual',
+      nome:etapa.nome||node.nome||id,
+    };
+  };
+}
 // Confirmações são válidas somente enquanto a etapa existe, continua sendo uma
 // atividade candidata a retrabalho e não aparece duplicada na lista persistida.
 function _ilpGetRetrabalhosConfirmadosValidos(etapas,confirmados){
@@ -10158,8 +10182,8 @@ function calcILPFromEtapas(etapas,retrabalhosConfirmados=undefined){
 
 // Calcula ILP diretamente do grafo BPMN XML — caminho mais longo correto (XOR→pior ramo, AND→todos)
 function calcILPFromBpmn(bpmnXml, etapas, retrabalhosConfirmados=undefined){
-  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask']);
-  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway']);
+  const TASK_TAGS=new Set(['task','usertask','servicetask','sendtask','receivetask','manualtask','scripttask','businessruletask','callactivity']);
+  const GW_TAGS=new Set(['exclusivegateway','inclusivegateway','parallelgateway','complexgateway','eventbasedgateway']);
   const xml=new DOMParser().parseFromString(bpmnXml,'text/xml');
   const laneMap=_bpmnBuildLaneMap(xml);
   const nodeInfo=_bpmnBuildNodeInfo(xml,GW_TAGS,TASK_TAGS,laneMap);
@@ -10202,11 +10226,10 @@ function calcILPFromBpmn(bpmnXml, etapas, retrabalhosConfirmados=undefined){
   let allIds=[];roots.forEach(rid=>traverseAll(rid,new Set()).forEach(id=>allIds.push(id)));
   allIds=_dedupeIds(allIds);
   // Modo de execução: lê do etapas_proc (override manual) ou do tipo BPMN
-  const bpmnIdToModo={};
-  (etapas||[]).forEach(e=>{if(e.bpmn_id&&e.modo)bpmnIdToModo[e.bpmn_id]=e.modo;});
+  const getMetadata=_ilpGetBpmnMetadata(nodeInfo,etapas);
   const actIds=pathIds.filter(id=>nodeInfo[id]?.tipo==='Atividade');
   const total=actIds.length; if(!total)return null;
-  const _getModo=id=>bpmnIdToModo[id]||nodeInfo[id]?.modo||'Manual';
+  const _getModo=id=>getMetadata(id).modo;
   const nAuto=actIds.filter(id=>_getModo(id)==='Automatica').length;
   const nSemi=actIds.filter(id=>_getModo(id)==='Semi-automatica').length;
   const nManual=total-nAuto-nSemi;
@@ -10224,7 +10247,7 @@ function calcILPFromBpmn(bpmnXml, etapas, retrabalhosConfirmados=undefined){
   const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'');
   const atoresMap=new Map();
   allIds.filter(id=>nodeInfo[id]?.tipo==='Atividade').forEach(id=>{
-    const raw=(nodeInfo[id]?.executor||'').trim(); if(!raw)return;
+    const raw=getMetadata(id).executor; if(!raw)return;
     const k=_normAtor(raw); if(!atoresMap.has(k))atoresMap.set(k,raw);
   });
   const nAtores=Math.max(atoresMap.size,1);
@@ -10242,7 +10265,7 @@ function calcILPFromBpmn(bpmnXml, etapas, retrabalhosConfirmados=undefined){
   const indexA=Math.round(_indexA);
   const indexT=Math.round(_indexT);
   const indexG=_indexG;
-  const autoNames=id=>nodeInfo[id]?.nome||id;
+  const autoNames=id=>getMetadata(id).nome;
   return{
     ilp,total,gxorDiv,nAtores,nAuto,nSemi,nManual,
     atoresList:[...atoresMap.values()],
