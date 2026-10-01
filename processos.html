@@ -10013,12 +10013,15 @@ function _ilpIsParallelGw(n){
 
 function _ilpBuildLinkedGatewayMap(nodes){
   const linked=new Map();
-  (nodes||[]).forEach(node=>{
+  const visit=list=>(list||[]).forEach(node=>{
     const gwId=node?.vinculo_gw?.gw_ep_id;
-    if(!gwId) return;
-    if(!linked.has(gwId)) linked.set(gwId, []);
-    linked.get(gwId).push(node);
+    if(gwId){
+      if(!linked.has(gwId)) linked.set(gwId, []);
+      linked.get(gwId).push(node);
+    }
+    (node?.caminhos||[]).forEach(caminho=>visit(caminho?.acoes));
   });
+  visit(nodes);
   return linked;
 }
 
@@ -10094,7 +10097,45 @@ function _ilpDetectarRetrabalhos(atividades){
 }
 function _ilpGetAllAtividades(etapas){
   if(!etapas||!etapas.length)return[];
-  return etapas.filter(e=>!e.tipo||e.tipo==='Atividade');
+  const atividades=[];
+  const visit=lista=>(lista||[]).forEach(etapa=>{
+    if(!etapa)return;
+    if(!etapa.tipo||etapa.tipo==='Atividade')atividades.push(etapa);
+    (etapa.caminhos||[]).forEach(caminho=>visit(caminho?.acoes));
+  });
+  visit(etapas);
+  return atividades;
+}
+
+// O Esboço é um inventário do processo. Para o ILP, toda tarefa cadastrada e
+// todo gateway XOR divergente devem entrar no cálculo, inclusive os elementos
+// de ramos que não seriam escolhidos por uma travessia de "caminho mais longo".
+function _ilpInventarioEtapas(etapas){
+  const activities=[];
+  const gwXorNodes=[];
+  const linkedGatewayMap=_ilpBuildLinkedGatewayMap(etapas);
+  const visitedObjects=new Set();
+  const visitedIds=new Set();
+  const visit=lista=>(lista||[]).forEach(node=>{
+    if(!node||visitedObjects.has(node)||(node.id&&visitedIds.has(node.id)))return;
+    visitedObjects.add(node);
+    if(node.id)visitedIds.add(node.id);
+    if(!node.tipo||node.tipo==='Atividade')activities.push(node);
+    if(node.tipo==='Decisao'||node.tipo==='Decisão'){
+      const labels=new Set();
+      (node.caminhos||[]).forEach((caminho,idx)=>{
+        labels.add(caminho?.label||('Caminho '+(idx+1)));
+        visit(caminho?.acoes);
+      });
+      (linkedGatewayMap.get(node.id)||[]).forEach(linked=>{
+        labels.add(linked?.vinculo_gw?.label||'');
+        visit([linked]);
+      });
+      if(!_ilpIsParallelGw(node)&&labels.size>1)gwXorNodes.push(node);
+    }
+  });
+  visit(etapas);
+  return {activities,gwXorNodes};
 }
 function _ilpEtapasByBpmnId(etapas){
   const byBpmnId=new Map();
@@ -10130,17 +10171,15 @@ function _ilpGetRetrabalhosConfirmadosValidos(etapas,confirmados){
 }
 function calcILPFromEtapas(etapas,retrabalhosConfirmados=undefined){
   if(!etapas||!etapas.length)return null;
-  const linkedGatewayMap=_ilpBuildLinkedGatewayMap(etapas);
-  // Longest path: para gateways (G) e propor\u00e7\u00e3o de automa\u00e7\u00e3o (A)
-  const {activities:atividades, gwXorNodes}= _ilpTraverseEtapas(etapas, linkedGatewayMap, new Set());
+  // A lista detalhada (Esboço) é a fonte de verdade: contabiliza o inventário
+  // completo, não apenas um dos ramos de cada gateway exclusivo.
+  const {activities:atividades,gwXorNodes}=_ilpInventarioEtapas(etapas);
   const total=atividades.length;
   if(!total)return null;
   const gxorDiv=gwXorNodes.length;
-  // Todos os ramos: para contar atores distintos (T) \u2014 ator em ramo mais curto tamb\u00e9m conta
-  const {activities:todasAtividades}=_ilpTraverseEtapas(etapas, _ilpBuildLinkedGatewayMap(etapas), new Set(), true);
   const _normAtor=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[\u0300-\u036f]/g,'');
   const atoresMap=new Map();
-  todasAtividades.forEach(n=>{
+  atividades.forEach(n=>{
     const raw=(n.executor||'').trim();
     if(!raw)return;
     const key=_normAtor(raw);
@@ -10395,7 +10434,7 @@ function _testCalcILP(){
   const r=calcILPFromBpmn(xml,[_testCalcIlpEtapa('t1','Ator1'),_testCalcIlpEtapa('t2','Ator2'),_testCalcIlpEtapa('t3','Ator1')]);
   eq('T8 formula ilp',r?.ilp,76);eq('T8 formula indexA',r?.indexA,0);eq('T8 formula indexT',r?.indexT,89);eq('T8 formula indexG',r?.indexG,100);}
 
-  // T9 — Fallback manual com caminhos XOR: escolhe o ramo mais longo, sem somar todos
+  // T9 — Esboço com caminhos XOR: contabiliza todas as tarefas cadastradas
   {const etapas=[
     {id:'gw1',nome:'Decisão',tipo:'Decisao',subtipo_gateway:'exclusivo',caminhos:[
       {label:'Sim',acoes:[{id:'a1',nome:'A',tipo:'Atividade',modo:'Manual',executor:'Ator1'},{id:'a2',nome:'B',tipo:'Atividade',modo:'Manual',executor:'Ator1'}]},
@@ -10404,9 +10443,9 @@ function _testCalcILP(){
     {id:'a4',nome:'D',tipo:'Atividade',modo:'Manual',executor:'Ator1'}
   ];
   const r=calcILPFromEtapas(etapas);
-  eq('T9 fallback XOR total (ramo longo + continuação = 3)',r?.total,3);eq('T9 fallback XOR gxorDiv',r?.gxorDiv,1);}
+  eq('T9 Esboço XOR total (todos os ramos + continuação = 4)',r?.total,4);eq('T9 Esboço XOR gxorDiv',r?.gxorDiv,1);}
 
-  // T10 — Fallback com etapas top-level vinculadas ao gateway: não soma ambos os ramos
+  // T10 — Esboço com etapas top-level vinculadas: contabiliza ambos os ramos
   {const etapas=[
     {id:'gw1',nome:'Decisão',tipo:'Decisao',subtipo_gateway:'exclusivo',caminhos:[{label:'Sim',acoes:[]},{label:'Não',acoes:[]}]},
     {id:'a1',nome:'A',tipo:'Atividade',modo:'Manual',executor:'Ator1',vinculo_gw:{gw_ep_id:'gw1',label:'Sim'}},
@@ -10415,7 +10454,7 @@ function _testCalcILP(){
     {id:'a4',nome:'D',tipo:'Atividade',modo:'Manual',executor:'Ator1'}
   ];
   const r=calcILPFromEtapas(etapas);
-  eq('T10 fallback vinculo_gw total (ramo longo + continuação = 3)',r?.total,3);eq('T10 fallback vinculo_gw gxorDiv',r?.gxorDiv,1);}
+  eq('T10 Esboço vinculo_gw total (todos os ramos + continuação = 4)',r?.total,4);eq('T10 Esboço vinculo_gw gxorDiv',r?.gxorDiv,1);}
 
   // Resultado final
   console.log(`\n════ calcILP TEST SUITE: ${pass} ✅  ${fail} ❌ ════`);
