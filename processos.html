@@ -8497,18 +8497,32 @@ async function gerarFAQIA(){
   const popObj=(document.getElementById('pp-obj')?.value||'').trim()||p.form?.pop?.obj||p.objetivo||'';
   const popEnt=(document.getElementById('pp-ent')?.value||'').trim()||p.form?.pop?.ent||p.ent?.entradas||'';
   const popSai=(document.getElementById('pp-sai')?.value||'').trim()||p.form?.pop?.sai||p.ent?.saidas||'';
-  const asIsAtual=((p.mod?.asIs||'').trim()||'').substring(0,3000);
-  const etapasDetalhadas=(p.mod?.etapas_proc||[])
-    .map((e,i)=>`${i+1}. ${e?.nome||e?.desc||''} | Tipo: ${e?.tipo||'Atividade'} | Responsavel: ${e?.resp||e?.executor||'Nao informado'}`)
+  // O POP descreve o processo futuro sempre que ele existe. O AS IS só é
+  // referência para processos que ainda não possuem um desenho TO BE.
+  const etapasToBe=p.mod?.etapas_proc_tobe||[];
+  const usaToBe=etapasToBe.length>0;
+  const contextoModelagem=usaToBe?'TO BE':'AS IS';
+  const etapasContexto=usaToBe?etapasToBe:(p.mod?.etapas_proc||[]);
+  const detalhesRevisados=p.form?.pop?.ativ_detalhes||{};
+  const etapasDetalhadas=etapasContexto
+    .map((e,i)=>{
+      const revisao=detalhesRevisados[e.id]||{};
+      const descricao=revisao.desc||e?.nome||e?.desc||'';
+      const responsavel=revisao.resp||e?.resp||e?.executor||'Nao informado';
+      const tipo=revisao.tipo||e?.tipo||'Atividade';
+      return `${i+1}. ${descricao} | Tipo: ${tipo} | Responsavel: ${responsavel}`;
+    })
     .join('\n');
+  const descricaoContexto=((usaToBe?p.mod?.toBe:p.mod?.asIs)||'').trim().substring(0,3000);
   const payload={
     processo: p.nome,
+    contexto_modelagem: contextoModelagem,
     objetivo: popObj,
     entradas: popEnt,
     saidas: popSai,
     atores: p.ent?.atores||'',
     etapas: etapasDetalhadas,
-    descricao_as_is: asIsAtual,
+    descricao_contexto: descricaoContexto,
     problemas: (p.ent?.prob||[]).map(x=>typeof x==='string'?x:x.desc||'').filter(Boolean).join('; '),
     produto: p.produto||'',
     contexto_atualizado_em: now()
