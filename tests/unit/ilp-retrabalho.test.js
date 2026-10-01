@@ -48,4 +48,20 @@ describe('retrabalho no Índice Lean Processual', () => {
     expect(resultado.indexR).toBe(90);
     expect(resultado.ilp).toBe(78);
   });
+
+  it('contabiliza tarefas e retrabalhos dentro dos caminhos de gateways', () => {
+    const etapas = [{
+      id: 'gw', nome: 'Documentação válida?', tipo: 'Decisao', subtipo_gateway: 'exclusivo',
+      caminhos: [
+        {label: 'Sim', acoes: [atividade('publicar', 'Publicar documento')]},
+        {label: 'Não', acoes: [atividade('revisar', 'Revisar documento')]},
+      ],
+    }];
+
+    const resultado = calcILPFromEtapas(etapas, ['revisar']);
+
+    expect(resultado.total).toBe(2);
+    expect(resultado.gxorDiv).toBe(1);
+    expect(resultado.qtdR).toBe(1);
+  });
 });
