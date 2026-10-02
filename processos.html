@@ -3029,9 +3029,12 @@ function _htmlProcessosPorMaturidade(unidades){
     return '<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--bdr);font-size:10px;color:var(--ink3)">Nenhum processo</div>';
   }
   const ordenadas=[...unidades].sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
-  return `<ul style="margin:.6rem 0 0;padding:.6rem 0 0;border-top:1px solid var(--bdr);list-style:none;text-align:left">
+  return `<details style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--bdr);text-align:left">
+    <summary style="cursor:pointer;font-size:11px;color:var(--ink2)">Processos (${unidades.length})</summary>
+    <ul style="margin:.5rem 0 0;padding:0;list-style:none;text-align:left">
     ${ordenadas.map(u=>`<li title="${esc(u.label||u.nome||'')}" style="font-size:10px;color:var(--ink2);line-height:1.35;padding:3px 0;overflow-wrap:anywhere">${esc(u.nome||'Processo sem nome')}</li>`).join('')}
-  </ul>`;
+    </ul>
+  </details>`;
 }
 function _coberturaIndicadoresCriticos(unidades, indicadores, procs){
   const arqPorProcesso=new Map(procs.map(p=>[String(p.id),p.arq_id]));
@@ -3062,15 +3065,15 @@ function _htmlIndicadoresCriticos(cobertura){
     <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:.5rem">
       ${grupos.map(g=>`<span><span aria-hidden="true" style="display:inline-block;width:10px;height:10px;background:${g.cor};border-radius:2px"></span> ${g.label}: <strong>${g.unidades.length}</strong> (${Math.round(g.unidades.length/total*100)}%)</span>`).join('')}
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:1rem">
-    ${grupos.map(g=>`<div style="border-top:3px solid ${g.cor};padding-top:.5rem">
-      <div style="font-size:12px;font-weight:600">${g.label} (${g.unidades.length})</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:1rem;align-items:start">
+    ${grupos.map(g=>`<details style="border-top:3px solid ${g.cor};padding-top:.5rem">
+      <summary style="font-size:12px;font-weight:600;cursor:pointer">${g.label} (${g.unidades.length})</summary>
       <ul style="list-style:none;margin:.5rem 0 0;padding:0">
       ${g.unidades.map(u=>`<li style="padding:.5rem 0;border-top:1px solid var(--bdr);overflow-wrap:anywhere">
         <div style="font-size:12px;font-weight:600;color:var(--ink)">${esc(u.nome||'Processo sem nome')}</div>
         <div style="font-size:11px;color:var(--ink3);margin-top:2px">${esc(u.label||u.macro||'')}${u.area?' · '+esc(u.area):''}</div>
       </li>`).join('')||'<li style="font-size:11px;color:var(--ink3)">Nenhum processo</li>'}
-      </ul></div>`).join('')}
+      </ul></details>`).join('')}
     </div>`:''}
     <div style="font-size:10px;color:var(--ink3);margin-top:.75rem">Considera os vínculos do módulo Indicadores, independentemente do preenchimento de resultados. Com meta: pelo menos um indicador vinculado possui meta definida em um período cadastrado.</div>
   </section>`;
