@@ -11622,7 +11622,10 @@ function excluirAcaoImplementacao(i){
   toast('Ação removida.','var(--amber)');
 }
 function rMon(p){
-  const inds=kpis.filter(d=>d.pid===p.id);
+  const inds=kpis.filter(d=>
+    (d.pid!=null&&p.id!=null&&String(d.pid)===String(p.id))||
+    (d.arq_id&&p.arq_id&&String(d.arq_id)===String(p.arq_id))
+  );
   const audConclusaoHtml = p.auditoria?.conclusao ? `<div style="margin-top:.6rem"><div class="sec-lbl">Conclusão</div><div style="font-size:12.5px">${esc(p.auditoria.conclusao)}</div></div>` : '';
   const audBadgeCls = p.auditoria?.concluida ? 'bg' : 'ba';
   const audStatus = p.auditoria?.concluida ? 'Concluída' : 'Rascunho';
