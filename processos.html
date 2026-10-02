@@ -3033,6 +3033,48 @@ function _htmlProcessosPorMaturidade(unidades){
     ${ordenadas.map(u=>`<li title="${esc(u.label||u.nome||'')}" style="font-size:10px;color:var(--ink2);line-height:1.35;padding:3px 0;overflow-wrap:anywhere">${esc(u.nome||'Processo sem nome')}</li>`).join('')}
   </ul>`;
 }
+function _coberturaIndicadoresCriticos(unidades, indicadores, procs){
+  const arqPorProcesso=new Map(procs.map(p=>[String(p.id),p.arq_id]));
+  const vinculados=new Set(indicadores.map(k=>k.arq_id||arqPorProcesso.get(String(k.pid))).filter(Boolean));
+  const comMetaIds=new Set(indicadores.filter(k=>_kpiMeta(k)!==null)
+    .map(k=>k.arq_id||arqPorProcesso.get(String(k.pid))).filter(Boolean));
+  const criticos=[...new Map(unidades.filter(u=>isCritico(u.arq_id)).map(u=>[u.arq_id,u])).values()];
+  criticos.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+  const semIndicadores=criticos.filter(u=>!vinculados.has(u.arq_id));
+  const semMeta=criticos.filter(u=>vinculados.has(u.arq_id)&&!comMetaIds.has(u.arq_id));
+  const comMeta=criticos.filter(u=>comMetaIds.has(u.arq_id));
+  return {total:criticos.length,semIndicadores,semMeta,comMeta};
+}
+function _htmlIndicadoresCriticos(cobertura){
+  const {total,semIndicadores,semMeta,comMeta}=cobertura;
+  const grupos=[
+    {label:'Sem indicador',cor:'#dc2626',unidades:semIndicadores},
+    {label:'Com indicador, sem meta',cor:'#d97706',unidades:semMeta},
+    {label:'Com indicador e meta',cor:'#0d9488',unidades:comMeta},
+  ];
+  const resumo=grupos.map(g=>`${g.label}: ${g.unidades.length}`).join('; ');
+  return `<section style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1.5rem">
+    <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.5rem">Indicadores e metas dos processos críticos</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:.75rem">${total?`${total} processos críticos · ${comMeta.length} com indicador e meta`:'Nenhum processo crítico cadastrado.'}</div>
+    ${total?`<div role="img" aria-label="${resumo}" style="display:flex;height:24px;border-radius:6px;overflow:hidden;background:var(--bg3)">
+      ${grupos.map(g=>`<div style="width:${g.unidades.length/total*100}%;background:${g.cor}" title="${g.label}: ${g.unidades.length}"></div>`).join('')}
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:.5rem">
+      ${grupos.map(g=>`<span><span aria-hidden="true" style="display:inline-block;width:10px;height:10px;background:${g.cor};border-radius:2px"></span> ${g.label}: <strong>${g.unidades.length}</strong> (${Math.round(g.unidades.length/total*100)}%)</span>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:1rem">
+    ${grupos.map(g=>`<div style="border-top:3px solid ${g.cor};padding-top:.5rem">
+      <div style="font-size:12px;font-weight:600">${g.label} (${g.unidades.length})</div>
+      <ul style="list-style:none;margin:.5rem 0 0;padding:0">
+      ${g.unidades.map(u=>`<li style="padding:.5rem 0;border-top:1px solid var(--bdr);overflow-wrap:anywhere">
+        <div style="font-size:12px;font-weight:600;color:var(--ink)">${esc(u.nome||'Processo sem nome')}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">${esc(u.label||u.macro||'')}${u.area?' · '+esc(u.area):''}</div>
+      </li>`).join('')||'<li style="font-size:11px;color:var(--ink3)">Nenhum processo</li>'}
+      </ul></div>`).join('')}
+    </div>`:''}
+    <div style="font-size:10px;color:var(--ink3);margin-top:.75rem">Considera os vínculos do módulo Indicadores, independentemente do preenchimento de resultados. Com meta: pelo menos um indicador vinculado possui meta definida em um período cadastrado.</div>
+  </section>`;
+}
 function rPainelGestor(){
   const el=document.getElementById('painel-gestor-content');
   if(!el)return;
@@ -3208,7 +3250,8 @@ function rPainelGestor(){
 
   const mapChartHtml=buildMapChartHTML();
 
-  el.innerHTML=statsHtml+pieHtml+macroHtml+mapChartHtml+andHtml+relIndHtml+matHtml+desatualHtml+relHtml;
+  const indicadoresCriticosHtml=_htmlIndicadoresCriticos(_coberturaIndicadoresCriticos(todas,kpis,processos));
+  el.innerHTML=statsHtml+pieHtml+indicadoresCriticosHtml+macroHtml+mapChartHtml+andHtml+relIndHtml+matHtml+desatualHtml+relHtml;
 
   setTimeout(()=>{
     if(typeof Chart==='undefined') return;
