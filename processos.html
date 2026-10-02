@@ -3099,17 +3099,24 @@ function rPainelGestor(){
     </div>`).join('')}
   </div>`;
 
-  // Pie chart
-  const pieHtml=`<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1.5rem">
-    <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.75rem">Carteira de Processos</div>
+  // Carteira geral e recorte dos processos críticos, com os mesmos critérios.
+  const carteiras=[
+    {id:'pg-pie-chart',titulo:'Carteira de Processos',dados:[mapeados.length,emAnd.length,naoMapeadas.length]},
+    {id:'pg-criticos-pie-chart',titulo:'Carteira de Processos Críticos',dados:[mapeados,emAnd,naoMapeadas].map(grupo=>grupo.filter(u=>isCritico(u.arq_id)).length)},
+  ];
+  const pieHtml=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px;margin-bottom:1.5rem">
+  ${carteiras.map(c=>`<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem">
+    <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.75rem">${c.titulo}</div>
     <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
-      <div style="position:relative;width:140px;height:140px;flex-shrink:0"><canvas id="pg-pie-chart"></canvas></div>
+      <div style="position:relative;width:140px;height:140px;flex-shrink:0"><canvas id="${c.id}" role="img" aria-label="${c.titulo}: ${c.dados[0]} mapeados, ${c.dados[1]} em mapeamento, ${c.dados[2]} não mapeados"></canvas></div>
       <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
-        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#0d9488;display:inline-block"></span> Mapeados: <strong>${mapeados.length}</strong></div>
-        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#f59e0b;display:inline-block"></span> Em mapeamento: <strong>${emAnd.length}</strong></div>
-        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#94a3b8;display:inline-block"></span> Não mapeados: <strong>${naoMapeadas.length}</strong></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#0d9488;display:inline-block"></span> Mapeados: <strong>${c.dados[0]}</strong></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#f59e0b;display:inline-block"></span> Em mapeamento: <strong>${c.dados[1]}</strong></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#94a3b8;display:inline-block"></span> Não mapeados: <strong>${c.dados[2]}</strong></div>
+        ${c.dados.every(n=>n===0)?'<div style="color:var(--ink3)">Nenhum processo nesta carteira.</div>':''}
       </div>
     </div>
+  </div>`).join('')}
   </div>`;
 
   // Trabalhos em andamento
@@ -3257,11 +3264,13 @@ function rPainelGestor(){
     if(typeof Chart==='undefined') return;
     initMapChart();
 
-    const pieCanvas=document.getElementById('pg-pie-chart');
+    carteiras.forEach(c=>{
+    const pieCanvas=document.getElementById(c.id);
     if(pieCanvas) new Chart(pieCanvas,{
       type:'doughnut',
-      data:{labels:['Mapeados','Em mapeamento','Não mapeados'],datasets:[{data:[mapeados.length,emAnd.length,naoMapeadas.length],backgroundColor:['#0d9488','#f59e0b','#94a3b8'],borderWidth:0}]},
+      data:{labels:['Mapeados','Em mapeamento','Não mapeados'],datasets:[{data:c.dados,backgroundColor:['#0d9488','#f59e0b','#94a3b8'],borderWidth:0}]},
       options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},cutout:'65%'}
+    });
     });
 
     const macroCanvas=document.getElementById('pg-macro-chart');
