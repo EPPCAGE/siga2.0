@@ -8,10 +8,10 @@ function source(start, end) {
   return html.slice(i, html.indexOf(end, i));
 }
 const parsing = source('function parseNumBR(', 'async function importarIndicadores(');
-const report = source('function statusInfo(', 'function _rowsIndicadoresRelatorioPdf(');
+const report = source('function _kpiClassificacao(', 'function _kpiGetMacroProc(') + source('function statusInfo(', 'function _rowsIndicadoresRelatorioPdf(');
 function context() {
   return runInNewContext(`${parsing}\n${report}\n${source('async function importarIndicadores(', 'function _kpiPeriodoToIntervalo(')}\n${source('function _gsheetsRowToKpi(', 'function _gsheetsImportRows(')}\n({parseNumBR, _kpiMeta, _calcKpiPct, _rowIndicadorRelatorioPdf, _buildKpiMacroprocessoCards, _gsheetsRowToKpi, importarIndicadores, kpis});`, {
-    kpis: [], _kpiIdC: 1, fmtPeriodo: v => v, esc: v => v,
+    kpis: [], processos: [], isCritico: () => false, _kpiIdC: 1, fmtPeriodo: v => v, esc: v => v,
     rInd() {}, fbAutoSave() {}, toast() {}, _kpiGetMacroProc: () => ({ macro: 'M' }),
     XLSX: { read: rows => ({ Sheets: { Sheet: rows }, SheetNames: ['Sheet'] }), utils: { sheet_to_json: rows => rows } },
   });

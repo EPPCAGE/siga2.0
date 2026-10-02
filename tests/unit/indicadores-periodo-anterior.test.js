@@ -10,10 +10,11 @@ function source(start, end) {
 const kpi = { codigo: 'IND-123', nome: 'Atendimentos', area: 'A', periodo: 'ago/2026', meta: null, realizado: 20, unidade: 'unidades' };
 function context() {
   return runInNewContext([
+    source('function _kpiClassificacao(', 'function _kpiGetMacroProc('),
     source('function parseNumBR(', 'async function importarIndicadores('),
     source('function statusInfo(', 'function _resumoIndicadoresRelatorioPdf('),
     '({ anterior: _resultadoAnteriorIndicadorRelatorio, rows: _rowsIndicadoresRelatorioPdf })',
-  ].join('\n'), { kpis: [], esc: v => String(v), _kpiGetMacroProc: () => ({ macro: 'Macro' }) });
+  ].join('\n'), { kpis: [], processos: [], isCritico: () => false, esc: v => String(v), _kpiGetMacroProc: () => ({ macro: 'Macro' }) });
 }
 const cell = row => [...row.matchAll(/<td[^>]*>(.*?)<\/td>/g)][5][1];
 

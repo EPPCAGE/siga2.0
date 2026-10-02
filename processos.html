@@ -2017,10 +2017,24 @@ function nextEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.i
 function prevEt(id,p){const et=getEtapas(p||curProc);const i=et.findIndex(e=>e.id===id);return i>0?et[i-1].id:null;}
 function fBadge(etId){const f=etFase(etId);return '<span class="badge '+(FASE_COR[f]||'bgr')+'">'+(FASE_LABEL[f]||f)+'</span>';}
 function eBadge(etId){return '<span class="badge '+(EBADGE[etId]||'bgr')+'">'+etLb(etId)+'</span>';}
-// Effective next follow-up date: derived from latest meeting when available (field may be stale)
+// Prazos em meses de calendário, limitados ao último dia do mês de destino.
+function _addMesesRevisao(data, meses){
+  if(!data) return '';
+  const [ano,mes,dia]=data.slice(0,10).split('-').map(Number);
+  const destino=new Date(Date.UTC(ano,mes-1+meses,1));
+  const ultimo=new Date(Date.UTC(destino.getUTCFullYear(),destino.getUTCMonth()+1,0)).getUTCDate();
+  destino.setUTCDate(Math.min(dia,ultimo));
+  return destino.toISOString().slice(0,10);
+}
+// A data salva é apenas um cache; reuniões realizadas determinam o prazo.
 function _dtProxAcomp(p){
-  const _u=(p.reunioes_acomp||[]).filter(r=>r.data).sort((a,b)=>a.data<b.data?1:-1)[0];
-  return _u?.data?_addDias(_u.data,180):(p.dt_proximo_acompanhamento||'');
+  const reunioes=(p.reunioes_acomp||[]).filter(r=>r.data).sort((a,b)=>a.data.localeCompare(b.data));
+  if(!reunioes.length) return _addMesesRevisao(p.ent?.dt_efetiva||p.dt_etapas?.publicacao,6);
+  if(reunioes.length===1) return _addMesesRevisao(reunioes[0].data,6);
+  if(!p.arq_id||!isCritico(p.arq_id)) return '';
+  const ultima=reunioes.at(-1).data;
+  const revisao=p.revisao_periodica?.ultima_revisao;
+  return _addMesesRevisao(revisao>ultima?revisao:ultima,12);
 }
 function _eBadgeAcomp(p){
   if(p.etapa!=='acompanha') return eBadge(p.etapa);
@@ -2986,7 +3000,7 @@ function _htmlRevPendFila(procs){
   if(vencidas.length){
     h+=`<div class="sec-lbl" style="margin-bottom:.5rem;color:var(--red)">🔴 Revisão periódica vencida (${vencidas.length})</div>`;
     h+=vencidas.map(p=>{
-      const prox=(p.revisao_periodica||_revPeriodica_init(p)||{}).proxima_revisao||'';
+      const prox=(_revPeriodica_init(p)||{}).proxima_revisao||'';
       const proxFmt=prox?prox.split('-').reverse().join('/'):'—';
       return`<div class="prc" style="margin-bottom:8px">
         <div style="flex:1;min-width:0"><div class="prc-t">${esc(p.nome)}</div>
@@ -2999,7 +3013,7 @@ function _htmlRevPendFila(procs){
     if(vencidas.length) h+='<hr>';
     h+=`<div class="sec-lbl" style="margin-bottom:.5rem;color:var(--amber,#d97706)">⚠ Revisão periódica em breve (${pendentes.length})</div>`;
     h+=pendentes.map(p=>{
-      const prox=(p.revisao_periodica||_revPeriodica_init(p)||{}).proxima_revisao||'';
+      const prox=(_revPeriodica_init(p)||{}).proxima_revisao||'';
       const proxFmt=prox?prox.split('-').reverse().join('/'):'—';
       return`<div class="prc" style="margin-bottom:8px">
         <div style="flex:1;min-width:0"><div class="prc-t">${esc(p.nome)}</div>
@@ -3303,7 +3317,7 @@ function rFila(){
     if(revVenc.length){
       html+=`<hr><div class="sec-lbl" style="margin-bottom:.5rem;color:var(--red)">🔴 Revisão periódica vencida (${revVenc.length})</div>`;
       html+=revVenc.map(p=>{
-        const prox=(p.revisao_periodica||_revPeriodica_init(p)||{}).proxima_revisao||'';
+        const prox=(_revPeriodica_init(p)||{}).proxima_revisao||'';
         const proxFmt=prox?prox.split('-').reverse().join('/'):'—';
         return`<div class="prc" onclick="abrirProc(${p.id})" style="margin-bottom:8px">
           <div><div class="prc-t">${esc(p.nome)}</div>
@@ -3327,7 +3341,7 @@ function abrirRevisaoPeriodica(procId){
   modal.id='rev-periodica-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem';
   modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
-  const rp=p.revisao_periodica||_revPeriodica_init(p)||{};
+  const rp=_revPeriodica_init(p)||{};
   const proxFmt=(rp.proxima_revisao||'').split('-').reverse().join('/');
   modal.innerHTML=`<div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem 1.6rem;width:100%;max-width:480px;box-shadow:var(--sh2)">
     <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:.3rem">📋 Revisão Periódica</div>
@@ -3368,7 +3382,7 @@ async function _confirmarRevisaoPeriodica(procId){
   if(!p.revisao_periodica.historico) p.revisao_periodica.historico=[];
   p.revisao_periodica.historico.push({data:hoje,por:usuarioLogado?.nome||'',email:usuarioLogado?.email||'',status,obs});
   p.revisao_periodica.ultima_revisao=hoje;
-  p.revisao_periodica.proxima_revisao=_addDias(hoje,365);
+  _revPeriodica_init(p);
   p.revisao_periodica.lembretes_enviados={pre7:false,venc:false,pos:[]};
   if(status==='mudancas'){
     const epEmail=USUARIOS.find(u=>u.perfil==='ep'||u.perfis?.includes('ep'))?.email||'';
@@ -5028,17 +5042,7 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
       _planoConcluirVinculadosMapeamento(curProc);
     }
     // Agendar próximo acompanhamento automaticamente ao entrar em etapas mapeadas
-    if(['acompanha','auditoria'].includes(nx) && !curProc.dt_proximo_acompanhamento){
-      const _hoje = new Date().toISOString().slice(0,10);
-      const _baseCalc = curProc.ent?.dt_efetiva || curProc.dt_etapas?.publicacao || _hoje;
-      curProc.dt_proximo_acompanhamento = _addDias(_baseCalc, 180);
-    }
-    if(nx==='acompanha' && !curProc.revisao_periodica){
-      const _hoje=new Date().toISOString().slice(0,10);
-      const _base=curProc.ent?.dt_efetiva||curProc.dt_etapas?.publicacao||_hoje;
-      curProc.revisao_periodica={proxima_revisao:_addDias(_base,180+365),ultima_revisao:null,
-        lembretes_enviados:{pre7:false,venc:false,pos:[]},historico:[]};
-    }
+    if(['acompanha','auditoria'].includes(nx)) _revPeriodica_init(curProc);
   } else if(etAtu==='auditoria'){
     // processo concluído (publicacao → acompanha → auditoria)
     curProc.status_workflow='concluido';
@@ -5271,16 +5275,7 @@ function prosseguirFluxo(){
       if(etDono==='publicacao'){
         _planoConcluirVinculadosMapeamento(p);
       }
-      if(['acompanha','auditoria'].includes(nx)&&!p.dt_proximo_acompanhamento){
-        const _hoje=new Date().toISOString().slice(0,10);
-        const _base=p.ent?.dt_efetiva||p.dt_etapas?.publicacao||_hoje;
-        p.dt_proximo_acompanhamento=_addDias(_base,180);
-      }
-      if(nx==='acompanha'&&!p.revisao_periodica){
-        const _hoje=new Date().toISOString().slice(0,10);
-        const _base=p.ent?.dt_efetiva||p.dt_etapas?.publicacao||_hoje;
-        p.revisao_periodica={proxima_revisao:_addDias(_base,180+365),ultima_revisao:null,lembretes_enviados:{pre7:false,venc:false,pos:[]},historico:[]};
-      }
+      if(['acompanha','auditoria'].includes(nx)) _revPeriodica_init(p);
     } else if(etDono==='auditoria'){
       p.status_workflow='concluido';
     }
@@ -5476,8 +5471,8 @@ function verificarLembretesRevisao(){
     if(!['acompanha','auditoria'].includes(proc.etapa)) return;
     const email=getDonoEmail(proc);
     if(!email) return;
-    let rp=proc.revisao_periodica;
-    if(!rp){rp=_revPeriodica_init(proc);if(!rp){return;}proc.revisao_periodica=rp;}
+    const rp=_revPeriodica_init(proc);
+    if(!rp) return;
     const prox=rp.proxima_revisao;
     if(!prox) return;
     if(!rp.lembretes_enviados) rp.lembretes_enviados={pre7:false,venc:false,pos:[]};
@@ -7650,7 +7645,7 @@ async function registrarReuniaoAcomp(){
   }
   if(r.data){
     p.reunioes_acomp.push(r);
-    p.dt_proximo_acompanhamento = _addDias(r.data, p.reunioes_acomp.length>=2?365:180);
+    _revPeriodica_init(p);
     push(p,'acompanha','EP','Reunião de acompanhamento registrada — '+r.data+' — '+r.conformidade);
     await fbSaveAll();
     toast('Reunião registrada!','var(--teal)');
@@ -7711,8 +7706,7 @@ async function salvarEditReuniaoAcomp(){
     economia_h:volNovo&&trealNovo&&p.ent?.total_h_mensal!=null?+(p.ent.total_h_mensal-volNovo*trealNovo).toFixed(1):null,
   };
   p.reunioes_acomp[idx]=updated;
-  const _latestAcomp=[...p.reunioes_acomp].sort((a,b)=>a.data<b.data?1:-1)[0];
-  if(_latestAcomp?.data) p.dt_proximo_acompanhamento=_addDias(_latestAcomp.data,p.reunioes_acomp.length>=2?365:180);
+  _revPeriodica_init(p);
   await fbSaveAll();
   toast('Reunião atualizada!','var(--teal)');
   globalThis._acEditIdx=null;
@@ -7726,8 +7720,7 @@ function excluirReuniaoAcomp(idx){
   confirmar('Excluir esta reunião de acompanhamento?',async()=>{
     const p=curProc;if(!p?.reunioes_acomp)return;
     p.reunioes_acomp.splice(idx,1);
-    const _latest=[...p.reunioes_acomp].filter(r=>r.data).sort((a,b)=>a.data<b.data?1:-1)[0];
-    if(_latest?.data) p.dt_proximo_acompanhamento=_addDias(_latest.data,p.reunioes_acomp.length>=2?365:180);
+    _revPeriodica_init(p);
     await fbSaveAll();
     toast('Reunião excluída.','var(--amber)');
     rDetalhe();
@@ -7741,17 +7734,19 @@ function _calcVig(efet){
 }
 // ── Revisão periódica de mapeamentos ─────────────────────────────────────────
 function _revPeriodica_init(p){
-  if(p.revisao_periodica?.proxima_revisao) return p.revisao_periodica;
   if(!['acompanha','auditoria'].includes(p.etapa)) return null;
-  const hoje=new Date().toISOString().slice(0,10);
-  const base=p.dt_proximo_acompanhamento||p.ent?.dt_efetiva||hoje;
-  return{proxima_revisao:_addDias(base,365),ultima_revisao:null,
-    lembretes_enviados:{pre7:false,venc:false,pos:[]},historico:[]};
+  const prox=_dtProxAcomp(p);
+  const rp=p.revisao_periodica||{ultima_revisao:null,historico:[]};
+  if(rp.proxima_revisao!==prox) rp.lembretes_enviados={pre7:false,venc:false,pos:[]};
+  rp.proxima_revisao=prox;
+  p.dt_proximo_acompanhamento=prox;
+  p.revisao_periodica=rp;
+  return rp;
 }
 // 'vencida' | 'pendente' (≤30 dias) | 'em_dia' | null
 function _revStatus(p){
   if(p.status_ciclo==='suspenso'||p.status_ciclo==='cancelado') return null;
-  const rp=p.revisao_periodica||_revPeriodica_init(p);
+  const rp=_revPeriodica_init(p);
   if(!rp?.proxima_revisao) return null;
   const hoje=new Date().toISOString().slice(0,10);
   if(rp.proxima_revisao<=hoje) return 'vencida';
@@ -7800,7 +7795,7 @@ function publicarProcesso(){
     const _diasCiclo = Math.round((new Date(_baseCalc) - new Date(p.ent.dt_inicio)) / (1000*60*60*24));
     if(_diasCiclo > 0) p.ent.t_total = _diasCiclo + ' dias';
   }
-  p.dt_proximo_acompanhamento = _addDias(p.ent.dt_efetiva || _hoje, 180);
+  _revPeriodica_init(p);
 
   // Criar publicação tipo POP automaticamente se ainda não existir para este processo
   const jaTemPop = publicacoes.some(pub=>(pub.proc_ids||[]).includes(p.id) && pub.categoria==='POPs');
@@ -14278,6 +14273,16 @@ function _kpiPeriodoToIntervalo(periodo){
   return {trims:[], sems:[]};
 }
 
+function _kpiClassificacao(k){
+  const arqId=k.arq_id||processos.find(p=>String(p.id)===String(k.pid))?.arq_id;
+  return {ppe:k.ppe==='Sim'||k.ppe===true, processo_critico:!!arqId&&isCritico(arqId)};
+}
+function _kpiEtiquetasHtml(k){
+  const {ppe,processo_critico}=_kpiClassificacao(k);
+  const estilo='display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;margin-left:5px;vertical-align:middle';
+  return (ppe?`<span style="${estilo};background:#dbeafe;color:#1e40af">PPE</span>`:'')+
+    (processo_critico?`<span title="Indicador vinculado a processo crítico" style="${estilo};background:#fee2e2;color:#b91c1c">Crítico</span>`:'');
+}
 function _kpiGetMacroProc(k){
   if(k.arq_id){const u=getUnidadesMapeaveis().find(u=>u.arq_id===k.arq_id);if(u)return{macro:u.macro||'',proc:u.nome||''};}
   if(k.pid){const p=processos.find(p=>p.id===k.pid);if(p)return{macro:p.macro||'',proc:p.nome||''};}
@@ -14448,7 +14453,6 @@ function kpiGrupoCardHTML(key, items){
   const nome = items[0].nome;
   const polaridade = items[0].polaridade||'Maior é melhor';
   const area = items[0].area||'';
-  const isPpe = items[0].ppe === 'Sim';
 
   // Border color based on most recent measured period (any numeric realizado, not sem_dado)
   const withData = items.filter(i=>{
@@ -14544,7 +14548,7 @@ function kpiGrupoCardHTML(key, items){
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${borderColor};border-radius:var(--r);padding:1rem;margin-bottom:1rem;box-shadow:var(--sh)">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;gap:8px;flex-wrap:wrap">
       <div>
-        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}${isPpe?' · <span title="Indicador PPE" style="color:#f59e0b">⭐</span>':''}${isCumCard?' · <span title="Indicador cumulativo" style="color:var(--teal);font-weight:600">Σ Acumulado</span>':''}${linkedProc?` · <span style="color:var(--blue)">📎 ${esc(linkedProc.nome)}</span>`:''}</div>
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${esc(area)}${items[0].codigo?' · '+esc(items[0].codigo):''} · ${polaridade==='Menor é melhor'?'↓':'↑'}${_kpiEtiquetasHtml(items[0])}${isCumCard?' · <span title="Indicador cumulativo" style="color:var(--teal);font-weight:600">Σ Acumulado</span>':''}${linkedProc?` · <span style="color:var(--blue)">📎 ${esc(linkedProc.nome)}</span>`:''}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <div style="font-size:14px;font-weight:600;color:var(--ink)">${esc(nome)}</div>
           ${trendHtml}${consecAlert?'&ensp;'+consecAlert:''}
@@ -14744,7 +14748,7 @@ function kpiCard(k){
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
         ${status ? `<span style="font-size:11px;font-weight:600;color:${color}">${status}</span>` : ''}
         <span style="font-size:10px;color:var(--ink3)">${polIcon} ${polaridade}</span>
-        ${k.ppe==='Sim' ? '<span class="badge bb" style="font-size:10px">PPE</span>' : ''}
+        ${_kpiEtiquetasHtml(k)}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:8px;margin-bottom:.6rem;font-size:12px">
@@ -17981,16 +17985,9 @@ async function _fbLoadProcessos(){
   const _processosCorrigidos = [];
   processos.forEach(p => {
     if(!['acompanha','auditoria'].includes(p.etapa)) return;
-    const _ultimaReuniao = (p.reunioes_acomp||[]).filter(r=>r.data).sort((a,b)=>a.data<b.data?1:-1)[0];
-    if(_ultimaReuniao) {
-      const _esperado = _addDias(_ultimaReuniao.data, 180);
-      if(p.dt_proximo_acompanhamento !== _esperado) {
-        p.dt_proximo_acompanhamento = _esperado;
-        _processosCorrigidos.push(p.id);
-      }
-    } else if(!p.dt_proximo_acompanhamento) {
-      const _baseCalc = p.ent?.dt_efetiva || p.dt_etapas?.publicacao || _hoje;
-      p.dt_proximo_acompanhamento = _addDias(_baseCalc, 180);
+    const esperado=_dtProxAcomp(p);
+    if(p.dt_proximo_acompanhamento!==esperado) {
+      p.dt_proximo_acompanhamento=esperado;
       _processosCorrigidos.push(p.id);
     }
   });
@@ -18634,6 +18631,7 @@ async function iaAnalisarIndicadores(){
       const hasMeta = _kpiMeta(last) !== null;
       return {
         area:last.area, nome:last.nome,
+        ..._kpiClassificacao(last),
         ...(hasMeta ? {meta:last.meta} : {sem_meta:true}),
         realizado:last.realizado, pct:last.pct_realizado, periodo:last.periodo,
         polaridade:pol,
@@ -18823,11 +18821,8 @@ function _rowIndicadorRelatorioPdf(k, resultadoAnterior = null){
   else if(st.tier===0 && pct!==null) pctStyle=`font-size:13px;font-weight:800;color:${st.color}`;
   else pctStyle=`font-weight:700;color:${st.color}`;
   const badgeStyle = `display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:${st.bg};color:${st.color}`;
-  const ppeBadge = (k.ppe==='Sim'||k.ppe===true)
-    ? '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#dbeafe;color:#1e40af;margin-left:5px;vertical-align:middle">PPE</span>'
-    : '';
   return `<tr style="background:${st.rowBg}">
-    <td>${esc(k.nome)}${ppeBadge}</td>
+    <td>${esc(k.nome)}${_kpiEtiquetasHtml(k)}</td>
     <td style="font-size:10px;color:#6b7280">${esc(_macroprocessoIndicador(k))}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
