@@ -17237,9 +17237,9 @@ function gerarStatusReportPDF(){
     <div class="bar-meta"><span>${_e(m.nome)}</span><strong>${m.pct}%</strong></div>
     <div class="bar-track"><div class="bar-fill" style="width:${m.pct}%;background:${_corPct(m.pct)}"></div></div>
   </div>`).join('');
-  let pontualidadeResumo=`Sem entregas concluídas com prazo informado no ano de ${ano}`;
+  let pontualidadeResumo=`Sem entregas concluídas em ${ano}`;
   if(pctPont!==null){
-    pontualidadeResumo=`${emDia} em dia de ${comStatus.length} concluídas com prazo no ano de ${ano} (ano inteiro)`;
+    pontualidadeResumo=`${emDia} em dia de ${comStatus.length} concluídas em ${ano}`;
   }
   let pontualidadePainel='<p class="vazio">'+pontualidadeResumo+'</p>';
   if(pctPont!==null){
@@ -17366,7 +17366,7 @@ function gerarStatusReportPDF(){
       ${macroBars||EMPTY}
     </div>
     <div class="chart-card">
-      <div class="chart-title">Pontualidade das entregas — ano inteiro de ${ano}</div>
+      <div class="chart-title">Pontualidade das entregas — ${ano}</div>
       ${pontualidadePainel}
     </div>
   </div>
