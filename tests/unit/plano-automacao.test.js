@@ -38,7 +38,32 @@ describe('automação do plano de trabalho', () => {
     expect(server.calcular(auditoria, processo, hoje).prazo).toBeUndefined();
     processos.pop();
   });
+  it('permite reabrir no modal e concluir novamente', () => {
+    const ids = ['pm-status','pm-prazo','pm-dt-efet-conclusao','pm-dt-efet-inicio','pm-qtreal','pm-qtprev','pm-vint','pm-vinid'];
+    const campos = Object.fromEntries(ids.map(id => [id, { value: '', dataset: {} }]));
+    context.document = { getElementById: id => campos[id] };
+    campos['pm-status'] = { value: 'em_execucao', dataset: { anterior: 'concluida' } };
+    campos['pm-prazo'].value = '2099-12-31';
+    campos['pm-dt-efet-conclusao'].value = hoje;
+    campos['pm-qtprev'].value = campos['pm-qtreal'].value = '2';
+    context.planoAtualizarAutomacaoModal({ target: campos['pm-status'] });
+    context.planoAtualizarAutomacaoModal();
+    expect(campos['pm-status'].value).toBe('em_execucao');
+    expect(campos['pm-dt-efet-conclusao'].value).toBe('');
+    expect(campos['pm-status'].dataset.reaberta).toBe('true');
+    const processo = { etapa: 'acompanha', ent: { dt_efetiva: hoje } };
+    const at = { ...base, status: 'em_execucao', reaberta: true, vinculo_tipo: 'mapeamento', vinculo_id: 8, qt_prevista: 2, qt_realizada: 2 };
+    expect(context.planoEntregaMapeamento(at, processo)).toBe('');
+    expect(server.calcular(at, processo, hoje).dt_conclusao).toBeUndefined();
+    campos['pm-status'].value = 'concluida';
+    context.planoAtualizarAutomacaoModal({ target: campos['pm-status'] });
+    expect(campos['pm-dt-efet-conclusao'].value).toBe(hoje);
+    expect(campos['pm-status'].dataset.reaberta).toBe('false');
+  });
   const casos = [
+    [{ reaberta: true, status: 'em_execucao', qt_prevista: 2, qt_realizada: 2 }, 'em_execucao'],
+    [{ reaberta: true, status: 'em_execucao', qt_prevista: 2, qt_realizada: 2, prazo: '2020-01-01' }, 'em_atraso'],
+    [{ reaberta: true, status: 'concluida' }, 'concluida'],
     [{}, 'planejado'],
     [{ dt_efet_inicio: '2026-01-01' }, 'em_execucao'],
     [{ qt_realizada: 0 }, 'planejado'],

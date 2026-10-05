@@ -19,12 +19,14 @@ describe('cores do relatorio executivo', () => {
     expect(context.statusReportCorPct(pct)).toBe(cor);
   });
 
-  it('gera todos os graficos com a escala percentual', () => {
+  it('mantem barras trimestrais azuis e escala percentual nos demais graficos', () => {
     let output;
     const plano = Array.from({ length: 100 }, (_, i) => ({
       ano: 2026, trimestre: 'T4', status: i < 78 ? 'concluida' : 'em_execucao',
       entrega_status: i < 60 ? 'em_dia' : 'com_atraso',
+      prazo: '2026-12-31',
     }));
+    plano.push({ ano: 2026, trimestre: 'T4', status: 'concluida', entrega_status: 'sem_prazo' });
     const context = vm.createContext({
       Date, Set, Blob,
       isEP: () => true, planoAno: () => 2026, plano,
@@ -45,10 +47,13 @@ describe('cores do relatorio executivo', () => {
     context.gerarStatusReportPDF();
     const donuts = [...output.matchAll(/--pct:(\d+);--color:(#[a-f0-9]+)/g)];
     expect(donuts).toHaveLength(3);
+    expect(output).toContain('60 em dia de 78 concluídas com prazo no ano de 2026 (ano inteiro)');
+    expect(output).toContain('Pontualidade das entregas — ano inteiro de 2026');
     for (const [, pct, cor] of donuts) expect(cor).toBe(context.statusReportCorPct(Number(pct)));
     const bars = [...output.matchAll(/width:(\d+)%;background:(#[a-f0-9]+)/g)];
     expect(bars).toHaveLength(5);
-    for (const [, pct, cor] of bars) expect(cor).toBe(context.statusReportCorPct(Number(pct)));
+    for (const [, , cor] of bars.slice(0, 4)) expect(cor).toBe('#2563eb');
+    for (const [, pct, cor] of bars.slice(4)) expect(cor).toBe(context.statusReportCorPct(Number(pct)));
     expect(output).toContain('background:#166534;height:7px');
   });
 });
