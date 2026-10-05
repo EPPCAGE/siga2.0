@@ -6,15 +6,38 @@ const html = readFileSync(new URL('../../processos.html', import.meta.url), 'utf
 const source = readFileSync(new URL('../../functions/plano-automacao.js', import.meta.url), 'utf8');
 const processos = [{ id: 8, ent: { dt_inicio: '2026-03-10' } }];
 const context = vm.createContext({ processos, Intl, Date });
-for (const name of ['planoHoje', 'planoDatasPadrao', 'planoEntregaMapeamento', 'planoProcessoVinculado', 'planoStatusEfetivo', '_planoAutomatizar', '_planoMarcarConclusao', '_planoAplicarConclusao', 'planoAtualizarTriDatas', 'planoAtualizarAutomacaoModal']) {
+for (const name of ['planoPrazoMapeamento', 'planoHoje', 'planoDatasPadrao', 'planoEntregaMapeamento', 'planoProcessoVinculado', 'planoStatusEfetivo', '_planoAutomatizar', '_planoMarcarConclusao', '_planoAplicarConclusao', 'planoAtualizarTriDatas', 'planoAtualizarAutomacaoModal']) {
   vm.runInContext(html.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
 }
 const server = vm.createContext({ Intl, Date });
-for (const name of ['hoje', 'datasPadrao', 'calcular']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], server);
+for (const name of ['prazoMapeamento', 'hoje', 'datasPadrao', 'calcular']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], server);
 const hoje = context.planoHoje();
 const base = { status: 'planejado', prazo: '2099-12-31' };
 
 describe('automação do plano de trabalho', () => {
+  it.each([
+    [{ dt_inicio: '2026-03-10' }, '2026-06-08'],
+    [{ dt_inicio: '2026-03-10', dt_prev: '2026-07-01' }, '2026-07-01'],
+    [{ dt_inicio: '2026-03-10', dt_prev: '01/07/2026' }, '2026-07-01'],
+    [{ dt_inicio: '2027-11-15' }, '2028-02-13'],
+  ])('sincroniza prazo na tela e servidor: %j', (ent, prazo) => {
+    const processo = { id: 10, ent };
+    processos.push(processo);
+    const at = { ...base, vinculo_tipo: 'mapeamento', vinculo_id: 10 };
+    expect(server.calcular(at, processo, hoje).prazo).toBe(prazo);
+    context._planoAutomatizar(at);
+    expect(at.prazo).toBe(prazo);
+    expect(server.calcular(at, processo, hoje)).toEqual({});
+    ent.dt_prev = '2099-09-10';
+    expect(server.calcular(at, processo, hoje).prazo).toBe(ent.dt_prev);
+    context._planoAutomatizar(at);
+    expect(at.prazo).toBe(ent.dt_prev);
+    const auditoria = { ...base, vinculo_tipo: 'auditoria', vinculo_id: 10 };
+    context._planoAutomatizar(auditoria);
+    expect(auditoria.prazo).toBe(base.prazo);
+    expect(server.calcular(auditoria, processo, hoje).prazo).toBeUndefined();
+    processos.pop();
+  });
   const casos = [
     [{}, 'planejado'],
     [{ dt_efet_inicio: '2026-01-01' }, 'em_execucao'],
@@ -28,7 +51,7 @@ describe('automação do plano de trabalho', () => {
     [{ dt_efet_inicio: '2099-01-01', qt_realizada: 0.5 }, 'em_execucao'],
     [{ dt_prev_inicio: '2099-01-01', dt_efet_inicio: '2026-01-01' }, 'em_execucao'],
     [{ dt_prev_inicio: '2020-01-01' }, 'planejado'],
-    [{ vinculo_tipo: 'mapeamento', vinculo_id: '8' }, 'em_execucao'],
+    [{ vinculo_tipo: 'mapeamento', vinculo_id: '8' }, 'em_atraso'],
     [{ vinculo_tipo: 'auditoria', vinculo_id: 8 }, 'em_execucao'],
     [{ vinculo_tipo: 'mapeamento', vinculo_id: 99 }, 'planejado'],
     [{ dt_conclusao: '2026-01-01', prazo: '2025-12-31' }, 'concluida'],

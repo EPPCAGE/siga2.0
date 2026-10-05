@@ -21,12 +21,25 @@ function datasPadrao(ano, trimestre) {
   return { dt_prev_inicio: inicio.toISOString().slice(0, 10), prazo: fim.toISOString().slice(0, 10) };
 }
 
+function prazoMapeamento(at, processo) {
+  if (at.vinculo_tipo !== 'mapeamento' || !processo) return '';
+  const prevista = processo.ent?.dt_prev || '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(prevista)) return prevista.split('/').reverse().join('-');
+  if (/^\d{4}-\d{2}-\d{2}/.test(prevista)) return prevista.slice(0, 10);
+  const inicio = processo.ent?.dt_inicio || '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return '';
+  const data = new Date(inicio + 'T00:00:00Z');
+  if (Number.isNaN(data.getTime())) return '';
+  data.setUTCDate(data.getUTCDate() + 90);
+  return data.toISOString().slice(0, 10);
+}
+
 function calcular(at, processo, data = hoje()) {
   const patch = {};
   const datas = datasPadrao(at.ano, at.trimestre);
   if (!at.dt_prev_inicio && datas.dt_prev_inicio) patch.dt_prev_inicio = datas.dt_prev_inicio;
-  if (!at.prazo && datas.prazo) patch.prazo = datas.prazo;
-  const prazo = at.prazo || datas.prazo;
+  const prazo = prazoMapeamento(at, processo) || at.prazo || datas.prazo;
+  if (prazo && prazo !== at.prazo) patch.prazo = prazo;
   const vinculado = ['mapeamento', 'auditoria'].includes(at.vinculo_tipo) && at.vinculo_id && processo;
   const inicio = at.dt_efet_inicio || (vinculado && at.vinculo_tipo === 'mapeamento' && processo.ent?.dt_inicio) || '';
   if (inicio && inicio !== at.dt_efet_inicio) patch.dt_efet_inicio = inicio;
