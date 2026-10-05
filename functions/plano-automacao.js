@@ -43,18 +43,19 @@ function calcular(at, processo, data = hoje()) {
   const vinculado = ['mapeamento', 'auditoria'].includes(at.vinculo_tipo) && at.vinculo_id && processo;
   const inicio = at.dt_efet_inicio || (vinculado && at.vinculo_tipo === 'mapeamento' && processo.ent?.dt_inicio) || '';
   if (inicio && inicio !== at.dt_efet_inicio) patch.dt_efet_inicio = inicio;
-  const mapeamentoConcluido = vinculado && at.vinculo_tipo === 'mapeamento'
+  const mapeamentoConcluido = !at.reaberta && vinculado && at.vinculo_tipo === 'mapeamento'
     && (processo.dt_etapas?.publicacao || ['acompanha', 'auditoria'].includes(processo.etapa) || processo.status_workflow === 'concluido');
   const dataMapeamento = mapeamentoConcluido ? processo.ent?.dt_efetiva || processo.dt_etapas?.publicacao || '' : '';
   const entregaMapeamento = !mapeamentoConcluido ? '' : /^\d{2}\/\d{2}\/\d{4}$/.test(dataMapeamento)
     ? dataMapeamento.split('/').reverse().join('-')
     : /^\d{4}-\d{2}-\d{2}/.test(dataMapeamento) ? dataMapeamento.slice(0, 10) : data;
-  const status = at.dt_conclusao || at.status === 'concluida' || (Number(at.qt_prevista) > 0 && Number(at.qt_realizada) >= Number(at.qt_prevista)) || entregaMapeamento ? 'concluida'
+  const status = at.dt_conclusao || at.status === 'concluida' || (!at.reaberta && Number(at.qt_prevista) > 0 && Number(at.qt_realizada) >= Number(at.qt_prevista)) || entregaMapeamento ? 'concluida'
     : prazo && prazo < data ? 'em_atraso'
     : (inicio && inicio <= data) || Number(at.qt_realizada || 0) !== 0 || vinculado ? 'em_execucao'
     : at.status === 'em_atraso' ? 'planejado' : at.status || 'planejado';
   if (status !== at.status) patch.status = status;
   if (status === 'concluida') {
+    if (at.reaberta) patch.reaberta = false;
     const conclusao = at.dt_conclusao || entregaMapeamento || data;
     const dias = prazo ? Math.max(0, Math.round((new Date(conclusao) - new Date(prazo)) / 86400000)) : 0;
     const entrega = !prazo ? 'sem_prazo' : conclusao > prazo ? 'com_atraso' : 'em_dia';
