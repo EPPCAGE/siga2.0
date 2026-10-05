@@ -16370,18 +16370,53 @@ function planoAno(){
 
 const PLANO_FIM_TRI = {T1:'-03-31',T2:'-06-30',T3:'-09-30',T4:'-12-31',Anual:'-12-31'};
 const PLANO_INI_TRI = {T1:'-01-01',T2:'-04-01',T3:'-07-01',T4:'-10-01',Anual:'-01-01'};
+function planoDatasPadrao(ano, trimestre){
+  const mes = {T1:0,T2:3,T3:6,T4:9,Anual:0}[trimestre];
+  if(!Number.isInteger(Number(ano)) || Number(ano)<1 || mes==null) return {};
+  const inicio = new Date(Date.UTC(Number(ano),mes,1));
+  let uteis = 0;
+  while(true){
+    if(inicio.getUTCDay()!==0 && inicio.getUTCDay()!==6) uteis++;
+    if(uteis===5) break;
+    inicio.setUTCDate(inicio.getUTCDate()+1);
+  }
+  const fim = new Date(Date.UTC(Number(ano),trimestre==='Anual'?12:mes+3,0));
+  return {dt_prev_inicio:inicio.toISOString().slice(0,10),prazo:fim.toISOString().slice(0,10)};
+}
+function planoEntregaMapeamento(at, processo){
+  if(at.vinculo_tipo!=='mapeamento' || !processo) return '';
+  if(!processo.dt_etapas?.publicacao && !['acompanha','auditoria'].includes(processo.etapa) && processo.status_workflow!=='concluido') return '';
+  const data = processo.ent?.dt_efetiva || processo.dt_etapas?.publicacao || '';
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(data)) return data.split('/').reverse().join('-');
+  return /^\d{4}-\d{2}-\d{2}/.test(data) ? data.slice(0,10) : planoHoje();
+}
 function planoStatusEfetivo(at){
-  // 1. Quantidade realizada >= prevista → concluída automaticamente
-  if(at.qt_prevista > 0 && (at.qt_realizada||0) >= at.qt_prevista) return 'concluida';
-  // 2. Status manual concluída
-  if(at.status==='concluida') return 'concluida';
-  const hoje = new Date().toISOString().split('T')[0];
-  // 3. Prazo individual ultrapassado
-  if(at.prazo && at.prazo < hoje) return 'em_atraso';
-  // 4. Data final do trimestre ultrapassada
-  const sufTri = PLANO_FIM_TRI[at.trimestre];
-  if(sufTri && at.ano && (`${at.ano}${sufTri}`) < hoje) return 'em_atraso';
-  return at.status||'planejado';
+  const hoje = planoHoje();
+  const processo = planoProcessoVinculado(at);
+  if(at.dt_conclusao || at.status==='concluida' || (Number(at.qt_prevista)>0 && Number(at.qt_realizada)>=Number(at.qt_prevista)) || planoEntregaMapeamento(at,processo)) return 'concluida';
+  const prazo = at.prazo || planoDatasPadrao(at.ano,at.trimestre).prazo;
+  if(prazo && prazo < hoje) return 'em_atraso';
+  if((at.dt_efet_inicio && at.dt_efet_inicio<=hoje) || Number(at.qt_realizada||0)!==0 || processo) return 'em_execucao';
+  return at.status==='em_atraso' ? 'planejado' : (at.status||'planejado');
+}
+function planoHoje(){
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const value = type=>parts.find(p=>p.type===type).value;
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+function planoProcessoVinculado(at){
+  if(!['mapeamento','auditoria'].includes(at.vinculo_tipo) || !at.vinculo_id) return null;
+  return processos.find(p=>String(p.id)===String(at.vinculo_id))||null;
+}
+function _planoAutomatizar(at){
+  const datas = planoDatasPadrao(at.ano,at.trimestre);
+  if(!at.dt_prev_inicio && datas.dt_prev_inicio) at.dt_prev_inicio = datas.dt_prev_inicio;
+  if(!at.prazo && datas.prazo) at.prazo = datas.prazo;
+  const processo = planoProcessoVinculado(at);
+  if(!at.dt_efet_inicio && at.vinculo_tipo==='mapeamento' && processo?.ent?.dt_inicio) at.dt_efet_inicio = processo.ent.dt_inicio;
+  if(!at.dt_conclusao) at.dt_conclusao = planoEntregaMapeamento(at,processo);
+  at.status = planoStatusEfetivo(at);
+  if(at.status==='concluida') _planoMarcarConclusao(at);
 }
 
 function planoPct(at){
@@ -17583,10 +17618,12 @@ function _planoModalApplyValues(at){
   const _ano = cur.ano||planoAno();
   document.getElementById('pm-tri').value = _tri;
   document.getElementById('pm-prazo').value = cur.prazo||(PLANO_FIM_TRI[_tri]?`${_ano}${PLANO_FIM_TRI[_tri]}`:'');
-  document.getElementById('pm-dt-prev-inicio').value = cur.dt_prev_inicio||(PLANO_INI_TRI[_tri]?`${_ano}${PLANO_INI_TRI[_tri]}`:'');
+  document.getElementById('pm-dt-prev-inicio').value = cur.dt_prev_inicio||planoDatasPadrao(_ano,_tri).dt_prev_inicio||'';
+  document.getElementById('pm-dt-prev-inicio').dataset.padrao = planoDatasPadrao(_ano,_tri).dt_prev_inicio||'';
+  document.getElementById('pm-prazo').dataset.padrao = planoDatasPadrao(_ano,_tri).prazo||'';
   document.getElementById('pm-dt-efet-inicio').value = cur.dt_efet_inicio||'';
   document.getElementById('pm-dt-efet-conclusao').value = cur.dt_conclusao||'';
-  document.getElementById('pm-status').value = cur.status||'planejado';
+  document.getElementById('pm-status').value = planoStatusEfetivo(cur);
   document.getElementById('pm-prio').value = cur.prioridade||'media';
   document.getElementById('pm-cat').value = cur.categoria||'';
   document.getElementById('pm-qtprev').value = cur.qt_prevista||'';
@@ -17603,24 +17640,51 @@ function abrirPlanoModal(idOrObj){
   const isNew = !at||!at.id;
   document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
   document.getElementById('plano-modal-body').innerHTML = _planoModalBodyHTML();
-  _planoModalApplyValues(at);
+  const valores = at ? {...at} : null;
+  if(valores) _planoAutomatizar(valores);
+  _planoModalApplyValues(valores);
+  ['pm-dt-efet-inicio','pm-dt-efet-conclusao','pm-prazo','pm-qtprev','pm-qtreal','pm-vinid','pm-status'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change', planoAtualizarAutomacaoModal);
+  });
   document.getElementById('plano-modal').style.display='block';
 }
 
+function planoAtualizarAutomacaoModal(){
+  const at = {
+    status:document.getElementById('pm-status').value,
+    prazo:document.getElementById('pm-prazo').value,
+    dt_conclusao:document.getElementById('pm-dt-efet-conclusao').value,
+    dt_efet_inicio:document.getElementById('pm-dt-efet-inicio').value,
+    qt_realizada:Number(document.getElementById('pm-qtreal').value)||0,
+    qt_prevista:Number(document.getElementById('pm-qtprev').value)||0,
+    vinculo_tipo:document.getElementById('pm-vint').value,
+    vinculo_id:document.getElementById('pm-vinid').value,
+  };
+  _planoAutomatizar(at);
+  document.getElementById('pm-status').value = at.status;
+  document.getElementById('pm-dt-efet-inicio').value = at.dt_efet_inicio||'';
+  document.getElementById('pm-dt-efet-conclusao').value = at.dt_conclusao||'';
+}
 function planoAtualizarVinculo(){
   const tipo = document.getElementById('pm-vint')?.value||'';
   const sel  = document.getElementById('pm-vinid');
   if(!sel) return;
   sel.disabled = !tipo;
   planoPopularVinculoSelect(tipo,'');
+  planoAtualizarAutomacaoModal();
 }
 function planoAtualizarTriDatas(){
   const tri = document.getElementById('pm-tri')?.value||'Anual';
   const ano = Number.parseInt(document.getElementById('pm-ano')?.value)||planoAno();
   const fIni = document.getElementById('pm-dt-prev-inicio');
   const fFim = document.getElementById('pm-prazo');
-  if(fIni && !fIni.value && PLANO_INI_TRI[tri]) fIni.value = `${ano}${PLANO_INI_TRI[tri]}`;
-  if(fFim && !fFim.value && PLANO_FIM_TRI[tri]) fFim.value = `${ano}${PLANO_FIM_TRI[tri]}`;
+  const datas = planoDatasPadrao(ano,tri);
+  for(const [campo,padrao] of [[fIni,datas.dt_prev_inicio],[fFim,datas.prazo]]){
+    if(!campo) continue;
+    if(!campo.value || campo.value===campo.dataset.padrao) campo.value = padrao||'';
+    campo.dataset.padrao = padrao||'';
+  }
+  planoAtualizarAutomacaoModal();
 }
 
 async function salvarAtividade(){
@@ -17649,7 +17713,7 @@ async function salvarAtividade(){
   toast(atvToastMsg);
 }
 function _planoBuildAtividade({id,ano,nome,vTipo,vId,vNome,qtPrev,qtReal,antigo}){
-  const hoje = new Date().toISOString().split('T')[0];
+  const hoje = planoHoje();
   return {
     id: id||_planoIdC++,
     ano,
@@ -17672,26 +17736,20 @@ function _planoBuildAtividade({id,ano,nome,vTipo,vId,vNome,qtPrev,qtReal,antigo}
     evidencia:    document.getElementById('pm-evid')?.value.trim()||'',
     dt_criacao:   antigo?.dt_criacao||hoje,
     dt_atualizacao: hoje,
-    dt_conclusao:   document.getElementById('pm-dt-efet-conclusao')?.value||antigo?.dt_conclusao||'',
+    dt_conclusao:   document.getElementById('pm-dt-efet-conclusao')?.value||'',
     entrega_status: antigo?.entrega_status||'',
     dias_atraso:    antigo?.dias_atraso??null,
   };
 }
 function _planoAplicarConclusao(at, antigo){
-  const eraConcluidaAntes = antigo?.status==='concluida' || (antigo?.qt_prevista>0 && (antigo?.qt_realizada||0)>=antigo?.qt_prevista);
-  const ficouConcluida = at.status==='concluida' || (at.qt_prevista>0 && at.qt_realizada>=at.qt_prevista);
-  if(ficouConcluida && !eraConcluidaAntes){
-    _planoMarcarConclusao(at);
-    return;
-  }
-  if(!ficouConcluida){
-    at.dt_conclusao   = '';
+  _planoAutomatizar(at);
+  if(at.status!=='concluida'){
     at.entrega_status = '';
     at.dias_atraso    = null;
   }
 }
 function _planoMarcarConclusao(at){
-  const hoje = new Date().toISOString().split('T')[0];
+  const hoje = planoHoje();
   if(!at.dt_conclusao) at.dt_conclusao = hoje;
   if(!at.prazo){
     at.entrega_status = 'sem_prazo';
@@ -17715,11 +17773,11 @@ function _planoSalvarItem(id, at){
 // Ao concluir a etapa 'publicacao' do mapeamento, conclui automaticamente a(s)
 // atividade(s) do PAT vinculadas a ele, com entrega efetiva no mesmo dia.
 function _planoConcluirVinculadosMapeamento(p){
-  const hoje = new Date().toISOString().split('T')[0];
-  const vinculadas = plano.filter(a=>a.vinculo_tipo==='mapeamento' && a.vinculo_id===p.id && a.status!=='concluida');
+  const hoje = planoHoje();
+  const vinculadas = plano.filter(a=>a.vinculo_tipo==='mapeamento' && String(a.vinculo_id)===String(p.id) && a.status!=='concluida');
   vinculadas.forEach(a=>{
     a.status = 'concluida';
-    a.dt_conclusao = hoje;
+    if(!a.dt_conclusao) a.dt_conclusao = planoEntregaMapeamento(a,p) || hoje;
     a.dt_atualizacao = hoje;
     _planoMarcarConclusao(a);
   });
@@ -17849,6 +17907,7 @@ async function fbSaveAll(){
     _fbDiffCollection(ops, cacheUpdates, kpisRepository, kpis, _fbSyncCache.kpis, true, _savedBy);
     // Coleções restritas ao EP — ignoradas se o usuário não tiver permissão
     if(isEP()){
+      plano.forEach(_planoAutomatizar);
       _fbDiffCollection(ops, cacheUpdates, publicacoesRepository, publicacoes, _fbSyncCache.publicacoes, false);
       _fbDiffCollection(ops, cacheUpdates, planoRepository, plano, _fbSyncCache.plano, false);
       _fbDiffCollection(ops, cacheUpdates, planoMetasRepository, PAT_METAS, _fbSyncCache.plano_metas, false);
