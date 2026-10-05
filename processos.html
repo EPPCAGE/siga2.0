@@ -16383,6 +16383,19 @@ function planoDatasPadrao(ano, trimestre){
   const fim = new Date(Date.UTC(Number(ano),trimestre==='Anual'?12:mes+3,0));
   return {dt_prev_inicio:inicio.toISOString().slice(0,10),prazo:fim.toISOString().slice(0,10)};
 }
+function planoPrazoMapeamento(at, processo) {
+  if (at.vinculo_tipo !== 'mapeamento' || !processo) return '';
+  const prevista = processo.ent?.dt_prev || '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(prevista)) return prevista.split('/').reverse().join('-');
+  if (/^\d{4}-\d{2}-\d{2}/.test(prevista)) return prevista.slice(0, 10);
+  const inicio = processo.ent?.dt_inicio || '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return '';
+  const data = new Date(inicio + 'T00:00:00Z');
+  if (Number.isNaN(data.getTime())) return '';
+  data.setUTCDate(data.getUTCDate() + 90);
+  return data.toISOString().slice(0, 10);
+}
+
 function planoEntregaMapeamento(at, processo){
   if(at.vinculo_tipo!=='mapeamento' || !processo) return '';
   if(!processo.dt_etapas?.publicacao && !['acompanha','auditoria'].includes(processo.etapa) && processo.status_workflow!=='concluido') return '';
@@ -16390,11 +16403,12 @@ function planoEntregaMapeamento(at, processo){
   if(/^\d{2}\/\d{2}\/\d{4}$/.test(data)) return data.split('/').reverse().join('-');
   return /^\d{4}-\d{2}-\d{2}/.test(data) ? data.slice(0,10) : planoHoje();
 }
+
 function planoStatusEfetivo(at){
   const hoje = planoHoje();
   const processo = planoProcessoVinculado(at);
   if(at.dt_conclusao || at.status==='concluida' || (Number(at.qt_prevista)>0 && Number(at.qt_realizada)>=Number(at.qt_prevista)) || planoEntregaMapeamento(at,processo)) return 'concluida';
-  const prazo = at.prazo || planoDatasPadrao(at.ano,at.trimestre).prazo;
+  const prazo = planoPrazoMapeamento(at,processo) || at.prazo || planoDatasPadrao(at.ano,at.trimestre).prazo;
   if(prazo && prazo < hoje) return 'em_atraso';
   if((at.dt_efet_inicio && at.dt_efet_inicio<=hoje) || Number(at.qt_realizada||0)!==0 || processo) return 'em_execucao';
   return at.status==='em_atraso' ? 'planejado' : (at.status||'planejado');
@@ -16413,6 +16427,8 @@ function _planoAutomatizar(at){
   if(!at.dt_prev_inicio && datas.dt_prev_inicio) at.dt_prev_inicio = datas.dt_prev_inicio;
   if(!at.prazo && datas.prazo) at.prazo = datas.prazo;
   const processo = planoProcessoVinculado(at);
+  const prazoMapeamento = planoPrazoMapeamento(at,processo);
+  if(prazoMapeamento) at.prazo = prazoMapeamento;
   if(!at.dt_efet_inicio && at.vinculo_tipo==='mapeamento' && processo?.ent?.dt_inicio) at.dt_efet_inicio = processo.ent.dt_inicio;
   if(!at.dt_conclusao) at.dt_conclusao = planoEntregaMapeamento(at,processo);
   at.status = planoStatusEfetivo(at);
@@ -16444,6 +16460,7 @@ function _planoCheckNotificacoes(lista){
 
 function rPlano(){
   if(!isEP()) return;
+  plano.forEach(_planoAutomatizar);
   planoPopulateAnoSel();
   const ano  = planoAno();
   const doAno = plano.filter(a=>a.ano===ano);
@@ -17102,37 +17119,11 @@ function statusReportTrimAtual(mes){
 function statusReportDateIso(d){
   return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
 }
-function statusReportCorPct(p,hi=70,mid=40){
-  if(p>=hi) return '#16a34a';
-  if(p>=mid) return '#d97706';
-  return '#dc2626';
-}
-function statusReportCorCoberturaMacro(p){
-  if(p>=70) return '#16a34a';
-  if(p>=40) return '#eab308';
-  if(p>=10) return '#d97706';
-  return '#dc2626';
-}
-function statusReportCorMeta(realizado, meta){
-  if(meta == null || meta === '') return statusReportCorPct(realizado);
-  const metaNum = Number(meta);
-  if(Number.isNaN(metaNum)) return statusReportCorPct(realizado);
-  if(realizado >= metaNum) return '#16a34a';
-  if(realizado >= metaNum * 0.8) return '#d97706';
-  return '#dc2626';
-}
-function statusReportCorMetaAnual(pct, esperado){
-  if(pct == null) return '#888';
-  if(pct >= esperado) return '#16a34a';
-  if(pct >= esperado * 0.7) return '#eab308';
-  if(pct >= esperado * 0.4) return '#d97706';
-  return '#dc2626';
-}
-function statusReportCorMetaFinalAnual(realizado, metaFinal, avancoAno){
-  if(metaFinal == null || metaFinal === '') return statusReportCorPct(realizado);
-  const metaNum = Number(metaFinal);
-  if(Number.isNaN(metaNum)) return statusReportCorPct(realizado);
-  return statusReportCorMetaAnual(realizado,metaNum * avancoAno / 100);
+function statusReportCorPct(p){
+  if(p<=25) return '#dc2626';
+  if(p<=50) return '#d97706';
+  if(p<=75) return '#166534';
+  return '#4ade80';
 }
 function statusReportDateBr(d){
   if(!d) return '—';
@@ -17174,7 +17165,7 @@ function gerarStatusReportPDF(){
   const comStatus=doAno.filter(a=>planoStatusEfetivo(a)==='concluida'&&a.entrega_status);
   const emDia=comStatus.filter(a=>a.entrega_status==='em_dia').length;
   const pctPont=comStatus.length?Math.round(emDia/comStatus.length*100):null;
-  const _pontCor=pctPont===null ? '#dc2626' : _corPct(pctPont,80,60);
+  const _pontCor=pctPont===null ? '#dc2626' : _corPct(pctPont);
   const doTri=doAno.filter(a=>a.trimestre===trimAtual);
   const triConcl=doTri.filter(a=>planoStatusEfetivo(a)==='concluida').length;
   const triExec=doTri.filter(a=>planoStatusEfetivo(a)==='em_execucao').length;
@@ -17207,16 +17198,14 @@ function gerarStatusReportPDF(){
 
   // ── Metas do escritório ──────────────────────────────────────────────────────
   const metasAno=(PAT_METAS||[]).filter(m=>!m.ano||m.ano===ano);
-  const metaExecucaoAnual=Math.round((mes+1)/12*100);
   const metasRows=metasAno.map(m=>{
     const real=_metaRealizado(m);
     const pct=m.meta?Math.min(100,Math.round(real/m.meta*100)):null;
-    const cor=statusReportCorMetaAnual(pct,metaExecucaoAnual);
+    const cor=_corPct(pct);
     return{titulo:m.titulo,meta:m.meta,real,unidade:m.unidade,pct,cor,obs:m.obs};
   });
-  const metaCobertura=metasAno.find(m=>m.auto_fonte==='builtin'&&m.auto_campo==='cobertura')?.meta;
-  const corExecucaoAnual=statusReportCorMeta(pctAnual,metaExecucaoAnual);
-  const corCobertura=statusReportCorMetaFinalAnual(pctCob,metaCobertura,metaExecucaoAnual);
+  const corExecucaoAnual=_corPct(pctAnual);
+  const corCobertura=_corPct(pctCob);
 
   // ── Helpers de render ─────────────────────────────────────────────────────────
   const SEC=(n,t)=>`<h2 class="sec">${n}. ${t}</h2>`;
@@ -17239,13 +17228,13 @@ function gerarStatusReportPDF(){
       <div class="donut-sub">${sub}</div>
     </div>
   </div>`;
-  const statusBar=(label,val,base,cor)=>`<div class="bar-row">
+  const statusBar=(label,val,base)=>`<div class="bar-row">
     <div class="bar-meta"><span>${label}</span><strong>${val}</strong></div>
-    <div class="bar-track"><div class="bar-fill" style="width:${_pctPart(val,base)}%;background:${cor}"></div></div>
+    <div class="bar-track"><div class="bar-fill" style="width:${_pctPart(val,base)}%;background:${_corPct(_pctPart(val,base))}"></div></div>
   </div>`;
   const macroBars=cobMacro.slice(0,8).map(m=>`<div class="bar-row">
     <div class="bar-meta"><span>${_e(m.nome)}</span><strong>${m.pct}%</strong></div>
-    <div class="bar-track"><div class="bar-fill" style="width:${m.pct}%;background:${statusReportCorCoberturaMacro(m.pct)}"></div></div>
+    <div class="bar-track"><div class="bar-fill" style="width:${m.pct}%;background:${_corPct(m.pct)}"></div></div>
   </div>`).join('');
   let pontualidadeResumo='Sem entregas concluídas com prazo informado';
   if(pctPont!==null){
@@ -17366,10 +17355,10 @@ function gerarStatusReportPDF(){
   <div class="chart-grid">
     <div class="chart-card">
       <div class="chart-title">Trimestre atual (${trimAtual})</div>
-      ${statusBar('Concluídas',triConcl,triTotal,'#16a34a')}
-      ${statusBar('Em execução',triExec,triTotal,'#2563eb')}
-      ${statusBar('Em atraso',triAtras,triTotal,'#dc2626')}
-      ${statusBar('Planejadas',triPlanj,triTotal,'#d97706')}
+      ${statusBar('Concluídas',triConcl,triTotal)}
+      ${statusBar('Em execução',triExec,triTotal)}
+      ${statusBar('Em atraso',triAtras,triTotal)}
+      ${statusBar('Planejadas',triPlanj,triTotal)}
     </div>
     <div class="chart-card">
       <div class="chart-title">Cobertura por macroprocesso</div>
@@ -17621,6 +17610,7 @@ function _planoModalApplyValues(at){
   document.getElementById('pm-dt-prev-inicio').value = cur.dt_prev_inicio||planoDatasPadrao(_ano,_tri).dt_prev_inicio||'';
   document.getElementById('pm-dt-prev-inicio').dataset.padrao = planoDatasPadrao(_ano,_tri).dt_prev_inicio||'';
   document.getElementById('pm-prazo').dataset.padrao = planoDatasPadrao(_ano,_tri).prazo||'';
+  document.getElementById('pm-prazo').readOnly = !!planoPrazoMapeamento(cur,planoProcessoVinculado(cur));
   document.getElementById('pm-dt-efet-inicio').value = cur.dt_efet_inicio||'';
   document.getElementById('pm-dt-efet-conclusao').value = cur.dt_conclusao||'';
   document.getElementById('pm-status').value = planoStatusEfetivo(cur);
@@ -17664,6 +17654,10 @@ function planoAtualizarAutomacaoModal(){
   document.getElementById('pm-status').value = at.status;
   document.getElementById('pm-dt-efet-inicio').value = at.dt_efet_inicio||'';
   document.getElementById('pm-dt-efet-conclusao').value = at.dt_conclusao||'';
+  const campoPrazo = document.getElementById('pm-prazo');
+  campoPrazo.value = at.prazo||'';
+  campoPrazo.readOnly = !!planoPrazoMapeamento(at,planoProcessoVinculado(at));
+  campoPrazo.title = campoPrazo.readOnly ? 'Prazo sincronizado com a previsão de entrega do mapeamento.' : '';
 }
 function planoAtualizarVinculo(){
   const tipo = document.getElementById('pm-vint')?.value||'';
