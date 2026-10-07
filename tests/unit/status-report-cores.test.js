@@ -32,8 +32,8 @@ describe('cores do relatorio executivo', () => {
       isEP: () => true, planoAno: () => 2026, plano,
       planoStatusEfetivo: a => a.status,
       getMetricasArq: () => ({ nUnid: 100, nMap: 65 }),
-      ARQUITETURA: [{ nome: 'Macro', processos: [{ id: 1 }, { id: 2 }] }],
-      isMapeado: () => true, processos: [],
+      ARQUITETURA: Array.from({ length: 12 }, (_, i) => ({ nome: `Macro ${i + 1}`, processos: [{ id: i + 1 }] })),
+      isMapeado: id => id <= 8, processos: [],
       PAT_METAS: [{ ano: 2026, titulo: 'Meta', meta: 100 }],
       _metaRealizado: () => 60,
       ORG_CONFIG: {},
@@ -47,11 +47,14 @@ describe('cores do relatorio executivo', () => {
     context.gerarStatusReportPDF();
     const donuts = [...output.matchAll(/--pct:(\d+);--color:(#[a-f0-9]+)/g)];
     expect(donuts).toHaveLength(3);
-    expect(output).toContain('60 em dia de 78 concluídas com prazo no ano de 2026 (ano inteiro)');
-    expect(output).toContain('Pontualidade das entregas — ano inteiro de 2026');
+    expect(output).toContain('60 em dia de 78 concluídas em 2026');
+    expect(output).toContain('Pontualidade das entregas — 2026');
+    for (let i = 1; i <= 12; i++) {
+      expect(output).toContain(`<span>Macro ${i}</span><strong>${i <= 8 ? 100 : 0}%</strong>`);
+    }
     for (const [, pct, cor] of donuts) expect(cor).toBe(context.statusReportCorPct(Number(pct)));
     const bars = [...output.matchAll(/width:(\d+)%;background:(#[a-f0-9]+)/g)];
-    expect(bars).toHaveLength(5);
+    expect(bars).toHaveLength(16);
     for (const [, , cor] of bars.slice(0, 4)) expect(cor).toBe('#2563eb');
     for (const [, pct, cor] of bars.slice(4)) expect(cor).toBe(context.statusReportCorPct(Number(pct)));
     expect(output).toContain('background:#166534;height:7px');

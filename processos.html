@@ -17233,7 +17233,7 @@ function gerarStatusReportPDF(){
     <div class="bar-meta"><span>${label}</span><strong>${val}</strong></div>
     <div class="bar-track"><div class="bar-fill" style="width:${_pctPart(val,base)}%;background:#2563eb"></div></div>
   </div>`;
-  const macroBars=cobMacro.slice(0,8).map(m=>`<div class="bar-row">
+  const macroBars=cobMacro.map(m=>`<div class="bar-row">
     <div class="bar-meta"><span>${_e(m.nome)}</span><strong>${m.pct}%</strong></div>
     <div class="bar-track"><div class="bar-fill" style="width:${m.pct}%;background:${_corPct(m.pct)}"></div></div>
   </div>`).join('');
