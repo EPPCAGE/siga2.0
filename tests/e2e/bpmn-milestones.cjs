@@ -13,6 +13,7 @@ const assert = require('node:assert/strict');
     await page.addStyleTag({ url: 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-js.css' });
     await page.addScriptTag({ url: 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-modeler.production.min.js' });
     await page.addScriptTag({ content: functions });
+    await page.addScriptTag({ content: readFileSync('src/shared/bizagi-import.js', 'utf8') });
     const result = await page.evaluate(async () => {
       const mod = new BpmnJS(bpmnModelerOptions('#canvas'));
       await mod.createDiagram();
@@ -187,6 +188,48 @@ const assert = require('node:assert/strict');
         assert.ok(imported.svg.includes(name));
       }
       console.log('Bizagi real: 8 fases, coordenadas e tamanhos preservados, sem duplicação após reimportação.');
+      const fullImport = await page.evaluate(async ({ bpm, xml, defaultXml }) => {
+        const mod = new BpmnJS(bpmnModelerOptions('#canvas'));
+        await mod.importXML(defaultXml);
+        const result = await bpmnLoadBizagi(mod, new Uint8Array(bpm));
+        const registry = mod.get('elementRegistry');
+        const source = new DOMParser().parseFromString(xml, 'application/xml');
+        const originalShapes = [...source.getElementsByTagNameNS('*', 'BPMNShape')];
+        const originalEdges = [...source.getElementsByTagNameNS('*', 'BPMNEdge')];
+        const originals = new Map([...source.getElementsByTagNameNS('http://www.omg.org/spec/BPMN/20100524/MODEL', '*')].filter(node => node.id).map(node => [node.id, node]));
+        const semanticsMatch = [...originalShapes, ...originalEdges].every(di => {
+          const sourceElement = originals.get(di.getAttribute('bpmnElement'));
+          const imported = registry.get(di.getAttribute('bpmnElement'))?.businessObject;
+          const type = imported?.$type.split(':')[1];
+          const name = sourceElement?.getAttribute('name') || '';
+          return sourceElement && type?.toLowerCase() === sourceElement.localName.toLowerCase()
+            && (imported.name || '') === name;
+        });
+        const shapeDifferences = originalShapes.flatMap(node => {
+          const shape = registry.get(node.getAttribute('bpmnElement'));
+          const bounds = node.getElementsByTagNameNS('*', 'Bounds')[0];
+          return shape && ['x', 'y', 'width', 'height'].every(key => Math.abs(shape[key] - Number(bounds.getAttribute(key))) < 1)?[]:
+            [{ id: node.getAttribute('bpmnElement'), actual: shape && [shape.x, shape.y, shape.width, shape.height], expected: ['x', 'y', 'width', 'height'].map(key => Number(bounds.getAttribute(key))) }];
+        });
+        const shapesMatch = !shapeDifferences.length;
+        const edgesMatch = originalEdges.every(node => {
+          const edge = registry.get(node.getAttribute('bpmnElement'));
+          const points = [...node.getElementsByTagNameNS('*', 'waypoint')];
+          return edge && edge.waypoints.length === points.length && points.every((point, i) => ['x', 'y'].every(key => Math.abs(edge.waypoints[i][key] - Number(point.getAttribute(key))) < 1));
+        });
+        const before = (await mod.saveXML({ format: true })).xml;
+        const second = await bpmnLoadBizagi(mod, new Uint8Array(bpm));
+        const unchanged = before === (await mod.saveXML({ format: true })).xml;
+        mod.destroy();
+        return { result, semanticsMatch, shapesMatch, shapeDifferences, edgesMatch, second, unchanged, shapeCount: originalShapes.length, edgeCount: originalEdges.length };
+      }, { bpm, xml, defaultXml: html.match(/const BPMN_DEFAULT = `([^]*?)`;/)[1] });
+      assert.deepEqual(fullImport.result, { imported: true, count: 8 });
+      assert.ok(fullImport.shapesMatch, JSON.stringify(fullImport));
+      assert.ok(fullImport.edgesMatch, JSON.stringify(fullImport));
+      assert.ok(fullImport.semanticsMatch, JSON.stringify(fullImport));
+      assert.deepEqual(fullImport.second, { imported: false, count: 0 });
+      assert.ok(fullImport.unchanged);
+      console.log(`BPM completo: ${fullImport.shapeCount} objetos e ${fullImport.edgeCount} conexões preservados, mais 8 fases.`);
     }
   } finally {
     await browser.close();
