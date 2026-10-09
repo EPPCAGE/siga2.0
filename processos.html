@@ -5600,14 +5600,21 @@ function dfbRow(tipo,texto,emoji){
 // "[Problema: <problema>] <sugestão>" — aqui ele é quebrado em Problema levantado
 // / Solução proposta pela IA, com um terceiro campo editável para a solução
 // definitiva (a IA às vezes não atende e a equipe quer registrar algo diferente).
+function _extrairProblemaSolucao(texto){
+  const prefixo='[Problema:';
+  if(!texto.startsWith(prefixo))return null;
+  const fim=texto.indexOf(']',prefixo.length);
+  if(fim<0)return null;
+  return {problema:texto.slice(prefixo.length,fim).trim(),solucao:texto.slice(fim+1).trim()};
+}
 function dfbSolucaoRow(texto){
   const idx=globalThis._dfbItems.length;
   globalThis._dfbItems.push({tipo:'solucoes_problemas',texto});
   const fb=globalThis._dfb.solucoes_problemas?.[texto];
   const confirmed=fb==='confirmado',discarded=fb==='descartado';
-  const m=/^\[Problema:\s*([\s\S]*?)\]\s*([\s\S]*)$/.exec(texto);
-  const problema=m?m[1].trim():texto;
-  const sugestaoIA=m?m[2].trim():'';
+  const m=_extrairProblemaSolucao(texto);
+  const problema=m?m.problema:texto;
+  const sugestaoIA=m?m.solucao:'';
   const solDef=globalThis._dfbSolDef?.[texto]||'';
   return `<div style="padding:8px 0;border-bottom:1px solid var(--bdr)" id="dfb-row-${idx}">
     <div style="display:flex;align-items:flex-start;gap:8px">
@@ -12152,7 +12159,7 @@ async function bpmnBizagiMilestones(data,diagramXml){
   return [...doc.getElementsByTagNameNS('*','Milestone')].map(node=>{
     const info=node.getElementsByTagNameNS('*','NodeGraphicsInfo')[0];
     const coordinates=info?.getElementsByTagNameNS('*','Coordinates')[0];
-    const number=(element,key)=>element?.hasAttribute(key)?Number(element.getAttribute(key)):NaN;
+    const number=(element,key)=>element?.hasAttribute(key)?Number(element.getAttribute(key)):Number.NaN;
     const phase={id:node.getAttribute('Id'),name:node.getAttribute('Name'),pool:node.getAttribute('ParentPool'),
       x:number(coordinates,'XCoordinate'),y:number(coordinates,'YCoordinate'),width:number(info,'Width'),height:number(info,'Height')};
     if(!phase.id||!phase.pool||![phase.x,phase.y,phase.width,phase.height].every(Number.isFinite)||phase.width<=0||phase.height<=0) throw new Error('Fase com posição ou tamanho inválido.');
@@ -18841,8 +18848,8 @@ function _comSolucaoDefinitiva(p, textos){
   return (textos||[]).map(t=>{
     const def=solDef[t];
     if(!def) return t;
-    const m=/^\[Problema:\s*([\s\S]*?)\]/.exec(t);
-    return m?`[Problema: ${m[1].trim()}] ${def}`:def;
+    const m=_extrairProblemaSolucao(t);
+    return m?`[Problema: ${m.problema}] ${def}`:def;
   });
 }
 function _iaGerarPopPayload(p, etapas){

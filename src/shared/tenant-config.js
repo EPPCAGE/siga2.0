@@ -7,11 +7,14 @@
   });
 
   function normalizeSegment(value, fallback){
-    return String(value || fallback)
+    const normalized=String(value || fallback)
       .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, '-')
-      .replace(/^-+/, '').replace(/-+$/, '') || fallback;
+      .replace(/[^a-z0-9_-]+/g, '-');
+    let start=0,end=normalized.length;
+    while(start<end && normalized[start]==='-')start++;
+    while(end>start && normalized[end-1]==='-')end--;
+    return normalized.slice(start,end)||fallback;
   }
 
   function buildTenantConfig(){
