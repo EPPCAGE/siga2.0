@@ -53,6 +53,28 @@ service cloud.firestore {
     // Notificações: qualquer usuário autenticado envia/recebe.
     match /notifs/{id} { allow read: if isAuth(); allow write: if isAuth(); }
 
+    // Registros vinculados à arquitetura: autor cria; EP registra a primeira leitura.
+    match /registros_processos/{id} {
+      allow read: if isAuth() && (isEP() || resource.data.autor_uid == request.auth.uid);
+      allow create: if isAuth()
+        && request.resource.data.keys().hasAll(['arq_id', 'processo_id', 'processo_nome', 'tipo', 'descricao', 'autor_uid', 'autor_email', 'autor_nome', 'criado_em', 'lido'])
+        && request.resource.data.keys().hasOnly(['arq_id', 'processo_id', 'processo_nome', 'tipo', 'descricao', 'autor_uid', 'autor_email', 'autor_nome', 'criado_em', 'lido'])
+        && request.resource.data.autor_uid == request.auth.uid
+        && request.resource.data.autor_email == request.auth.token.email
+        && request.resource.data.autor_nome is string && request.resource.data.autor_nome.size() > 0 && request.resource.data.autor_nome.size() <= 200
+        && request.resource.data.arq_id is string && request.resource.data.arq_id.size() > 0 && request.resource.data.arq_id.size() <= 200
+        && request.resource.data.processo_id is string && request.resource.data.processo_id.size() <= 200
+        && request.resource.data.processo_nome is string && request.resource.data.processo_nome.size() > 0 && request.resource.data.processo_nome.size() <= 1000
+        && request.resource.data.tipo in ['problema', 'sugestao', 'retrabalho', 'mapeamento', 'dificuldade']
+        && request.resource.data.descricao is string && request.resource.data.descricao.size() > 0 && request.resource.data.descricao.size() <= 5000
+        && request.resource.data.criado_em == request.time && request.resource.data.lido == false;
+      allow update: if isEP() && resource.data.lido == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lido', 'lido_em', 'lido_por'])
+        && request.resource.data.lido == true && request.resource.data.lido_em == request.time
+        && request.resource.data.lido_por == request.auth.uid;
+      allow delete: if false;
+    }
+
     // Sessões: cada usuário acessa apenas a própria.
     match /sessions/{uid} {
       allow read, write: if isAuth() && request.auth.uid == uid;

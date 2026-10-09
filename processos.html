@@ -23,6 +23,7 @@
 <script src="src/shared/org-config.js"></script>
 <script src="src/shared/firebase-helpers.js"></script>
 <script src="src/shared/bizagi-import.js"></script>
+<script src="src/processos/registros-processo.js"></script>
 <script src="src/shared/firestore-repositories.js"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -40,7 +41,7 @@
 <!-- Firebase -->
 <script type="module">
   import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getFirestore, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, and, or } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { getFirestore, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, and, or, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
   import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
@@ -67,7 +68,7 @@
       const auth = getAuth(app);
       const storage = getStorage(app);
       const functions = getFunctions(app);
-      globalThis._fb = { db, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, and, or, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, functions, httpsCallable, FIREBASE_CONFIG };
+      globalThis._fb = { db, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, and, or, serverTimestamp, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, functions, httpsCallable, FIREBASE_CONFIG };
       globalThis._fbReady = true;
       console.info('Firebase conectado');
     } catch(e) {
@@ -1224,6 +1225,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="ph-t">Meus Processos</div>
       <div class="ph-s" id="meus-proc-sub">Acesso rápido aos processos e subprocessos vinculados ao seu macroprocesso</div>
     </div>
+    <button type="button" class="btn btn-p" onclick="abrirRegistroProcesso()">Registrar ocorrência</button>
   </div>
   <div id="meus-proc-summary" style="margin-bottom:1rem"></div>
   <div class="g3" id="meus-proc-list"></div>
@@ -2572,7 +2574,7 @@ function pbBadge(p){return '<span class="badge '+({Baixa:'bg',Media:'ba',Alta:'b
 function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'br',Critico:'br'}[v]||'bgr')+'"'+(v==='Critico'?' style="background:var(--red);color:#fff"':'')+'>'+v+'</span>';}
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.filter(isProcessoEmAndamento).length;
-  const _avisosCnt=_avisos.length+_getAvisosPAT().length;
+  const _avisosCnt=_avisos.length+_getAvisosPAT().length+(isEP()?_registrosPendentes.length:0);
   const _filaCnt=getTarefasUsr().length+(isEP()?0:processos.filter(p=>['vencida','pendente'].includes(_revStatus(p))&&['acompanha','auditoria'].includes(p.etapa)&&(p.dono===usuarioLogado?.nome||p.dono_email===usuarioLogado?.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id))).length)+_avisosCnt;
   document.getElementById('nb-fila-cnt').textContent=_filaCnt;
   const meusProcCnt=document.getElementById('nb-meusproc-cnt');
@@ -2837,9 +2839,10 @@ function _getAvisosPAT(){
 }
 
 function _htmlAvisos(){
+  const registrosHtml=htmlRegistrosPendentes();
   const avisosPAT = _getAvisosPAT();
   const total = _avisos.length + avisosPAT.length;
-  if(!total) return '';
+  if(!total) return registrosHtml;
   let h = '<hr><div class="sec-lbl" style="margin-bottom:.5rem;color:var(--amber)">🔔 Avisos ('+total+')</div>';
   avisosPAT.forEach(a=>{
     const txt = a.tipo==='pat_inicio'
@@ -2857,7 +2860,7 @@ function _htmlAvisos(){
       <div style="margin-top:4px"><button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="marcarAvisoLido('${a.fsId}')">Marcar como lido</button></div>
     </div>`;
   });
-  return h;
+  return h+registrosHtml;
 }
 
 // ═══════════════════════════════════════════
@@ -3314,6 +3317,7 @@ function rPainelGestor(){
   },50);
 }
 function rFila(){
+  registrosAtualizarAssinatura();
   if(!usuarioLogado)return;
   const tarefas=getTarefasUsr();
   // Revisões periódicas pendentes do dono (processos em acompanha/auditoria)
@@ -3324,12 +3328,12 @@ function rFila(){
     if(st!=='vencida'&&st!=='pendente') return false;
     return p.dono===usuarioLogado.nome||p.dono_email===usuarioLogado.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id);
   }) : [];
-  document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+(tarefas.length?tarefas.length+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
+  document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+((tarefas.length+(isEP()?_registrosPendentes.length:0))?(tarefas.length+(isEP()?_registrosPendentes.length:0))+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
   const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir análise de aderência do processo'};
   const el=document.getElementById('fila-content');
   if(!tarefas.length&&!_revPendDono.length){
     const avisosHtml=_htmlAvisos();
-    el.innerHTML='<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>'+avisosHtml;
+    el.innerHTML=(isEP()&&_registrosPendentes.length?'':'<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>')+avisosHtml;
     rMeusProc();return;
   }
   if(!tarefas.length&&_revPendDono.length){
@@ -3667,6 +3671,7 @@ function abrirInfoMeusProc(arqId){
     })()}
     <div class="btn-row" style="margin-top:1rem">
       <button type="button" class="btn" onclick="document.getElementById('info-proc-modal').remove()">Fechar</button>
+      <button type="button" class="btn" data-arq-id="${esc(arqId)}" onclick="abrirHistoricoRegistrosProcesso(this.dataset.arqId)">Histórico de registros</button>
       ${proc && isEP() ? `<button type="button" class="btn btn-p" onclick="document.getElementById('info-proc-modal').remove();abrirProc(${proc.id})">Abrir mapeamento</button>` : ''}
     </div>
   </div>`;
@@ -4581,6 +4586,7 @@ function rDetalhe(){
   document.getElementById('det-titulo').textContent=p.nome;
   document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+_eBadgeAcomp(p)+_statusBadge(p);
   document.getElementById('det-prio').innerHTML=pBadge(p.prio)
+    +(p.arq_id?` <button type="button" class="btn" data-arq-id="${esc(p.arq_id)}" onclick="abrirHistoricoRegistrosProcesso(this.dataset.arqId)">Registros do processo</button>`:'')
     +(isEP()?` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Editar dono, interessados e produto" onclick="abrirEditarMetadados()">✎ Editar</button>`:'')
     +(isEP()||usuarioLogado?.perfil==='gestor' ? _renderCicloBar(p) : '');
   epRetroEtapa = null;
@@ -18301,6 +18307,7 @@ async function fbLoad(){
     globalThis._fbLoadedAt = Date.now();
     _fbWatchExternalChanges();
     _notifCarregarFirestore();
+    registrosAtualizarAssinatura();
     // Salvar automaticamente processos corrigidos durante o carregamento
     if(globalThis._needsAutoFixSave){
       console.info('Auto-fix: persistindo processos corrigidos no Firestore...');
