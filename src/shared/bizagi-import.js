@@ -26,7 +26,7 @@
     const geometry=node=>{
       const infos=children(node,'NodeGraphicsInfos')[0];
       const info=infos&&children(infos,'NodeGraphicsInfo')[0],point=info&&first(info,'Coordinates');
-      const number=(element,key)=>element?.hasAttribute(key)?Number(element.getAttribute(key)):NaN;
+      const number=(element,key)=>element?.hasAttribute(key)?Number(element.getAttribute(key)):Number.NaN;
       const box={x:number(point,'XCoordinate'),y:number(point,'YCoordinate'),width:number(info,'Width'),height:number(info,'Height')};
       if(!Object.values(box).every(Number.isFinite)||box.width<=0||box.height<=0)throw new Error('Elemento Bizagi sem posição ou tamanho válido.');
       return box;
