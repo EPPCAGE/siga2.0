@@ -9,6 +9,8 @@ const assert = require('node:assert/strict');
   try {
     const page = await browser.newPage();
     await page.setContent('<div id="canvas" style="width:1200px;height:900px"></div>');
+    await page.addStyleTag({ url: 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css' });
+    await page.addStyleTag({ url: 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-js.css' });
     await page.addScriptTag({ url: 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-modeler.production.min.js' });
     await page.addScriptTag({ content: functions });
     const result = await page.evaluate(async () => {
@@ -19,7 +21,14 @@ const assert = require('node:assert/strict');
       const root = mod.get('canvas').getRootElement();
       const bo = mod.get('bpmnFactory').create('bpmn:TextAnnotation', { text: 'Recebimento', 'siga:milestone': true });
       const milestone = modeling.createShape({ type: 'bpmn:TextAnnotation', businessObject: bo, width: 180, height: 500 }, { x: 400, y: 350 }, root);
-      modeling.updateLabel(milestone, 'Análise e aprovação');
+      const bounds = () => [milestone.x, milestone.y, milestone.width, milestone.height];
+      const initialBounds = bounds();
+      modeling.updateLabel(milestone, 'Análise e aprovação', { x: milestone.x, y: milestone.y, width: 100, height: 30 });
+      const renamedBounds = bounds();
+      mod.get('commandStack').undo();
+      const undoRename = { bounds: bounds(), text: milestone.businessObject.text };
+      mod.get('commandStack').redo();
+      const redoRename = { bounds: bounds(), text: milestone.businessObject.text };
       const task = modeling.createShape({ type: 'bpmn:Task' }, { x: 450, y: 250 }, root);
       modeling.moveShape(milestone, { x: 100, y: 0 });
       const movedX = milestone.x;
@@ -27,9 +36,15 @@ const assert = require('node:assert/strict');
       const undoneX = milestone.x;
       mod.get('commandStack').redo();
       modeling.resizeShape(milestone, { x: milestone.x, y: milestone.y, width: 200, height: 600 });
+      const resizedBounds = bounds();
+      modeling.updateLabel(milestone, 'Fase');
+      const shortNameBounds = bounds();
+      modeling.updateLabel(milestone, 'Análise e aprovação');
       const { xml } = await mod.saveXML({ format: true });
       await mod.importXML(xml);
       const restored = registry.get(milestone.id);
+      const phaseGraphics = registry.getGraphics(restored).closest('.djs-group');
+      phaseGraphics.parentNode.appendChild(phaseGraphics);
       mod.get('canvas').zoom('fit-viewport');
       const taskGraphics = registry.getGraphics(registry.get(task.id));
       const point = new DOMPoint(task.width / 2, task.height / 2).matrixTransform(taskGraphics.getScreenCTM());
@@ -38,6 +53,7 @@ const assert = require('node:assert/strict');
       const restoredResult = {
         marked: restored.businessObject.get('siga:milestone'), text: restored.businessObject.text,
         height: restored.height, movedX, undoneX, xml, svg,
+        initialBounds, renamedBounds, undoRename, redoRename, resizedBounds, shortNameBounds,
         taskExists: !!registry.get(task.id), taskClickable,
       };
       modeling.removeElements([restored]);
@@ -50,6 +66,12 @@ const assert = require('node:assert/strict');
     assert.equal(result.marked, true);
     assert.equal(result.text, 'Análise e aprovação');
     assert.equal(result.height, 600);
+    assert.deepEqual(result.renamedBounds, result.initialBounds);
+    assert.deepEqual(result.undoRename.bounds, result.initialBounds);
+    assert.equal(result.undoRename.text, 'Recebimento');
+    assert.deepEqual(result.redoRename.bounds, result.initialBounds);
+    assert.equal(result.redoRename.text, 'Análise e aprovação');
+    assert.deepEqual(result.shortNameBounds, result.resizedBounds);
     assert.equal(result.movedX - result.undoneX, 100);
     assert.ok(result.taskExists && result.deleted && result.recovered);
     assert.ok(result.taskClickable, 'A divisão de fase não deve impedir a seleção das atividades.');
@@ -57,6 +79,68 @@ const assert = require('node:assert/strict');
     assert.match(result.svg, /stroke-dasharray="7 5"/);
     assert.ok(result.svg.includes('aprovação'));
     console.log('Milestone: criação, edição, movimento, tamanho, XML, SVG, exclusão e desfazer validados.');
+    const interaction = await page.evaluate(async () => {
+      const mod = new BpmnJS(bpmnModelerOptions('#canvas'));
+      await mod.createDiagram();
+      const modeling = mod.get('modeling'), root = mod.get('canvas').getRootElement();
+      const task = modeling.createShape({ type: 'bpmn:Task' }, { x: 450, y: 300 }, root);
+      const gateway = modeling.createShape({ type: 'bpmn:ExclusiveGateway' }, { x: 650, y: 300 }, root);
+      const flow = modeling.connect(task, gateway);
+      const bo = mod.get('bpmnFactory').create('bpmn:TextAnnotation', { text: 'Planejamento', 'siga:milestone': true });
+      const phase = modeling.createShape({ type: 'bpmn:TextAnnotation', businessObject: bo, width: 650, height: 500 }, { x: 625, y: 350 }, root);
+      const registry = mod.get('elementRegistry');
+      const gfx = registry.getGraphics(phase).closest('.djs-group');
+      gfx.parentNode.appendChild(gfx);
+      const screen = (el, x, y) => {
+        const point = new DOMPoint(x, y).matrixTransform(registry.getGraphics(el).getScreenCTM());
+        return { x: point.x, y: point.y };
+      };
+      const hit = point => document.elementFromPoint(point.x, point.y)?.closest('[data-element-id]')?.getAttribute('data-element-id');
+      const taskPoint = screen(task, task.width / 2, task.height / 2);
+      const gatewayPoint = screen(gateway, gateway.width / 2, gateway.height / 2);
+      const headerPoint = screen(phase, 100, 20);
+      const linePoint = screen(phase, 0, 300);
+      const emptyPoint = screen(phase, 400, 400);
+      window.milestoneInteraction = { mod, task, gateway, flow, phase, screen };
+      return { taskPoint, gatewayPoint, taskHit: hit(taskPoint), gatewayHit: hit(gatewayPoint),
+        taskId: task.id, gatewayId: gateway.id, phaseId: phase.id, headerHit: hit(headerPoint), lineHit: hit(linePoint), emptyHit: hit(emptyPoint),
+        taskBounds: [task.x, task.y], gatewayBounds: [gateway.x, gateway.y], phaseBounds: [phase.x, phase.y] };
+    });
+    assert.equal(interaction.taskHit, interaction.taskId);
+    assert.equal(interaction.gatewayHit, interaction.gatewayId);
+    assert.equal(interaction.headerHit, interaction.phaseId);
+    assert.equal(interaction.lineHit, interaction.phaseId);
+    assert.notEqual(interaction.emptyHit, interaction.phaseId);
+    for (const point of [interaction.taskPoint, interaction.gatewayPoint]) {
+      await page.mouse.move(point.x, point.y);
+      await page.mouse.down();
+      await page.mouse.move(point.x + 40, point.y + 40, { steps: 10 });
+      await page.mouse.up();
+    }
+    const moved = await page.evaluate(() => {
+      const { mod, task, gateway, phase, flow, screen } = window.milestoneInteraction;
+      mod.get('selection').select([]);
+      const segments = flow.waypoints.slice(1).map((b, i) => [flow.waypoints[i], b]);
+      segments.sort(([a, b], [c, d]) => Math.hypot(d.x - c.x, d.y - c.y) - Math.hypot(b.x - a.x, b.y - a.y));
+      const [a, b] = segments[0];
+      const flowPoint = screen(flow, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      window.milestoneInteraction.clicked = [];
+      mod.get('eventBus').on('element.click', 2000, event => { window.milestoneInteraction.clicked.push(event.element.id); });
+      return { taskBounds: [task.x, task.y], gatewayBounds: [gateway.x, gateway.y], phaseBounds: [phase.x, phase.y],
+        flowPoint, flowId: flow.id,
+        hitId: document.elementFromPoint(flowPoint.x, flowPoint.y)?.closest('[data-element-id]')?.getAttribute('data-element-id') };
+    });
+    assert.notDeepEqual(moved.taskBounds, interaction.taskBounds);
+    assert.notDeepEqual(moved.gatewayBounds, interaction.gatewayBounds);
+    assert.deepEqual(moved.phaseBounds, interaction.phaseBounds);
+    // O editor suprime brevemente os cliques ao terminar um arraste.
+    await page.waitForTimeout(600);
+    await page.mouse.click(moved.flowPoint.x, moved.flowPoint.y);
+    const clicked = await page.evaluate(() => window.milestoneInteraction.clicked);
+    assert.equal(moved.hitId, moved.flowId);
+    assert.ok(clicked.includes(moved.flowId), JSON.stringify({ moved, clicked }));
+    await page.evaluate(() => { window.milestoneInteraction.mod.destroy(); delete window.milestoneInteraction; });
+    console.log('Interação real: atividade e gateway arrastados, clique na conexão recebido; apenas título e linha capturam a fase.');
     if (process.argv[2] && process.argv[3]) {
       const bpm = [...readFileSync(process.argv[2])];
       const xml = readFileSync(process.argv[3], 'utf8');

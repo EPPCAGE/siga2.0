@@ -12020,6 +12020,26 @@ function _reRenderBpmnEtapaModal(etapaId){
 }
 
 function BpmnMilestoneRenderer(eventBus,elementRegistry){
+  eventBus.on(['interactionEvents.createHit','interactionEvents.updateHit'],1500,event=>{
+    if(!event.element.businessObject?.get('siga:milestone')) return;
+    const gfx=event.gfx;
+    gfx.querySelectorAll('.djs-hit').forEach(hit=>hit.remove());
+    const addHit=(tag,attrs)=>{
+      const hit=document.createElementNS('http://www.w3.org/2000/svg',tag);
+      hit.setAttribute('class','djs-hit');
+      Object.entries(attrs).forEach(([key,value])=>hit.setAttribute(key,String(value)));
+      gfx.appendChild(hit);
+    };
+    const headerHeight=Number(gfx.querySelector('.djs-visual rect')?.getAttribute('height'))||52;
+    addHit('rect',{x:0,y:0,width:event.element.width,height:headerHeight,fill:'transparent',stroke:'none','pointer-events':'all'});
+    addHit('path',{d:`M 0 0 L 0 ${event.element.height}`,fill:'none',stroke:'transparent','stroke-width':12,'pointer-events':'stroke'});
+    // A área transparente da fase deixa o clique passar aos elementos do fluxo.
+    return false;
+  });
+  eventBus.on('commandStack.element.updateLabel.preExecute',1500,event=>{
+    // O editor ajusta anotações ao tamanho do texto; a fase mantém seus limites.
+    if(event.context.element.businessObject?.get('siga:milestone')) event.context.newBounds=null;
+  });
   eventBus.on('render.shape',1500,event=>{
     const el=event.element;
     if(!el.businessObject?.get('siga:milestone')) return;
