@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -11050,7 +11050,7 @@ async function _bpmnGetSvg(which,p){
     document.body.appendChild(tmp);
     const tid=setTimeout(()=>{console.warn('_bpmnGetSvg offscreen timeout');try{viewer?.destroy();}catch{}tmp.remove();resolve(null);},20000);
     let viewer;
-    try{viewer=new BpmnJS({container:tmp});}catch(e){console.warn('_bpmnGetSvg BpmnJS init failed',e);clearTimeout(tid);tmp.remove();return resolve(null);}
+    try{viewer=new BpmnJS(bpmnModelerOptions(tmp));}catch(e){console.warn('_bpmnGetSvg BpmnJS init failed',e);clearTimeout(tid);tmp.remove();return resolve(null);}
     viewer.importXML(xml)
       .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
       .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg||null);})
@@ -11086,7 +11086,7 @@ async function _bpmnRenderAllRoots(xml){
   document.body.appendChild(tmp);
   let viewer;
   try{
-    viewer=new BpmnJS({container:tmp});
+    viewer=new BpmnJS(bpmnModelerOptions(tmp));
     await Promise.race([
       viewer.importXML(xml),
       new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout ao renderizar BPMN')),20000)),
@@ -11163,7 +11163,7 @@ async function renderBpmnToPng(xml){
     document.body.appendChild(tmp);
     const tid=setTimeout(()=>{try{viewer?.destroy();}catch{}tmp.remove();resolve(null);},20000);
     let viewer;
-    try{viewer=new BpmnJS({container:tmp});}catch(e){clearTimeout(tid);tmp.remove();return resolve(null);}
+    try{viewer=new BpmnJS(bpmnModelerOptions(tmp));}catch(e){clearTimeout(tid);tmp.remove();return resolve(null);}
     viewer.importXML(xml)
       .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
       .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg||null);})
@@ -12019,6 +12019,153 @@ function _reRenderBpmnEtapaModal(etapaId){
   if(title) title.textContent='✎ '+(e.nome||'Sem nome');
 }
 
+function BpmnMilestoneRenderer(eventBus,elementRegistry){
+  eventBus.on('render.shape',1500,event=>{
+    const el=event.element;
+    if(!el.businessObject?.get('siga:milestone')) return;
+    const svg=(tag,attrs,parent)=>{
+      const node=document.createElementNS('http://www.w3.org/2000/svg',tag);
+      Object.entries(attrs).forEach(([key,value])=>node.setAttribute(key,String(value)));
+      parent.appendChild(node);
+      return node;
+    };
+    const group=event.gfx;
+    const line=svg('path',{d:`M 0 0 L 0 ${el.height}`,fill:'none',stroke:'#64748b','stroke-width':2,'stroke-dasharray':'7 5'},group);
+    const header=svg('rect',{x:0,y:0,width:el.width,height:52,rx:3,fill:'#eff6ff',stroke:'#64748b'},group);
+    const text=svg('text',{x:8,y:20,fill:'#17324a','font-family':'Arial, sans-serif','font-size':13,'font-weight':600},group);
+    const words=String(el.businessObject.text||'Fase').split(/\s+/);
+    const lines=[''];
+    const limit=Math.max(8,Math.floor((el.width-16)/8));
+    words.forEach(word=>{
+      if(lines[lines.length-1].length+word.length>limit && lines[lines.length-1]) lines.push('');
+      lines[lines.length-1]+=(lines[lines.length-1]?' ':'')+word;
+    });
+    lines.forEach((label,i)=>{
+      const span=svg('tspan',{x:8,dy:i?16:0},text);
+      span.textContent=label;
+    });
+    header.setAttribute('height',Math.max(52,lines.length*16+16));
+    // Mantém a divisão atrás das atividades, sem cobrir as áreas de clique.
+    const graphics=group.closest('.djs-group');
+    const parentGraphics=el.parent && elementRegistry.getGraphics(el.parent)?.closest('.djs-group');
+    if(graphics?.parentNode){
+      if(parentGraphics?.parentNode===graphics.parentNode) graphics.parentNode.insertBefore(graphics,parentGraphics.nextSibling);
+      else graphics.parentNode.insertBefore(graphics,graphics.parentNode.firstChild);
+    }
+    return line;
+  });
+}
+BpmnMilestoneRenderer.$inject=['eventBus','elementRegistry'];
+function bpmnModelerOptions(container){
+  return {
+    container,
+    moddleExtensions:{siga:{
+      name:'SIGA',uri:'https://siga.app/schema/bpmn',prefix:'siga',
+      types:[{name:'Milestone',extends:['bpmn:TextAnnotation'],properties:[
+        {name:'milestone',isAttr:true,type:'Boolean'},
+        {name:'bizagiId',isAttr:true,type:'String'},
+      ]}],
+    }},
+    additionalModules:[{__init__:['milestoneRenderer'],milestoneRenderer:['type',BpmnMilestoneRenderer]}],
+  };
+}
+function bpmnAddMilestone(which,event){
+  const mod=bpmnModelers[which];
+  if(!mod) return;
+  const registry=mod.get('elementRegistry');
+  const shapes=registry.getAll().filter(el=>!el.waypoints && el.type!=='label' && !el.businessObject?.get('siga:milestone') && Number.isFinite(el.y));
+  const height=Math.max(400,...shapes.map(el=>el.y+el.height))-Math.min(0,...shapes.map(el=>el.y))+60;
+  const bo=mod.get('bpmnFactory').create('bpmn:TextAnnotation',{text:'Nova fase','siga:milestone':true});
+  const shape=mod.get('elementFactory').createShape({type:'bpmn:TextAnnotation',businessObject:bo,width:180,height});
+  mod.get('create').start(event,shape);
+  toast('Clique no desenho para posicionar a fase. Dê dois cliques no título para renomear.');
+}
+async function bpmnZipEntry(data,match){
+  const bytes=data instanceof Uint8Array?data:new Uint8Array(data);
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  let end=bytes.length-22;
+  for(;end>=Math.max(0,bytes.length-65557);end--){
+    if(view.getUint32(end,true)===0x06054b50 && end+22+view.getUint16(end+20,true)===bytes.length) break;
+  }
+  if(end<Math.max(0,bytes.length-65557)) throw new Error('Arquivo BPM não é um ZIP válido.');
+  const count=view.getUint16(end+10,true);
+  let offset=view.getUint32(end+16,true);
+  for(let i=0;i<count;i++){
+    if(offset+46>bytes.length || view.getUint32(offset,true)!==0x02014b50) throw new Error('Estrutura do arquivo BPM inválida.');
+    const method=view.getUint16(offset+10,true),size=view.getUint32(offset+20,true),expanded=view.getUint32(offset+24,true);
+    const nameLength=view.getUint16(offset+28,true),extra=view.getUint16(offset+30,true),comment=view.getUint16(offset+32,true);
+    const name=new TextDecoder().decode(bytes.subarray(offset+46,offset+46+nameLength));
+    if(match(name)){
+      if(expanded>30*1024*1024) throw new Error('Diagrama excede o limite de 30 MB.');
+      const local=view.getUint32(offset+42,true);
+      if(local+30>bytes.length || view.getUint32(local,true)!==0x04034b50) throw new Error('Entrada ZIP inválida.');
+      const start=local+30+view.getUint16(local+26,true)+view.getUint16(local+28,true);
+      if(start+size>bytes.length) throw new Error('Entrada ZIP incompleta.');
+      const compressed=bytes.subarray(start,start+size);
+      if(method===0) return compressed;
+      if(method!==8) throw new Error('Compressão do arquivo BPM não suportada.');
+      const reader=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+      const chunks=[];let total=0;
+      try{
+        for(;;){const {done,value}=await reader.read();if(done)break;total+=value.length;
+          if(total>30*1024*1024){await reader.cancel();throw new Error('Diagrama excede o limite de 30 MB.');}
+          chunks.push(value);
+        }
+      }finally{reader.releaseLock();}
+      const result=new Uint8Array(total);let position=0;
+      chunks.forEach(chunk=>{result.set(chunk,position);position+=chunk.length;});
+      return result;
+    }
+    offset+=46+nameLength+extra+comment;
+  }
+  throw new Error('Diagrama não encontrado no arquivo BPM.');
+}
+async function bpmnBizagiMilestones(data){
+  const diagram=await bpmnZipEntry(data,name=>name.toLowerCase().endsWith('.diag'));
+  const xml=new TextDecoder().decode(await bpmnZipEntry(diagram,name=>name==='Diagram.xml'));
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length) throw new Error('Diagrama Bizagi inválido.');
+  return [...doc.getElementsByTagNameNS('*','Milestone')].map(node=>{
+    const info=node.getElementsByTagNameNS('*','NodeGraphicsInfo')[0];
+    const coordinates=info?.getElementsByTagNameNS('*','Coordinates')[0];
+    const number=(element,key)=>element?.hasAttribute(key)?Number(element.getAttribute(key)):NaN;
+    const phase={id:node.getAttribute('Id'),name:node.getAttribute('Name'),pool:node.getAttribute('ParentPool'),
+      x:number(coordinates,'XCoordinate'),y:number(coordinates,'YCoordinate'),width:number(info,'Width'),height:number(info,'Height')};
+    if(!phase.id||!phase.pool||![phase.x,phase.y,phase.width,phase.height].every(Number.isFinite)||phase.width<=0||phase.height<=0) throw new Error('Fase com posição ou tamanho inválido.');
+    return phase;
+  });
+}
+function bpmnApplyBizagiMilestones(mod,phases){
+  const registry=mod.get('elementRegistry'),modeling=mod.get('modeling');
+  const existing=new Set(registry.getAll().map(el=>el.businessObject?.get('siga:bizagiId')).filter(Boolean));
+  const planned=phases.filter(phase=>!existing.has(phase.id)).map(phase=>{
+    const pool=registry.get('Id_'+phase.pool)||registry.get(phase.pool);
+    if(pool?.type!=='bpmn:Participant') throw new Error('Importe primeiro o XML BPMN correspondente a este projeto Bizagi.');
+    return {phase,pool};
+  });
+  planned.forEach(({phase,pool})=>{
+    const bo=mod.get('bpmnFactory').create('bpmn:TextAnnotation',{text:phase.name,'siga:milestone':true,'siga:bizagiId':phase.id});
+    modeling.createShape({type:'bpmn:TextAnnotation',businessObject:bo,width:phase.width,height:phase.height},
+      {x:pool.x+phase.x+phase.width/2,y:pool.y+phase.y+phase.height/2},pool,{autoResize:false});
+  });
+  return planned.length;
+}
+function bpmnImportBizagiMilestones(which){
+  const mod=bpmnModelers[which];if(!mod)return;
+  const input=document.createElement('input');input.type='file';input.accept='.bpm';
+  input.onchange=async()=>{
+    const file=input.files?.[0];if(!file)return;
+    try{
+      if(file.size>30*1024*1024) throw new Error('Arquivo BPM excede o limite de 30 MB.');
+      const phases=await bpmnBizagiMilestones(await file.arrayBuffer());
+      if(!phases.length){toast('Este arquivo BPM não contém fases.','var(--amber)');return;}
+      const count=bpmnApplyBizagiMilestones(mod,phases);
+      mod.get('canvas').zoom('fit-viewport');
+      toast(count?`${count} fases recuperadas. Clique em Salvar para gravar o desenho.`:'As fases deste arquivo já estão no desenho.');
+    }catch(error){toast('Não foi possível importar as fases: '+error.message,'var(--red)');}
+  };
+  input.click();
+}
 function bpmnEditorHTML(which, existingXml){
   const saved = existingXml ? '● Fluxo salvo' : '○ Sem fluxo';
   const savedColor = existingXml ? 'var(--green)' : 'var(--ink4)';
@@ -12029,6 +12176,8 @@ function bpmnEditorHTML(which, existingXml){
       <span id="bpmn-${which}-dirty" class="bpmn-dirty" style="display:none">● Não salvo</span>
       <div style="flex:1"></div>
       <button type="button" class="btn" id="bpmn-${which}-palette-btn" onclick="bpmnTogglePalette('${which}')" title="Mostrar/ocultar menu de elementos">☰ Menu</button>
+      <button type="button" class="btn" onclick="bpmnAddMilestone('${which}',event)" title="Adicionar uma divisão vertical por fase">+ Fase (milestone)</button>
+      <button type="button" class="btn" onclick="bpmnImportBizagiMilestones('${which}')" title="Após importar o XML, recuperar as fases do projeto .bpm original">↑ Fases do Bizagi</button>
       <button type="button" class="btn" onclick="bpmnZ('${which}',1)">+</button>
       <button type="button" class="btn" onclick="bpmnZ('${which}',-1)">-</button>
       <button type="button" class="btn" onclick="bpmnFit('${which}')">Ajustar</button>
@@ -12216,7 +12365,7 @@ function initBpmnMod(which, p){
     try{bpmnModelers[which].destroy();}catch{}
     bpmnModelers[which]=null;
   }
-  const mod=new BpmnJS({container:'#bpmn-'+which+'-canvas'});
+  const mod=new BpmnJS(bpmnModelerOptions('#bpmn-'+which+'-canvas'));
   bpmnModelers[which]=mod;
   bpmnDirty[which]=false;
   bpmnProcIds[which]=p?.id;
@@ -12404,6 +12553,8 @@ function bpmnOpenFullscreen(which){
   bar.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 10px;background:#111120;flex-shrink:0;flex-wrap:wrap';
   bar.innerHTML=`
     <span style="font-size:13px;font-weight:700;color:#c8c8e0;margin-right:4px">${which.toUpperCase()} — Tela cheia</span>
+    <button type="button" class="btn" onclick="bpmnAddMilestone('${which}',event)" title="Adicionar uma divisão vertical por fase">+ Fase (milestone)</button>
+    <button type="button" class="btn" onclick="bpmnImportBizagiMilestones('${which}')" title="Recuperar fases do arquivo .bpm após importar o XML">↑ Fases do Bizagi</button>
     <button type="button" class="btn" onclick="bpmnZ('${which}',1)" title="Zoom in">+</button>
     <button type="button" class="btn" onclick="bpmnZ('${which}',-1)" title="Zoom out">-</button>
     <button type="button" class="btn" onclick="bpmnFit('${which}')">Ajustar</button>
