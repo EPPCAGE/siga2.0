@@ -3703,15 +3703,22 @@ function abrirFaqProc(arqId){
   </div>`;
   document.body.appendChild(modal);
 }
+function fecharIndicadoresProc(){
+  const modal=document.getElementById('inds-proc-modal');
+  if(!modal) return;
+  (modal._kpiCharts||[]).forEach(chart=>chart.destroy());
+  modal.remove();
+}
 function abrirIndicadoresProc(arqId){
   const u=getMinhasUnidades().find(x=>x.arq_id===arqId);
   const proc=u?.proc;
   const inds=kpis.filter(k=>(proc&&k.pid===proc.id)||(k.arq_id===arqId));
-  document.getElementById('inds-proc-modal')?.remove();
+  fecharIndicadoresProc();
   const modal=document.createElement('div');
   modal.id='inds-proc-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem';
-  modal.onclick=ev=>{if(ev.target===modal)modal.remove();};
+  modal._kpiCharts=[];
+  modal.onclick=ev=>{if(ev.target===modal)fecharIndicadoresProc();};
   const grupos=kpiGroupByKey(inds);
   Object.values(grupos).forEach(kpiApplyMetaFallback);
   const cardsHtml=Object.keys(grupos).length
@@ -3722,11 +3729,14 @@ function abrirIndicadoresProc(arqId){
     <div style="font-size:12px;color:var(--ink3);margin-bottom:1rem">${esc(u?.nome||arqId)}</div>
     <div style="overflow-y:auto;flex:1;padding-right:4px">${cardsHtml}</div>
     <div style="display:flex;justify-content:flex-end;margin-top:1rem">
-      <button type="button" class="btn" onclick="document.getElementById('inds-proc-modal').remove()">Fechar</button>
+      <button type="button" class="btn" onclick="fecharIndicadoresProc()">Fechar</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
-  setTimeout(()=>{ Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
+  setTimeout(()=>{
+    if(!modal.isConnected) return;
+    Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items,modal,modal._kpiCharts));
+  }, 50);
 }
 // ── IA: SUGESTÃO DE ACHADOS E DESCRIÇÃO ─────────────────────────────────────
 async function iaSugerirAchados(){
@@ -14864,8 +14874,9 @@ function kpiGroupByKey(list){
   Object.values(grupos).forEach(g => g.sort((a,b)=>periodoToNum(a.periodo)-periodoToNum(b.periodo)));
   return grupos;
 }
-function createKpiChart(key, items){
-  const canvas = document.getElementById('chart-kpi-'+key.replaceAll(/\W/g,'_'));
+function createKpiChart(key, items, container=document, charts=_indCharts){
+  const canvasId = 'chart-kpi-'+key.replaceAll(/\W/g,'_');
+  const canvas = Array.from(container.querySelectorAll('canvas')).find(el=>el.id===canvasId);
   if(!canvas) return;
   // Only show measured periods with a numeric realizado (not sem_dado)
   const withData = items.filter(i=>{
@@ -14946,7 +14957,7 @@ function createKpiChart(key, items){
       }
     }
   });
-  _indCharts.push(chart);
+  charts.push(chart);
 }
 // rIndGraficos removida (dead code — alias sem chamador; use rInd())
 
