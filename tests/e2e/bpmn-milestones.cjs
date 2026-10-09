@@ -142,6 +142,38 @@ const assert = require('node:assert/strict');
     assert.ok(clicked.includes(moved.flowId), JSON.stringify({ moved, clicked }));
     await page.evaluate(() => { window.milestoneInteraction.mod.destroy(); delete window.milestoneInteraction; });
     console.log('Interação real: atividade e gateway arrastados, clique na conexão recebido; apenas título e linha capturam a fase.');
+    const terminateResult = await page.evaluate(async () => {
+      const xpdl = `<Package><WorkflowProcesses><WorkflowProcess Id="process" Name="Teste de término">
+        <Activities>
+          <Activity Id="start" Name="Início"><Event><StartEvent Trigger="None"/></Event><NodeGraphicsInfos><NodeGraphicsInfo Width="36" Height="36"><Coordinates XCoordinate="100" YCoordinate="100"/></NodeGraphicsInfo></NodeGraphicsInfos></Activity>
+          <Activity Id="terminate" Name="Encerrar todo o processo"><Event><EndEvent Result="Terminate"/></Event><NodeGraphicsInfos><NodeGraphicsInfo Width="36" Height="36"><Coordinates XCoordinate="300" YCoordinate="100"/></NodeGraphicsInfo></NodeGraphicsInfos></Activity>
+        </Activities>
+        <Transitions><Transition Id="flow" From="start" To="terminate"><ConnectorGraphicsInfos><ConnectorGraphicsInfo><Coordinates XCoordinate="136" YCoordinate="118"/><Coordinates XCoordinate="300" YCoordinate="118"/></ConnectorGraphicsInfo></ConnectorGraphicsInfos></Transition></Transitions>
+        </WorkflowProcess></WorkflowProcesses>
+        <Pools><Pool Id="pool" Name="Processo" Process="process"><NodeGraphicsInfos><NodeGraphicsInfo Width="500" Height="200"><Coordinates XCoordinate="30" YCoordinate="30"/></NodeGraphicsInfo></NodeGraphicsInfos></Pool></Pools></Package>`;
+      const converted = BizagiImport.convert(xpdl);
+      const mod = new BpmnJS(bpmnModelerOptions('#canvas'));
+      const { warnings } = await mod.importXML(converted);
+      const { xml } = await mod.saveXML({ format: true });
+      await mod.importXML(xml);
+      const registry = mod.get('elementRegistry');
+      const end = registry.get('Id_terminate');
+      const filledMarker = [...registry.getGraphics(end).querySelectorAll('.djs-visual circle')].some(circle => !['none', 'rgb(255, 255, 255)', 'rgba(0, 0, 0, 0)'].includes(getComputedStyle(circle).fill));
+      const result = { warnings: warnings.length, type: end.type,
+        definitions: end.businessObject.eventDefinitions.map(definition => definition.$type),
+        name: end.businessObject.name, bounds: [end.x, end.y, end.width, end.height],
+        connected: registry.get('Id_flow').target.id === end.id, filledMarker,
+        persisted: xml.includes('terminateEventDefinition') };
+      mod.destroy();
+      return result;
+    });
+    assert.equal(terminateResult.warnings, 0);
+    assert.equal(terminateResult.type, 'bpmn:EndEvent');
+    assert.deepEqual(terminateResult.definitions, ['bpmn:TerminateEventDefinition']);
+    assert.equal(terminateResult.name, 'Encerrar todo o processo');
+    assert.deepEqual(terminateResult.bounds, [300, 100, 36, 36]);
+    assert.ok(terminateResult.connected && terminateResult.persisted && terminateResult.filledMarker, JSON.stringify(terminateResult));
+    console.log('Terminate: evento de fim com marcador preenchido, conexão e semântica preservados após salvar e reabrir.');
     if (process.argv[2] && process.argv[3]) {
       const bpm = [...readFileSync(process.argv[2])];
       const xml = readFileSync(process.argv[3], 'utf8');
@@ -196,7 +228,7 @@ const assert = require('node:assert/strict');
         const source = new DOMParser().parseFromString(xml, 'application/xml');
         const originalShapes = [...source.getElementsByTagNameNS('*', 'BPMNShape')];
         const originalEdges = [...source.getElementsByTagNameNS('*', 'BPMNEdge')];
-        const originals = new Map([...source.getElementsByTagNameNS('http://www.omg.org/spec/BPMN/20100524/MODEL', '*')].filter(node => node.id).map(node => [node.id, node]));
+        const originals = new Map([...source.getElementsByTagNameNS(source.documentElement.namespaceURI, '*')].filter(node => node.id).map(node => [node.id, node]));
         const semanticsMatch = [...originalShapes, ...originalEdges].every(di => {
           const sourceElement = originals.get(di.getAttribute('bpmnElement'));
           const imported = registry.get(di.getAttribute('bpmnElement'))?.businessObject;

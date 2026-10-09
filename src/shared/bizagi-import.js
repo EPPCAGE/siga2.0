@@ -1,5 +1,12 @@
 (function(globalScope){
-  const ns={bpmn:'http://www.omg.org/spec/BPMN/20100524/MODEL',bpmndi:'http://www.omg.org/spec/BPMN/20100524/DI',dc:'http://www.omg.org/spec/DD/20100524/DC',di:'http://www.omg.org/spec/DD/20100524/DI'};
+  // Identificadores oficiais de namespaces XML; não são usados em requisições HTTP.
+  // Trocar o esquema por HTTPS altera a identidade do namespace e invalida o BPMN.
+  const ns={
+    bpmn:'http://www.omg.org/spec/BPMN/20100524/MODEL', // NOSONAR: namespace XML oficial do BPMN, sem acesso à rede.
+    bpmndi:'http://www.omg.org/spec/BPMN/20100524/DI', // NOSONAR: namespace XML oficial do BPMN DI, sem acesso à rede.
+    dc:'http://www.omg.org/spec/DD/20100524/DC', // NOSONAR: namespace XML oficial do DC, sem acesso à rede.
+    di:'http://www.omg.org/spec/DD/20100524/DI', // NOSONAR: namespace XML oficial do DI, sem acesso à rede.
+  };
   function convert(xml){
     const source=new DOMParser().parseFromString(xml,'application/xml');
     if(source.getElementsByTagName('parsererror').length) throw new Error('Diagrama Bizagi inválido.');
@@ -50,8 +57,12 @@
           type={StartEvent:'startEvent',EndEvent:'endEvent'}[detail.localName];
           if(detail.localName==='IntermediateEvent')type=transitions.some(flow=>flow.getAttribute('To')===activity.getAttribute('Id'))?'intermediateThrowEvent':'intermediateCatchEvent';
           const trigger=detail.getAttribute('Trigger')||detail.getAttribute('Result')||'None';
-          if(!['None','Link'].includes(trigger))throw new Error(`Evento ${trigger} ainda não suportado na importação direta. Use o XML BPMN para este desenho.`);
+          if(!['None','Link','Terminate'].includes(trigger))throw new Error(`Evento ${trigger} ainda não suportado na importação direta. Use o XML BPMN para este desenho.`);
           if(trigger==='Link')definition={type:'linkEventDefinition',name:first(detail,'TriggerResultLink')?.getAttribute('Name')||activity.getAttribute('Name')};
+          if(trigger==='Terminate'){
+            if(type!=='endEvent')throw new Error('Terminate deve ser um evento de fim no arquivo Bizagi.');
+            definition={type:'terminateEventDefinition'};
+          }
         }else if(implementation && children(implementation,'Task').length){
           const task=children(implementation,'Task')[0],detail=task.children[0];
           type=detail?{TaskUser:'userTask',TaskManual:'manualTask',TaskService:'serviceTask',TaskScript:'scriptTask',TaskSend:'sendTask',TaskReceive:'receiveTask',TaskBusinessRule:'businessRuleTask'}[detail.localName]:'task';
