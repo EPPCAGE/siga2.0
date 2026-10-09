@@ -57,8 +57,12 @@
           type={StartEvent:'startEvent',EndEvent:'endEvent'}[detail.localName];
           if(detail.localName==='IntermediateEvent')type=transitions.some(flow=>flow.getAttribute('To')===activity.getAttribute('Id'))?'intermediateThrowEvent':'intermediateCatchEvent';
           const trigger=detail.getAttribute('Trigger')||detail.getAttribute('Result')||'None';
-          if(!['None','Link'].includes(trigger))throw new Error(`Evento ${trigger} ainda não suportado na importação direta. Use o XML BPMN para este desenho.`);
+          if(!['None','Link','Terminate'].includes(trigger))throw new Error(`Evento ${trigger} ainda não suportado na importação direta. Use o XML BPMN para este desenho.`);
           if(trigger==='Link')definition={type:'linkEventDefinition',name:first(detail,'TriggerResultLink')?.getAttribute('Name')||activity.getAttribute('Name')};
+          if(trigger==='Terminate'){
+            if(type!=='endEvent')throw new Error('Terminate deve ser um evento de fim no arquivo Bizagi.');
+            definition={type:'terminateEventDefinition'};
+          }
         }else if(implementation && children(implementation,'Task').length){
           const task=children(implementation,'Task')[0],detail=task.children[0];
           type=detail?{TaskUser:'userTask',TaskManual:'manualTask',TaskService:'serviceTask',TaskScript:'scriptTask',TaskSend:'sendTask',TaskReceive:'receiveTask',TaskBusinessRule:'businessRuleTask'}[detail.localName]:'task';
