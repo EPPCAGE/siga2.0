@@ -2,6 +2,27 @@ const { chromium } = require('playwright');
 const { readFileSync } = require('node:fs');
 const assert = require('node:assert/strict');
 
+function zipFiles(files) {
+  const local = [], central = []; let offset = 0;
+  for (const [name, value] of Object.entries(files)) {
+    const filename = Buffer.from(name), data = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    let crc = 0xffffffff;
+    for (const byte of data) { crc ^= byte; for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0); }
+    crc = (crc ^ 0xffffffff) >>> 0;
+    const header = Buffer.alloc(30); header.writeUInt32LE(0x04034b50); header.writeUInt16LE(20, 4);
+    header.writeUInt32LE(crc, 14); header.writeUInt32LE(data.length, 18); header.writeUInt32LE(data.length, 22); header.writeUInt16LE(filename.length, 26);
+    local.push(header, filename, data);
+    const directory = Buffer.alloc(46); directory.writeUInt32LE(0x02014b50); directory.writeUInt16LE(20, 4); directory.writeUInt16LE(20, 6);
+    directory.writeUInt32LE(crc, 16); directory.writeUInt32LE(data.length, 20); directory.writeUInt32LE(data.length, 24);
+    directory.writeUInt16LE(filename.length, 28); directory.writeUInt32LE(offset, 42); central.push(directory, filename);
+    offset += header.length + filename.length + data.length;
+  }
+  const directory = Buffer.concat(central), end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50);
+  end.writeUInt16LE(Object.keys(files).length, 8); end.writeUInt16LE(Object.keys(files).length, 10);
+  end.writeUInt32LE(directory.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...local, directory, end]);
+}
+
 (async () => {
   const html = readFileSync('processos.html', 'utf8');
   const functions = html.slice(html.indexOf('function BpmnMilestoneRenderer('), html.indexOf('function bpmnEditorHTML('));
@@ -152,6 +173,7 @@ const assert = require('node:assert/strict');
         </WorkflowProcess></WorkflowProcesses>
         <Pools><Pool Id="pool" Name="Processo" Process="process"><NodeGraphicsInfos><NodeGraphicsInfo Width="500" Height="200"><Coordinates XCoordinate="30" YCoordinate="30"/></NodeGraphicsInfo></NodeGraphicsInfos></Pool></Pools></Package>`;
       const converted = BizagiImport.convert(xpdl);
+      window.bizagiTestFixture = xpdl;
       const mod = new BpmnJS(bpmnModelerOptions('#canvas'));
       const { warnings } = await mod.importXML(converted);
       const { xml } = await mod.saveXML({ format: true });
@@ -174,6 +196,46 @@ const assert = require('node:assert/strict');
     assert.deepEqual(terminateResult.bounds, [300, 100, 36, 36]);
     assert.ok(terminateResult.connected && terminateResult.persisted && terminateResult.filledMarker, JSON.stringify(terminateResult));
     console.log('Terminate: evento de fim com marcador preenchido, conexão e semântica preservados após salvar e reabrir.');
+    const fixture = await page.evaluate(() => window.bizagiTestFixture);
+    const multiBpm = [...zipFiles({
+      'asis.diag': zipFiles({ 'Diagram.xml': fixture.replace('<Package>', '<Package Name="AS IS">') }),
+      'tobe.diag': zipFiles({ 'Diagram.xml': fixture.replace('<Package>', '<Package Name="TO BE">').replace('Encerrar todo o processo', 'Encerrar fluxo futuro') }),
+    })];
+    const names = await page.evaluate(async ({ bpm, defaultXml }) => {
+      const data = new Uint8Array(bpm);
+      const diagrams = await bpmnBizagiDiagrams(data);
+      const mod = new BpmnJS(bpmnModelerOptions('#canvas'));
+      await mod.importXML(defaultXml);
+      window.multiBizagiTest = { mod, data, result: bpmnLoadBizagi(mod, data) };
+      return diagrams.map(diagram => diagram.name);
+    }, { bpm: multiBpm, defaultXml: html.match(/const BPMN_DEFAULT = `([^]*?)`;/)[1] });
+    assert.deepEqual(names, ['AS IS', 'TO BE']);
+    const dialog = page.locator('#bpmn-bizagi-diagram-dialog');
+    await dialog.waitFor({ state: 'visible' });
+    assert.equal(await dialog.getByRole('button', { name: 'Importar diagrama' }).isDisabled(), true);
+    await dialog.locator('select').selectOption('1');
+    await dialog.getByRole('button', { name: 'Importar diagrama' }).click();
+    const chosen = await page.evaluate(async () => {
+      const { mod, result } = window.multiBizagiTest;
+      return { result: await result, name: mod.get('elementRegistry').get('Id_terminate').businessObject.name };
+    });
+    assert.deepEqual(chosen.result, { imported: true, count: 0 });
+    assert.equal(chosen.name, 'Encerrar fluxo futuro');
+    await page.evaluate(async () => {
+      const test = window.multiBizagiTest;
+      test.before = (await test.mod.saveXML({ format: true })).xml;
+      test.result = bpmnLoadBizagi(test.mod, test.data);
+    });
+    await dialog.waitFor({ state: 'visible' });
+    await dialog.getByRole('button', { name: 'Cancelar' }).click();
+    const cancelled = await page.evaluate(async () => {
+      const test = window.multiBizagiTest, result = await test.result;
+      const unchanged = test.before === (await test.mod.saveXML({ format: true })).xml;
+      test.mod.destroy(); delete window.multiBizagiTest; delete window.bizagiTestFixture;
+      return { result, unchanged };
+    });
+    assert.deepEqual(cancelled, { result: null, unchanged: true });
+    console.log('Vários diagramas: nomes listados, segundo diagrama importado e cancelamento preserva o canvas.');
     if (process.argv[2] && process.argv[3]) {
       const bpm = [...readFileSync(process.argv[2])];
       const xml = readFileSync(process.argv[3], 'utf8');

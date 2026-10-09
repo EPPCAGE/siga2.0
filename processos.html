@@ -12108,7 +12108,7 @@ function bpmnAddMilestone(which,event){
   mod.get('create').start(event,shape);
   toast('Clique no desenho para posicionar a fase. Dê dois cliques no título para renomear.');
 }
-async function bpmnZipEntry(data,match){
+async function bpmnZipEntry(data,match,listOnly=false){
   const bytes=data instanceof Uint8Array?data:new Uint8Array(data);
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
   let end=bytes.length-22;
@@ -12117,6 +12117,7 @@ async function bpmnZipEntry(data,match){
   }
   if(end<Math.max(0,bytes.length-65557)) throw new Error('Arquivo BPM não é um ZIP válido.');
   const count=view.getUint16(end+10,true);
+  const matches=[];
   let offset=view.getUint32(end+16,true);
   for(let i=0;i<count;i++){
     if(offset+46>bytes.length || view.getUint32(offset,true)!==0x02014b50) throw new Error('Estrutura do arquivo BPM inválida.');
@@ -12124,6 +12125,7 @@ async function bpmnZipEntry(data,match){
     const nameLength=view.getUint16(offset+28,true),extra=view.getUint16(offset+30,true),comment=view.getUint16(offset+32,true);
     const name=new TextDecoder().decode(bytes.subarray(offset+46,offset+46+nameLength));
     if(match(name)){
+      if(listOnly){matches.push(name);offset+=46+nameLength+extra+comment;continue;}
       if(expanded>30*1024*1024) throw new Error('Diagrama excede o limite de 30 MB.');
       const local=view.getUint32(offset+42,true);
       if(local+30>bytes.length || view.getUint32(local,true)!==0x04034b50) throw new Error('Entrada ZIP inválida.');
@@ -12146,11 +12148,52 @@ async function bpmnZipEntry(data,match){
     }
     offset+=46+nameLength+extra+comment;
   }
+  if(listOnly)return matches;
   throw new Error('Diagrama não encontrado no arquivo BPM.');
 }
-async function bpmnBizagiDiagram(data){
-  const diagram=await bpmnZipEntry(data,name=>name.toLowerCase().endsWith('.diag'));
+async function bpmnBizagiDiagram(data,entryName){
+  const diagram=await bpmnZipEntry(data,name=>entryName?name===entryName:name.toLowerCase().endsWith('.diag'));
   return new TextDecoder().decode(await bpmnZipEntry(diagram,name=>name==='Diagram.xml'));
+}
+async function bpmnBizagiDiagrams(data){
+  const names=await bpmnZipEntry(data,name=>name.toLowerCase().endsWith('.diag'),true);
+  if(!names.length)throw new Error('Diagrama não encontrado no arquivo BPM.');
+  const diagrams=[];let total=0;
+  for(const entry of names){
+    const xml=await bpmnBizagiDiagram(data,entry);
+    total+=xml.length;
+    if(total>30*1024*1024)throw new Error('Os diagramas excedem o limite de 30 MB.');
+    const doc=new DOMParser().parseFromString(xml,'application/xml');
+    if(doc.getElementsByTagName('parsererror').length)throw new Error('Diagrama Bizagi inválido.');
+    const name=doc.documentElement.getAttribute('Name')||`Diagrama ${diagrams.length+1}`;
+    diagrams.push({entry,name,xml});
+  }
+  return diagrams;
+}
+function bpmnChooseBizagiDiagram(diagrams){
+  if(diagrams.length===1)return Promise.resolve(diagrams[0]);
+  return new Promise(resolve=>{
+    const dialog=document.createElement('dialog');
+    dialog.id='bpmn-bizagi-diagram-dialog';
+    dialog.style.cssText='border:1px solid var(--bdr);border-radius:12px;padding:24px;width:440px;max-width:90vw;background:var(--surf);color:var(--ink)';
+    const title=document.createElement('h3');title.textContent='Escolher diagrama do Bizagi';
+    const label=document.createElement('label');label.textContent='Qual diagrama você quer importar?';
+    label.htmlFor='bpmn-bizagi-diagram-select';label.style.cssText='display:block;margin:16px 0 8px';
+    const select=document.createElement('select');select.id=label.htmlFor;select.className='fi';
+    const placeholder=document.createElement('option');placeholder.textContent='Selecione um diagrama';placeholder.value='';placeholder.disabled=true;placeholder.selected=true;select.appendChild(placeholder);
+    diagrams.forEach((diagram,index)=>{
+      const option=document.createElement('option');option.value=String(index);option.textContent=diagram.name;select.appendChild(option);
+    });
+    const actions=document.createElement('div');actions.style.cssText='display:flex;justify-content:flex-end;gap:8px;margin-top:20px';
+    const cancel=document.createElement('button');cancel.type='button';cancel.className='btn';cancel.textContent='Cancelar';
+    const confirm=document.createElement('button');confirm.type='button';confirm.className='btn btn-g';confirm.textContent='Importar diagrama';confirm.disabled=true;
+    const finish=value=>{dialog.close();dialog.remove();resolve(value);};
+    select.onchange=()=>{confirm.disabled=select.value==='';};
+    cancel.onclick=()=>finish(null);
+    confirm.onclick=()=>{if(select.value!=='')finish(diagrams[Number(select.value)]);};
+    dialog.addEventListener('cancel',event=>{event.preventDefault();finish(null);});
+    actions.append(cancel,confirm);dialog.append(title,label,select,actions);document.body.appendChild(dialog);dialog.showModal();
+  });
 }
 async function bpmnBizagiMilestones(data,diagramXml){
   const xml=diagramXml||await bpmnBizagiDiagram(data);
@@ -12193,7 +12236,9 @@ function bpmnIsEmptyDiagram(mod){
     && JSON.stringify(flow.waypoints.map(point=>[point.x,point.y]))===JSON.stringify([[196,218],[500,218]]);
 }
 async function bpmnLoadBizagi(mod,data){
-  const xml=await bpmnBizagiDiagram(data);
+  const selected=await bpmnChooseBizagiDiagram(await bpmnBizagiDiagrams(data));
+  if(!selected)return null;
+  const xml=selected.xml;
   const phases=await bpmnBizagiMilestones(data,xml);
   if(!bpmnIsEmptyDiagram(mod))return {imported:false,count:bpmnApplyBizagiMilestones(mod,phases)};
   const converted=BizagiImport.convert(xml);
@@ -12221,7 +12266,9 @@ function bpmnImportBizagiMilestones(which){
     const file=input.files?.[0];if(!file)return;
     try{
       if(file.size>30*1024*1024) throw new Error('Arquivo BPM excede o limite de 30 MB.');
-      const {imported,count}=await bpmnLoadBizagi(mod,await file.arrayBuffer());
+      const result=await bpmnLoadBizagi(mod,await file.arrayBuffer());
+      if(!result)return;
+      const {imported,count}=result;
       mod.get('canvas').zoom('fit-viewport');
       if(imported||count){
         bpmnDirty[which]=true;
