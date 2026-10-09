@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 (async () => {
   const html = readFileSync('processos.html', 'utf8');
-  const functions = ['fecharIndicadoresProc', 'abrirIndicadoresProc', 'createKpiChart']
+  const functions = ['parseNumBR', '_kpiMetaInformada', '_kpiMeta', 'periodoToNum', 'fecharIndicadoresProc', 'abrirIndicadoresProc', 'createKpiChart']
     .map(name => html.match(new RegExp('function ' + name + '\\([^]*?\\n}'))[0]).join('\n');
   const browser = await chromium.launch({ headless: true });
   try {

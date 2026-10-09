@@ -7539,7 +7539,7 @@ function rKpisVinculados(procId){
         <input type="checkbox" ${inPop?'checked':''} onchange="toggleKpiVinculadoPop(${idx})" style="width:14px;height:14px;cursor:pointer;accent-color:var(--blue)">
       </label>
       <span style="font-size:12px;font-weight:600;color:${inPop?'var(--ink)':'var(--ink3)'}">${esc(k.nome)}</span>
-      <span style="font-size:11px;color:var(--ink2)">${k.meta==null?'—':esc(String(k.meta))}</span>
+      <span style="font-size:11px;color:var(--ink2)">${_kpiMeta(k)==null?'—':esc(String(_kpiMeta(k)))}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(k.unidade||'—')}</span>
       <span style="font-size:11px;color:var(--ink3)">${esc(k.periodicidade||'—')}</span>
     </div>`;
@@ -11032,7 +11032,7 @@ function _rFormHtml(p){
             _indCell(esc(ind.nome),'30%',true)+_indCell(esc(ind.meta||'—'),'10%')+_indCell(esc(ind.unidade||'—'),'10%')+_indCell(esc(ind.periodicidade||'—'),'15%')+_indCell(esc(ind.formula||'—'),'20%')+_indCell(esc(ind.fonte||'—'),'15%')
           )),
           ...indsVinc.map(k=>_indRow(
-            _indCell(esc(k.nome),'30%',true)+_indCell(k.meta==null?'—':esc(String(k.meta)),'10%')+_indCell(esc(k.unidade||'—'),'10%')+_indCell(esc(k.periodicidade||'—'),'15%')+_indCell('—','20%')+_indCell('—','15%')
+            _indCell(esc(k.nome),'30%',true)+_indCell(_kpiMeta(k)==null?'—':esc(String(_kpiMeta(k))),'10%')+_indCell(esc(k.unidade||'—'),'10%')+_indCell(esc(k.periodicidade||'—'),'15%')+_indCell('—','20%')+_indCell('—','15%')
           )),
         ];
         const secTitle='<div style="font-family:var(--fh);font-size:13px;font-weight:600;border-bottom:2px solid #1e6bfa;padding-bottom:5px;margin-bottom:.7rem">5.0 Indicadores</div>';
@@ -14375,12 +14375,28 @@ function parseNumBR(v, fallback = 0){
   return Number.isFinite(n) ? n : fallback;
 }
 
-function _kpiMeta(k){
+function _kpiMetaInformada(k){
   const meta = parseNumBR(k.meta, null);
   // Importações antigas perderam a distinção entre célula sem meta e zero.
   // Um zero só é meta nesses registros quando confirmado pela nova importação/edição.
   if(meta === 0 && /^(importado|gsheets)(_editado)?$/.test(k.origem || '') && k.meta_definida !== true) return null;
   return meta;
+}
+function _kpiMeta(k, source=typeof kpis==='undefined'?[]:kpis){
+  const key = (k.codigo||k.nome||'').trim();
+  if(!key || !k.periodo) return _kpiMetaInformada(k);
+  const series = source.filter(i=>(i.codigo||i.nome||'').trim()===key);
+  if(!series.includes(k)) series.push(k);
+  if(series.length===1) return _kpiMetaInformada(k);
+  series.sort((a,b)=>periodoToNum(a.periodo)-periodoToNum(b.periodo));
+  let meta = null;
+  for(const item of series){
+    const explicit = _kpiMetaInformada(item);
+    if(explicit !== null) meta = explicit;
+    if(item===k) break;
+  }
+  // A primeira meta preenchida também é o padrão dos meses anteriores.
+  return meta ?? series.map(_kpiMetaInformada).find(value=>value!==null) ?? null;
 }
 
 function _xlsNorm(s){ return s.toString().replaceAll(/[^\w\s]/gu,'').replaceAll(/\s+/g,' ').trim().toLowerCase(); }
@@ -14755,7 +14771,7 @@ function kpiGrupoCardHTML(key, items){
   if(hasMeta && withData.length >= 3){
     const last3 = withData.slice(-3);
     const allBelow = last3.every(i=>{
-      const r=Number.parseFloat(i.realizado), m=Number.parseFloat(i.meta);
+      const r=Number.parseFloat(i.realizado), m=_kpiMeta(i);
       if(r===0&&m===0) return false;
       if(m<=0) return false;
       return polaridade==='Menor é melhor' ? r>m : r<m;
@@ -14769,7 +14785,7 @@ function kpiGrupoCardHTML(key, items){
   if(isCumCard){
     const cumTotal = withData.reduce((s,i)=>s+(Number.parseFloat(i.realizado)||0),0);
     const cumRound = Math.round(cumTotal*100)/100;
-    const metaAnual = items[0].meta!=null && items[0].meta!=='' ? Number(items[0].meta) : null;
+    const metaAnual = _kpiMeta(last||items[items.length-1]);
     const cumPct = metaAnual ? Math.round((cumTotal/metaAnual)*100) : null;
     let cumColor;
     if(cumPct==null){ cumColor='var(--ink3)'; } else if(cumPct>=100){ cumColor='var(--green)'; } else if(cumPct>=80){ cumColor='var(--amber)'; } else { cumColor='var(--red)'; }
@@ -14853,6 +14869,10 @@ function periodoToNum(s){
   const str = s.toString().toLowerCase();
   const MONTHS = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
   const y = (str.match(/\d{4}/)||['0'])[0];
+  const numeric = str.match(/^(\d{1,2})[/-]\d{4}$/);
+  const iso = str.match(/^\d{4}-(\d{2})$/);
+  const month = Number(numeric?.[1]||iso?.[1]);
+  if(month>=1&&month<=12) return Number(y)*100+month;
   for(const [abbr,num] of Object.entries(MONTHS)){
     if(str.includes(abbr)) return Number.parseInt(y)*100 + num;
   }
@@ -14888,15 +14908,7 @@ function createKpiChart(key, items, container=document, charts=_indCharts){
   const polaridade = items[0].polaridade||'Maior é melhor';
   const unidade = items[0].unidade||'';
   const realizados = withData.map(i=>Number.parseFloat(i.realizado)||0);
-  const realMetasData = withData.map(i=>{
-    if(i.meta!==null&&i.meta!==undefined&&i.meta!==''){
-      const m=Number.parseFloat(i.meta);
-      // Meta 0 é usada por importações como equivalente a "sem meta"; não deve
-      // suprimir a linha de média histórica nem virar uma linha de meta no eixo zero.
-      return Number.isNaN(m)||m<=0 ? null : m;
-    }
-    return null;
-  });
+  const realMetasData = withData.map(i=>_kpiMeta(i));
   const hasRealMeta = realMetasData.some(m=>m!==null);
   const und = unidade?' ('+unidade+')':'';
   const isCum = !!(items[0].cumulativo);
@@ -14912,7 +14924,7 @@ function createKpiChart(key, items, container=document, charts=_indCharts){
   if(isCum){
     let running=0;
     const cumData = realizados.map(r=>{ running+=r; return Math.round(running*100)/100; });
-    const metaVal = withData.find(i=>i.meta!=null&&i.meta!=='')?.meta;
+    const metaVal = _kpiMeta(withData[withData.length-1]);
     const metaNum = metaVal==null ? null : Number(metaVal);
     cumDatasets = [
       { label:'Acumulado'+und, data:cumData, type:'line', order:0,
@@ -14969,7 +14981,7 @@ function kpiCard(k){
 
   let pct = null, color, status, barW;
   if(hasMeta){
-    const _r = Number(k.realizado), _m = Number(k.meta);
+    const _r = Number(k.realizado), _m = _kpiMeta(k);
     if(_r === 0 && _m === 0){
       pct = 100;
     } else if(polaridade === 'Menor é melhor'){
@@ -15010,7 +15022,7 @@ function kpiCard(k){
       </div>
       <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
         <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Meta</div>
-        <div style="font-weight:700;color:var(--ink)">${hasMeta ? k.meta+unidade : '—'}</div>
+          <div style="font-weight:700;color:var(--ink)">${hasMeta ? _kpiMeta(k)+unidade : '—'}</div>
       </div>
       <div style="text-align:center;padding:5px;background:var(--bg2);border-radius:6px">
         <div style="font-size:10px;color:var(--ink3);margin-bottom:1px">Realizado</div>
@@ -15161,14 +15173,24 @@ function _kpiNavFlushCurrent(){
   if(!k) return;
   if(!globalThis._kpiPeriodEdits) globalThis._kpiPeriodEdits = {};
   const metaRaw = Number.parseFloat(document.getElementById('nkpi-meta')?.value);
+  const metaValue = Number.isNaN(metaRaw) ? null : metaRaw;
+  const previous = globalThis._kpiPeriodEdits[k.id];
+  const editingPeriods = _kpiEditingPeriods();
+  const effectiveMeta = _kpiMeta(editingPeriods[globalThis._kpiPeriodoIdx], editingPeriods);
   globalThis._kpiPeriodEdits[k.id] = {
     periodo:   document.getElementById('nkpi-periodo')?.value.trim()  || '',
     realizado: Number.parseFloat(document.getElementById('nkpi-real')?.value)    || 0,
     indice:    Number.parseFloat(document.getElementById('nkpi-indice')?.value)  || 0,
     analise:   document.getElementById('nkpi-analise')?.value.trim()  || '',
     sem_dado:  !!(document.getElementById('nkpi-sem-dado')?.checked),
-    meta:      Number.isNaN(metaRaw) ? null : metaRaw,
+    meta:      metaValue === effectiveMeta ? (previous ? previous.meta : k.meta) : metaValue,
   };
+}
+function _kpiEditingPeriods(){
+  return (globalThis._kpiPeriodos||[]).map(k=>{
+    const edits = (globalThis._kpiPeriodEdits||{})[k.id];
+    return edits ? {...k, ...edits, meta_definida:parseNumBR(edits.meta,null)!==null} : k;
+  });
 }
 
 function _kpiNavLoadCurrent(){
@@ -15182,7 +15204,8 @@ function _kpiNavLoadCurrent(){
   fv('nkpi-real',     edits ? edits.realizado  : (k.realizado || ''));
   fv('nkpi-indice',   edits ? edits.indice     : (k.indice    || ''));
   fv('nkpi-analise',  edits ? edits.analise    : (k.analise   || ''));
-  const metaVal = edits ? edits.meta : _kpiMeta(k);
+  const editingPeriods = _kpiEditingPeriods();
+  const metaVal = _kpiMeta(editingPeriods[globalThis._kpiPeriodoIdx], editingPeriods);
   fv('nkpi-meta', metaVal == null ? '' : metaVal);
   const sdEl2 = document.getElementById('nkpi-sem-dado');
   if(sdEl2) sdEl2.checked = !!(edits ? edits.sem_dado : k.sem_dado);
@@ -15243,13 +15266,13 @@ function editKpi(id){
 
   const samePeriods = _kpiGetSamePeriods(k);
   globalThis._kpiPeriodos    = samePeriods;
-  globalThis._kpiPeriodoIdx  = Math.max(0, samePeriods.findIndex(x=>x.id===id));
+  globalThis._kpiPeriodoIdx  = Math.max(0, samePeriods.length-1);
   globalThis._kpiPeriodEdits = {};
 
   const isMulti = samePeriods.length > 1;
   _kpiUpdateNavDisplay(isMulti);
-  _kpiFormSetFields(k);
-  if(isMulti){ _kpiNavUpdateSelector(); }
+  _kpiFormSetFields(samePeriods[globalThis._kpiPeriodoIdx]||k);
+  _kpiNavLoadCurrent();
   modal.style.display = 'flex';
 }
 
@@ -15324,9 +15347,8 @@ function _kpiApplyPeriodEdits(target, edits){
   target.meta_definida = parseNumBR(edits.meta, null) !== null;
 }
 function _kpiRefreshPct(target){
-  const meta = Number.parseFloat(target.meta);
   const real = Number.parseFloat(target.realizado);
-  const metaVal = Number.isNaN(meta) || target.meta === null || target.meta === '' ? null : meta;
+  const metaVal = _kpiMeta(target);
   const realVal = Number.isNaN(real) ? 0 : real;
   target.pct_realizado = _kpiCalcPct(metaVal, realVal, target.polaridade, target.sem_dado);
 }
@@ -15340,7 +15362,10 @@ function _kpiSaveMultiPeriods(area, nome, periodos){
     Object.assign(kpis[idx], generalCfg);
     kpis[idx].origem = _kpiPromotedOrigin(kpis[idx].origem);
     _kpiApplyPeriodEdits(kpis[idx], editsById[p.id]);
-    _kpiRefreshPct(kpis[idx]);
+  });
+  periodos.forEach(p=>{
+    const target=kpis.find(k=>k.id===p.id);
+    if(target) _kpiRefreshPct(target);
   });
 }
 function _kpiSaveSingleEdit(editId, area, nome){
@@ -18943,7 +18968,7 @@ async function iaAnalisarIndicadores(){
         variacao=(d>=0?'+':'')+d.toFixed(d%1===0?0:1)+(last.unidade?' '+last.unidade:'');
       }
       const alerta3 = grp.length>=3 && grp.slice(-3).every(i=>{
-        const r=Number(i.realizado),m=Number(i.meta);
+        const r=Number(i.realizado),m=_kpiMeta(i);
         if(r===0&&m===0){ return false; } if(m<=0){ return false; }
         return pol==='Menor é melhor'?r>m:r<m;
       });
@@ -18951,7 +18976,7 @@ async function iaAnalisarIndicadores(){
       return {
         area:last.area, nome:last.nome,
         ..._kpiClassificacao(last),
-        ...(hasMeta ? {meta:last.meta} : {sem_meta:true}),
+        ...(hasMeta ? {meta:_kpiMeta(last)} : {sem_meta:true}),
         realizado:last.realizado, pct:last.pct_realizado, periodo:last.periodo,
         polaridade:pol,
         ...(last.unidade ? {unidade:last.unidade} : {}),
@@ -19145,7 +19170,7 @@ function _rowIndicadorRelatorioPdf(k, resultadoAnterior = null){
     <td style="font-size:10px;color:#6b7280">${esc(_macroprocessoIndicador(k))}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
-    <td style="text-align:center">${hasMeta?k.meta+und:'—'}</td>
+    <td style="text-align:center">${hasMeta?_kpiMeta(k)+und:'—'}</td>
     <td style="text-align:center">${resultadoAnterior ? resultadoAnterior.valor.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und)+`<div style="font-size:9px;color:#6b7280">${esc(resultadoAnterior.periodo)}</div>` : '—'}</td>
     <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
     <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
