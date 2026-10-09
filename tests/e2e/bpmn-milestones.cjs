@@ -196,7 +196,7 @@ const assert = require('node:assert/strict');
         const source = new DOMParser().parseFromString(xml, 'application/xml');
         const originalShapes = [...source.getElementsByTagNameNS('*', 'BPMNShape')];
         const originalEdges = [...source.getElementsByTagNameNS('*', 'BPMNEdge')];
-        const originals = new Map([...source.getElementsByTagNameNS('http://www.omg.org/spec/BPMN/20100524/MODEL', '*')].filter(node => node.id).map(node => [node.id, node]));
+        const originals = new Map([...source.getElementsByTagNameNS(source.documentElement.namespaceURI, '*')].filter(node => node.id).map(node => [node.id, node]));
         const semanticsMatch = [...originalShapes, ...originalEdges].every(di => {
           const sourceElement = originals.get(di.getAttribute('bpmnElement'));
           const imported = registry.get(di.getAttribute('bpmnElement'))?.businessObject;

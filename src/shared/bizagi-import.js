@@ -1,5 +1,12 @@
 (function(globalScope){
-  const ns={bpmn:'http://www.omg.org/spec/BPMN/20100524/MODEL',bpmndi:'http://www.omg.org/spec/BPMN/20100524/DI',dc:'http://www.omg.org/spec/DD/20100524/DC',di:'http://www.omg.org/spec/DD/20100524/DI'};
+  // Identificadores oficiais de namespaces XML; não são usados em requisições HTTP.
+  // Trocar o esquema por HTTPS altera a identidade do namespace e invalida o BPMN.
+  const ns={
+    bpmn:'http://www.omg.org/spec/BPMN/20100524/MODEL', // NOSONAR: namespace XML oficial do BPMN, sem acesso à rede.
+    bpmndi:'http://www.omg.org/spec/BPMN/20100524/DI', // NOSONAR: namespace XML oficial do BPMN DI, sem acesso à rede.
+    dc:'http://www.omg.org/spec/DD/20100524/DC', // NOSONAR: namespace XML oficial do DC, sem acesso à rede.
+    di:'http://www.omg.org/spec/DD/20100524/DI', // NOSONAR: namespace XML oficial do DI, sem acesso à rede.
+  };
   function convert(xml){
     const source=new DOMParser().parseFromString(xml,'application/xml');
     if(source.getElementsByTagName('parsererror').length) throw new Error('Diagrama Bizagi inválido.');
