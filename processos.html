@@ -22,6 +22,7 @@
 <script src="src/shared/tenant-config.js"></script>
 <script src="src/shared/org-config.js"></script>
 <script src="src/shared/firebase-helpers.js"></script>
+<script src="src/shared/bizagi-import.js"></script>
 <script src="src/shared/firestore-repositories.js"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -12140,9 +12141,12 @@ async function bpmnZipEntry(data,match){
   }
   throw new Error('Diagrama não encontrado no arquivo BPM.');
 }
-async function bpmnBizagiMilestones(data){
+async function bpmnBizagiDiagram(data){
   const diagram=await bpmnZipEntry(data,name=>name.toLowerCase().endsWith('.diag'));
-  const xml=new TextDecoder().decode(await bpmnZipEntry(diagram,name=>name==='Diagram.xml'));
+  return new TextDecoder().decode(await bpmnZipEntry(diagram,name=>name==='Diagram.xml'));
+}
+async function bpmnBizagiMilestones(data,diagramXml){
+  const xml=diagramXml||await bpmnBizagiDiagram(data);
   const doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.getElementsByTagName('parsererror').length) throw new Error('Diagrama Bizagi inválido.');
   return [...doc.getElementsByTagNameNS('*','Milestone')].map(node=>{
@@ -12170,6 +12174,39 @@ function bpmnApplyBizagiMilestones(mod,phases){
   });
   return planned.length;
 }
+function bpmnIsEmptyDiagram(mod){
+  const elements=mod.get('elementRegistry').getAll().filter(el=>el.parent && el.type!=='label');
+  if(!elements.length)return true;
+  if(elements.length!==3)return false;
+  const start=elements.find(el=>el.id==='start'),end=elements.find(el=>el.id==='end'),flow=elements.find(el=>el.id==='f1');
+  return start?.type==='bpmn:StartEvent' && start.businessObject.name==='Início' && start.x===160 && start.y===200
+    && end?.type==='bpmn:EndEvent' && end.businessObject.name==='Fim' && end.x===500 && end.y===200
+    && flow?.businessObject.sourceRef===start.businessObject && flow.businessObject.targetRef===end.businessObject
+    && !flow.businessObject.name && start.width===36 && start.height===36 && end.width===36 && end.height===36
+    && JSON.stringify(flow.waypoints.map(point=>[point.x,point.y]))===JSON.stringify([[196,218],[500,218]]);
+}
+async function bpmnLoadBizagi(mod,data){
+  const xml=await bpmnBizagiDiagram(data);
+  const phases=await bpmnBizagiMilestones(data,xml);
+  if(!bpmnIsEmptyDiagram(mod))return {imported:false,count:bpmnApplyBizagiMilestones(mod,phases)};
+  const converted=BizagiImport.convert(xml);
+  // Valida o desenho completo em outro editor antes de trocar o canvas atual.
+  const container=document.createElement('div');
+  container.style.cssText='position:fixed;left:-10000px;width:1200px;height:900px';
+  document.body.appendChild(container);
+  let preview;
+  let fullXml;
+  try{
+    preview=new BpmnJS(bpmnModelerOptions(container));
+    const {warnings}=await preview.importXML(converted);
+    if(warnings?.length)throw new Error('O diagrama contém elementos que não puderam ser importados. Use o XML BPMN para este desenho.');
+    bpmnApplyBizagiMilestones(preview,phases);
+    fullXml=(await preview.saveXML({format:true})).xml;
+  }finally{preview?.destroy();container.remove();}
+  const previous=(await mod.saveXML({format:true})).xml;
+  try{await mod.importXML(fullXml);}catch(error){await mod.importXML(previous);throw error;}
+  return {imported:true,count:phases.length};
+}
 function bpmnImportBizagiMilestones(which){
   const mod=bpmnModelers[which];if(!mod)return;
   const input=document.createElement('input');input.type='file';input.accept='.bpm';
@@ -12177,12 +12214,15 @@ function bpmnImportBizagiMilestones(which){
     const file=input.files?.[0];if(!file)return;
     try{
       if(file.size>30*1024*1024) throw new Error('Arquivo BPM excede o limite de 30 MB.');
-      const phases=await bpmnBizagiMilestones(await file.arrayBuffer());
-      if(!phases.length){toast('Este arquivo BPM não contém fases.','var(--amber)');return;}
-      const count=bpmnApplyBizagiMilestones(mod,phases);
+      const {imported,count}=await bpmnLoadBizagi(mod,await file.arrayBuffer());
       mod.get('canvas').zoom('fit-viewport');
-      toast(count?`${count} fases recuperadas. Clique em Salvar para gravar o desenho.`:'As fases deste arquivo já estão no desenho.');
-    }catch(error){toast('Não foi possível importar as fases: '+error.message,'var(--red)');}
+      if(imported||count){
+        bpmnDirty[which]=true;
+        const dirty=document.getElementById('bpmn-'+which+'-dirty');if(dirty)dirty.style.display='inline';
+      }
+      toast(imported?`Desenho completo importado, com ${count} fases. Clique em Salvar para gravar.`:
+        count?`${count} fases recuperadas. Clique em Salvar para gravar o desenho.`:'Nenhuma fase nova encontrada; o desenho foi mantido.');
+    }catch(error){toast('Não foi possível importar o Bizagi: '+error.message,'var(--red)');}
   };
   input.click();
 }
@@ -12197,7 +12237,7 @@ function bpmnEditorHTML(which, existingXml){
       <div style="flex:1"></div>
       <button type="button" class="btn" id="bpmn-${which}-palette-btn" onclick="bpmnTogglePalette('${which}')" title="Mostrar/ocultar menu de elementos">☰ Menu</button>
       <button type="button" class="btn" onclick="bpmnAddMilestone('${which}',event)" title="Adicionar uma divisão vertical por fase">+ Fase (milestone)</button>
-      <button type="button" class="btn" onclick="bpmnImportBizagiMilestones('${which}')" title="Após importar o XML, recuperar as fases do projeto .bpm original">↑ Fases do Bizagi</button>
+      <button type="button" class="btn" onclick="bpmnImportBizagiMilestones('${which}')" title="Importar desenho completo no canvas vazio; em desenho existente, recuperar apenas as fases">↑ Bizagi (.bpm)</button>
       <button type="button" class="btn" onclick="bpmnZ('${which}',1)">+</button>
       <button type="button" class="btn" onclick="bpmnZ('${which}',-1)">-</button>
       <button type="button" class="btn" onclick="bpmnFit('${which}')">Ajustar</button>
@@ -12574,7 +12614,7 @@ function bpmnOpenFullscreen(which){
   bar.innerHTML=`
     <span style="font-size:13px;font-weight:700;color:#c8c8e0;margin-right:4px">${which.toUpperCase()} — Tela cheia</span>
     <button type="button" class="btn" onclick="bpmnAddMilestone('${which}',event)" title="Adicionar uma divisão vertical por fase">+ Fase (milestone)</button>
-    <button type="button" class="btn" onclick="bpmnImportBizagiMilestones('${which}')" title="Recuperar fases do arquivo .bpm após importar o XML">↑ Fases do Bizagi</button>
+    <button type="button" class="btn" onclick="bpmnImportBizagiMilestones('${which}')" title="Importar desenho completo no canvas vazio; em desenho existente, recuperar apenas as fases">↑ Bizagi (.bpm)</button>
     <button type="button" class="btn" onclick="bpmnZ('${which}',1)" title="Zoom in">+</button>
     <button type="button" class="btn" onclick="bpmnZ('${which}',-1)" title="Zoom out">-</button>
     <button type="button" class="btn" onclick="bpmnFit('${which}')">Ajustar</button>
