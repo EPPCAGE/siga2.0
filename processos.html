@@ -4179,8 +4179,6 @@ function _aplicarPermissoesNavBtns(){
         <label class="btn" style="cursor:pointer">↑ Importar Excel
           <input type="file" id="xlsx-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarArqExcel(this)">
         </label>
-        <button type="button" class="btn" style="font-size:11px" onclick="deduplicarArquitetura()" title="Remove processos e subprocessos com nome duplicado">🧹 Limpar duplicatas</button>
-        <button type="button" class="btn" style="font-size:11px" onclick="revinculaArquitetura()" title="Reconcilia arq_id dos processos em mapeamento pelo nome, após reimportação da arquitetura">🔗 Revincular processos</button>
         <button type="button" class="btn btn-p" onclick="novoMacro()">+ Macroprocesso</button>` : ''}
        </div>`;
 }
@@ -14288,92 +14286,6 @@ function getMetricasArq(f){
 }
 
 // Remove entradas duplicadas de processo/subprocesso dentro de cada macro (mesmo nome)
-function deduplicarArquitetura(){
-  if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
-  let rmProc=0,rmSub=0;
-  ARQUITETURA.forEach(m=>{
-    const antes=m.processos.length;
-    const vistos=new Map(); // nome → primeiro objeto
-    m.processos.forEach(p=>{
-      const k=p.nome.trim().toLowerCase();
-      if(!vistos.has(k)){
-        // Deduplica subprocessos dentro deste processo
-        if(p.subprocessos&&p.subprocessos.length>0){
-          const vistosSub=new Set();
-          const orig=p.subprocessos.length;
-          p.subprocessos=p.subprocessos.filter(s=>{
-            const sk=s.nome.trim().toLowerCase();
-            if(vistosSub.has(sk)) return false;
-            vistosSub.add(sk); return true;
-          });
-          rmSub+=orig-p.subprocessos.length;
-        }
-        vistos.set(k,p);
-      }
-    });
-    m.processos=Array.from(vistos.values());
-    rmProc+=antes-m.processos.length;
-  });
-  rArq();
-  fbAutoSave('deduplicarArq');
-  const msg=rmProc||rmSub
-    ? `Limpeza concluída: ${rmProc} processo(s) e ${rmSub} subprocesso(s) duplicado(s) removido(s).`
-    : 'Nenhuma duplicata encontrada.';
-  toast(msg,'var(--amber)');
-}
-function revinculaArquitetura(){
-  if(!isEP()){toast('Ação restrita ao EP.','var(--amber)');return;}
-  const norm=s=>s.trim().toLowerCase().normalize('NFD').replaceAll(/[̀-ͯ]/g,'');
-  // Mapa nome normalizado → item da arquitetura (subprocesso tem prioridade sobre processo)
-  const map=new Map();
-  ARQUITETURA.forEach(m=>{
-    m.processos.forEach(p=>{
-      if(p.subprocessos&&p.subprocessos.length){
-        p.subprocessos.forEach(s=>{ const k=norm(s.nome); if(!map.has(k)) map.set(k,s); });
-      } else {
-        const k=norm(p.nome); if(!map.has(k)) map.set(k,p);
-      }
-    });
-  });
-  let linked=0; const semVinculo=[];
-  processos.forEach(proc=>{
-    const match=map.get(norm(proc.nome));
-    if(match){
-      proc.arq_id=match.id;
-      match.proc_id=proc.id;
-      // garante mapeadosManual consistente
-      if(!mapeadosManual.has(match.id)) mapeadosManual.add(match.id);
-      linked++;
-    } else {
-      semVinculo.push(proc.nome);
-    }
-  });
-  // Revincular processos_vinculados dos usuários pelo nome
-  const flatArq=new Map();
-  ARQUITETURA.forEach(m=>m.processos.forEach(p=>{
-    if(p.subprocessos&&p.subprocessos.length) p.subprocessos.forEach(s=>flatArq.set(norm(s.nome),s.id));
-    else flatArq.set(norm(p.nome),p.id);
-  }));
-  USUARIOS.forEach(u=>{
-    if(!u.processos_vinculados?.length) return;
-    // Se já são IDs válidos, mantém; se não acha na arquitetura, tenta revinculação pelo nome de unidade
-    u.processos_vinculados=u.processos_vinculados.map(vid=>{
-      // já existe na arquitetura atual → mantém
-      if([...flatArq.values()].includes(vid)) return vid;
-      // tenta achar pelo id antigo via nome
-      const unidade=getUnidadesMapeaveis().find(u=>u.arq_id===vid);
-      if(unidade){ const novo=flatArq.get(norm(unidade.nome)); return novo||vid; }
-      return vid;
-    }).filter(Boolean);
-  });
-  lsSet('mapeadosManual',JSON.stringify([...mapeadosManual]));
-  fbAutoSave('revinculaArq');
-  rArq(); renderProcs();
-  const msg=`${linked} processo(s) revinculado(s) à arquitetura.`
-    +(semVinculo.length?` Sem correspondência por nome: ${semVinculo.join(', ')}. Vincule manualmente.`:'');
-  toast(msg, semVinculo.length?'var(--amber)':'var(--teal)');
-  if(semVinculo.length) console.warn('revinculaArquitetura — sem match:',semVinculo);
-}
 function _macroIdPorArqId(arqId){
   for(const macro of ARQUITETURA){
     if((macro.processos||[]).some(p=>p.id===arqId || (p.subprocessos||[]).some(s=>s.id===arqId))) return macro.id;
