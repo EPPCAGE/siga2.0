@@ -16,6 +16,9 @@ function riscosMultiFilter(select){
   const selected=options.filter(option=>option.selected);
   dropdown.innerHTML=`<summary>${esc(selected.length===1?selected[0].textContent:selected.length?selected.length+' selecionados':'Todos')}</summary><div class="risk-multi-options"><button type="button" class="btn risk-multi-clear">Limpar seleção</button>${options.map(option=>`<label><input type="checkbox" value="${esc(option.value)}" ${option.selected?'checked':''}>${esc(option.textContent)}</label>`).join('')}</div>`;
   dropdown.open=open;
+  const summary=dropdown.querySelector('summary');
+  summary.id=select.id+'-summary';
+  summary.setAttribute('aria-labelledby',select.id.replace('riscos-','riscos-label-')+' '+summary.id);
   dropdown.querySelector('.risk-multi-clear').onclick=()=>{for(const option of select.options)option.selected=false;rRiscos();};
   dropdown.querySelectorAll('input').forEach(input=>{input.onchange=()=>{
     const option=Array.from(select.options).find(option=>option.value===input.value);if(option)option.selected=input.checked;

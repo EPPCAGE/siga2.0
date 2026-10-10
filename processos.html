@@ -1371,13 +1371,13 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 <div id="page-riscos" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><button type="button" class="btn btn-p" onclick="riscosExportPdf()">Gerar relatório PDF</button></div>
   <div class="risk-filters">
-    <div class="risk-filter">Probabilidade<select class="fi" id="riscos-prob" onchange="rRiscos()"><option value="">Todas</option><option>Baixa</option><option value="Media">Média</option><option>Alta</option></select></div>
-    <div class="risk-filter">Impacto<select class="fi" id="riscos-imp" onchange="rRiscos()"><option value="">Todos</option><option>Baixo</option><option value="Medio">Médio</option><option>Alto</option><option value="Critico">Crítico</option></select></div>
-    <div class="risk-filter">Processo<select class="fi" id="riscos-processId" onchange="rRiscos()"><option value="">Todos</option></select></div>
-    <div class="risk-filter">Área<select class="fi" id="riscos-area" onchange="rRiscos()"><option value="">Todas</option></select></div>
-    <div class="risk-filter">Macroprocesso<select class="fi" id="riscos-macro" onchange="rRiscos()"><option value="">Todos</option></select></div>
-    <div class="risk-filter">Situação<select class="fi" id="riscos-status" onchange="rRiscos()"><option value="">Todas</option><option value="sem_tratamento">Sem tratamento</option><option value="planejado">Tratamento planejado</option><option value="em_tratamento">Em tratamento</option><option value="aguardando_verificacao">Tratamento implementado, aguardando verificação</option><option value="tratado">Tratado</option><option value="nao_confirmado">Situação não confirmada</option></select></div>
-    <div class="risk-filter">Palavra-chave<input class="fi" id="riscos-query" type="search" oninput="rRiscos()" placeholder="Descrição, processo ou tratamento"></div>
+    <div class="risk-filter"><label id="riscos-label-prob" for="riscos-prob">Probabilidade</label><select class="fi" id="riscos-prob" onchange="rRiscos()"><option value="">Todas</option><option>Baixa</option><option value="Media">Média</option><option>Alta</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-imp" for="riscos-imp">Impacto</label><select class="fi" id="riscos-imp" onchange="rRiscos()"><option value="">Todos</option><option>Baixo</option><option value="Medio">Médio</option><option>Alto</option><option value="Critico">Crítico</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-processId" for="riscos-processId">Processo</label><select class="fi" id="riscos-processId" onchange="rRiscos()"><option value="">Todos</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-area" for="riscos-area">Área</label><select class="fi" id="riscos-area" onchange="rRiscos()"><option value="">Todas</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-macro" for="riscos-macro">Macroprocesso</label><select class="fi" id="riscos-macro" onchange="rRiscos()"><option value="">Todos</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-status" for="riscos-status">Situação</label><select class="fi" id="riscos-status" onchange="rRiscos()"><option value="">Todas</option><option value="sem_tratamento">Sem tratamento</option><option value="planejado">Tratamento planejado</option><option value="em_tratamento">Em tratamento</option><option value="aguardando_verificacao">Tratamento implementado, aguardando verificação</option><option value="tratado">Tratado</option><option value="nao_confirmado">Situação não confirmada</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-query" for="riscos-query">Palavra-chave</label><input class="fi" id="riscos-query" type="search" oninput="rRiscos()" placeholder="Descrição, processo ou tratamento"></div>
   </div><div id="riscos-content" aria-live="polite"></div>
 </div></div>
 <div id="page-faq" class="page"><div class="knowledge-panel">
