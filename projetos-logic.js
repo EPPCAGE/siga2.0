@@ -5651,7 +5651,8 @@ function projRetryIndicadoresProcessos() {
 }
 
 function projIndicadoresProcessosLista(project) {
-  return IndicadoresImpactados.list(project,projArquiteturaAtual(),_projIndicadoresProcessos.kpis,_projIndicadoresProcessos.processos).map(row=>({
+  const linked = _projIndicadoresProcessos.kpis.filter(ind=>(ind.projeto_ids || []).some(id=>String(id)===String(project.id)));
+  return IndicadoresImpactados.list(project,projArquiteturaAtual(),linked,_projIndicadoresProcessos.processos).map(row=>({
     ...row,p:project,ind:{...row.ind,meta:IndicadoresImpactados.meta(row.ind,_projIndicadoresProcessos.kpis),resultado:row.ind.sem_dado ? null : IndicadoresImpactados.number(row.ind.realizado ?? row.ind.resultado ?? row.ind.atual)}
   }));
 }
@@ -5659,12 +5660,11 @@ function projIndicadoresProcessosLista(project) {
 function projIndicadoresProcessosHtml(project, rows) {
   if(!project) return '';
   let content;
-  if(_projIndicadoresProcessos.loading) content='<p>Carregando indicadores dos processos impactados…</p>';
+  if(_projIndicadoresProcessos.loading) content='<p>Carregando indicadores vinculados ao projeto…</p>';
   else if(_projIndicadoresProcessos.error) content='<p>Não foi possível carregar os indicadores dos processos.</p><button type="button" class="proj-btn" onclick="projRetryIndicadoresProcessos()">Tentar novamente</button>';
-  else if(!project.processos_impactados?.length && !rows.length) content='<p>Vincule os processos impactados na aba Aprovação do projeto ou associe indicadores ao projeto no módulo de Processos.</p>';
-  else if(!rows.length) content='<p>Nenhum indicador dos processos impactados encontrado para os filtros atuais.</p>';
+  else if(!rows.length) content='<p>Nenhum indicador vinculado diretamente ao projeto para os filtros atuais. Associe indicadores ao projeto no menu Indicadores do módulo de Processos.</p>';
   else content=`<table class="proj-v9-table"><thead><tr><th>Processo</th><th>Indicador</th><th>Período</th><th>Meta</th><th>Resultado</th><th>Unidade</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${projEsc(r.processo)}<div style="font-size:11px;color:var(--ink3)">${projEsc(r.macro)}</div></td><td>${projEsc(r.ind.nome||'Indicador')}</td><td>${projEsc(r.ind.periodo||'—')}</td><td>${projEsc(r.ind.meta ?? '—')}</td><td>${projEsc(r.ind.resultado ?? '—')}</td><td>${projEsc(r.ind.unidade||'')}</td></tr>`).join('')}</tbody></table>`;
-  return `<div class="proj-v9-chart-card" id="proj-ind-processos" style="grid-column:1 / -1"><div class="proj-card-t">Indicadores vinculados e dos processos impactados</div><p style="font-size:12px;color:var(--ink3)">Valores atualizados pelo módulo de Processos.</p>${content}</div>`;
+  return `<div class="proj-v9-chart-card" id="proj-ind-processos" style="grid-column:1 / -1"><div class="proj-card-t">Indicadores vinculados ao projeto</div><p style="font-size:12px;color:var(--ink3)">Indicadores associados diretamente ao projeto no módulo de Processos.</p>${content}</div>`;
 }
 
 function projIndicadoresTimelineLine(points, unit) {
@@ -5717,7 +5717,7 @@ function projRenderIndicadoresPage() {
   let processRows=selectedProject ? projIndicadoresProcessosLista(selectedProject) : [];
   if(fArea) processRows=processRows.filter(row=>row.macro===fArea);
   let rows = projIndicadoresLista(projetos);
-  if(fProj) rows = rows.filter(r => String(r.p.id) === fProj);
+  if(fProj) rows = [];
   if(fArea) rows = rows.filter(r => projDimensoesProjeto(r.p).macros.includes(fArea));
   const projetosOpts = projetos.map(p => `<option value="${projEsc(String(p.id))}" ${String(p.id)===fProj?'selected':''}>${projEsc(p.nome)}</option>`).join('');
   const impactedMacros=projProcessosArquitetura().filter(node=>projetos.some(p=>(p.processos_impactados||[]).some(link=>String(link.macro_id)===node.macro_id && String(link.processo_id)===node.processo_id))).map(node=>node.macro);
