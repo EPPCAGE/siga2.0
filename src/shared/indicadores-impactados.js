@@ -68,7 +68,7 @@
       });
     }
     visit(project?.execucao?.tarefas);
-    return dates.sort()[0] || '';
+    return dates.sort((a, b) => Date.parse(a) - Date.parse(b))[0] || '';
   }
   function timeline(project, rows) {
     const start = period(scheduleStart(project));
