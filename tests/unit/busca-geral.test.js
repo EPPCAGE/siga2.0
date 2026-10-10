@@ -10,6 +10,12 @@ const data={processos:[{id:1,arq_id:'p',nome:'Auditar contratos',macro:'Auditori
   projetos:[{id:2,nome:'Melhoria da emissão',status:'concluido',planejamento:{riscos:[{descricao:'Atraso na entrega'}]}}],
   publicacoes:[{titulo:'POP de fiscalização',categoria:'POPs',url:'https://example.org/pop'},{titulo:'Outro manual',categoria:'Manual'}]};
 describe('busca geral',()=>{
+  it('filtra macroprocesso sem exigir palavra-chave e exclui POPs de outros macros',()=>{
+    const scoped={...data,arquitetura:[{nome:'Auditoria',processos:[{id:'p'}]},{nome:'Controle',processos:[{id:'c'}]}],publicacoes:[{titulo:'POP auditoria',categoria:'POPs',arq_ids:['p']},{titulo:'POP controle',categoria:'POPs',arq_ids:['c']}]};
+    expect(search('pops','',{...scoped,macro:'Auditoria'}).map(row=>row.title)).toContain('POP auditoria');
+    expect(search('pops','',{...scoped,macro:'Auditoria'}).map(row=>row.title)).not.toContain('POP controle');
+    expect(search('todos','',{...scoped,macro:'Inexistente'})).toHaveLength(0);
+  });
   it('não inclui riscos na base de conhecimento nem em Todos',()=>{
     expect(search('riscos','',data)).toEqual([]);
     expect(search('todos','atraso',data)).toEqual([]);

@@ -13,7 +13,12 @@
     const add=(title,detail,target,extra='')=>rows.push({title:title || 'Sem título',
       detail:Object.entries(detail).filter(([,value])=>text(value).trim()).map(([label,value])=>`${label}: ${text(value)}`).join('\n'),
       target,category:type,search:text([title,detail,extra])});
-    const processes=(data.processos || []).filter(p=>!data.processId || String(p.id)===String(data.processId));
+    const units=(data.arquitetura || []).flatMap(m=>(m.processos || []).flatMap(p=>[{...p,macro:m.nome},...(p.subprocessos || []).map(s=>({...s,macro:m.nome}))]));
+    const processes=(data.processos || []).map(p=>{
+      const unit=units.find(item=>String(item.id)===String(p.arq_id));
+      return unit?{...p,macro:unit.macro}:p;
+    }).filter(p=>(!data.processId || String(p.id)===String(data.processId)) && (!data.macro || p.macro===data.macro));
+    const allowedIds=new Set([...processes.map(p=>String(p.arq_id)),...(!data.processId?units.filter(item=>!data.macro || item.macro===data.macro).map(item=>String(item.id)):[])]);
     if(type==='faq') processes.forEach(p=>{
       String(p.form?.faq || '').split(/\n(?=P\s*:)/i).forEach(block=>{
         const lines=block.trim().split('\n');
@@ -38,7 +43,7 @@
           {kind:'info-processo',arqId:p.arq_id,processId:p.id},pop);
       });
       (data.publicacoes || []).filter(pub=>normalize(pub.categoria)==='pops' &&
-        (!data.processId || (pub.arq_ids || []).some(id=>processes.some(p=>String(p.arq_id)===String(id)))))
+        ((!data.processId && !data.macro) || (pub.arq_ids || []).some(id=>allowedIds.has(String(id)))))
         .forEach(pub=>{
           const arqId=(pub.arq_ids || [])[0];
           const process=processes.find(p=>(pub.arq_ids || []).some(id=>String(p.arq_id)===String(id)));
