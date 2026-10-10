@@ -91,10 +91,11 @@ const {readFileSync} = require('node:fs');
     assert.ok(!(await page.locator('#proj-ind-processos').innerText()).includes('Indicador de controle'));
     await page.evaluate(()=>{
       PROJETOS[0].dt_inicio='2026-09-15';
+      PROJETOS[0].execucao.tarefas=[{dt_inicio:'2026-09-15'}];
       PROJETOS[0].dt_fim='2026-09-30';
       projRenderIndicadoresPage();
     });
-    assert.equal(await page.locator('#proj-ind-timeline li').count(),2);
+    assert.equal(await page.locator('#proj-ind-timeline svg circle').count(),2);
     assert.match(await page.locator('#proj-ind-timeline').innerText(),/out\/2026/);
     assert.match(await page.locator('#proj-ind-timeline').innerText(),/75/);
     await page.evaluate(()=>processIndicatorCallbacks.kpis({forEach:fn=>fn({data:()=>({arq_id:'pa',nome:'Indicador atualizado',meta:100,realizado:80})})}));
@@ -107,8 +108,20 @@ const {readFileSync} = require('node:fs');
     assert.match(await page.locator('#proj-ind-processos').innerText(),/Indicador associado diretamente/);
     assert.equal(await page.locator('#proj-ind-processos tbody tr').count(),1);
     assert.match(await page.locator('.proj-v9-meta-list').innerText(),/Indicador associado diretamente/);
-    await page.evaluate(()=>{PROJETOS[2].dt_inicio='2026-01-01';projRenderIndicadoresPage();});
-    assert.equal(await page.locator('#proj-ind-timeline li').count(),1);
+    await page.evaluate(()=>{PROJETOS[2].execucao.tarefas=[{dt_inicio:'2026-01-01'}];projRenderIndicadoresPage();});
+    assert.equal(await page.locator('#proj-ind-timeline svg circle').count(),1);
+    const timelineGeometry=await page.evaluate(()=>{
+      const container=document.createElement('div');
+      container.innerHTML=projIndicadoresTimelineLine([
+        {periodo:'jan/2026',resultado:20},{periodo:'fev/2026',resultado:0},{periodo:'abr/2026',resultado:40}
+      ],'horas');
+      return {points:container.querySelector('polyline').getAttribute('points').split(' ').map(pair=>pair.split(',').map(Number)),text:container.textContent};
+    });
+    assert.equal(timelineGeometry.points.length,3);
+    assert.ok(timelineGeometry.points[1][1]>timelineGeometry.points[0][1]);
+    assert.ok(timelineGeometry.points[2][1]<timelineGeometry.points[0][1]);
+    assert.ok(Math.abs((timelineGeometry.points[2][0]-timelineGeometry.points[1][0]) / (timelineGeometry.points[1][0]-timelineGeometry.points[0][0])-2)<0.001);
+    assert.match(timelineGeometry.text,/horas/);
     assert.deepEqual(errors, []);
     const chartOrder = await page.evaluate(()=>{
       const rows=[

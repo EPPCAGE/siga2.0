@@ -10,6 +10,15 @@ function setup(){
   return{api:context.IndicadoresImpactados,architecture,project};
 }
 describe('Indicadores dos processos impactados',()=>{
+  it('usa a primeira atividade por data, incluindo subtarefas',()=>{
+    const{api}=setup();
+    expect(api.scheduleStart({dt_inicio:'2020-01-01',execucao:{tarefas:[
+      {dt_inicio:'2026-08-01'},
+      {dt_inicio:'2020-01-01',subtarefas:[{dt_inicio:'2026-06-15'},{subtarefas:[{dt_inicio:'2026-05-20'}]}]},
+      {dt_inicio:''}
+    ]}})).toBe('2026-05-20');
+    expect(api.scheduleStart({dt_inicio:'2020-01-01'})).toBe('');
+  });
   it('filtra a arquitetura por processos impactados ou indicadores diretamente associados',()=>{
     const{api,architecture,project}=setup();
     project.id=7;
@@ -30,7 +39,7 @@ describe('Indicadores dos processos impactados',()=>{
   });
   it('mantém resultados após o término, ignora meses anteriores e meses sem dados, preservando zero',()=>{
     const{api}=setup();
-    const project={dt_inicio:'2026-05-20',dt_fim:'2026-06-01',conclusao:{dt_conclusao:'2026-06-10'}};
+    const project={dt_inicio:'2025-01-01',execucao:{tarefas:[{dt_inicio:'2026-05-20'}]},dt_fim:'2026-06-01',conclusao:{dt_conclusao:'2026-06-10'}};
     const rows=[
       {ind:{periodo:'dez/2027',resultado:12}},
       {ind:{periodo:'abril/2026',resultado:4}},

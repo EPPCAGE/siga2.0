@@ -59,8 +59,19 @@
     const iso = text.match(/^(\d{4})-(\d{2})/);
     return iso ? Number(iso[1])*12 + Number(iso[2])-1 : 0;
   }
+  function scheduleStart(project) {
+    const dates=[];
+    function visit(tasks) {
+      (tasks || []).forEach(task=>{
+        if(task.subtarefas?.length) visit(task.subtarefas);
+        else if(/^\d{4}-\d{2}-\d{2}$/.test(task.dt_inicio || '') && Number.isFinite(Date.parse(task.dt_inicio))) dates.push(task.dt_inicio);
+      });
+    }
+    visit(project?.execucao?.tarefas);
+    return dates.sort()[0] || '';
+  }
   function timeline(project, rows) {
-    const start = period(project.dt_inicio);
+    const start = period(scheduleStart(project));
     if(!start) return [];
     return rows.filter(row => {
       const month = period(row.ind.periodo);
@@ -93,5 +104,5 @@
       linked.has(key(node)) || (project.processos_impactados || []).some(link=>node.macro_id===id(link.macro_id) && node.parent_id===id(link.processo_id))
     ));
   }
-  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart, architectureMatches};
+  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart, architectureMatches, scheduleStart, period};
 })(globalThis);
