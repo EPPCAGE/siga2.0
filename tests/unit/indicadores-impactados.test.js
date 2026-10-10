@@ -10,6 +10,18 @@ function setup(){
   return{api:context.IndicadoresImpactados,architecture,project};
 }
 describe('Indicadores dos processos impactados',()=>{
+  it('lista projetos ativos e concluídos que impactam o processo ou seu subprocesso',()=>{
+    const{api,architecture}=setup();
+    const link={macro_id:'a',processo_id:'pa'};
+    const projects=[{id:1,nome:'B',status:'ativo',processos_impactados:[link]},
+      {id:2,nome:'A',status:'concluido',processos_impactados:[link]},
+      {id:3,status:'cancelado',processos_impactados:[link]},
+      {id:4,status:'ativo',processos_impactados:[{macro_id:'b',processo_id:'pb'}]}];
+    expect(api.projectsForProcess({id:1,arq_id:'pa'},architecture,projects,[]).map(p=>p.id)).toEqual([2,1]);
+    expect(api.projectsForProcess({id:99,arq_id:'sa'},architecture,projects,[]).map(p=>p.id)).toEqual([2,1]);
+    expect(api.projectsForProcess({id:99},architecture,projects,[{id:99,arq_id:'sa'}]).map(p=>p.id)).toEqual([2,1]);
+    expect(api.projectsForProcess({arq_id:'removido'},architecture,projects,[])).toEqual([]);
+  });
   it('usa a primeira atividade por data, incluindo subtarefas',()=>{
     const{api}=setup();
     expect(api.scheduleStart({dt_inicio:'2020-01-01',execucao:{tarefas:[

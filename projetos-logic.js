@@ -383,12 +383,28 @@ function projFbAutoSave(label){
   });
 }
 
+function projOpenScheduleLink(){
+  if(globalThis._projScheduleLinkHandled) return false;
+  const params=new URLSearchParams(window.location.search);
+  const id=params.get('projeto');
+  if(!id || params.get('aba')!=='execucao') return false;
+  if(!document.getElementById('proj-shell')?.classList.contains('on') || (fbReady() && !_projFbState.loaded)) return false;
+  globalThis._projScheduleLinkHandled=true;
+  if(!PROJETOS.some(project=>String(project.id)===id)){projToast('Projeto não encontrado ou indisponível.','var(--red)');return false;}
+  _projCurrentId=id;
+  _projCurrentWorkflowTab='execucao';
+  projAbrirDetalhe(id,true,true);
+  requestAnimationFrame(()=>document.getElementById('exec-cronograma-section')?.scrollIntoView({block:'start'}));
+  return true;
+}
+
 function projRenderCurrentPage(){
+  if(projOpenScheduleLink()) return;
   const active = document.querySelector('.proj-nav-btn.on');
   const page = _projCurrentPage || (active ? (active.id||'').replace('pnb-','') : 'inicio');
   if(document.getElementById('proj-shell')?.classList.contains('on')){
     if(page === 'detalhe' && _projCurrentId){
-      projAbrirDetalhe(_projCurrentId, false, true);
+      projAbrirDetalhe(_projCurrentId, _projCurrentWorkflowTab==='execucao', true);
       return;
     }
     const btn = document.getElementById('pnb-' + page) || active || document.getElementById('pnb-inicio');
@@ -710,6 +726,7 @@ function projFixDefaults(p) {
 
 // ── Navegação interna do módulo de projetos ──────────────────────
 function projGo(pageId, btnEl) {
+  if(pageId==='inicio' && projOpenScheduleLink()) return;
   _projCurrentPage = pageId || 'inicio';
   // Hide all pages
   document.querySelectorAll('.proj-page').forEach(p => p.classList.remove('on'));

@@ -202,6 +202,34 @@ const {readFileSync} = require('node:fs');
     await page.selectOption('#ind-area-sel','Outra área');
     await page.evaluate(()=>rInd());
     assert.ok(!(await page.locator('#ind-c').innerText()).includes('Impactado'));
+    await page.setContent('<div id="det-projetos"></div>');
+    await page.addScriptTag({content:processesHtml.match(/async function renderProjetosDoProcesso\([^]*?\n}/)[0]});
+    await page.evaluate(async()=>{
+      window._fbLoadProjetosUsuarios=async()=>{};
+      const link={macro_id:'a',processo_id:'pa'};
+      window.PROJETOS_USUARIOS=[{id:1,nome:'Projeto ativo',status:'ativo',processos_impactados:[link]},
+        {id:2,nome:'Projeto concluído',status:'concluido',gerente:'Maria',processos_impactados:[link]},
+        {id:3,nome:'Projeto cancelado',status:'cancelado',processos_impactados:[link]}];
+      await renderProjetosDoProcesso({id:11,arq_id:'pa'});
+    });
+    assert.equal(await page.locator('#det-projetos tbody tr').count(),2);
+    assert.match(await page.locator('#det-projetos').innerText(),/Concluído/);
+    assert.ok(!(await page.locator('#det-projetos').innerText()).includes('Projeto cancelado'));
+    const scheduleHref=await page.locator('#det-projetos a').last().getAttribute('href');
+    assert.match(scheduleHref,/projeto=2&aba=execucao#exec-cronograma-section/);
+    await page.setContent('<div id="proj-shell" class="on"><div id="proj-page-detalhe" class="proj-page"><div id="proj-detalhe-content"></div></div></div>');
+    await page.evaluate(href=>{
+      window.USUARIOS=[];
+      history.replaceState({},'',href);
+      PROJETOS=[projFixDefaults({id:2,nome:'Projeto concluído',status:'concluido',fase_atual:'conclusao',execucao:{cron_mode:'siga',tarefas:[],reunioes:[]}})];
+      _projFbState.loaded=true;
+      globalThis._projScheduleLinkHandled=false;
+      projOpenScheduleLink();
+    },scheduleHref);
+    assert.equal(await page.locator('#exec-cronograma-section').count(),1);
+    assert.equal(await page.locator('#proj-detalhe-tabs .proj-tab.on').innerText(),'Execução/Monit.');
+    await page.evaluate(()=>projRenderCurrentPage());
+    assert.equal(await page.locator('#exec-cronograma-section').count(),1);
     assert.deepEqual(errors, []);
     console.log('Projetos: arquitetura, filtro, vínculos e persistência verificados no Chromium.');
   } finally {
