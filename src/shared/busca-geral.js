@@ -7,7 +7,8 @@
     return String(value);
   }
   function search(type,query,data){
-    if(type==='todos') return ['faq','riscos','problemas','pops'].flatMap(kind=>search(kind,query,data));
+    if(type==='riscos') return [];
+    if(type==='todos') return ['faq','problemas','pops'].flatMap(kind=>search(kind,query,data));
     const rows=[];
     const add=(title,detail,target,extra='')=>rows.push({title:title || 'Sem título',
       detail:Object.entries(detail).filter(([,value])=>text(value).trim()).map(([label,value])=>`${label}: ${text(value)}`).join('\n'),

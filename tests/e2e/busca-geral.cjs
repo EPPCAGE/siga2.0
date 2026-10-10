@@ -25,8 +25,8 @@ const assert=require('node:assert/strict');
     await page.evaluate(()=>rFaq());
     assert.equal(await page.locator('#faq-srch').isEnabled(),true);
     assert.equal(await page.locator('#busca-processo, #faq-f-macro').count(),0);
-    assert.deepEqual(await page.locator('[data-busca-tipo]').allTextContents(),['Todos','Perguntas frequentes','Problemas','Riscos','POPs']);
-    for(const [type,query,expected] of [['faq','auditar','Como auditar'],['riscos','emissao','Atraso na emissão'],['problemas','relatorio','Falha no relatório']]){
+    assert.deepEqual(await page.locator('[data-busca-tipo]').allTextContents(),['Todos','Perguntas frequentes','Problemas','POPs']);
+    for(const [type,query,expected] of [['faq','auditar','Como auditar'],['problemas','relatorio','Falha no relatório']]){
       await page.locator(`[data-busca-tipo="${type}"]`).click();
       assert.equal(await page.locator('#faq-srch').isEnabled(),true);
       await page.fill('#faq-srch',query);
@@ -38,7 +38,7 @@ const assert=require('node:assert/strict');
     assert.equal(await page.evaluate(()=>window.openedProcess),1);
     for(const profile of ['dono','gestor']){
       await page.evaluate(profile=>{window.usuarioLogado={perfil:profile};window.openedProcess=null;},profile);
-      for(const [type,query] of [['riscos','atraso'],['problemas','falha']]){
+      for(const [type,query] of [['problemas','falha']]){
         await page.locator(`[data-busca-tipo="${type}"]`).click();
         await page.fill('#faq-srch',query);
         assert.equal(await page.locator('#faq-c button, #faq-c a').count(),0);
@@ -48,7 +48,7 @@ const assert=require('node:assert/strict');
       await page.locator('[data-busca-tipo="todos"]').click();
       await page.fill('#faq-srch','auditar');
       assert.match(await page.locator('#faq-c').innerText(),/Como auditar/);
-      assert.match(await page.locator('#faq-c').innerText(),/Atraso na emissão/);
+      assert.ok(!(await page.locator('#faq-c').innerText()).includes('Atraso na emissão'));
       assert.match(await page.locator('#faq-c').innerText(),/Falha no relatório/);
       assert.equal(await page.locator('#faq-c button').count(),1);
       await page.locator('#faq-c button').click();
@@ -56,8 +56,8 @@ const assert=require('node:assert/strict');
       assert.equal(await page.evaluate(()=>window.openedProcess),null);
     }
     await page.evaluate(()=>{window.usuarioLogado={perfil:'ep'};});
-    await page.locator('[data-busca-tipo="riscos"]').click();
-    await page.fill('#faq-srch','atraso');
+    await page.locator('[data-busca-tipo="problemas"]').click();
+    await page.fill('#faq-srch','falha');
     assert.equal(await page.locator('#faq-c button').count(),1);
     await page.fill('#faq-srch','inexistente');
     assert.match(await page.locator('#faq-c').innerText(),/Nenhum resultado/);
