@@ -21,11 +21,14 @@ describe('busca geral',()=>{
     expect(search('todos','atraso',data)).toEqual([]);
   });
   it('busca sem acentos e combina palavras em qualquer ordem',()=>{
-    expect(search('problemas','revisao relatorio',data)).toHaveLength(1);
-    expect(search('problemas','falha',data)).toHaveLength(1);
-    expect(search('problemas','inexistente',data)).toHaveLength(0);
+    expect(search('pops','emitir relatorio',data)).toHaveLength(1);
+    expect(search('pops','relatorio',data)).toHaveLength(1);
+    expect(search('pops','inexistente',data)).toHaveLength(0);
   });
-  it('busca problemas pela descrição e solução',()=>expect(search('problemas','revisao',data)[0].target.id).toBe(1));
+  it('exclui problemas de sua categoria e de Todos',()=>{
+    expect(search('problemas','',data)).toEqual([]);
+    expect(search('todos','falha',data)).toEqual([]);
+  });
   it.each(['indicadores','processos','projetos'])('não disponibiliza a categoria removida %s',type=>expect(search(type,'',data)).toEqual([]));
   it('busca POPs dos processos e publicações e os inclui em Todos',()=>{
     expect(search('pops','relatorio',data)[0].target.kind).toBe('info-processo');
@@ -44,7 +47,7 @@ describe('busca geral',()=>{
   it('exibe FAQs, riscos e problemas apenas do processo selecionado, mesmo sem texto de busca',()=>{
     const selected={...data,processId:'1',processos:[{...data.processos[0],form:{faq:'P: Como auditar?\nR: Revisar contratos.'}},
       {id:2,nome:'Outro',ent:{riscos:[{desc:'Risco de outro processo'}]}}]};
-    expect(search('todos','',selected).map(row=>row.category)).toEqual(['faq','problemas']);
+    expect(search('todos','',selected).map(row=>row.category)).toEqual(['faq']);
     expect(search('todos','',selected).every(row=>row.target.id===1)).toBe(true);
     expect(search('faq','contratos',selected)).toHaveLength(1);
   });
