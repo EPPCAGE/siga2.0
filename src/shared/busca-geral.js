@@ -7,7 +7,7 @@
     return String(value);
   }
   function search(type,query,data){
-    if(type==='todos') return ['faq','riscos','problemas'].flatMap(kind=>search(kind,query,data));
+    if(type==='todos') return ['faq','riscos','problemas','pops'].flatMap(kind=>search(kind,query,data));
     const rows=[];
     const add=(title,detail,target,extra='')=>rows.push({title:title || 'Sem título',
       detail:Object.entries(detail).filter(([,value])=>text(value).trim()).map(([label,value])=>`${label}: ${text(value)}`).join('\n'),
@@ -29,6 +29,24 @@
         ...(type==='riscos'?{'Probabilidade':item.prob,'Impacto':item.imp,'Tratamento':item.tratamento,'Ação de tratamento':item.acao_tratamento}:{'Solução':item.solucao})
       },{kind:'processo',id:p.id},item));
     });
+    if(type==='pops'){
+      processes.forEach(p=>{
+        const pop=p.form?.pop;
+        if(!pop || !text(pop).trim()) return;
+        add(`POP — ${p.nome}`,{'Processo':p.nome,'Macroprocesso':p.macro,'Objetivo':pop.obj},
+          {kind:'info-processo',arqId:p.arq_id,processId:p.id},pop);
+      });
+      (data.publicacoes || []).filter(pub=>normalize(pub.categoria)==='pops' &&
+        (!data.processId || (pub.arq_ids || []).some(id=>processes.some(p=>String(p.arq_id)===String(id)))))
+        .forEach(pub=>{
+          const arqId=(pub.arq_ids || [])[0];
+          const process=processes.find(p=>(pub.arq_ids || []).some(id=>String(p.arq_id)===String(id)));
+          const target=arqId!=null || process
+            ? {kind:'info-processo',arqId:process?.arq_id ?? arqId,processId:process?.id}
+            : {kind:'publicacao',url:pub.url || pub.link};
+          add(pub.titulo,{'Descrição':pub.descricao,'Versão':pub.versao,'Processo':process?.nome},target,pub.tags);
+        });
+    }
     const terms=normalize(query).trim().split(/\s+/).filter(Boolean);
     return rows.filter(row=>terms.every(term=>normalize(row.search).includes(term))).sort((a,b)=>a.title.localeCompare(b.title,'pt-BR'));
   }

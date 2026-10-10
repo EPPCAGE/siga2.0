@@ -21,7 +21,21 @@ describe('busca geral',()=>{
     expect(search('riscos','inexistente',data)).toHaveLength(0);
   });
   it('busca problemas pela descrição e solução',()=>expect(search('problemas','revisao',data)[0].target.id).toBe(1));
-  it.each(['indicadores','processos','projetos','pops'])('não disponibiliza a categoria removida %s',type=>expect(search(type,'',data)).toEqual([]));
+  it.each(['indicadores','processos','projetos'])('não disponibiliza a categoria removida %s',type=>expect(search(type,'',data)).toEqual([]));
+  it('busca POPs dos processos e publicações e os inclui em Todos',()=>{
+    expect(search('pops','relatorio',data)[0].target.kind).toBe('info-processo');
+    expect(search('pops','fiscalizacao',data)[0].target.url).toBe('https://example.org/pop');
+    expect(search('todos','fiscalizacao',data)[0].category).toBe('pops');
+    expect(search('pops','manual',data)).toHaveLength(0);
+  });
+  it('abre a ficha interna para POP publicado vinculado ao processo, mesmo com URL externa',()=>{
+    const linked={...data,publicacoes:[{titulo:'POP publicado',categoria:'POPs',arq_ids:['p'],url:'https://example.org/documento'}]};
+    const row=search('pops','publicado',linked)[0];
+    expect(row.target.kind).toBe('info-processo');
+    expect(row.target.processId).toBe(1);
+    expect(row.target.arqId).toBe('p');
+    expect(row.target.url).toBeUndefined();
+  });
   it('exibe FAQs, riscos e problemas apenas do processo selecionado, mesmo sem texto de busca',()=>{
     const selected={...data,processId:'1',processos:[{...data.processos[0],form:{faq:'P: Como auditar?\nR: Revisar contratos.'}},
       {id:2,nome:'Outro',ent:{riscos:[{desc:'Risco de outro processo'}]}}]};
