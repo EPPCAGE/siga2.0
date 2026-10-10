@@ -10,7 +10,7 @@ const path = require('node:path');
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('http://siga.test/**', route => route.fulfill({
-      contentType:'text/html', body:'<html><body><div id="proj-page-detalhe" class="proj-page"><div id="fixture"></div></div></body></html>'
+      contentType:'text/html', body:'<html><body><div id="proj-page-detalhe" class="proj-page"><div id="fixture"></div></div><div id="proj-indicadores-content"></div></body></html>'
     }));
     await page.goto('http://siga.test/');
     await page.evaluate(() => {
@@ -21,6 +21,7 @@ const path = require('node:path');
     });
     await page.addScriptTag({path:path.resolve(__dirname, '../../src/shared/objetivos-estrategicos.js')});
     await page.addScriptTag({path:path.resolve(__dirname, '../../src/shared/areas-arquitetura.js')});
+    await page.addScriptTag({path:path.resolve(__dirname, '../../src/shared/indicadores-impactados.js')});
     await page.addScriptTag({path:path.resolve(__dirname, '../../projetos-logic.js')});
     await page.evaluate(() => {
       projSetHtml = (el, html) => { el.innerHTML = html; };
@@ -68,6 +69,29 @@ const path = require('node:path');
     assert.deepEqual(persisted.objetivos_estrategicos,['[Processos] Otimizar a contribuição da auditoria para o aprimoramento dos processos da gestão pública estadual']);
     await page.selectOption('#aprov-divisao','Divisão de Contabilidade');
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem(PROJ_STORAGE_KEY))[0].divisao), 'Divisão de Contabilidade');
+    await page.evaluate(()=>{
+      projApplyArquitetura([{id:'aud',nome:'Auditoria',processos:[{id:'pa',nome:'Auditar',subprocessos:[{id:'sa',nome:'Inspecionar'}]}]},
+        {id:'con',nome:'Controle',processos:[{id:'pc',nome:'Controlar'}]}]);
+      PROJETOS=[projFixDefaults({id:1,nome:'Projeto A',processos_impactados:[{macro_id:'aud',processo_id:'pa'}]}),
+        projFixDefaults({id:2,nome:'Projeto B',processos_impactados:[{macro_id:'con',processo_id:'pc'}]}),projFixDefaults({id:3,nome:'Projeto sem impacto'})];
+      _projFbState.loaded=true;_projCurrentPage='indicadores';
+      window.fbReady=()=>true;
+      window.processIndicatorCallbacks={};
+      window.fb=()=>({onSnapshot:(ref,cb)=>{processIndicatorCallbacks[ref]=cb;return()=>{};}});
+      window.kpisRepository={colRef:()=> 'kpis',list:async()=>({docs:[{data:{arq_id:'pa',nome:'Indicador de auditoria',meta:100,realizado:75,periodo:'out/2026'}},
+        {data:{pid:99,nome:'Indicador de inspeção',meta:10,realizado:4,periodo:'out/2026'}},{data:{arq_id:'pc',nome:'Indicador de controle',meta:20,realizado:12}}]})};
+      window.processosRepository={colRef:()=> 'processos',list:async()=>({docs:[{data:{id:99,arq_id:'sa'}}]})};
+      projRenderIndicadoresPage();
+    });
+    await page.selectOption('#proj-ind-filter-proj','1');
+    await page.waitForFunction(()=>document.getElementById('proj-ind-processos')?.textContent.includes('Indicador de inspeção'));
+    assert.equal(await page.locator('#proj-ind-processos tbody tr').count(),2);
+    assert.equal(await page.locator('#proj-ind-processos input').count(),0);
+    assert.ok(!(await page.locator('#proj-ind-processos').innerText()).includes('Indicador de controle'));
+    await page.evaluate(()=>processIndicatorCallbacks.kpis({forEach:fn=>fn({data:()=>({arq_id:'pa',nome:'Indicador atualizado',meta:100,realizado:80})})}));
+    assert.match(await page.locator('#proj-ind-processos').innerText(),/Indicador atualizado/);
+    await page.selectOption('#proj-ind-filter-proj','3');
+    assert.match(await page.locator('#proj-ind-processos').innerText(),/Vincule os processos impactados/);
     assert.deepEqual(errors, []);
     console.log('Projetos: arquitetura, filtro, vínculos e persistência verificados no Chromium.');
   } finally {
