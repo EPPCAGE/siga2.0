@@ -30,7 +30,8 @@
     )).map(key));
     return (indicators || []).flatMap(ind => {
       const node = resolve(ind, all, mapped);
-      return node && impacted.has(key(node)) ? [{ind,processo:node.nome,macro:node.macro,arq_id:node.arq_id}] : [];
+      const direct = (ind.projeto_ids || []).some(projectId=>id(projectId)===id(project.id));
+      return direct || (node && impacted.has(key(node))) ? [{ind,processo:node?.nome || 'Sem processo vinculado',macro:node?.macro || '',arq_id:node?.arq_id || ''}] : [];
     }).sort((a, b) =>
       String(a.processo || '').localeCompare(String(b.processo || ''), 'pt-BR', {sensitivity:'base'}) ||
       String(a.macro || '').localeCompare(String(b.macro || ''), 'pt-BR', {sensitivity:'base'}) ||
@@ -84,5 +85,13 @@
       period(a.ind.periodo) - period(b.ind.periodo)
     );
   }
-  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart};
+  function architectureMatches(project, architecture, indicators, mapped, itemId, macroName) {
+    const all = nodes(architecture);
+    const linked = new Set((indicators || []).filter(ind=>(ind.projeto_ids || []).some(projectId=>id(projectId)===id(project.id)))
+      .map(ind=>resolve(ind,all,mapped)).filter(Boolean).map(key));
+    return all.some(node=>node.arq_id===id(itemId) && node.macro===macroName && (
+      linked.has(key(node)) || (project.processos_impactados || []).some(link=>node.macro_id===id(link.macro_id) && node.parent_id===id(link.processo_id))
+    ));
+  }
+  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart, architectureMatches};
 })(globalThis);

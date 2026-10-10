@@ -1,6 +1,7 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const {readFileSync} = require('node:fs');
 
 // Testa a tela real com dados controlados, sem autenticação ou acesso à produção.
 (async () => {
@@ -100,6 +101,14 @@ const path = require('node:path');
     assert.match(await page.locator('#proj-ind-processos').innerText(),/Indicador atualizado/);
     await page.selectOption('#proj-ind-filter-proj','3');
     assert.match(await page.locator('#proj-ind-processos').innerText(),/Vincule os processos impactados/);
+    await page.evaluate(()=>processIndicatorCallbacks.kpis({forEach:fn=>{
+      fn({data:()=>({arq_id:'pc',nome:'Indicador associado diretamente',projeto_ids:['3'],meta:100,realizado:40,periodo:'out/2026'})});
+    }}));
+    assert.match(await page.locator('#proj-ind-processos').innerText(),/Indicador associado diretamente/);
+    assert.equal(await page.locator('#proj-ind-processos tbody tr').count(),1);
+    assert.match(await page.locator('.proj-v9-meta-list').innerText(),/Indicador associado diretamente/);
+    await page.evaluate(()=>{PROJETOS[2].dt_inicio='2026-01-01';projRenderIndicadoresPage();});
+    assert.equal(await page.locator('#proj-ind-timeline li').count(),1);
     assert.deepEqual(errors, []);
     const chartOrder = await page.evaluate(()=>{
       const rows=[
@@ -116,6 +125,68 @@ const path = require('node:path');
     assert.match(chartOrder[1],/^Acessos.*fevereiro\/2026/);
     assert.match(chartOrder[2],/^Prazo.*dez\/2025/);
     assert.match(chartOrder[3],/^Prazo.*janeiro\/2026/);
+    const processesHtml=readFileSync(path.resolve(__dirname,'../../processos.html'),'utf8');
+    const projectFunctions=['_kpiPopulateProjectSelector','_kpiReadCommonFields','_kpiSaveMultiPeriods'].map(name=>
+      processesHtml.match(new RegExp('(?:async )?function '+name+'\\([^]*?\\n}'))[0]).join('\n');
+    await page.setContent('<select id="nkpi-projetos" multiple></select>'+['proc','codigo','desc','period','ciclo','ppe','unidade','polaridade'].map(id=>`<input id="nkpi-${id}">`).join(''));
+    await page.addScriptTag({content:projectFunctions});
+    await page.evaluate(()=>{
+      window.esc=value=>String(value);
+      window.fbReady=()=>true;
+      window.projetosRepository={list:async()=>({docs:[{data:{id:1,nome:'Projeto A'}},{data:{id:2,nome:'Projeto B'}}]})};
+      window._kpiParseProcessSelection=()=>({pid:null,arq_id:null});
+      window._kpiNavFlushCurrent=()=>{};
+      window._kpiPromotedOrigin=value=>value;
+      window._kpiApplyPeriodEdits=()=>{};
+      window._kpiRefreshPct=()=>{};
+    });
+    await page.evaluate(()=>_kpiPopulateProjectSelector({projeto_ids:['2']}));
+    assert.deepEqual(await page.locator('#nkpi-projetos').evaluate(el=>[...el.selectedOptions].map(option=>option.value)),['2']);
+    await page.selectOption('#nkpi-projetos',['1','2']);
+    const linkedPeriods=await page.evaluate(()=>{
+      window.kpis=[{id:1,periodo:'jan/2026'},{id:2,periodo:'fev/2026'}];
+      _kpiSaveMultiPeriods('Auditoria','Indicador',window.kpis);
+      return window.kpis.map(k=>k.projeto_ids);
+    });
+    assert.deepEqual(linkedPeriods,[['1','2'],['1','2']]);
+    await page.selectOption('#nkpi-projetos',[]);
+    assert.deepEqual(await page.evaluate(()=>_kpiReadCommonFields('Auditoria','Indicador').projeto_ids),[]);
+    await page.setContent('<select id="arq-f-projeto"></select><select id="ind-projeto-sel"></select><select id="ind-area-sel"><option value="">Todas</option><option>Outra área</option></select><div id="ind-c"></div>');
+    const filterFunctions=['_populateProjetoFilters','getProjetosVinculaveis','getArqFilters','itemMatchesFilters','_itemMatchesBaseFilters','_itemMatchesMatFilter','_itemMatchesSearch','rInd'].map(name=>
+      processesHtml.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0]).join('\n');
+    await page.addScriptTag({content:filterFunctions});
+    await page.evaluate(()=>{
+      window.PROJETOS_USUARIOS=[];
+      window.ARQUITETURA=[{id:'a',nome:'Auditoria',processos:[{id:'pa',nome:'Auditar'}]},{id:'b',nome:'Controle',processos:[{id:'pb',nome:'Controlar'}]}];
+      window.processos=[];
+      window.kpis=[{nome:'Impactado',arq_id:'pa'},{nome:'Direto',arq_id:'pb',projeto_ids:['2']},{nome:'Outro'}];
+      window._fbLoadProjetosUsuarios=async()=>{window.PROJETOS_USUARIOS=[{id:1,nome:'Ativo',status:'ativo'},{id:2,nome:'Concluído',status:'concluido',processos_impactados:[{macro_id:'a',processo_id:'pa'}]},{id:3,nome:'Cancelado',status:'cancelado'}];};
+      window._projetoFiltersState={loaded:false,loading:false};
+      window._indCharts=[];
+      window.populateIndFilters=()=>{};
+      window._periodoInIntervalo=()=>true;
+      window.kpiGroupByKey=items=>Object.fromEntries(items.map(item=>[item.nome,[item]]));
+      window.kpiApplyMetaFallback=()=>{};
+      window.kpiGrupoCardHTML=(key)=>`<div>${key}</div>`;
+      window.createKpiChart=()=>{};
+      window.injectIaIndicadores=()=>{};
+      _populateProjetoFilters();
+    });
+    await page.waitForFunction(()=>document.querySelectorAll('#arq-f-projeto option').length===3);
+    assert.deepEqual(await page.locator('#arq-f-projeto option').allTextContents(),['Todos','Ativo (ativo)','Concluído (concluido)']);
+    assert.equal(await page.locator('#ind-projeto-sel option').count(),3);
+    await page.selectOption('#arq-f-projeto','2');
+    assert.deepEqual(await page.evaluate(()=>{
+      const f=getArqFilters();return ARQUITETURA.flatMap(m=>m.processos.filter(p=>itemMatchesFilters(p,m.nome,f)).map(p=>p.nome));
+    }),['Auditar','Controlar']);
+    await page.selectOption('#ind-projeto-sel','2');
+    await page.evaluate(()=>rInd());
+    assert.equal(await page.locator('#ind-c').innerText(),'Impactado\nDireto');
+    assert.equal(await page.locator('#ind-projeto-sel').inputValue(),'2');
+    await page.selectOption('#ind-area-sel','Outra área');
+    await page.evaluate(()=>rInd());
+    assert.ok(!(await page.locator('#ind-c').innerText()).includes('Impactado'));
+    assert.deepEqual(errors, []);
     console.log('Projetos: arquitetura, filtro, vínculos e persistência verificados no Chromium.');
   } finally {
     await browser.close();

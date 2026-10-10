@@ -5661,10 +5661,10 @@ function projIndicadoresProcessosHtml(project, rows) {
   let content;
   if(_projIndicadoresProcessos.loading) content='<p>Carregando indicadores dos processos impactados…</p>';
   else if(_projIndicadoresProcessos.error) content='<p>Não foi possível carregar os indicadores dos processos.</p><button type="button" class="proj-btn" onclick="projRetryIndicadoresProcessos()">Tentar novamente</button>';
-  else if(!project.processos_impactados?.length) content='<p>Vincule os processos impactados na aba Aprovação do projeto para consultar seus indicadores.</p>';
+  else if(!project.processos_impactados?.length && !rows.length) content='<p>Vincule os processos impactados na aba Aprovação do projeto ou associe indicadores ao projeto no módulo de Processos.</p>';
   else if(!rows.length) content='<p>Nenhum indicador dos processos impactados encontrado para os filtros atuais.</p>';
   else content=`<table class="proj-v9-table"><thead><tr><th>Processo</th><th>Indicador</th><th>Período</th><th>Meta</th><th>Resultado</th><th>Unidade</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${projEsc(r.processo)}<div style="font-size:11px;color:var(--ink3)">${projEsc(r.macro)}</div></td><td>${projEsc(r.ind.nome||'Indicador')}</td><td>${projEsc(r.ind.periodo||'—')}</td><td>${projEsc(r.ind.meta ?? '—')}</td><td>${projEsc(r.ind.resultado ?? '—')}</td><td>${projEsc(r.ind.unidade||'')}</td></tr>`).join('')}</tbody></table>`;
-  return `<div class="proj-v9-chart-card" id="proj-ind-processos" style="grid-column:1 / -1"><div class="proj-card-t">Indicadores dos processos impactados</div><p style="font-size:12px;color:var(--ink3)">Valores atualizados pelo módulo de Processos.</p>${content}</div>`;
+  return `<div class="proj-v9-chart-card" id="proj-ind-processos" style="grid-column:1 / -1"><div class="proj-card-t">Indicadores vinculados e dos processos impactados</div><p style="font-size:12px;color:var(--ink3)">Valores atualizados pelo módulo de Processos.</p>${content}</div>`;
 }
 
 function projIndicadoresTimelineHtml(project, rows) {
