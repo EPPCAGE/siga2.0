@@ -10,6 +10,11 @@ const data={processos:[{id:1,arq_id:'p',nome:'Auditar contratos',macro:'Auditori
   projetos:[{id:2,nome:'Melhoria da emissão',status:'concluido',planejamento:{riscos:[{descricao:'Atraso na entrega'}]}}],
   publicacoes:[{titulo:'POP de fiscalização',categoria:'POPs',url:'https://example.org/pop'},{titulo:'Outro manual',categoria:'Manual'}]};
 describe('busca geral',()=>{
+  it('separa os detalhes por linhas com rótulos e não repete o título do risco',()=>{
+    const row=search('riscos','emissao',data)[0];
+    expect(row.detail).toBe('Processo: Auditar contratos\nMacroprocesso: Auditoria\nTratamento: Revisar prazo');
+    expect(row.detail).not.toContain(row.title);
+  });
   it('busca sem acentos e combina palavras em qualquer ordem',()=>{
     expect(search('riscos','prazo emissao',data)).toHaveLength(1);
     expect(search('riscos','atraso',data)).toHaveLength(2);
