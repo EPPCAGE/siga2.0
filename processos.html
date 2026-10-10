@@ -14457,9 +14457,34 @@ function _xlsFindCol(keys, variants){
   }
   return null;
 }
+function _kpiDiscontinuedKey(k){
+  const code=String(k.codigo || '').trim();
+  const name=String(k.nome || '').trim();
+  if(!code && !name) return '';
+  return encodeURIComponent((code?'codigo:':'nome:')+(code || name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').toLowerCase());
+}
+function _kpiDiscontinuedRegistry(){
+  if(!globalThis._kpiDiscontinued){
+    try { globalThis._kpiDiscontinued=JSON.parse(typeof lsGet==='function'?lsGet('kpis_descontinuados') || '{}':'{}'); }
+    catch { globalThis._kpiDiscontinued={}; }
+  }
+  return globalThis._kpiDiscontinued;
+}
+function _kpiIsDiscontinued(k){
+  return !!_kpiDiscontinuedRegistry()[_kpiDiscontinuedKey(k)];
+}
+async function _kpiLoadDiscontinued(){
+  const registry=_kpiDiscontinuedRegistry();
+  if(typeof fbReady==='function' && fbReady()){
+    const snap=await configRepository.get('kpis_descontinuados',{fromServer:true});
+    if(snap.exists()) Object.assign(registry,snap.data().indicadores || {});
+    if(typeof lsSet==='function') lsSet('kpis_descontinuados',JSON.stringify(registry));
+  }
+}
 async function importarIndicadores(input){
   const file = input.files[0]; if(!file) return;
     try{
+      await _kpiLoadDiscontinued();
       const wb = XLSX.read(await file.arrayBuffer(), {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
@@ -14528,6 +14553,7 @@ async function importarIndicadores(input){
         const groupKey = (nome||enunc||'').trim();
         const chaveImp = groupKey + '|' + periodo.trim();
         if(!area && !nome && !enunc) return; // skip empty rows
+        if(_kpiIsDiscontinued({codigo:nome,nome:enunc || nome})) return;
         if(editadosImport.has(chaveImp)) return; // skip manually edited periods
         const cfg = cfgEditadoImport[groupKey] || {};
         const metaFinal = cMeta ? meta : (cfg.meta ?? null);
@@ -15486,14 +15512,26 @@ function salvarNovoKpi(){
 function deletarKpi(id){
   const delId = id || Number.parseInt(document.getElementById('nkpi-edit-idx').value);
   if(!delId) return;
-  confirmar('Remover este indicador?', () => {
-    kpis = kpis.filter(k=>k.id !== delId);
-    if(fbReady()){
-      kpisRepository.remove(delId).catch(e=>console.warn('deleteKpi error:',e.message));
-      _fbSyncCache.kpis.delete(String(delId));
-    }
-    document.getElementById('novo-kpi-modal').style.display = 'none';
-    rInd(); toast('Indicador removido', 'var(--amber)');
+  const indicator=kpis.find(k=>String(k.id)===String(delId));
+  if(!indicator) return;
+  const key=_kpiDiscontinuedKey(indicator);
+  confirmar('Descontinuar este indicador? Todos os seus períodos serão removidos da lista e não voltarão nas importações ou sincronizações.', async () => {
+    try {
+      const removed=kpis.filter(k=>_kpiDiscontinuedKey(k)===key);
+      const record={codigo:indicator.codigo || '',nome:indicator.nome || '',descontinuado_em:new Date().toISOString()};
+      if(fbReady()){
+        await FirestoreRepositories.batchCommit([
+          {type:'set',ref:configRepository.ref('kpis_descontinuados'),data:{indicadores:{[key]:record}},options:{merge:true}},
+          ...removed.map(k=>({type:'delete',ref:kpisRepository.ref(k.id)}))
+        ]);
+        removed.forEach(k=>_fbSyncCache.kpis.delete(String(k.id)));
+      }
+      _kpiDiscontinuedRegistry()[key]=record;
+      lsSet('kpis_descontinuados',JSON.stringify(_kpiDiscontinuedRegistry()));
+      kpis=kpis.filter(k=>_kpiDiscontinuedKey(k)!==key);
+      document.getElementById('novo-kpi-modal').style.display = 'none';
+      rInd(); toast('Indicador descontinuado', 'var(--amber)');
+    } catch(error){toast('Não foi possível descontinuar o indicador: '+error.message,'var(--red)');}
   });
 }
 
@@ -15582,6 +15620,7 @@ function _gsheetsRowToKpi(row, cols, cfgEditadoSync, editados){
   const nome = val(cols.cCodigo);
   const enunc = val(cols.cEnunc);
   if(!area && !nome && !enunc) return null;
+  if(_kpiIsDiscontinued({codigo:nome,nome:enunc || nome})) return null;
   const periodo = fmtPeriodo(cols.cPeriodo ? row[cols.cPeriodo] : '');
   const chave = (nome||enunc||'').trim() + '|' + periodo.trim();
   if(editados.has(chave)) return null;
@@ -15638,6 +15677,7 @@ async function sincronizarGSheets(){
 
   if(statusEl) statusEl.textContent = '⏳ Sincronizando...';
   try{
+    await _kpiLoadDiscontinued();
     const csvText = await _fetchGsheetsCsv(url);
     const wb = XLSX.read(csvText, {type:'string', raw:true});
     const ws = wb.Sheets[wb.SheetNames[0]];
@@ -18428,10 +18468,11 @@ async function _fbLoadProcessos(){
   if(allEtapaNums.length) etapasIdC = Math.max(...allEtapaNums) + 1;
 }
 async function _fbLoadKpis(){
+  await _kpiLoadDiscontinued();
   const kSnap = await kpisRepository.list();
   if(kSnap.empty) return;
   kpis = [];
-  kSnap.docs.forEach(d => kpis.push(d.data));
+  kSnap.docs.forEach(d => {if(!_kpiIsDiscontinued(d.data)) kpis.push(d.data);});
   _fbSeedCollectionCache(_fbSyncCache.kpis, kpis, true);
   _kpiIdC = Math.max(...kpis.map(k=>k.id), 0) + 1;
 }
