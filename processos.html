@@ -27,7 +27,7 @@
 <script src="src/shared/firestore-repositories.js"></script>
 <script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
 <script src="src/shared/indicadores-impactados.js?v=20261010-2"></script>
-<script src="src/shared/busca-geral.js?v=20261010-1"></script>
+<script src="src/shared/busca-geral.js?v=20261010-3"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -2473,7 +2473,38 @@ async function doLogout(){
 // ═══════════════════════════════════════════
 // NAVEGAÇÃO
 // ═══════════════════════════════════════════
+function _mappingAccessRestricted(){
+  return ['dono','gestor'].includes(typeof usuarioLogado==='undefined'?'':usuarioLogado?.perfil);
+}
+function _mappingTaskAllowed(){
+  const context=globalThis._mappingTaskContext;
+  return !!context && !!curProc && context.id===String(curProc.id) && context.etapa===curProc.etapa &&
+    context.user===usuarioLogado?.email && getTarefasUsr().some(p=>String(p.id)===context.id);
+}
+function abrirTarefaProcesso(id){
+  const process=getTarefasUsr().find(p=>String(p.id)===String(id));
+  if(!process){_blockMappingAccess();return;}
+  globalThis._mappingTaskContext={id:String(process.id),etapa:process.etapa,user:usuarioLogado?.email};
+  abrirProc(process.id,true);
+}
+function _blockMappingAccess(allowTask=false){
+  if(!_mappingAccessRestricted()) return false;
+  if(allowTask && _mappingTaskAllowed()) return false;
+  globalThis._mappingTaskContext=null;
+  curProc=null;
+  ['processos','detalhe','novo'].forEach(page=>{
+    const element=document.getElementById('page-'+page);
+    element?.classList.remove('on');
+  });
+  document.querySelectorAll('#page-detalhe .tab-p').forEach(element=>{element.innerHTML='';});
+  go('meusprocessos',document.getElementById('nb-meusproc'));
+  return true;
+}
 function go(page,btn){
+  if(_mappingAccessRestricted() && ['processos','detalhe','novo'].includes(page)){
+    if(page==='detalhe' && _mappingTaskAllowed()) return;
+    _blockMappingAccess();return;
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
   document.getElementById('page-'+page).classList.add('on');
@@ -2540,6 +2571,8 @@ globalThis.addEventListener('resize',()=>{
   if(curProc && document.getElementById('page-detalhe')?.classList.contains('on'))rDetalhe();
 });
 function stab(id,el){
+  if(_blockMappingAccess(true)) return;
+  if(_mappingAccessRestricted() && !['acao','hist'].includes(id)) return;
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.tab-p').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
@@ -3629,11 +3662,12 @@ function rMeusProc(){
   }
   updCounts();
 }
-function abrirInfoMeusProc(arqId){
-  const item = findArqItemById(arqId);
+function abrirInfoMeusProc(arqId,processId){
+  const linkedProcess=processos.find(p=>processId!=null?String(p.id)===String(processId):arqId!=null && String(p.arq_id)===String(arqId));
+  const item = (arqId!=null?findArqItemById(arqId):null) || linkedProcess;
   if(!item) return;
   const u = getMinhasUnidades().find(x=>x.arq_id===arqId);
-  const proc = u?.proc || null;
+  const proc = u?.proc || linkedProcess || null;
   const tipo = u?.isSub ? 'Subprocesso' : 'Processo';
   const parentSuffix = u?.parentNome ? ' › '+esc(u.parentNome) : '';
   const breadcrumb = u ? esc(u.macro)+parentSuffix : '';
@@ -4172,7 +4206,7 @@ function taskCard(p,ACT){
   const prazoColor=venc?'var(--red)':'var(--ink3)';
   const prazoHtml=prazo?`<span style="font-size:11px;color:${prazoColor}">📅 ${prazoLabel}: ${prazo.split('-').reverse().join('/')}</span>`:'';
   const vencBorder=venc||isVencido(p)?'border-left:3px solid var(--red);':'';
-  return `<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirProc(${p.id})" style="margin-bottom:8px;${vencBorder}">
+  return `<div class="prc ${p.prio==='Critica'?'urg':''}" onclick="abrirTarefaProcesso(${p.id})" style="margin-bottom:8px;${vencBorder}">
     <div><div class="prc-t">${esc(p.nome)}</div>
     <div style="font-size:12px;color:var(--ink3);margin-top:3px">${esc(ACT[p.etapa]||p.etapa)}</div>
     <div class="prc-m" style="margin-top:4px"><strong>${esc(p.macro)}</strong> · ${esc(p.area)}</div>
@@ -4232,6 +4266,7 @@ function aplicarPermissoes(){
   const nbNotif = document.getElementById('nb-notif');
   if(nbNotif) nbNotif.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
+  if(_mappingAccessRestricted() && document.querySelector('#page-processos.on, #page-detalhe.on, #page-novo.on')) _blockMappingAccess(true);
 }
 
 function buildArqStatsHTML(f){
@@ -4513,6 +4548,7 @@ function _procCombinaFiltros(p, { isConcluidos, faseAtual, filtEP, filtDono, fil
     && (!filtProd || p.produto === filtProd);
 }
 function renderProcs(){
+  if(_blockMappingAccess()) return;
   aplicarPermissoes();
   const srch=(document.getElementById('srch-p')?.value||'').toLowerCase();
   const isDono=usuarioLogado?.perfil==='dono';
@@ -4590,7 +4626,10 @@ function excluirMapeamento(id){
     toast('Mapeamento "'+p.nome+'" excluído.','var(--red)');
   });
 }
-function abrirProc(id){
+function abrirProc(id,fromTask=false){
+  if(!fromTask || !getTarefasUsr().some(p=>String(p.id)===String(id))) globalThis._mappingTaskContext=null;
+  if(fromTask && _mappingAccessRestricted()) curProc=processos.find(p=>String(p.id)===String(id));
+  if(_blockMappingAccess(fromTask)) return;
   curProc=processos.find(p=>p.id===id);
   // Keep etapasIdC ahead of any existing etapa IDs in this process
   const nums=[...(curProc?.mod?.etapas_proc||[]),...(curProc?.mod?.etapas_proc_tobe||[])].map(e=>Number.parseInt(String(e.id||'').replaceAll('ep',''))||0);
@@ -4605,6 +4644,7 @@ function abrirProc(id){
   navAtiva?.classList.add('on');
 }
 function rDetalhe(){
+  if(_blockMappingAccess(true)) return;
   const p=curProc;
   _migrarMatModa(p);
   _migrarQuestHist(p);
@@ -4614,19 +4654,19 @@ function rDetalhe(){
   document.getElementById('det-prio').innerHTML=pBadge(p.prio)
     +(p.arq_id?` <button type="button" class="btn" data-arq-id="${esc(p.arq_id)}" onclick="abrirHistoricoRegistrosProcesso(this.dataset.arqId)">Registros do processo</button>`:'')
     +(isEP()?` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Editar dono, interessados e produto" onclick="abrirEditarMetadados()">✎ Editar</button>`:'')
-    +(isEP()||usuarioLogado?.perfil==='gestor' ? _renderCicloBar(p) : '');
+    +(!_mappingAccessRestricted() && (isEP()||usuarioLogado?.perfil==='gestor') ? _renderCicloBar(p) : '');
   epRetroEtapa = null;
   const _etapasEfetivas=getEtapas(p);
   const idx=_etapasEfetivas.findIndex(e=>e.id===p.etapa);
-  const epUser=isEP();
+  const epUser=!_mappingAccessRestricted() && isEP();
   document.getElementById('det-prog').innerHTML=renderDetalheWorkflow(p,_etapasEfetivas,idx,epUser);
-  if(usuarioLogado?.perfil==='dono'){
+  if(_mappingAccessRestricted()){
     const etObj=_etapasEfetivas.find(e=>e.id===p.etapa);
-    const minhaTarefa=etObj?.resp==='dono'&&p.dono===usuarioLogado.nome;
+    const minhaTarefa=_mappingTaskAllowed();
     document.getElementById('det-tabs').innerHTML=
       `<div class="tab on" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('acao',this)">${minhaTarefa?'Minha tarefa':'Sobre o processo'}</div>`+
       `<div class="tab" role="tab" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}" onclick="stab('hist',this)">Histórico</div>`;
-    ['ent','form','plim','mon'].forEach(id=>{
+    ['ent','form','plim','mon','anex','reun'].forEach(id=>{
       const el=document.getElementById('tab-'+id);
       if(el){el.innerHTML='';el.classList.remove('on');}
     });
@@ -7195,6 +7235,7 @@ function _rAcaoAppendEPBars(el, p, isPulada){
   el.appendChild(bar);
 }
 function rAcao(p){
+  if(_blockMappingAccess(true)) return;
   const role=usuarioLogado?.perfil||'ep';
   const el=document.getElementById('tab-acao');
   const ac=ACOES[p.etapa];
@@ -13367,6 +13408,9 @@ function _buscaPodeAbrir(type,target){
 function abrirResultadoBusca(button){
   const target=JSON.parse(button.dataset.target);
   if(!_buscaPodeAbrir(button.dataset.searchType,target)) return;
+  if(target.kind==='info-processo'){
+    abrirInfoMeusProc(target.arqId,target.processId);return;
+  }
   if(target.kind==='processo'){
     const process=processos.find(p=>String(p.id)===String(target.id));
     if(process) abrirProc(process.id);
@@ -13403,8 +13447,9 @@ function rBuscaGeral(type){
   if(count) count.textContent=rows.length+' resultado(s)';
   container.innerHTML=rows.length?rows.map(row=>{
     const target=row.target;
+    const actionLabel=target.kind==='info-processo'?'Sobre o processo':'Abrir';
     const url=target.kind==='projeto'?'projetos.html?projeto='+encodeURIComponent(target.id)+'&aba=execucao#exec-cronograma-section':target.kind==='publicacao'?safeUrl(target.url || ''):'';
-    const action=!_buscaPodeAbrir(type,target)?'':url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-search-type="${esc(type)}" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this)">Abrir</button>`;
+    const action=!_buscaPodeAbrir(type,target)?'':url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-search-type="${esc(type)}" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this)">${actionLabel}</button>`;
     return `<div class="ib ibb" style="margin-bottom:12px"><strong>${esc(row.title)}</strong><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(row.detail)}</p>${action}</div>`;
   }).join(''):'<div class="ib ibb">Nenhum resultado encontrado para a busca.</div>';
 }
