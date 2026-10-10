@@ -5666,6 +5666,26 @@ function projIndicadoresProcessosHtml(project, rows) {
   return `<div class="proj-v9-chart-card" id="proj-ind-processos" style="grid-column:1 / -1"><div class="proj-card-t">Indicadores dos processos impactados</div><p style="font-size:12px;color:var(--ink3)">Valores atualizados pelo módulo de Processos.</p>${content}</div>`;
 }
 
+function projIndicadoresTimelineHtml(project, rows) {
+  const heading = '<div class="proj-card-t">Resultados na linha do tempo</div>';
+  let content;
+  if(!project) content='<p>Selecione um projeto para visualizar a evolução dos indicadores.</p>';
+  else if(!project.dt_inicio) content='<p>Informe a data de início do projeto para visualizar a linha do tempo.</p>';
+  else if(_projIndicadoresProcessos.loading) content='<p>Carregando resultados…</p>';
+  else if(_projIndicadoresProcessos.error) content='<p>Não foi possível carregar os resultados. Tente novamente na seção de indicadores dos processos.</p>';
+  else {
+    const groups = new Map();
+    IndicadoresImpactados.timeline(project,rows).forEach(row => {
+      const key = JSON.stringify([row.macro,row.arq_id,row.ind.codigo || row.ind.nome,row.ind.unidade]);
+      if(!groups.has(key)) groups.set(key,{row,points:[]});
+      groups.get(key).points.push(row.ind);
+    });
+    content = `<p>A partir de ${projEsc(projFormatDate(project.dt_inicio))}, inclusive após o término do projeto. Apenas meses com resultados registrados.</p>`;
+    content += groups.size ? [...groups.values()].map(({row,points}) => `<div class="proj-ind-timeline-series"><strong>${projEsc(row.ind.nome || 'Indicador')}</strong><div class="proj-v9-meta-context">${projEsc(row.processo || project.nome)}${row.macro ? ` · ${projEsc(row.macro)}` : ''}</div><ol class="proj-ind-timeline-points">${points.map(ind => `<li><span>${projEsc(ind.periodo)}</span><strong>${projEsc(IndicadoresImpactados.number(ind.resultado ?? ind.realizado ?? ind.atual).toLocaleString('pt-BR',{maximumFractionDigits:2}))}</strong><span>${projEsc(ind.unidade || '')}</span></li>`).join('')}</ol></div>`).join('') : '<p>Nenhum resultado registrado no período do projeto para os filtros atuais.</p>';
+  }
+  return `<div class="proj-v9-chart-card" id="proj-ind-timeline" style="grid-column:1 / -1">${heading}${content}</div>`;
+}
+
 function projRenderIndicadoresPage() {
   projLoad();
   const el = document.getElementById('proj-indicadores-content');
@@ -5684,8 +5704,9 @@ function projRenderIndicadoresPage() {
   const impactedMacros=projProcessosArquitetura().filter(node=>projetos.some(p=>(p.processos_impactados||[]).some(link=>String(link.macro_id)===node.macro_id && String(link.processo_id)===node.processo_id))).map(node=>node.macro);
   const macroOpts = [...new Set([...projOptionsFromProjetos(projetos, p => projDimensoesProjeto(p).macros),...impactedMacros])].sort(projTextCompare).map(v => `<option value="${projEsc(v)}" ${v===fArea?'selected':''}>${projEsc(v)}</option>`).join('');
   const chart = projIndicadoresMetaChart([...rows,...processRows.filter(row=>row.ind.meta!==null && row.ind.resultado!==null)]);
+  const timeline = projIndicadoresTimelineHtml(selectedProject,[...processRows,...rows]);
   const table = rows.length ? `<table class="proj-v9-table"><thead><tr><th>Projeto</th><th>Indicador</th><th>Meta</th><th>Resultado</th><th>Unidade</th><th></th></tr></thead><tbody>${rows.map(r => `<tr><td>${projEsc(r.p.nome)}</td><td><input class="proj-fi" value="${projEsc(r.ind.nome||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'nome',this.value)"></td><td><input class="proj-fi" type="number" step="0.01" value="${projEsc(r.ind.meta||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'meta',this.value)"></td><td><input class="proj-fi" type="number" step="0.01" value="${projEsc(r.ind.resultado ?? r.ind.atual ?? '')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'resultado',this.value)"></td><td><input class="proj-fi" value="${projEsc(r.ind.unidade||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'unidade',this.value)"></td><td><button type="button" class="proj-btn danger" style="font-size:11px;padding:4px 8px" onclick="projRemoveIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx})">Remover</button></td></tr>`).join('')}</tbody></table>` : '<div class="proj-v9-chart-card" style="font-size:12px;color:var(--ink3)">Nenhum indicador encontrado para os filtros atuais.</div>';
-  projSetHtml(el, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros e edição</div><div class="proj-v9-filter-grid"><div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-ind-filter-proj" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${projetosOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Macroprocesso</label><select class="proj-fi" id="proj-ind-filter-area" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${macroOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Adicionar em projeto</label><select class="proj-fi" id="proj-ind-add-proj"><option value="">Selecione</option>${projetosOpts}</select></div><div style="display:flex;align-items:end"><button type="button" class="proj-btn primary" onclick="projAddIndicadorProjetoGlobal()">+ Indicador</button></div></div></div><div class="proj-v9-bi-grid"><div>${chart}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Indicadores cadastrados</div>${table}</div>${projIndicadoresProcessosHtml(selectedProject,processRows)}</div>`);
+  projSetHtml(el, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros e edição</div><div class="proj-v9-filter-grid"><div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-ind-filter-proj" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${projetosOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Macroprocesso</label><select class="proj-fi" id="proj-ind-filter-area" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${macroOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Adicionar em projeto</label><select class="proj-fi" id="proj-ind-add-proj"><option value="">Selecione</option>${projetosOpts}</select></div><div style="display:flex;align-items:end"><button type="button" class="proj-btn primary" onclick="projAddIndicadorProjetoGlobal()">+ Indicador</button></div></div></div><div class="proj-v9-bi-grid"><div>${chart}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Indicadores cadastrados</div>${table}</div>${timeline}${projIndicadoresProcessosHtml(selectedProject,processRows)}</div>`);
 }
 
 function projUpdateIndicadorGlobal(projId, idx, field, value) {

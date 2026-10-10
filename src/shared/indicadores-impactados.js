@@ -51,12 +51,20 @@
     return result === 0 && /^(importado|gsheets)(_editado)?$/.test(ind.origem || '') && ind.meta_definida !== true ? null : result;
   }
   function period(value) {
-    const text = String(value || '').toLowerCase();
+    const text = String(value || '').trim().toLowerCase();
     const months = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
     const named = text.match(/^([a-zç]+)\/(\d{4})$/);
     if(named) return Number(named[2])*12 + months.indexOf(named[1].slice(0,3));
     const iso = text.match(/^(\d{4})-(\d{2})/);
     return iso ? Number(iso[1])*12 + Number(iso[2])-1 : 0;
+  }
+  function timeline(project, rows) {
+    const start = period(project.dt_inicio);
+    if(!start) return [];
+    return rows.filter(row => {
+      const month = period(row.ind.periodo);
+      return month >= start && !row.ind.sem_dado && number(row.ind.resultado ?? row.ind.realizado ?? row.ind.atual) !== null;
+    }).slice().sort((a,b) => String(a.processo || '').localeCompare(String(b.processo || ''), 'pt-BR') || period(a.ind.periodo)-period(b.ind.periodo));
   }
   function meta(ind, indicators) {
     const name = String(ind.codigo || ind.nome || '').trim();
@@ -70,5 +78,5 @@
     }
     return result ?? series.map(explicitMeta).find(value=>value !== null) ?? null;
   }
-  globalScope.IndicadoresImpactados = {list, number, meta};
+  globalScope.IndicadoresImpactados = {list, number, meta, timeline};
 })(globalThis);

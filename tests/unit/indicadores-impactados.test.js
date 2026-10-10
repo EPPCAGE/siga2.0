@@ -10,6 +10,20 @@ function setup(){
   return{api:context.IndicadoresImpactados,architecture,project};
 }
 describe('Indicadores dos processos impactados',()=>{
+  it('mantém resultados após o término, ignora meses anteriores e meses sem dados, preservando zero',()=>{
+    const{api}=setup();
+    const project={dt_inicio:'2026-05-20',dt_fim:'2026-06-01',conclusao:{dt_conclusao:'2026-06-10'}};
+    const rows=[
+      {ind:{periodo:'dez/2027',resultado:12}},
+      {ind:{periodo:'abril/2026',resultado:4}},
+      {ind:{periodo:'maio/2026',resultado:0}},
+      {ind:{periodo:'junho/2026',resultado:null}},
+      {ind:{periodo:'julho/2026',resultado:8,sem_dado:true}},
+      {ind:{periodo:'agosto/2026',resultado:7}}
+    ];
+    expect(api.timeline(project,rows).map(row=>row.ind.resultado)).toEqual([0,7,12]);
+    expect(api.timeline({},rows)).toEqual([]);
+  });
   it('inclui o processo e seus subprocessos, com vínculos diretos e por mapeamento',()=>{
     const{api,architecture,project}=setup();
     const indicators=[{id:1,arq_id:'pa'},{id:2,pid:99},{id:3,pid:1},{id:4,arq_id:'pb'},{id:5}];
