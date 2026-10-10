@@ -79,14 +79,17 @@ const {readFileSync} = require('node:fs');
       window.fbReady=()=>true;
       window.processIndicatorCallbacks={};
       window.fb=()=>({onSnapshot:(ref,cb)=>{processIndicatorCallbacks[ref]=cb;return()=>{};}});
-      window.kpisRepository={colRef:()=> 'kpis',list:async()=>({docs:[{data:{arq_id:'pa',nome:'Indicador de auditoria',meta:100,realizado:75,periodo:'out/2026'}},
+      PROJETOS[0].execucao.indicadores=[{nome:'Indicador manual antigo',meta:100,resultado:30}];
+      window.kpisRepository={colRef:()=> 'kpis',list:async()=>({docs:[{data:{arq_id:'pa',nome:'Indicador de auditoria',projeto_ids:['1'],meta:100,realizado:75,periodo:'out/2026'}},
         {data:{pid:99,nome:'Indicador de inspeção',meta:10,realizado:4,periodo:'out/2026'}},{data:{arq_id:'pc',nome:'Indicador de controle',meta:20,realizado:12}}]})};
       window.processosRepository={colRef:()=> 'processos',list:async()=>({docs:[{data:{id:99,arq_id:'sa'}}]})};
       projRenderIndicadoresPage();
     });
     await page.selectOption('#proj-ind-filter-proj','1');
-    await page.waitForFunction(()=>document.getElementById('proj-ind-processos')?.textContent.includes('Indicador de inspeção'));
-    assert.equal(await page.locator('#proj-ind-processos tbody tr').count(),2);
+    await page.waitForFunction(()=>document.getElementById('proj-ind-processos')?.textContent.includes('Indicador de auditoria'));
+    assert.equal(await page.locator('#proj-ind-processos tbody tr').count(),1);
+    assert.ok(!(await page.locator('#proj-indicadores-content').innerText()).includes('Indicador de inspeção'));
+    assert.ok(!(await page.locator('#proj-indicadores-content').innerText()).includes('Indicador manual antigo'));
     assert.equal(await page.locator('#proj-ind-processos input').count(),0);
     assert.ok(!(await page.locator('#proj-ind-processos').innerText()).includes('Indicador de controle'));
     await page.evaluate(()=>{
@@ -95,13 +98,13 @@ const {readFileSync} = require('node:fs');
       PROJETOS[0].dt_fim='2026-09-30';
       projRenderIndicadoresPage();
     });
-    assert.equal(await page.locator('#proj-ind-timeline svg circle').count(),2);
+    assert.equal(await page.locator('#proj-ind-timeline svg circle').count(),1);
     assert.match(await page.locator('#proj-ind-timeline').innerText(),/out\/2026/);
     assert.match(await page.locator('#proj-ind-timeline').innerText(),/75/);
-    await page.evaluate(()=>processIndicatorCallbacks.kpis({forEach:fn=>fn({data:()=>({arq_id:'pa',nome:'Indicador atualizado',meta:100,realizado:80})})}));
+    await page.evaluate(()=>processIndicatorCallbacks.kpis({forEach:fn=>fn({data:()=>({arq_id:'pa',nome:'Indicador atualizado',projeto_ids:['1'],meta:100,realizado:80})})}));
     assert.match(await page.locator('#proj-ind-processos').innerText(),/Indicador atualizado/);
     await page.selectOption('#proj-ind-filter-proj','3');
-    assert.match(await page.locator('#proj-ind-processos').innerText(),/Vincule os processos impactados/);
+    assert.match(await page.locator('#proj-ind-processos').innerText(),/Nenhum indicador vinculado diretamente/);
     await page.evaluate(()=>processIndicatorCallbacks.kpis({forEach:fn=>{
       fn({data:()=>({arq_id:'pc',nome:'Indicador associado diretamente',projeto_ids:['3'],meta:100,realizado:40,periodo:'out/2026'})});
     }}));
