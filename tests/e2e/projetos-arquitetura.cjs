@@ -212,7 +212,7 @@ const {readFileSync} = require('node:fs');
         {id:3,nome:'Projeto cancelado',status:'cancelado',processos_impactados:[link]}];
       await renderProjetosDoProcesso({id:11,arq_id:'pa'});
     });
-    assert.equal(await page.locator('#info-proc-projetos tbody tr').count(),2);
+    assert.equal(await page.locator('#info-proc-projetos .process-impact-project').count(),2);
     assert.match(await page.locator('#info-proc-projetos').innerText(),/Concluído/);
     assert.ok(!(await page.locator('#info-proc-projetos').innerText()).includes('Projeto cancelado'));
     const scheduleHref=await page.locator('#info-proc-projetos a').last().getAttribute('href');
@@ -224,7 +224,7 @@ const {readFileSync} = require('node:fs');
       window.publicacoes=[];
       abrirInfoMeusProc('pa');
     });
-    await page.waitForFunction(()=>document.querySelectorAll('#info-proc-projetos tbody tr').length===2);
+    await page.waitForFunction(()=>document.querySelectorAll('#info-proc-projetos .process-impact-project').length===2);
     assert.equal(await page.locator('#info-proc-projetos a').count(),2);
     await page.setContent('<div id="proj-shell" class="on"><div id="proj-page-detalhe" class="proj-page"><div id="proj-detalhe-content"></div></div></div>');
     await page.evaluate(href=>{
