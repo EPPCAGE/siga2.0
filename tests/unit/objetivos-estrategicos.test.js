@@ -6,7 +6,7 @@ const source = readFileSync(new URL('../../src/shared/objetivos-estrategicos.js'
 const similar = [
   ['Aprimorar o assessoramento aos gestores públicos, provendo soluções de forma proativa e tempestiva', '[Articulação] Aprimorar o assessoramento aos gestores públicos'],
   ['Qualificar Informação Contábil', '[Processos] Qualificar a informação contábil'],
-  ['Otimizar a contribuição da auditoria para o aprimoramento dos processos da gestão pública estadual', '[Processos] Otimizar a contribuição da auditoria para o aprimoramento da gestão pública estadual'],
+  ['Otimizar a contribuição da auditoria para o aprimoramento da gestão pública estadual', '[Processos] Otimizar a contribuição da auditoria para o aprimoramento dos processos da gestão pública estadual'],
   ['Otimizar os processos de trabalho, com foco em melhoria da eficiência operacional e automação', '[Processos] Otimizar os processos de trabalho, com foco em eficiência operacional e automação']
 ];
 const pending = 'Aprimorar os Processos de Auditoria, com Base nas Melhores Práticas Internacionais';
@@ -32,11 +32,11 @@ describe('Objetivos estratégicos com fonte em Projetos', () => {
   it.each(similar)('corresponde a redação da arquitetura: %s', (from, to) => {
     expect(setup().api.canonical(from)).toBe(to);
   });
-  it('preserva o objetivo de auditoria como pendente sem adicioná-lo ao catálogo', () => {
+  it('substitui o antigo objetivo de auditoria pelo objetivo oficial', () => {
     const {api} = setup();
-    expect(api.canonical(pending)).toBe(pending);
-    const choice = api.choices(pending).find(item => item.value === pending);
-    expect(choice).toMatchObject({selected:true,pending:true});
+    expect(api.canonical(pending)).toBe(similar[2][1]);
+    expect(api.canonical(pending.replace(',',''))).toBe(similar[2][1]);
+    expect(api.choices(pending).find(item => item.value === similar[2][1])).toMatchObject({selected:true,pending:false});
     expect(api.defaults).not.toContain(pending);
     expect(api.choices('').some(item => item.value === pending)).toBe(false);
   });
@@ -45,7 +45,7 @@ describe('Objetivos estratégicos com fonte em Projetos', () => {
     const architecture = [{processos:[{objetivo_estrategico:`${similar[0][0]}; ${similar[1][0]}; ${similar[1][1]}`,subprocessos:[{objetivo_estrategico:`${similar[2][0]}; ${pending}`}]}]}];
     api.migrateArchitecture(architecture);
     expect(architecture[0].processos[0].objetivo_estrategico).toBe(`${similar[0][1]}; ${similar[1][1]}`);
-    expect(architecture[0].processos[0].subprocessos[0].objetivo_estrategico).toBe(`${similar[2][1]}; ${pending}`);
+    expect(architecture[0].processos[0].subprocessos[0].objetivo_estrategico).toBe(similar[2][1]);
     const migrated = JSON.stringify(architecture);
     api.migrateArchitecture(architecture);
     expect(JSON.stringify(architecture)).toBe(migrated);
@@ -75,5 +75,20 @@ describe('Objetivos estratégicos com fonte em Projetos', () => {
     const context = vm.createContext({fbReady:() => false,localStorage:{getItem:key => key === 'cage_objetivos_v6' ? JSON.stringify(localValues) : null},console});
     vm.runInContext(source, context);
     expect(context.ObjetivosEstrategicos.choices('').map(item => item.value)).toEqual(localValues);
+  });
+  it('remove o objetivo antigo de um catálogo já salvo e consolida as duas redações de auditoria',async()=>{
+    const {api,repo}=setup();
+    repo.get.mockResolvedValue(snapshot([...api.defaults,pending,similar[2][0]]));
+    await api.load();
+    expect(api.choices('')).toHaveLength(17);
+    expect(api.choices('').some(item=>item.value===pending)).toBe(false);
+  });
+  it('migra os vínculos do projeto e do canvas preservando os demais objetivos',()=>{
+    const {api}=setup();
+    const other=api.defaults[0];
+    const project={objetivos_estrategicos:[`[Processos] ${pending}`,similar[2][1],other],ideacao:{objetivo_estrategico:`${pending}; ${other}`}};
+    api.migrateProject(project);
+    expect(project.objetivos_estrategicos).toEqual([similar[2][1],other]);
+    expect(project.ideacao.objetivo_estrategico).toBe(`${similar[2][1]}; ${other}`);
   });
 });

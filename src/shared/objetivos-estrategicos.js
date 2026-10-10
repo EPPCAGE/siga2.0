@@ -1,4 +1,5 @@
 (function initObjetivosEstrategicos(globalScope) {
+  const auditObjective = '[Processos] Otimizar a contribuição da auditoria para o aprimoramento dos processos da gestão pública estadual';
   const defaults = Object.freeze([
     '[Resultados] Colaborar para a implementação de políticas públicas efetivas',
     '[Resultados] Aperfeiçoar a transparência pública e fomentar o controle social',
@@ -10,7 +11,7 @@
     '[Processos] Sistematizar e implementar modelo de avaliação de políticas públicas',
     '[Processos] Reestruturar as ações de transparência, com foco no cidadão',
     '[Processos] Qualificar a informação contábil',
-    '[Processos] Otimizar a contribuição da auditoria para o aprimoramento da gestão pública estadual',
+    auditObjective,
     '[Processos] Promover a cultura de integridade na Administração Pública',
     '[Processos] Otimizar os processos de trabalho, com foco em eficiência operacional e automação',
     '[Aprendizado] Gerir as pessoas com foco na estratégia',
@@ -35,15 +36,24 @@
   const aliases = new Map([
     ['Aprimorar o assessoramento aos gestores públicos, provendo soluções de forma proativa e tempestiva', 'Aprimorar o assessoramento aos gestores públicos'],
     ['Qualificar Informação Contábil', 'Qualificar a informação contábil'],
-    ['Otimizar a contribuição da auditoria para o aprimoramento dos processos da gestão pública estadual', 'Otimizar a contribuição da auditoria para o aprimoramento da gestão pública estadual'],
+    ['Otimizar a contribuição da auditoria para o aprimoramento da gestão pública estadual', auditObjective],
+    ['Aprimorar os Processos de Auditoria, com Base nas Melhores Práticas Internacionais', auditObjective],
+    ['Aprimorar os processos de auditoria com base nas melhores práticas internacionais', auditObjective],
     ['Otimizar os processos de trabalho, com foco em melhoria da eficiência operacional e automação', 'Otimizar os processos de trabalho, com foco em eficiência operacional e automação'],
     ['Otimizar os processos de trabalho, com foco na melhoria da eficiência operacional e automação', 'Otimizar os processos de trabalho, com foco em eficiência operacional e automação']
   ].map(([from, to]) => [key(from), key(to)]));
 
+  function normalizeCatalog(catalog) {
+    return [...new Set(catalog.map(item => {
+      const clean = String(item || '').trim();
+      return (aliases.get(key(clean)) || key(clean)) === key(auditObjective) ? auditObjective : clean;
+    }).filter(Boolean))];
+  }
+
   function canonical(value, catalog = values) {
     const clean = String(value || '').trim();
     const name = aliases.get(key(clean)) || key(clean);
-    const matches = catalog.filter(item => key(item) === name);
+    const matches = normalizeCatalog(catalog).filter(item => key(item) === name);
     return matches.length === 1 ? matches[0] : clean;
   }
   function selected(value, catalog = values) {
@@ -66,11 +76,18 @@
       });
     }));
   }
+  function migrateProject(project, catalog = values) {
+    const linked = Array.isArray(project.objetivos_estrategicos) ? project.objetivos_estrategicos : [];
+    project.objetivos_estrategicos = selected(linked.join('; '), catalog);
+    if(project.ideacao?.objetivo_estrategico) {
+      project.ideacao.objetivo_estrategico = normalize(project.ideacao.objetivo_estrategico, catalog);
+    }
+  }
   function applySnapshot(snapshot) {
     const data = snapshot.exists() && snapshot.data()?.data;
     const parsed = data ? JSON.parse(data) : defaults;
     if(!Array.isArray(parsed) || parsed.some(item => typeof item !== 'string')) throw new Error('Catálogo de objetivos inválido.');
-    values = [...new Set(parsed.map(item => item.trim()).filter(Boolean))];
+    values = normalizeCatalog(parsed);
   }
   async function load() {
     if(!globalScope.fbReady()) { loadLocal(); return; }
@@ -85,5 +102,5 @@
       catch(error) { console.warn('Objetivos estratégicos:', error.message); }
     }, error => console.warn('Objetivos estratégicos:', error.message));
   }
-  globalScope.ObjetivosEstrategicos = {defaults, configId, canonical, selected, normalize, choices, migrateArchitecture, load, watch};
+  globalScope.ObjetivosEstrategicos = {defaults, configId, canonical, selected, normalize, normalizeCatalog, choices, migrateArchitecture, migrateProject, load, watch};
 })(globalThis);

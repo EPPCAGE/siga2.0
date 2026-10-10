@@ -32,6 +32,7 @@ function setup() {
     'projFixDefaults', 'projEsc', 'projAddMacro', 'projRemoverMacro', 'projPopulateProcessosImpactados',
     'projAddProcessoImpactado', 'projRemoverProcessoImpactado'];
   vm.runInContext(readFileSync(new URL('../../src/shared/objetivos-estrategicos.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(readFileSync(new URL('../../src/shared/areas-arquitetura.js', import.meta.url), 'utf8'), context);
   vm.runInContext(names.map(functionSource).join('\n'), context);
   context.projLoad = () => {
     context.PROJETOS = context.PROJETOS.map(context.projFixDefaults);

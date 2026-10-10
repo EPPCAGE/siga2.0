@@ -25,7 +25,8 @@
 <script src="src/shared/bizagi-import.js"></script>
 <script src="src/processos/registros-processo.js"></script>
 <script src="src/shared/firestore-repositories.js"></script>
-<script src="src/shared/objetivos-estrategicos.js?v=20261009-1"></script>
+<script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
+<script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
 <script src="src/shared/users/users-permissions.js"></script>
@@ -1468,7 +1469,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <!-- General config (applies to all periods) -->
       <div id="kpi-config-geral-lbl" style="display:none;font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem">Configurações gerais</div>
       <div class="g2">
-        <div class="fg"><label class="fl" for="nkpi-area">Área<span>*</span></label><input class="fi" id="nkpi-area" placeholder="Ex: Gabinete"></div>
+        <div class="fg"><label class="fl" for="nkpi-area">Área / divisão<span>*</span></label><select class="fi" id="nkpi-area"></select></div>
         <div class="fg"><label class="fl" for="nkpi-codigo">Código / ID</label><input class="fi" id="nkpi-codigo" placeholder="Ex: 171.012"></div>
       </div>
       <div class="fg"><label class="fl" for="nkpi-nome">Enunciado do indicador<span>*</span></label>
@@ -6071,7 +6072,7 @@ const ACOES = {
     </div>
     <div id="pp1" class="tab-p on">
       <div class="g3">
-        <div class="fg"><label class="fl">Área</label><input class="fi" id="pp-area" value="${esc(p.area||'')}"></div>
+        <div class="fg"><label class="fl" for="pp-area">Área / divisão</label><select class="fi" id="pp-area">${AreasArquitetura.options(p.area,ARQUITETURA,esc)}</select></div>
         <div class="fg"><label class="fl">Elaborado por (membro EPP)</label><input class="fi" id="pp-ger" value="${esc((p.form?.pop?.ger&&p.form.pop.ger!==p.dono)?p.form.pop.ger:(p.resp_ep||''))}"></div>
         <div class="fg"><label class="fl">Macroprocesso</label><input class="fi" id="pp-mac" value="${esc(p.macro||'')}"></div>
       </div>
@@ -13026,6 +13027,7 @@ function remR(i){if(!curProc?.ent?.riscos){return;} curProc.ent.riscos.splice(i,
 // ARQUITETURA DE PROCESSOS
 // ═══════════════════════════════════════════
 function rArqPopulateFilters(){
+  AreasArquitetura.migrate(ARQUITETURA);
   ObjetivosEstrategicos.migrateArchitecture(ARQUITETURA);
   // Macroprocesso
   const mSel = document.getElementById('arq-f-macro');
@@ -13842,7 +13844,7 @@ function abrirModalMeta(item, onSave){
           ${['','Finalístico','Apoio','Gestão'].map(n=>`<option ${item.natureza===n?'selected':''}>${n}</option>`).join('')}
         </select>
       </div>
-      <div class="fg"><label class="fl">Área</label><input class="fi" id="mm-area" value="${item.area||''}"></div>
+      <div class="fg"><label class="fl" for="mm-area">Área / divisão</label><select class="fi" id="mm-area">${AreasArquitetura.options(item.area, ARQUITETURA, esc)}</select></div>
       <div class="fg"><label class="fl">Dono do processo</label><input class="fi" id="mm-ger" value="${item.gerente||''}"></div>
     </div>
     <div class="fg"><label class="fl">Objetivo do processo</label><textarea class="fi" id="mm-obj" style="min-height:60px">${item.objetivo||''}</textarea></div>
@@ -13875,6 +13877,10 @@ function salvarModalMeta(){
   const modal=document.getElementById('meta-modal');
   if(!modal)return;
   const item=modal._item;
+  const areaSelecionada=document.getElementById('mm-area').value;
+  if(!AreasArquitetura.valid(areaSelecionada,item.area,ARQUITETURA)){
+    toast('Selecione uma área da arquitetura.','var(--amber)');return;
+  }
   if(modal._macroOrigem){
     const destino=ARQUITETURA.find(m=>m.id===document.getElementById('mm-macro')?.value);
     if(!_transferirProcArq(item,modal._macroOrigem,destino))return;
@@ -13885,7 +13891,7 @@ function salvarModalMeta(){
   }
   item.nome=novoNome;
   item.natureza=document.getElementById('mm-nat').value;
-  item.area=document.getElementById('mm-area').value.trim();
+  item.area=AreasArquitetura.resolve(areaSelecionada,ARQUITETURA);
   item.gerente=document.getElementById('mm-ger').value.trim();
   item.objetivo=document.getElementById('mm-obj').value.trim();
   item.objetivo_estrategico=ObjetivosEstrategicos.normalize([...document.getElementById('mm-obje').selectedOptions].map(o=>o.value).join('; '));
@@ -15048,7 +15054,8 @@ function kpiCard(k){
 
 function _kpiFormSetFields(k){
   const fv = (id, v) => { const el=document.getElementById(id); if(el) el.value=v; };
-  fv('nkpi-area',       k.area       || '');
+  const areaSelect=document.getElementById('nkpi-area');
+  if(areaSelect) areaSelect.innerHTML=AreasArquitetura.options(k.area,ARQUITETURA,esc);
   fv('nkpi-codigo',     k.codigo     || '');
   fv('nkpi-nome',       k.nome       || '');
   fv('nkpi-desc',       k.desc       || '');
@@ -18395,6 +18402,9 @@ async function _fbLoadArquitetura(){
   try {
     ARQUITETURA = JSON.parse(arqDoc.data().data);
     _fbConfigCache.set('arquitetura', JSON.stringify(ARQUITETURA));
+    AreasArquitetura.migrate(ARQUITETURA);
+    AreasArquitetura.migrateRecords(processos,ARQUITETURA);
+    AreasArquitetura.migrateRecords(kpis,ARQUITETURA);
     ObjetivosEstrategicos.migrateArchitecture(ARQUITETURA);
   } catch(e){ console.error('Erro ao parsear arquitetura:', e); }
 }
@@ -19604,7 +19614,8 @@ POP:\n${texto}`;
     try{ extracted=JSON.parse(jsonStr); }
     catch{ throw new Error('A IA não retornou um JSON válido. Tente novamente ou verifique se o arquivo contém texto extraível (não apenas imagens).'); }
     document.getElementById('pop-nome').value=extracted.nome||'';
-    document.getElementById('pop-area').value=extracted.area||'';
+    document.getElementById('pop-area').innerHTML=AreasArquitetura.options('',ARQUITETURA,esc);
+    document.getElementById('pop-area').value=AreasArquitetura.resolve(extracted.area,ARQUITETURA);
     document.getElementById('pop-objetivo').value=extracted.objetivo||'';
     document.getElementById('pop-atores').value=(extracted.atores||[]).join('\n');
     // Encode type and executor in textarea so confirmarImportPOP can recover them
@@ -19700,7 +19711,7 @@ function confirmarImportPOP(){
       <div class="ib ibt" style="margin-bottom:1rem">Dados extraídos pelo modelo. Revise e ajuste antes de confirmar.</div>
       <div class="g2" style="margin-bottom:.8rem">
         <div class="fg"><label class="fl" for="pop-nome">Nome do processo</label><input class="fi" id="pop-nome"></div>
-        <div class="fg"><label class="fl" for="pop-area">Área / Unidade</label><input class="fi" id="pop-area"></div>
+        <div class="fg"><label class="fl" for="pop-area">Área / divisão</label><select class="fi" id="pop-area"></select></div>
       </div>
       <div class="fg" style="margin-bottom:.8rem"><label class="fl" for="pop-objetivo">Objetivo</label><textarea class="fi" id="pop-objetivo" style="min-height:60px"></textarea></div>
       <div class="fg" style="margin-bottom:.8rem"><label class="fl" for="pop-atores">Atores / Responsáveis</label><textarea class="fi" id="pop-atores" style="min-height:60px" placeholder="Um por linha"></textarea></div>

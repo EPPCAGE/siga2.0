@@ -224,8 +224,11 @@ function projResolveMacro(value) {
 
 function projSyncArquitetura() {
   const arquitetura = projArquiteturaAtual();
+  AreasArquitetura.migrate(arquitetura);
   PROJ_MACROS = arquitetura.map(m => m.nome);
   (PROJETOS || []).forEach(p => {
+    ObjetivosEstrategicos.migrateProject(p, PROJ_OBJETIVOS);
+    p.divisao = AreasArquitetura.resolve(p.divisao, arquitetura);
     const ids = new Set((p.macroprocesso_ids || []).map(String));
     const previousNames = p.macroprocesso_nomes || {};
     p.macroprocessos = [...new Set((p.macroprocessos || []).map(value => {
@@ -2855,15 +2858,9 @@ function projTabAprovacao(p) {
           <input type="text" class="proj-fi" id="aprov-gerente-sub" value="${projEsc(p.gerente_substituto||'')}" onchange="projSalvarAprovacao()">
         </div>
         <div class="proj-fg">
-          <label class="proj-fl">Divisão (opcional)</label>
+          <label class="proj-fl" for="aprov-divisao">Área / divisão (opcional)</label>
           <select class="proj-fi" id="aprov-divisao" onchange="projSalvarAprovacao()">
-            <option value="" ${!p.divisao?'selected':''}>— Nenhuma —</option>
-            <option value="GAB" ${p.divisao==='GAB'?'selected':''}>GAB</option>
-            <option value="DCO" ${p.divisao==='DCO'?'selected':''}>DCO</option>
-            <option value="DAUD" ${p.divisao==='DAUD'?'selected':''}>DAUD</option>
-            <option value="DCON" ${p.divisao==='DCON'?'selected':''}>DCON</option>
-            <option value="DTTI" ${p.divisao==='DTTI'?'selected':''}>DTTI</option>
-            <option value="DIE" ${p.divisao==='DIE'?'selected':''}>DIE</option>
+            ${AreasArquitetura.options(p.divisao, projArquiteturaAtual(), projEsc)}
           </select>
         </div>
       </div>
@@ -2973,6 +2970,10 @@ function projSalvarAprovacao() {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   if(!proj) return;
+  const areaSelecionada = document.getElementById('aprov-divisao')?.value || '';
+  if(!AreasArquitetura.valid(areaSelecionada,proj.divisao,projArquiteturaAtual())){
+    projToast('Selecione uma área da arquitetura.', '#d97706');return;
+  }
   // Save project metadata (editable from this tab)
   const newNome = document.getElementById('aprov-nome')?.value.trim();
   if(newNome) proj.nome = newNome;
@@ -2982,7 +2983,7 @@ function projSalvarAprovacao() {
   proj.dt_inicio = document.getElementById('aprov-inicio')?.value || proj.dt_inicio;
   proj.dt_fim = document.getElementById('aprov-fim')?.value || proj.dt_fim;
   proj.fonte = document.getElementById('aprov-fonte')?.value || proj.fonte;
-  proj.divisao = document.getElementById('aprov-divisao')?.value || '';
+  proj.divisao = AreasArquitetura.resolve(areaSelecionada, projArquiteturaAtual());
   const progIdRaw = document.getElementById('aprov-programa')?.value;
   if(progIdRaw !== undefined) {
     proj.programa_id = progIdRaw ? Number(progIdRaw) : null;
@@ -5780,7 +5781,7 @@ function projNormalizeStrategyLists() {
   if(typeof projLoadListas === 'function') projLoadListas();
   const oldO = JSON.stringify(PROJ_OBJETIVOS||[]);
   projSyncArquitetura();
-  PROJ_OBJETIVOS = projNormalizeStrategyList(PROJ_OBJETIVOS);
+  PROJ_OBJETIVOS = projNormalizeStrategyList(ObjetivosEstrategicos.normalizeCatalog(PROJ_OBJETIVOS));
   if(isEP() && oldO !== JSON.stringify(PROJ_OBJETIVOS)) projSaveListas();
 }
 
