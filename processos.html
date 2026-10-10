@@ -26,6 +26,7 @@
 <script src="src/processos/registros-processo.js"></script>
 <script src="src/shared/firestore-repositories.js"></script>
 <script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
+<script src="src/shared/indicadores-impactados.js?v=20261009-6"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -1364,6 +1365,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span class="fbar-l">Buscar</span>
       <input class="srch" id="arq-srch" aria-label="Buscar na arquitetura de processos" placeholder="Nome do processo, dono, área..." oninput="rArq()" style="flex:1;max-width:380px">
+      <span class="fbar-l">Projeto</span>
+      <select class="fi" id="arq-f-projeto" aria-label="Filtrar arquitetura por projeto" onchange="rArq()" style="max-width:260px"><option value="">Todos</option></select>
       <button type="button" class="btn" style="font-size:11px;padding:4px 10px" onclick="limparFiltrosArq()">Limpar filtros</button>
       <span id="arq-result-cnt" style="font-size:11px;color:var(--ink3)"></span>
     </div>
@@ -1431,6 +1434,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="fbar" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem">
     <span class="fbar-l">Indicador</span>
     <select class="fi" id="ind-nome-sel" aria-label="Filtrar por indicador" onchange="rInd()" style="max-width:220px"><option value="">Todos</option></select>
+    <span class="fbar-l">Projeto</span>
+    <select class="fi" id="ind-projeto-sel" aria-label="Filtrar indicadores por projeto" onchange="rInd()" style="max-width:260px"><option value="">Todos</option></select>
     <span class="fbar-l ind-filtros-avancados">Macroprocesso</span>
     <select class="fi ind-filtros-avancados" id="ind-macro-sel" aria-label="Filtrar por macroprocesso" onchange="_indMacroChange()" style="max-width:200px"><option value="">Todos</option></select>
     <span class="fbar-l ind-filtros-avancados">Processo</span>
@@ -1547,6 +1552,10 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
       <div class="fg"><label class="fl" for="nkpi-proc">Processo vinculado</label>
         <select class="fi" id="nkpi-proc"><option value="">— Nenhum —</option></select>
+      </div>
+      <div class="fg"><label class="fl" for="nkpi-projetos">Projetos vinculados</label>
+        <select class="fi" id="nkpi-projetos" multiple size="5"></select>
+        <div style="font-size:12px;color:var(--ink3)">Selecione os projetos associados a este indicador. Use Ctrl para selecionar mais de um. O vínculo vale para todos os períodos do indicador.</div>
       </div>
       <div class="btn-row">
         <button type="button" class="btn btn-r" id="kpi-del-btn" style="margin-right:auto;display:none" onclick="deletarKpi()">Remover</button>
@@ -4222,7 +4231,7 @@ function buildArqStatsHTML(f){
   updCounts();
   const mx=getMetricasArq(f);
   const pct=mx.nUnid>0?Math.round(mx.nMap/mx.nUnid*100):0;
-  const hasFilter=f&&(f.srch||f.macro||f.area||f.nat||f.obje||f.mapeado||f.critico||f.dono||f.mat!=='');
+  const hasFilter=f&&(f.projeto||f.srch||f.macro||f.area||f.nat||f.obje||f.mapeado||f.critico||f.dono||f.mat!=='');
   // economia: só dos processos cujo arq_id está nos itens filtrados
   const eco=processos.reduce((s,p)=>{
     if(hasFilter&&p.arq_id&&!mx.matchedIds.has(p.arq_id)) return s;
@@ -13026,7 +13035,33 @@ function remR(i){if(!curProc?.ent?.riscos){return;} curProc.ent.riscos.splice(i,
 // ═══════════════════════════════════════════
 // ARQUITETURA DE PROCESSOS
 // ═══════════════════════════════════════════
+function _populateProjetoFilters(){
+  const state=globalThis._projetoFiltersState ||= {loaded:false,loading:false};
+  ['arq-f-projeto','ind-projeto-sel'].forEach(id=>{
+    const select=document.getElementById(id);
+    if(!select) return;
+    const current=select.value;
+    select.innerHTML='<option value="">Todos</option>'+getProjetosVinculaveis().map(project=>
+      `<option value="${esc(project.id)}"${current===project.id?' selected':''}>${esc(project.nome)} (${esc(project.status)})</option>`
+    ).join('');
+    if(state.loading) select.insertAdjacentHTML('beforeend','<option disabled>Carregando projetos…</option>');
+  });
+  if(state.loaded || state.loading || !fbReady()) return;
+  state.loading=true;
+  _fbLoadProjetosUsuarios().then(()=>{
+    state.loaded=true;state.loading=false;
+    _populateProjetoFilters();
+    if(document.getElementById('arq-f-projeto')?.value) rArq();
+    if(document.getElementById('ind-projeto-sel')?.value) rInd();
+  }).catch(error=>{
+    state.loading=false;
+    console.warn('Carregamento dos projetos para filtros:',error.message);
+    toast('Não foi possível carregar a lista de projetos. Tente abrir a página novamente.','var(--amber)');
+  });
+}
+
 function rArqPopulateFilters(){
+  _populateProjetoFilters();
   AreasArquitetura.migrate(ARQUITETURA);
   ObjetivosEstrategicos.migrateArchitecture(ARQUITETURA);
   // Macroprocesso
@@ -13080,6 +13115,7 @@ function rArqPopulateFilters(){
 
 function getArqFilters(){
   return {
+    projeto: document.getElementById('arq-f-projeto')?.value||'',
     srch:  (document.getElementById('arq-srch')?.value||'').toLowerCase().trim(),
     macro: document.getElementById('arq-f-macro')?.value||'',
     area:  document.getElementById('arq-f-area')?.value||'',
@@ -13094,6 +13130,10 @@ function getArqFilters(){
 
 // Returns true if a process/subprocesso matches current filters
 function itemMatchesFilters(item, macroNome, f){
+  if(f.projeto){
+    const project=PROJETOS_USUARIOS.find(p=>String(p.id)===f.projeto);
+    if(!project || !IndicadoresImpactados.architectureMatches(project,ARQUITETURA,kpis,processos,item.id,macroNome)) return false;
+  }
   return _itemMatchesBaseFilters(item, f)
     && _itemMatchesMatFilter(item, f.mat)
     && _itemMatchesSearch(item, macroNome, f.srch);
@@ -13122,6 +13162,8 @@ function _itemMatchesSearch(item, macroNome, srch){
 }
 
 function limparFiltrosArq(){
+  const projectSelect=document.getElementById('arq-f-projeto');
+  if(projectSelect) projectSelect.value='';
   ['arq-srch','arq-f-macro','arq-f-area','arq-f-nat','arq-f-obje','arq-f-map','arq-f-crit','arq-f-dono','arq-f-mat'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.value = '';
@@ -13396,7 +13438,7 @@ function rArq(){
     return;
   }
 
-  const hasFilter = f.srch || f.macro || f.area || f.nat || f.obje || f.mapeado || f.critico || f.dono || f.mat!=='';
+  const hasFilter = f.projeto || f.srch || f.macro || f.area || f.nat || f.obje || f.mapeado || f.critico || f.dono || f.mat!=='';
 
   // Hide import hint when filtering
   const hint = document.getElementById('arq-import-hint');
@@ -14652,6 +14694,7 @@ function _kpiGrpStatus(items){
   return pct>=100?'ok':'nok';
 }
 function rInd(){
+  _populateProjetoFilters();
   const epAct = document.getElementById('ind-actions-ep');
   if(epAct) epAct.style.display = isEP() ? 'flex' : 'none';
   const gsheetsSec = document.getElementById('ind-gsheets-sec');
@@ -14674,8 +14717,12 @@ function rInd(){
   const ppe       = document.getElementById('ind-ppe-sel')?.value       || '';
   const macro     = document.getElementById('ind-macro-sel')?.value     || '';
   const proc      = document.getElementById('ind-proc-sel')?.value      || '';
+  const projectId = document.getElementById('ind-projeto-sel')?.value || '';
+  const project = PROJETOS_USUARIOS.find(p=>String(p.id)===projectId);
+  const projectIndicators = projectId ? new Set(project ? IndicadoresImpactados.list(project,ARQUITETURA,kpis,processos).map(row=>row.ind) : []) : null;
 
   const lista = kpis.filter(k=>{
+    if(projectIndicators && !projectIndicators.has(k)) return false;
     const mp=(macro||proc)?_kpiGetMacroProc(k):{macro:'',proc:''};
     return (!area      || k.area    === area)   &&
       (!ciclo     || k.ciclo   === ciclo)  &&
@@ -15075,6 +15122,31 @@ function _kpiFormSetFields(k){
   const cumEl = document.getElementById('nkpi-cumulativo');
   if(cumEl) cumEl.checked = !!k.cumulativo;
   _kpiPopulateProcessSelector(k);
+  void _kpiPopulateProjectSelector(k);
+}
+async function _kpiPopulateProjectSelector(k){
+  const select=document.getElementById('nkpi-projetos');
+  if(!select) return;
+  const token={};select._loadToken=token;
+  const selected=new Set((k.projeto_ids||[]).map(String));
+  const render=projects=>{
+    const options=projects.map(p=>({id:String(p.id),nome:p.nome||String(p.id)}));
+    selected.forEach(id=>{if(!options.some(p=>p.id===id)) options.push({id,nome:'Projeto indisponível ('+id+')'});});
+    options.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+    select.innerHTML=options.map(p=>`<option value="${esc(p.id)}"${selected.has(p.id)?' selected':''}>${esc(p.nome)}</option>`).join('');
+  };
+  render(typeof PROJETOS_USUARIOS!=='undefined'?PROJETOS_USUARIOS:[]);
+  if(!fbReady()) return;
+  select.disabled=true;select.dataset.loading='1';
+  try {
+    const snap=await projetosRepository.list();
+    if(select._loadToken!==token) return;
+    render(snap.docs.map(doc=>doc.data));
+  } catch(error) {
+    if(select._loadToken===token) toast('Não foi possível atualizar a lista de projetos. Mantidos os vínculos existentes.','var(--amber)');
+  } finally {
+    if(select._loadToken===token){select.disabled=false;select.dataset.loading='0';}
+  }
 }
 function _kpiArquiteturaOptions(){
   const opts = [];
@@ -15325,6 +15397,7 @@ function _kpiReadCommonFields(area, nome){
     polaridade: document.getElementById('nkpi-polaridade').value,
     pid: procLink.pid,
     arq_id: procLink.arq_id,
+    projeto_ids: Array.from(document.getElementById('nkpi-projetos')?.selectedOptions || [], option=>option.value),
     cumulativo: !!(document.getElementById('nkpi-cumulativo')?.checked),
   };
 }
@@ -15392,6 +15465,7 @@ function _kpiCreateNew(area, nome){
 }
 
 function salvarNovoKpi(){
+  if(document.getElementById('nkpi-projetos')?.dataset.loading==='1'){toast('Aguarde o carregamento dos projetos.','var(--amber)');return;}
   const area = document.getElementById('nkpi-area').value.trim();
   const nome = document.getElementById('nkpi-nome').value.trim();
   if(!area || !nome){ toast('Informe Área e Enunciado do indicador.','var(--amber)'); return; }

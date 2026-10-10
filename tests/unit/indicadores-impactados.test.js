@@ -10,6 +10,24 @@ function setup(){
   return{api:context.IndicadoresImpactados,architecture,project};
 }
 describe('Indicadores dos processos impactados',()=>{
+  it('filtra a arquitetura por processos impactados ou indicadores diretamente associados',()=>{
+    const{api,architecture,project}=setup();
+    project.id=7;
+    const indicators=[{arq_id:'pb',projeto_ids:['7']}];
+    expect(api.architectureMatches(project,architecture,indicators,[],'pa','Auditoria')).toBe(true);
+    expect(api.architectureMatches(project,architecture,indicators,[],'sa','Auditoria')).toBe(true);
+    expect(api.architectureMatches(project,architecture,indicators,[],'pb','Controle')).toBe(true);
+    expect(api.architectureMatches(project,architecture,indicators,[],'pb','Auditoria')).toBe(false);
+    expect(api.architectureMatches({id:8},architecture,indicators,[],'pb','Controle')).toBe(false);
+  });
+  it('inclui vínculos diretos a projetos sem depender de processos impactados e sem duplicar',()=>{
+    const{api,architecture}=setup();
+    const indicators=[{id:1,projeto_ids:['7'],arq_id:'pa'},{id:2,projeto_ids:['7']},{id:3,projeto_ids:['8']}];
+    expect(api.list({id:7},architecture,indicators,[]).map(r=>r.ind.id).sort()).toEqual([1,2]);
+    expect(api.list({id:7,processos_impactados:[{macro_id:'a',processo_id:'pa'}]},architecture,indicators,[])).toHaveLength(2);
+    indicators[0].projeto_ids=[];
+    expect(api.list({id:7},architecture,indicators,[]).map(r=>r.ind.id)).toEqual([2]);
+  });
   it('mantém resultados após o término, ignora meses anteriores e meses sem dados, preservando zero',()=>{
     const{api}=setup();
     const project={dt_inicio:'2026-05-20',dt_fim:'2026-06-01',conclusao:{dt_conclusao:'2026-06-10'}};
