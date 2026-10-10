@@ -104,5 +104,12 @@
       linked.has(key(node)) || (project.processos_impactados || []).some(link=>node.macro_id===id(link.macro_id) && node.parent_id===id(link.processo_id))
     ));
   }
-  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart, architectureMatches, scheduleStart, period};
+  function projectsForProcess(process, architecture, projects, mapped) {
+    const node=resolve({arq_id:process.arq_id,pid:process.id},nodes(architecture),mapped);
+    if(!node) return [];
+    return (projects || []).filter(project=>['ativo','concluido'].includes(project.status || 'ativo') &&
+      (project.processos_impactados || []).some(link=>id(link.macro_id)===node.macro_id && id(link.processo_id)===node.parent_id)
+    ).slice().sort((a,b)=>String(a.nome || '').localeCompare(String(b.nome || ''),'pt-BR'));
+  }
+  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart, architectureMatches, scheduleStart, period, projectsForProcess};
 })(globalThis);
