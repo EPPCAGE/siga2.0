@@ -3,7 +3,7 @@ const {readFileSync}=require('node:fs');
 const assert=require('node:assert/strict');
 (async()=>{
   const html=readFileSync('processos.html','utf8');
-  const names=['rFaq','rBuscaGeral','abrirResultadoBusca','_parseFaq','_rFaqHl','_faqProcKey','_rFaqItemHTML','_rFaqProcHTML','_rFaqMacroHTML','_faqPopulateMacroSelect','_faqBuildGroups','_faqFilterPairs','_faqCountLabel'];
+  const names=['rFaq','rBuscaGeral','_buscaPodeAbrir','abrirResultadoBusca','_parseFaq','_rFaqHl','_faqProcKey','_rFaqItemHTML','_rFaqProcHTML','_rFaqMacroHTML','_faqPopulateMacroSelect','_faqBuildGroups','_faqFilterPairs','_faqCountLabel'];
   const browser=await chromium.launch({headless:true});
   try {
     const page=await browser.newPage(),errors=[];
@@ -32,6 +32,20 @@ const assert=require('node:assert/strict');
     }
     await page.locator('#faq-c button').click();
     assert.equal(await page.evaluate(()=>window.openedProcess),1);
+    for(const profile of ['dono','gestor']){
+      await page.evaluate(profile=>{window.usuarioLogado={perfil:profile};window.openedProcess=null;},profile);
+      for(const [type,query] of [['riscos','atraso'],['problemas','falha'],['processos','auditar'],['pops','relatorio']]){
+        await page.selectOption('#busca-tipo',type);
+        await page.fill('#faq-srch',query);
+        assert.equal(await page.locator('#faq-c button, #faq-c a').count(),0);
+        await page.evaluate(type=>abrirResultadoBusca({dataset:{searchType:type,target:JSON.stringify({kind:'processo',id:1})}}),type);
+        assert.equal(await page.evaluate(()=>window.openedProcess),null);
+      }
+    }
+    await page.evaluate(()=>{window.usuarioLogado={perfil:'ep'};});
+    await page.selectOption('#busca-tipo','riscos');
+    await page.fill('#faq-srch','atraso');
+    assert.equal(await page.locator('#faq-c button').count(),1);
     await page.fill('#faq-srch','inexistente');
     assert.match(await page.locator('#faq-c').innerText(),/Nenhum resultado/);
     assert.deepEqual(errors,[]);

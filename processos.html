@@ -13360,8 +13360,13 @@ function rFaq(){
 
   container.innerHTML = Object.keys(grupos).sort().map(macro => _rFaqMacroHTML(macro, grupos[macro], srch)).join('');
 }
+function _buscaPodeAbrir(type,target){
+  const restricted=['dono','gestor'].includes(typeof usuarioLogado==='undefined'?'':usuarioLogado?.perfil);
+  return !restricted || (!['riscos','problemas'].includes(type) && target.kind!=='processo');
+}
 function abrirResultadoBusca(button){
   const target=JSON.parse(button.dataset.target);
+  if(!_buscaPodeAbrir(button.dataset.searchType,target)) return;
   if(target.kind==='processo'){
     const process=processos.find(p=>String(p.id)===String(target.id));
     if(process) abrirProc(process.id);
@@ -13399,7 +13404,7 @@ function rBuscaGeral(type){
   container.innerHTML=rows.length?rows.map(row=>{
     const target=row.target;
     const url=target.kind==='projeto'?'projetos.html?projeto='+encodeURIComponent(target.id)+'&aba=execucao#exec-cronograma-section':target.kind==='publicacao'?safeUrl(target.url || ''):'';
-    const action=url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this)">Abrir</button>`;
+    const action=!_buscaPodeAbrir(type,target)?'':url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-search-type="${esc(type)}" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this)">Abrir</button>`;
     return `<div class="ib ibb" style="margin-bottom:12px"><strong>${esc(row.title)}</strong><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(row.detail)}</p>${action}</div>`;
   }).join(''):'<div class="ib ibb">Nenhum resultado encontrado para a busca.</div>';
 }
