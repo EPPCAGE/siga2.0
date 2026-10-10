@@ -202,7 +202,7 @@ const {readFileSync} = require('node:fs');
     await page.selectOption('#ind-area-sel','Outra área');
     await page.evaluate(()=>rInd());
     assert.ok(!(await page.locator('#ind-c').innerText()).includes('Impactado'));
-    await page.setContent('<div id="det-projetos"></div>');
+    await page.setContent('<div id="info-proc-projetos"></div>');
     await page.addScriptTag({content:processesHtml.match(/async function renderProjetosDoProcesso\([^]*?\n}/)[0]});
     await page.evaluate(async()=>{
       window._fbLoadProjetosUsuarios=async()=>{};
@@ -212,11 +212,20 @@ const {readFileSync} = require('node:fs');
         {id:3,nome:'Projeto cancelado',status:'cancelado',processos_impactados:[link]}];
       await renderProjetosDoProcesso({id:11,arq_id:'pa'});
     });
-    assert.equal(await page.locator('#det-projetos tbody tr').count(),2);
-    assert.match(await page.locator('#det-projetos').innerText(),/Concluído/);
-    assert.ok(!(await page.locator('#det-projetos').innerText()).includes('Projeto cancelado'));
-    const scheduleHref=await page.locator('#det-projetos a').last().getAttribute('href');
+    assert.equal(await page.locator('#info-proc-projetos tbody tr').count(),2);
+    assert.match(await page.locator('#info-proc-projetos').innerText(),/Concluído/);
+    assert.ok(!(await page.locator('#info-proc-projetos').innerText()).includes('Projeto cancelado'));
+    const scheduleHref=await page.locator('#info-proc-projetos a').last().getAttribute('href');
     assert.match(scheduleHref,/projeto=2&aba=execucao#exec-cronograma-section/);
+    await page.addScriptTag({content:processesHtml.match(/function abrirInfoMeusProc\([^]*?\n}/)[0]});
+    await page.evaluate(()=>{
+      window.findArqItemById=()=>({id:'pa',nome:'Auditar'});
+      window.getMinhasUnidades=()=>[{arq_id:'pa',macro:'Auditoria'}];
+      window.publicacoes=[];
+      abrirInfoMeusProc('pa');
+    });
+    await page.waitForFunction(()=>document.querySelectorAll('#info-proc-projetos tbody tr').length===2);
+    assert.equal(await page.locator('#info-proc-projetos a').count(),2);
     await page.setContent('<div id="proj-shell" class="on"><div id="proj-page-detalhe" class="proj-page"><div id="proj-detalhe-content"></div></div></div>');
     await page.evaluate(href=>{
       window.USUARIOS=[];
