@@ -101,6 +101,21 @@ const path = require('node:path');
     await page.selectOption('#proj-ind-filter-proj','3');
     assert.match(await page.locator('#proj-ind-processos').innerText(),/Vincule os processos impactados/);
     assert.deepEqual(errors, []);
+    const chartOrder = await page.evaluate(()=>{
+      const rows=[
+        {p:{nome:'Projeto'},ind:{nome:'Prazo',periodo:'janeiro/2026'}},
+        {p:{nome:'Projeto'},ind:{nome:'Acessos',periodo:'fevereiro/2026'}},
+        {p:{nome:'Projeto'},ind:{nome:'Prazo',periodo:'dez/2025'}},
+        {p:{nome:'Projeto'},ind:{nome:'Acessos',periodo:'janeiro/2026'}}
+      ];
+      const container=document.createElement('div');
+      container.innerHTML=projIndicadoresMetaChart(rows);
+      return [...container.querySelectorAll('.proj-v9-meta-name')].map(el=>el.textContent);
+    });
+    assert.match(chartOrder[0],/^Acessos.*janeiro\/2026/);
+    assert.match(chartOrder[1],/^Acessos.*fevereiro\/2026/);
+    assert.match(chartOrder[2],/^Prazo.*dez\/2025/);
+    assert.match(chartOrder[3],/^Prazo.*janeiro\/2026/);
     console.log('Projetos: arquitetura, filtro, vínculos e persistência verificados no Chromium.');
   } finally {
     await browser.close();

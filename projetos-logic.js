@@ -5571,6 +5571,7 @@ function projIndicadoresDashItems(rows) {
 }
 
 function projIndicadoresMetaChart(rows) {
+  rows = IndicadoresImpactados.sortChart(rows);
   return `<div class="proj-v9-chart-card"><div class="proj-card-t">Resultado vs. Meta</div><div class="proj-v9-meta-list">${
     (rows||[]).length ? rows.map(r => {
       const meta = projIndicadorValor(r.ind,'meta');

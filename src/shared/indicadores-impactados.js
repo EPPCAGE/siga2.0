@@ -78,5 +78,11 @@
     }
     return result ?? series.map(explicitMeta).find(value=>value !== null) ?? null;
   }
-  globalScope.IndicadoresImpactados = {list, number, meta, timeline};
+  function sortChart(rows) {
+    return (rows || []).slice().sort((a,b) =>
+      String(a.ind.nome || 'Indicador').trim().localeCompare(String(b.ind.nome || 'Indicador').trim(), 'pt-BR', {sensitivity:'base'}) ||
+      period(a.ind.periodo) - period(b.ind.periodo)
+    );
+  }
+  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart};
 })(globalThis);
