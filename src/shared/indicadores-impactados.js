@@ -104,5 +104,5 @@
       linked.has(key(node)) || (project.processos_impactados || []).some(link=>node.macro_id===id(link.macro_id) && node.parent_id===id(link.processo_id))
     ));
   }
-  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart, architectureMatches, scheduleStart};
+  globalScope.IndicadoresImpactados = {list, number, meta, timeline, sortChart, architectureMatches, scheduleStart, period};
 })(globalThis);

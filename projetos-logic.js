@@ -5667,6 +5667,23 @@ function projIndicadoresProcessosHtml(project, rows) {
   return `<div class="proj-v9-chart-card" id="proj-ind-processos" style="grid-column:1 / -1"><div class="proj-card-t">Indicadores vinculados e dos processos impactados</div><p style="font-size:12px;color:var(--ink3)">Valores atualizados pelo módulo de Processos.</p>${content}</div>`;
 }
 
+function projIndicadoresTimelineLine(points, unit) {
+  const data=points.map(ind=>({month:IndicadoresImpactados.period(ind.periodo),label:ind.periodo,value:IndicadoresImpactados.number(ind.resultado ?? ind.realizado ?? ind.atual)}));
+  const first=data[0].month,last=data[data.length-1].month;
+  const width=Math.max(720,(last-first)*80+110),height=280;
+  const min=Math.min(0,...data.map(point=>point.value)),max=Math.max(0,...data.map(point=>point.value));
+  const range=max-min || 1;
+  const x=point=>last===first?width/2:70+(point.month-first)/(last-first)*(width-110);
+  const y=value=>220-(value-min)/range*180;
+  const format=value=>Number(value).toLocaleString('pt-BR',{maximumFractionDigits:2});
+  const grid=Array.from({length:5},(_,i)=>{
+    const value=min+range*i/4,pos=y(value);
+    return `<line x1="70" y1="${pos}" x2="${width-40}" y2="${pos}" stroke="#dbe3ef"/><text x="60" y="${pos+4}" text-anchor="end" font-size="12" fill="#475569">${projEsc(format(value))}</text>`;
+  }).join('');
+  const labels=new Map(data.map(point=>[point.month,point]));
+  return `<div class="proj-ind-timeline-scroll"><svg class="proj-ind-timeline-chart" viewBox="0 0 ${width} ${height}" style="min-width:${width}px" role="img" aria-label="${projEsc('Evolução mensal dos resultados'+(unit?' em '+unit:''))}"><text x="70" y="20" font-size="12" fill="#475569">${projEsc(unit || 'Resultado')}</text>${grid}<polyline fill="none" stroke="#175cd3" stroke-width="3" points="${data.map(point=>`${x(point)},${y(point.value)}`).join(' ')}"/>${data.map(point=>`<g><title>${projEsc(point.label+': '+format(point.value)+' '+(unit || ''))}</title><circle cx="${x(point)}" cy="${y(point.value)}" r="5" fill="#175cd3"/><text x="${x(point)}" y="${y(point.value)-12}" text-anchor="middle" font-size="12" font-weight="700" fill="#12345b">${projEsc(format(point.value))}</text></g>`).join('')}${[...labels.values()].map(point=>`<text x="${x(point)}" y="245" text-anchor="middle" font-size="12" fill="#475569">${projEsc(point.label)}</text>`).join('')}<text x="${width/2}" y="273" text-anchor="middle" font-size="12" fill="#475569">Mês / ano</text></svg></div>`;
+}
+
 function projIndicadoresTimelineHtml(project, rows) {
   const start = IndicadoresImpactados.scheduleStart(project);
   const heading = '<div class="proj-card-t">Resultados na linha do tempo</div>';
@@ -5683,7 +5700,7 @@ function projIndicadoresTimelineHtml(project, rows) {
       groups.get(key).points.push(row.ind);
     });
     content = `<p>A partir de ${projEsc(projFormatDate(start))}, início da primeira atividade do cronograma, inclusive após o término do projeto. Apenas meses com resultados registrados.</p>`;
-    content += groups.size ? [...groups.values()].map(({row,points}) => `<div class="proj-ind-timeline-series"><strong>${projEsc(row.ind.nome || 'Indicador')}</strong><div class="proj-v9-meta-context">${projEsc(row.processo || project.nome)}${row.macro ? ` · ${projEsc(row.macro)}` : ''}</div><ol class="proj-ind-timeline-points">${points.map(ind => `<li><span>${projEsc(ind.periodo)}</span><strong>${projEsc(IndicadoresImpactados.number(ind.resultado ?? ind.realizado ?? ind.atual).toLocaleString('pt-BR',{maximumFractionDigits:2}))}</strong><span>${projEsc(ind.unidade || '')}</span></li>`).join('')}</ol></div>`).join('') : '<p>Nenhum resultado registrado no período do projeto para os filtros atuais.</p>';
+    content += groups.size ? [...groups.values()].map(({row,points}) => `<div class="proj-ind-timeline-series"><strong>${projEsc(row.ind.nome || 'Indicador')}</strong><div class="proj-v9-meta-context">${projEsc(row.processo || project.nome)}${row.macro ? ` · ${projEsc(row.macro)}` : ''}</div>${projIndicadoresTimelineLine(points,row.ind.unidade)}</div>`).join('') : '<p>Nenhum resultado registrado no período do projeto para os filtros atuais.</p>';
   }
   return `<div class="proj-v9-chart-card" id="proj-ind-timeline" style="grid-column:1 / -1">${heading}${content}</div>`;
 }
