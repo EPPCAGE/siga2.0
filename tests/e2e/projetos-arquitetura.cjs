@@ -91,6 +91,7 @@ const {readFileSync} = require('node:fs');
     assert.ok(!(await page.locator('#proj-ind-processos').innerText()).includes('Indicador de controle'));
     await page.evaluate(()=>{
       PROJETOS[0].dt_inicio='2026-09-15';
+      PROJETOS[0].execucao.tarefas=[{dt_inicio:'2026-09-15'}];
       PROJETOS[0].dt_fim='2026-09-30';
       projRenderIndicadoresPage();
     });
@@ -107,7 +108,7 @@ const {readFileSync} = require('node:fs');
     assert.match(await page.locator('#proj-ind-processos').innerText(),/Indicador associado diretamente/);
     assert.equal(await page.locator('#proj-ind-processos tbody tr').count(),1);
     assert.match(await page.locator('.proj-v9-meta-list').innerText(),/Indicador associado diretamente/);
-    await page.evaluate(()=>{PROJETOS[2].dt_inicio='2026-01-01';projRenderIndicadoresPage();});
+    await page.evaluate(()=>{PROJETOS[2].execucao.tarefas=[{dt_inicio:'2026-01-01'}];projRenderIndicadoresPage();});
     assert.equal(await page.locator('#proj-ind-timeline li').count(),1);
     assert.deepEqual(errors, []);
     const chartOrder = await page.evaluate(()=>{

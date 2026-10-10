@@ -5668,10 +5668,11 @@ function projIndicadoresProcessosHtml(project, rows) {
 }
 
 function projIndicadoresTimelineHtml(project, rows) {
+  const start = IndicadoresImpactados.scheduleStart(project);
   const heading = '<div class="proj-card-t">Resultados na linha do tempo</div>';
   let content;
   if(!project) content='<p>Selecione um projeto para visualizar a evolução dos indicadores.</p>';
-  else if(!project.dt_inicio) content='<p>Informe a data de início do projeto para visualizar a linha do tempo.</p>';
+  else if(!start) content='<p>Informe a data de início de uma atividade no cronograma/planner da etapa Execução/Monitoramento para visualizar a linha do tempo.</p>';
   else if(_projIndicadoresProcessos.loading) content='<p>Carregando resultados…</p>';
   else if(_projIndicadoresProcessos.error) content='<p>Não foi possível carregar os resultados. Tente novamente na seção de indicadores dos processos.</p>';
   else {
@@ -5681,7 +5682,7 @@ function projIndicadoresTimelineHtml(project, rows) {
       if(!groups.has(key)) groups.set(key,{row,points:[]});
       groups.get(key).points.push(row.ind);
     });
-    content = `<p>A partir de ${projEsc(projFormatDate(project.dt_inicio))}, inclusive após o término do projeto. Apenas meses com resultados registrados.</p>`;
+    content = `<p>A partir de ${projEsc(projFormatDate(start))}, início da primeira atividade do cronograma, inclusive após o término do projeto. Apenas meses com resultados registrados.</p>`;
     content += groups.size ? [...groups.values()].map(({row,points}) => `<div class="proj-ind-timeline-series"><strong>${projEsc(row.ind.nome || 'Indicador')}</strong><div class="proj-v9-meta-context">${projEsc(row.processo || project.nome)}${row.macro ? ` · ${projEsc(row.macro)}` : ''}</div><ol class="proj-ind-timeline-points">${points.map(ind => `<li><span>${projEsc(ind.periodo)}</span><strong>${projEsc(IndicadoresImpactados.number(ind.resultado ?? ind.realizado ?? ind.atual).toLocaleString('pt-BR',{maximumFractionDigits:2}))}</strong><span>${projEsc(ind.unidade || '')}</span></li>`).join('')}</ol></div>`).join('') : '<p>Nenhum resultado registrado no período do projeto para os filtros atuais.</p>';
   }
   return `<div class="proj-v9-chart-card" id="proj-ind-timeline" style="grid-column:1 / -1">${heading}${content}</div>`;
