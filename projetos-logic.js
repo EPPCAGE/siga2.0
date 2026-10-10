@@ -5609,6 +5609,61 @@ function projRenderDashV9() {
   }
 }
 
+const _projIndicadoresProcessos = {kpis:[],processos:[],loaded:false,loading:false,error:'',unsubscribers:[]};
+
+async function projLoadIndicadoresProcessos() {
+  if(_projIndicadoresProcessos.loaded || _projIndicadoresProcessos.loading) return;
+  _projIndicadoresProcessos.loading = true;
+  _projIndicadoresProcessos.error = '';
+  try {
+    if(fbReady()) {
+      const [indicators, mapped] = await Promise.all([kpisRepository.list(),processosRepository.list()]);
+      _projIndicadoresProcessos.kpis = indicators.docs.map(doc => doc.data);
+      _projIndicadoresProcessos.processos = mapped.docs.map(doc => doc.data);
+      const {onSnapshot} = fb();
+      if(onSnapshot && !_projIndicadoresProcessos.unsubscribers.length) {
+        [[kpisRepository,'kpis'],[processosRepository,'processos']].forEach(([repository,field]) => {
+          _projIndicadoresProcessos.unsubscribers.push(onSnapshot(repository.colRef(), snap => {
+            const data=[];
+            snap.forEach(doc=>data.push(doc.data()));
+            _projIndicadoresProcessos[field]=data;
+            if(_projCurrentPage === 'indicadores') projRenderIndicadoresPage();
+          }, error => { _projIndicadoresProcessos.error=error.message; if(_projCurrentPage === 'indicadores') projRenderIndicadoresPage(); }));
+        });
+      }
+    } else {
+      _projIndicadoresProcessos.kpis = typeof kpis !== 'undefined' ? kpis : [];
+      _projIndicadoresProcessos.processos = typeof processos !== 'undefined' ? processos : [];
+    }
+    _projIndicadoresProcessos.loaded=true;
+  } catch(error) { _projIndicadoresProcessos.error=error.message; }
+  finally { _projIndicadoresProcessos.loading=false; }
+  if(_projCurrentPage === 'indicadores') projRenderIndicadoresPage();
+}
+
+function projRetryIndicadoresProcessos() {
+  _projIndicadoresProcessos.loaded=false;
+  _projIndicadoresProcessos.error='';
+  void projLoadIndicadoresProcessos();
+}
+
+function projIndicadoresProcessosLista(project) {
+  return IndicadoresImpactados.list(project,projArquiteturaAtual(),_projIndicadoresProcessos.kpis,_projIndicadoresProcessos.processos).map(row=>({
+    ...row,p:project,ind:{...row.ind,meta:IndicadoresImpactados.meta(row.ind,_projIndicadoresProcessos.kpis),resultado:row.ind.sem_dado ? null : IndicadoresImpactados.number(row.ind.realizado ?? row.ind.resultado ?? row.ind.atual)}
+  }));
+}
+
+function projIndicadoresProcessosHtml(project, rows) {
+  if(!project) return '';
+  let content;
+  if(_projIndicadoresProcessos.loading) content='<p>Carregando indicadores dos processos impactados…</p>';
+  else if(_projIndicadoresProcessos.error) content='<p>Não foi possível carregar os indicadores dos processos.</p><button type="button" class="proj-btn" onclick="projRetryIndicadoresProcessos()">Tentar novamente</button>';
+  else if(!project.processos_impactados?.length) content='<p>Vincule os processos impactados na aba Aprovação do projeto para consultar seus indicadores.</p>';
+  else if(!rows.length) content='<p>Nenhum indicador dos processos impactados encontrado para os filtros atuais.</p>';
+  else content=`<table class="proj-v9-table"><thead><tr><th>Processo</th><th>Indicador</th><th>Período</th><th>Meta</th><th>Resultado</th><th>Unidade</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${projEsc(r.processo)}<div style="font-size:11px;color:var(--ink3)">${projEsc(r.macro)}</div></td><td>${projEsc(r.ind.nome||'Indicador')}</td><td>${projEsc(r.ind.periodo||'—')}</td><td>${projEsc(r.ind.meta ?? '—')}</td><td>${projEsc(r.ind.resultado ?? '—')}</td><td>${projEsc(r.ind.unidade||'')}</td></tr>`).join('')}</tbody></table>`;
+  return `<div class="proj-v9-chart-card" id="proj-ind-processos" style="grid-column:1 / -1"><div class="proj-card-t">Indicadores dos processos impactados</div><p style="font-size:12px;color:var(--ink3)">Valores atualizados pelo módulo de Processos.</p>${content}</div>`;
+}
+
 function projRenderIndicadoresPage() {
   projLoad();
   const el = document.getElementById('proj-indicadores-content');
@@ -5616,14 +5671,19 @@ function projRenderIndicadoresPage() {
   const projetos = (PROJETOS||[]).filter(p => p.status === 'ativo');
   const fProj = document.getElementById('proj-ind-filter-proj')?.value || '';
   const fArea = document.getElementById('proj-ind-filter-area')?.value || '';
+  const selectedProject=projetos.find(p=>String(p.id)===fProj);
+  if(selectedProject && !_projIndicadoresProcessos.loaded && !_projIndicadoresProcessos.loading && !_projIndicadoresProcessos.error) void projLoadIndicadoresProcessos();
+  let processRows=selectedProject ? projIndicadoresProcessosLista(selectedProject) : [];
+  if(fArea) processRows=processRows.filter(row=>row.macro===fArea);
   let rows = projIndicadoresLista(projetos);
   if(fProj) rows = rows.filter(r => String(r.p.id) === fProj);
   if(fArea) rows = rows.filter(r => projDimensoesProjeto(r.p).macros.includes(fArea));
   const projetosOpts = projetos.map(p => `<option value="${projEsc(String(p.id))}" ${String(p.id)===fProj?'selected':''}>${projEsc(p.nome)}</option>`).join('');
-  const macroOpts = projOptionsFromProjetos(projetos, p => projDimensoesProjeto(p).macros).map(v => `<option value="${projEsc(v)}" ${v===fArea?'selected':''}>${projEsc(v)}</option>`).join('');
-  const chart = projIndicadoresMetaChart(rows);
+  const impactedMacros=projProcessosArquitetura().filter(node=>projetos.some(p=>(p.processos_impactados||[]).some(link=>String(link.macro_id)===node.macro_id && String(link.processo_id)===node.processo_id))).map(node=>node.macro);
+  const macroOpts = [...new Set([...projOptionsFromProjetos(projetos, p => projDimensoesProjeto(p).macros),...impactedMacros])].sort(projTextCompare).map(v => `<option value="${projEsc(v)}" ${v===fArea?'selected':''}>${projEsc(v)}</option>`).join('');
+  const chart = projIndicadoresMetaChart([...rows,...processRows.filter(row=>row.ind.meta!==null && row.ind.resultado!==null)]);
   const table = rows.length ? `<table class="proj-v9-table"><thead><tr><th>Projeto</th><th>Indicador</th><th>Meta</th><th>Resultado</th><th>Unidade</th><th></th></tr></thead><tbody>${rows.map(r => `<tr><td>${projEsc(r.p.nome)}</td><td><input class="proj-fi" value="${projEsc(r.ind.nome||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'nome',this.value)"></td><td><input class="proj-fi" type="number" step="0.01" value="${projEsc(r.ind.meta||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'meta',this.value)"></td><td><input class="proj-fi" type="number" step="0.01" value="${projEsc(r.ind.resultado ?? r.ind.atual ?? '')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'resultado',this.value)"></td><td><input class="proj-fi" value="${projEsc(r.ind.unidade||'')}" onchange="projUpdateIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx},'unidade',this.value)"></td><td><button type="button" class="proj-btn danger" style="font-size:11px;padding:4px 8px" onclick="projRemoveIndicadorGlobal('${projEsc(String(r.p.id))}',${r.idx})">Remover</button></td></tr>`).join('')}</tbody></table>` : '<div class="proj-v9-chart-card" style="font-size:12px;color:var(--ink3)">Nenhum indicador encontrado para os filtros atuais.</div>';
-  projSetHtml(el, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros e edição</div><div class="proj-v9-filter-grid"><div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-ind-filter-proj" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${projetosOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Macroprocesso</label><select class="proj-fi" id="proj-ind-filter-area" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${macroOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Adicionar em projeto</label><select class="proj-fi" id="proj-ind-add-proj"><option value="">Selecione</option>${projetosOpts}</select></div><div style="display:flex;align-items:end"><button type="button" class="proj-btn primary" onclick="projAddIndicadorProjetoGlobal()">+ Indicador</button></div></div></div><div class="proj-v9-bi-grid"><div>${chart}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Indicadores cadastrados</div>${table}</div></div>`);
+  projSetHtml(el, `<div class="proj-v9-filter-card"><div class="proj-card-t">Filtros e edição</div><div class="proj-v9-filter-grid"><div class="proj-fg" style="margin:0"><label class="proj-fl">Projeto</label><select class="proj-fi" id="proj-ind-filter-proj" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${projetosOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Macroprocesso</label><select class="proj-fi" id="proj-ind-filter-area" onchange="projRenderIndicadoresPage()"><option value="">Todos</option>${macroOpts}</select></div><div class="proj-fg" style="margin:0"><label class="proj-fl">Adicionar em projeto</label><select class="proj-fi" id="proj-ind-add-proj"><option value="">Selecione</option>${projetosOpts}</select></div><div style="display:flex;align-items:end"><button type="button" class="proj-btn primary" onclick="projAddIndicadorProjetoGlobal()">+ Indicador</button></div></div></div><div class="proj-v9-bi-grid"><div>${chart}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Indicadores cadastrados</div>${table}</div>${projIndicadoresProcessosHtml(selectedProject,processRows)}</div>`);
 }
 
 function projUpdateIndicadorGlobal(projId, idx, field, value) {
