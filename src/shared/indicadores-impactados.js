@@ -31,7 +31,12 @@
     return (indicators || []).flatMap(ind => {
       const node = resolve(ind, all, mapped);
       return node && impacted.has(key(node)) ? [{ind,processo:node.nome,macro:node.macro,arq_id:node.arq_id}] : [];
-    });
+    }).sort((a, b) =>
+      String(a.processo || '').localeCompare(String(b.processo || ''), 'pt-BR', {sensitivity:'base'}) ||
+      String(a.macro || '').localeCompare(String(b.macro || ''), 'pt-BR', {sensitivity:'base'}) ||
+      String(a.arq_id).localeCompare(String(b.arq_id)) ||
+      period(a.ind.periodo) - period(b.ind.periodo)
+    );
   }
   function number(value) {
     if(value == null || String(value).trim() === '') return null;
