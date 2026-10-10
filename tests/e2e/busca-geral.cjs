@@ -19,6 +19,7 @@ const assert=require('node:assert/strict');
       window.PROJETOS_USUARIOS=[{id:2,nome:'Melhoria da auditoria',status:'concluido'}];
       window.publicacoes=[];
       window.abrirProc=id=>{window.openedProcess=id;};
+      window.abrirInfoMeusProc=(arqId,processId)=>{window.openedInfo={arqId,processId};};
     });
     await page.addScriptTag({content:names.map(name=>html.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0]).join('\n')});
     await page.evaluate(()=>rFaq());
@@ -34,13 +35,18 @@ const assert=require('node:assert/strict');
     assert.equal(await page.evaluate(()=>window.openedProcess),1);
     for(const profile of ['dono','gestor']){
       await page.evaluate(profile=>{window.usuarioLogado={perfil:profile};window.openedProcess=null;},profile);
-      for(const [type,query] of [['riscos','atraso'],['problemas','falha'],['processos','auditar'],['pops','relatorio']]){
+      for(const [type,query] of [['riscos','atraso'],['problemas','falha'],['pops','relatorio']]){
         await page.selectOption('#busca-tipo',type);
         await page.fill('#faq-srch',query);
         assert.equal(await page.locator('#faq-c button, #faq-c a').count(),0);
         await page.evaluate(type=>abrirResultadoBusca({dataset:{searchType:type,target:JSON.stringify({kind:'processo',id:1})}}),type);
         assert.equal(await page.evaluate(()=>window.openedProcess),null);
       }
+      await page.selectOption('#busca-tipo','processos');
+      await page.fill('#faq-srch','auditar');
+      await page.getByRole('button',{name:'Sobre o processo',exact:true}).click();
+      assert.equal(await page.evaluate(()=>window.openedInfo.processId),1);
+      assert.equal(await page.evaluate(()=>window.openedProcess),null);
     }
     await page.evaluate(()=>{window.usuarioLogado={perfil:'ep'};});
     await page.selectOption('#busca-tipo','riscos');

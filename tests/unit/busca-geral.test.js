@@ -23,7 +23,8 @@ describe('busca geral',()=>{
   it('busca problemas pela descrição e solução',()=>expect(search('problemas','revisao',data)[0].target.id).toBe(1));
   it('inclui arquitetura sem duplicar processos mapeados',()=>{
     expect(search('processos','auditar',data)).toHaveLength(1);
-    expect(search('processos','obras',data)[0].target.kind).toBe('arquitetura');
+    expect(search('processos','obras',data)[0].target.kind).toBe('info-processo');
+    expect(search('processos','auditar',data)[0].target.processId).toBe(1);
   });
   it('busca indicadores por código ou período e projetos concluídos',()=>{
     expect(search('indicadores','I1',data)).toHaveLength(1);

@@ -27,7 +27,7 @@
 <script src="src/shared/firestore-repositories.js"></script>
 <script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
 <script src="src/shared/indicadores-impactados.js?v=20261010-2"></script>
-<script src="src/shared/busca-geral.js?v=20261010-2"></script>
+<script src="src/shared/busca-geral.js?v=20261010-3"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -3662,11 +3662,12 @@ function rMeusProc(){
   }
   updCounts();
 }
-function abrirInfoMeusProc(arqId){
-  const item = findArqItemById(arqId);
+function abrirInfoMeusProc(arqId,processId){
+  const linkedProcess=processos.find(p=>processId!=null?String(p.id)===String(processId):arqId!=null && String(p.arq_id)===String(arqId));
+  const item = (arqId!=null?findArqItemById(arqId):null) || linkedProcess;
   if(!item) return;
   const u = getMinhasUnidades().find(x=>x.arq_id===arqId);
-  const proc = u?.proc || null;
+  const proc = u?.proc || linkedProcess || null;
   const tipo = u?.isSub ? 'Subprocesso' : 'Processo';
   const parentSuffix = u?.parentNome ? ' › '+esc(u.parentNome) : '';
   const breadcrumb = u ? esc(u.macro)+parentSuffix : '';
@@ -13407,6 +13408,9 @@ function _buscaPodeAbrir(type,target){
 function abrirResultadoBusca(button){
   const target=JSON.parse(button.dataset.target);
   if(!_buscaPodeAbrir(button.dataset.searchType,target)) return;
+  if(target.kind==='info-processo'){
+    abrirInfoMeusProc(target.arqId,target.processId);return;
+  }
   if(target.kind==='processo'){
     const process=processos.find(p=>String(p.id)===String(target.id));
     if(process) abrirProc(process.id);
@@ -13443,8 +13447,9 @@ function rBuscaGeral(type){
   if(count) count.textContent=rows.length+' resultado(s)';
   container.innerHTML=rows.length?rows.map(row=>{
     const target=row.target;
+    const actionLabel=target.kind==='info-processo'?'Sobre o processo':'Abrir';
     const url=target.kind==='projeto'?'projetos.html?projeto='+encodeURIComponent(target.id)+'&aba=execucao#exec-cronograma-section':target.kind==='publicacao'?safeUrl(target.url || ''):'';
-    const action=!_buscaPodeAbrir(type,target)?'':url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-search-type="${esc(type)}" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this)">Abrir</button>`;
+    const action=!_buscaPodeAbrir(type,target)?'':url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-search-type="${esc(type)}" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this)">${actionLabel}</button>`;
     return `<div class="ib ibb" style="margin-bottom:12px"><strong>${esc(row.title)}</strong><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(row.detail)}</p>${action}</div>`;
   }).join(''):'<div class="ib ibb">Nenhum resultado encontrado para a busca.</div>';
 }

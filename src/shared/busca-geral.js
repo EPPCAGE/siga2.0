@@ -17,9 +17,9 @@
       (data.arquitetura || []).forEach(m=>(m.processos || []).forEach(p=>[p,...(p.subprocessos || [])].forEach(node=>{
         const proc=processes.find(item=>String(item.arq_id)===String(node.id) && (!item.macro || item.macro===m.nome));
         if(proc) mapped.add(proc.id);
-        add(node.nome,{'Macroprocesso':m.nome,'Área':node.area,'Objetivo':node.objetivo},proc?{kind:'processo',id:proc.id}:{kind:'arquitetura',id:node.id},node.objetivo_estrategico);
+        add(node.nome,{'Macroprocesso':m.nome,'Área':node.area,'Objetivo':node.objetivo},{kind:'info-processo',arqId:node.id,processId:proc?.id},node.objetivo_estrategico);
       })));
-      processes.filter(p=>!mapped.has(p.id)).forEach(p=>add(p.nome,{'Macroprocesso':p.macro,'Área':p.area,'Objetivo':p.objetivo},{kind:'processo',id:p.id}));
+      processes.filter(p=>!mapped.has(p.id)).forEach(p=>add(p.nome,{'Macroprocesso':p.macro,'Área':p.area,'Objetivo':p.objetivo},{kind:'info-processo',arqId:p.arq_id,processId:p.id}));
     }
     if(type==='riscos' || type==='problemas') processes.forEach(p=>{
       const items=type==='riscos'?p.ent?.riscos:p.ent?.prob;
