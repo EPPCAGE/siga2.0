@@ -24,7 +24,8 @@ const assert=require('node:assert/strict');
     await page.addScriptTag({content:names.map(name=>html.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0]).join('\n')});
     await page.evaluate(()=>rFaq());
     assert.equal(await page.locator('#faq-srch').isDisabled(),true);
-    for(const [type,query,expected] of [['faq','auditar','Como auditar'],['riscos','emissao','Atraso na emissão'],['problemas','relatorio','Falha no relatório'],['indicadores','I1','Prazo de emissão'],['processos','contratos','Auditar contratos'],['projetos','auditoria','Melhoria da auditoria'],['pops','relatorio','POP — Auditar contratos']]){
+    assert.deepEqual(await page.locator('#busca-tipo option').evaluateAll(options=>options.map(option=>option.value)),['','todos','faq','riscos','problemas']);
+    for(const [type,query,expected] of [['faq','auditar','Como auditar'],['riscos','emissao','Atraso na emissão'],['problemas','relatorio','Falha no relatório']]){
       await page.selectOption('#busca-tipo',type);
       assert.equal(await page.locator('#faq-srch').isEnabled(),true);
       await page.fill('#faq-srch',query);
@@ -35,17 +36,20 @@ const assert=require('node:assert/strict');
     assert.equal(await page.evaluate(()=>window.openedProcess),1);
     for(const profile of ['dono','gestor']){
       await page.evaluate(profile=>{window.usuarioLogado={perfil:profile};window.openedProcess=null;},profile);
-      for(const [type,query] of [['riscos','atraso'],['problemas','falha'],['pops','relatorio']]){
+      for(const [type,query] of [['riscos','atraso'],['problemas','falha']]){
         await page.selectOption('#busca-tipo',type);
         await page.fill('#faq-srch',query);
         assert.equal(await page.locator('#faq-c button, #faq-c a').count(),0);
         await page.evaluate(type=>abrirResultadoBusca({dataset:{searchType:type,target:JSON.stringify({kind:'processo',id:1})}}),type);
         assert.equal(await page.evaluate(()=>window.openedProcess),null);
       }
-      await page.selectOption('#busca-tipo','processos');
-      await page.fill('#faq-srch','auditar');
-      await page.getByRole('button',{name:'Sobre o processo',exact:true}).click();
-      assert.equal(await page.evaluate(()=>window.openedInfo.processId),1);
+      await page.selectOption('#busca-tipo','todos');
+      await page.selectOption('#busca-processo','1');
+      await page.fill('#faq-srch','');
+      assert.match(await page.locator('#faq-c').innerText(),/Como auditar/);
+      assert.match(await page.locator('#faq-c').innerText(),/Atraso na emissão/);
+      assert.match(await page.locator('#faq-c').innerText(),/Falha no relatório/);
+      assert.equal(await page.locator('#faq-c button').count(),0);
       assert.equal(await page.evaluate(()=>window.openedProcess),null);
     }
     await page.evaluate(()=>{window.usuarioLogado={perfil:'ep'};});
@@ -55,6 +59,6 @@ const assert=require('node:assert/strict');
     await page.fill('#faq-srch','inexistente');
     assert.match(await page.locator('#faq-c').innerText(),/Nenhum resultado/);
     assert.deepEqual(errors,[]);
-    console.log('Busca geral: sete categorias, FAQ, acentos, navegação e estados vazios verificados.');
+    console.log('Busca geral: FAQ, riscos, problemas, filtro por processo e restrições de acesso verificados.');
   } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

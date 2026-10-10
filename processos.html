@@ -27,7 +27,7 @@
 <script src="src/shared/firestore-repositories.js"></script>
 <script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
 <script src="src/shared/indicadores-impactados.js?v=20261010-2"></script>
-<script src="src/shared/busca-geral.js?v=20261010-3"></script>
+<script src="src/shared/busca-geral.js?v=20261010-4"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -1348,10 +1348,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <!-- Barra de busca -->
   <div class="fbar" style="margin-bottom:1.2rem">
     <span class="fbar-l">🔍 Buscar</span>
-    <select class="fi" id="busca-tipo" aria-label="O que deseja buscar" onchange="rFaq()" style="max-width:200px"><option value="">Selecione o que buscar</option><option value="faq">FAQ</option><option value="riscos">Riscos</option><option value="problemas">Problemas</option><option value="indicadores">Indicadores</option><option value="processos">Processos</option><option value="projetos">Projetos</option><option value="pops">POPs</option></select>
+    <select class="fi" id="busca-tipo" aria-label="O que deseja buscar" onchange="rFaq()" style="max-width:240px"><option value="">Selecione o que buscar</option><option value="todos">FAQs, riscos e problemas</option><option value="faq">FAQ</option><option value="riscos">Riscos</option><option value="problemas">Problemas</option></select>
+    <select class="fi" id="busca-processo" aria-label="Filtrar busca por processo" onchange="if(this.value && !document.getElementById('busca-tipo').value) document.getElementById('busca-tipo').value='todos';rFaq()" style="max-width:360px"><option value="">Todos os processos</option></select>
     <input class="srch" id="faq-srch" aria-label="Termo da busca geral" placeholder="Digite palavras-chave..." oninput="rFaq()" style="flex:1;max-width:480px" disabled>
     <select class="fi" id="faq-f-macro" aria-label="Filtrar FAQ por macroprocesso" onchange="rFaq()" style="max-width:220px"><option value="">Todos os macroprocessos</option></select>
-    <button type="button" class="btn" style="font-size:11px;padding:4px 10px" onclick="document.getElementById('faq-srch').value='';document.getElementById('faq-f-macro').value='';rFaq()">Limpar</button>
+    <button type="button" class="btn" style="font-size:11px;padding:4px 10px" onclick="document.getElementById('faq-srch').value='';document.getElementById('faq-f-macro').value='';document.getElementById('busca-processo').value='';rFaq()">Limpar</button>
     <span id="faq-result-cnt" style="font-size:11px;color:var(--ink3)"></span>
   </div>
   <div id="faq-c"></div>
@@ -13377,6 +13378,11 @@ function abrirAdicionarFaqItem(procId){
   });
 }
 function rFaq(){
+  const processSelect=document.getElementById('busca-processo');
+  if(processSelect){
+    const current=processSelect.value;
+    processSelect.innerHTML='<option value="">Todos os processos</option>'+processos.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(p=>`<option value="${esc(String(p.id))}"${String(p.id)===current?' selected':''}>${esc(p.nome)}${p.macro?' — '+esc(p.macro):''}</option>`).join('');
+  }
   const type=document.getElementById('busca-tipo')?.value ?? 'faq';
   const input=document.getElementById('faq-srch');
   if(input) input.disabled=!type;
@@ -13390,7 +13396,7 @@ function rFaq(){
 
   const srch=(document.getElementById('faq-srch')?.value||'').toLowerCase().trim();
   const filtMacro=macroSel?.value || '';
-  const todos=processos.filter(p => p.form?.faq && p.form.faq.trim());
+  const todos=processos.filter(p => p.form?.faq && p.form.faq.trim() && (!processSelect?.value || String(p.id)===processSelect.value));
   _faqPopulateMacroSelect(macroSel, todos);
   const {grupos,totalPerguntas}=_faqBuildGroups(todos, filtMacro, srch);
   if(cntEl) cntEl.textContent=_faqCountLabel(totalPerguntas);
@@ -13427,30 +13433,16 @@ function rBuscaGeral(type){
   if(!container) return;
   if(count) count.textContent='';
   if(!type){container.innerHTML='<div class="ib ibb">Selecione o que deseja buscar.</div>';return;}
-  if(['projetos','riscos'].includes(type) && fbReady()){
-    const state=globalThis._buscaProjetosState ||= {loaded:false,loading:false};
-    if(!state.loaded){
-      container.innerHTML='<p>Carregando projetos…</p>';
-      if(!state.loading){
-        state.loading=true;
-        _fbLoadProjetosUsuarios().then(()=>{state.loaded=true;state.loading=false;rFaq();}).catch(()=>{
-          state.loading=false;
-          container.innerHTML='<p>Não foi possível carregar os projetos.</p><button type="button" class="btn" onclick="rFaq()">Tentar novamente</button>';
-        });
-      }
-      return;
-    }
-  }
   const query=document.getElementById('faq-srch')?.value || '';
-  if(!query.trim()){container.innerHTML='<div class="ib ibb">Digite um termo para buscar.</div>';return;}
-  const rows=BuscaGeral.search(type,query,{processos,arquitetura:ARQUITETURA,kpis,projetos:PROJETOS_USUARIOS,publicacoes});
+  if(!query.trim() && !document.getElementById('busca-processo')?.value){container.innerHTML='<div class="ib ibb">Digite um termo para buscar.</div>';return;}
+  const rows=BuscaGeral.search(type,query,{processos,processId:document.getElementById('busca-processo')?.value});
   if(count) count.textContent=rows.length+' resultado(s)';
   container.innerHTML=rows.length?rows.map(row=>{
     const target=row.target;
     const actionLabel=target.kind==='info-processo'?'Sobre o processo':'Abrir';
     const url=target.kind==='projeto'?'projetos.html?projeto='+encodeURIComponent(target.id)+'&aba=execucao#exec-cronograma-section':target.kind==='publicacao'?safeUrl(target.url || ''):'';
     const action=!_buscaPodeAbrir(type,target)?'':url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-search-type="${esc(type)}" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this)">${actionLabel}</button>`;
-    return `<div class="ib ibb" style="margin-bottom:12px"><strong>${esc(row.title)}</strong><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(row.detail)}</p>${action}</div>`;
+    return `<div class="ib ibb" style="margin-bottom:12px"><div style="font-size:11px;margin-bottom:4px">${({faq:"FAQ",riscos:"Risco",problemas:"Problema"})[row.category] || ""}</div><strong>${esc(row.title)}</strong><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(row.detail)}</p>${action}</div>`;
   }).join(''):'<div class="ib ibb">Nenhum resultado encontrado para a busca.</div>';
 }
 

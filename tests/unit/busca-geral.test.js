@@ -17,23 +17,16 @@ describe('busca geral',()=>{
   });
   it('busca sem acentos e combina palavras em qualquer ordem',()=>{
     expect(search('riscos','prazo emissao',data)).toHaveLength(1);
-    expect(search('riscos','atraso',data)).toHaveLength(2);
+    expect(search('riscos','atraso',data)).toHaveLength(1);
     expect(search('riscos','inexistente',data)).toHaveLength(0);
   });
   it('busca problemas pela descrição e solução',()=>expect(search('problemas','revisao',data)[0].target.id).toBe(1));
-  it('inclui arquitetura sem duplicar processos mapeados',()=>{
-    expect(search('processos','auditar',data)).toHaveLength(1);
-    expect(search('processos','obras',data)[0].target.kind).toBe('info-processo');
-    expect(search('processos','auditar',data)[0].target.processId).toBe(1);
-  });
-  it('busca indicadores por código ou período e projetos concluídos',()=>{
-    expect(search('indicadores','I1',data)).toHaveLength(1);
-    expect(search('indicadores','jan/2026',data)).toHaveLength(1);
-    expect(search('projetos','concluido',data)[0].target.id).toBe(2);
-  });
-  it('busca POPs nos processos e publicações',()=>{
-    expect(search('pops','relatorio',data)).toHaveLength(1);
-    expect(search('pops','fiscalizacao',data)[0].target.url).toBe('https://example.org/pop');
-    expect(search('pops','manual',data)).toHaveLength(0);
+  it.each(['indicadores','processos','projetos','pops'])('não disponibiliza a categoria removida %s',type=>expect(search(type,'',data)).toEqual([]));
+  it('exibe FAQs, riscos e problemas apenas do processo selecionado, mesmo sem texto de busca',()=>{
+    const selected={...data,processId:'1',processos:[{...data.processos[0],form:{faq:'P: Como auditar?\nR: Revisar contratos.'}},
+      {id:2,nome:'Outro',ent:{riscos:[{desc:'Risco de outro processo'}]}}]};
+    expect(search('todos','',selected).map(row=>row.category)).toEqual(['faq','riscos','problemas']);
+    expect(search('todos','',selected).every(row=>row.target.id===1)).toBe(true);
+    expect(search('faq','contratos',selected)).toHaveLength(1);
   });
 });
