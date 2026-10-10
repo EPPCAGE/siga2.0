@@ -25,6 +25,7 @@
 <script src="src/shared/bizagi-import.js"></script>
 <script src="src/processos/registros-processo.js"></script>
 <script src="src/shared/firestore-repositories.js"></script>
+<script src="src/shared/objetivos-estrategicos.js?v=20261009-1"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
 <script src="src/shared/users/users-permissions.js"></script>
@@ -13025,6 +13026,7 @@ function remR(i){if(!curProc?.ent?.riscos){return;} curProc.ent.riscos.splice(i,
 // ARQUITETURA DE PROCESSOS
 // ═══════════════════════════════════════════
 function rArqPopulateFilters(){
+  ObjetivosEstrategicos.migrateArchitecture(ARQUITETURA);
   // Macroprocesso
   const mSel = document.getElementById('arq-f-macro');
   if(mSel){
@@ -13844,11 +13846,11 @@ function abrirModalMeta(item, onSave){
       <div class="fg"><label class="fl">Dono do processo</label><input class="fi" id="mm-ger" value="${item.gerente||''}"></div>
     </div>
     <div class="fg"><label class="fl">Objetivo do processo</label><textarea class="fi" id="mm-obj" style="min-height:60px">${item.objetivo||''}</textarea></div>
-    <div class="fg"><label class="fl">Objetivo estratégico</label>
-      <select class="fi" id="mm-obje">
-        <option value="">Selecione...</option>
-        ${(()=>{const s=new Set();ARQUITETURA.forEach(m=>m.processos.forEach(p=>{(p.objetivo_estrategico||'').split(';').map(x=>x.trim()).filter(Boolean).forEach(o=>s.add(o));(p.subprocessos||[]).forEach(sp=>(sp.objetivo_estrategico||'').split(';').map(x=>x.trim()).filter(Boolean).forEach(o=>s.add(o)))}));return[...s].sort().map(o=>`<option ${(item.objetivo_estrategico||'')===o?'selected':''}>${esc(o)}</option>`).join('');})()}
+    <div class="fg"><label class="fl" for="mm-obje">Objetivos estratégicos</label>
+      <select class="fi" id="mm-obje" multiple size="5">
+        ${ObjetivosEstrategicos.choices(item.objetivo_estrategico).map(o=>`<option value="${esc(o.value)}" ${o.selected?'selected':''}>${esc(o.label)}</option>`).join('')}
       </select>
+      <div style="font-size:12px;margin-top:4px">Catálogo de Projetos. Use Ctrl ou Cmd para selecionar vários objetivos. Vínculos sem correspondência ficam identificados como pendentes.</div>
     </div>
     <div class="g2">
       <div class="fg"><label class="fl">Entradas do processo</label><textarea class="fi" id="mm-ent" style="min-height:55px">${item.entradas||''}</textarea></div>
@@ -13886,7 +13888,7 @@ function salvarModalMeta(){
   item.area=document.getElementById('mm-area').value.trim();
   item.gerente=document.getElementById('mm-ger').value.trim();
   item.objetivo=document.getElementById('mm-obj').value.trim();
-  item.objetivo_estrategico=document.getElementById('mm-obje').value.trim();
+  item.objetivo_estrategico=ObjetivosEstrategicos.normalize([...document.getElementById('mm-obje').selectedOptions].map(o=>o.value).join('; '));
   item.entradas=document.getElementById('mm-ent').value.trim();
   item.entregas=document.getElementById('mm-entr').value.trim();
   item.clientes=document.getElementById('mm-cli').value.trim();
@@ -14174,7 +14176,7 @@ async function importarArqExcel(input){
             gerente:            gv(row,cGer),
             area:               gv(row,cArea),
             objetivo:           gv(row,cObj),
-            objetivo_estrategico: gv(row,cObje),
+            objetivo_estrategico: ObjetivosEstrategicos.normalize(gv(row,cObje)),
             entradas:           gv(row,cEnt),
             entregas:           gv(row,cEntr),
             clientes:           gv(row,cCli),
@@ -14192,7 +14194,7 @@ async function importarArqExcel(input){
             gerente:              gv(row,cGer),
             area:                 gv(row,cArea),
             objetivo:             gv(row,cObj),
-            objetivo_estrategico: gv(row,cObje),
+            objetivo_estrategico: ObjetivosEstrategicos.normalize(gv(row,cObje)),
             entradas:             gv(row,cEnt),
             entregas:             gv(row,cEntr),
             clientes:             gv(row,cCli),
@@ -18378,11 +18380,22 @@ async function _fbSaveRelatoriosPat(){
   await configRepository.set('relatorios_pat', { data: JSON.stringify(relatoriosPat) });
 }
 async function _fbLoadArquitetura(){
+  await ObjetivosEstrategicos.load();
+  ObjetivosEstrategicos.watch(() => {
+    ObjetivosEstrategicos.migrateArchitecture(ARQUITETURA);
+    rArqPopulateFilters();
+    const select = document.getElementById('mm-obje');
+    if(select) {
+      const linked = [...select.selectedOptions].map(o=>o.value).join('; ');
+      select.innerHTML = ObjetivosEstrategicos.choices(linked).map(o=>`<option value="${esc(o.value)}" ${o.selected?'selected':''}>${esc(o.label)}</option>`).join('');
+    }
+  });
   const arqDoc = await configRepository.get('arquitetura');
   if(!(arqDoc.exists() && arqDoc.data().data)) return;
   try {
     ARQUITETURA = JSON.parse(arqDoc.data().data);
     _fbConfigCache.set('arquitetura', JSON.stringify(ARQUITETURA));
+    ObjetivosEstrategicos.migrateArchitecture(ARQUITETURA);
   } catch(e){ console.error('Erro ao parsear arquitetura:', e); }
 }
 async function _fbLoadProjetosUsuarios(){

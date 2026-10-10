@@ -206,39 +206,67 @@ const PROJ_FASES = [
 ];
 const FASE_IDX = Object.fromEntries(PROJ_FASES.map((f,i)=>[f.id,i]));
 
-let PROJ_MACROS = [
-  '[Gestão] Gestão estratégica','[Gestão] Comunicação e relacionamento institucional',
-  '[Finalístico] Orientação e suporte à tomada de decisão','[Finalístico] Contabilidade',
-  '[Finalístico] Transparência e estímulo ao controle social','[Finalístico] Controle',
-  '[Finalístico] Auditoria','[Finalístico] Promoção da integridade e prevenção à corrupção',
-  '[Apoio] Gestão de dados e informações','[Apoio] Gestão administrativa',
-  '[Apoio] Gestão de TIC','[Apoio] Gestão de pessoas'
-];
-let PROJ_OBJETIVOS = [
-  '[Resultados] Colaborar para a implementação de políticas públicas efetivas',
-  '[Resultados] Aperfeiçoar a transparência pública e fomentar o controle social',
-  '[Resultados] Promover a integridade pública e privada e fortalecer a prevenção à corrupção',
-  '[Resultados] Otimizar a utilização dos recursos públicos',
-  '[Articulação] Aprimorar o assessoramento aos gestores públicos',
-  '[Articulação] Fortalecer a credibilidade e a imagem da CAGE',
-  '[Processos] Desenvolver modelo de controle baseado em riscos e orientado pela utilização de dados',
-  '[Processos] Sistematizar e implementar modelo de avaliação de políticas públicas',
-  '[Processos] Reestruturar as ações de transparência, com foco no cidadão',
-  '[Processos] Qualificar a informação contábil',
-  '[Processos] Otimizar a contribuição da auditoria para o aprimoramento da gestão pública estadual',
-  '[Processos] Promover a cultura de integridade na Administração Pública',
-  '[Processos] Otimizar os processos de trabalho, com foco em eficiência operacional e automação',
-  '[Aprendizado] Gerir as pessoas com foco na estratégia',
-  '[Aprendizado] Aperfeiçoar a governança organizacional e fortalecer a cultura de colaboração e inovação',
-  '[Aprendizado] Promover uma comunicação interna mais efetiva',
-  '[Aprendizado] Assegurar serviços de TIC para suportar os processos e a estratégia'
-];
+let PROJ_MACROS = [];
+let PROJ_ARQUITETURA = [];
+
+function projArquiteturaAtual() {
+  return typeof ARQUITETURA !== 'undefined' && Array.isArray(ARQUITETURA) ? ARQUITETURA : PROJ_ARQUITETURA;
+}
+
+function projMacroKey(value) {
+  return projStrategyBaseName(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function projResolveMacro(value) {
+  const matches = projArquiteturaAtual().filter(m => projMacroKey(m.nome) === projMacroKey(value));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function projSyncArquitetura() {
+  const arquitetura = projArquiteturaAtual();
+  PROJ_MACROS = arquitetura.map(m => m.nome);
+  (PROJETOS || []).forEach(p => {
+    const ids = new Set((p.macroprocesso_ids || []).map(String));
+    const previousNames = p.macroprocesso_nomes || {};
+    p.macroprocessos = [...new Set((p.macroprocessos || []).map(value => {
+      const previousId = Object.keys(previousNames).find(id => ids.has(id) && previousNames[id] === value);
+      const macro = previousId ? arquitetura.find(m => String(m.id) === previousId) : projResolveMacro(value);
+      if(macro) ids.add(String(macro.id));
+      return macro ? macro.nome : value;
+    }))];
+    p.macroprocesso_ids = [...ids];
+    p.macroprocesso_nomes = {...previousNames};
+    arquitetura.forEach(m => {
+      if(ids.has(String(m.id))) {
+        p.macroprocesso_nomes[String(m.id)] = m.nome;
+        if(!p.macroprocessos.includes(m.nome)) p.macroprocessos.push(m.nome);
+      }
+    });
+  });
+}
+
+function projApplyArquitetura(data) {
+  if(!Array.isArray(data)) throw new Error('Arquitetura inválida.');
+  PROJ_ARQUITETURA = data;
+  projSyncArquitetura();
+}
+
+async function projLoadArquitetura() {
+  const snap = await configRepository.get('arquitetura');
+  projApplyArquitetura(snap.exists() && snap.data()?.data ? JSON.parse(snap.data().data) : []);
+}
+
+function projProcessosArquitetura() {
+  return projArquiteturaAtual().flatMap(m => (m.processos || []).map(p => ({
+    macro_id: String(m.id), processo_id: String(p.id), macro: m.nome, nome: p.nome
+  })));
+}
+let PROJ_OBJETIVOS = [...ObjetivosEstrategicos.defaults];
 const PROJ_FB = Object.freeze({
   colProjetos: 'projPROJETOS',
   colProgramas: 'projPROGRAMAS',
   cfgCol: 'config',
-  cfgMacrosId: 'projPROJ_MACROS',
-  cfgObjetivosId: 'proj_objetivos',
+  cfgObjetivosId: ObjetivosEstrategicos.configId,
   cfgGovernancaId: 'proj_governanca'
 });
 const _projFbState = {loaded:false, loading:false, saveTimer:null, listenersStarted:false, unsubscribers:[], saving:false, pendingRender:false};
@@ -252,7 +280,7 @@ function projRepositoryFor(col){
 function projApplyDataSet(data){
   PROJETOS = Array.isArray(data?.projetos) ? data.projetos.map(function(p){return projFixDefaults(p);}) : [];
   PROGRAMAS = Array.isArray(data?.programas) ? data.programas.map(function(pg){return progFixDefaults(pg);}) : [];
-  if(Array.isArray(data?.macros)) PROJ_MACROS = data.macros;
+  projSyncArquitetura();
   if(Array.isArray(data?.objetivos)) PROJ_OBJETIVOS = data.objetivos;
 }
 
@@ -271,14 +299,13 @@ async function projFetchDefaultData(){
 function projLoadListas(){
   if(fbReady()) return;
   try{
-    const m=localStorage.getItem('cagePROJ_MACROS_v6');if(m)PROJ_MACROS=JSON.parse(m);
+    projSyncArquitetura();
     const o=localStorage.getItem('cage_objetivos_v6');if(o)PROJ_OBJETIVOS=JSON.parse(o);
   }catch(e){}
 }
 function projSaveListas(){
   if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.')) return false;
   if(!fbReady()){
-    localStorage.setItem('cagePROJ_MACROS_v6',JSON.stringify(PROJ_MACROS));
     localStorage.setItem('cage_objetivos_v6',JSON.stringify(PROJ_OBJETIVOS));
   }
   void projFbAutoSave('listas').catch(() => {});
@@ -319,14 +346,12 @@ async function projFbSaveAll(options){
     await projFbSyncCollection(PROJ_FB.colProjetos, PROJETOS||[]);
     await projFbSyncCollection(PROJ_FB.colProgramas, PROGRAMAS||[]);
     if(includeConfig){
-      await configRepository.set(PROJ_FB.cfgMacrosId, {data: JSON.stringify(PROJ_MACROS||[])});
       await configRepository.set(PROJ_FB.cfgObjetivosId, {data: JSON.stringify(PROJ_OBJETIVOS||[])});
       await configRepository.set(PROJ_FB.cfgGovernancaId, {data: JSON.stringify(PROJ_GOVERNANCA)});
     }
     try{
       localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS||[]));
       localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS||[]));
-      localStorage.setItem('cagePROJ_MACROS_v6', JSON.stringify(PROJ_MACROS||[]));
       localStorage.setItem('cage_objetivos_v6', JSON.stringify(PROJ_OBJETIVOS||[]));
       localStorage.setItem(PROJ_GOV_STORAGE_KEY, JSON.stringify(PROJ_GOVERNANCA));
     }catch(_e){}
@@ -372,7 +397,6 @@ function projCacheCloudState(){
   try{
     localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS||[]));
     localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS||[]));
-    localStorage.setItem('cagePROJ_MACROS_v6', JSON.stringify(PROJ_MACROS||[]));
     localStorage.setItem('cage_objetivos_v6', JSON.stringify(PROJ_OBJETIVOS||[]));
     localStorage.setItem(PROJ_GOV_STORAGE_KEY, JSON.stringify(PROJ_GOVERNANCA));
   }catch(_e){}
@@ -380,6 +404,7 @@ function projCacheCloudState(){
 
 function projCloudRender(){
   _projFbState.loaded = true;
+  projSyncArquitetura();
   projEnsureDailyScheduleBackups();
   projCacheCloudState();
   if(_projFbState.saving){
@@ -413,12 +438,11 @@ function projFbStartRealtime(){
       });
       projCloudRender();
     }, e => console.warn('proj programas snapshot:', e.message)),
-    onSnapshot(configRepository.ref(PROJ_FB.cfgMacrosId), snap => {
-      if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
-      if(snap.exists() && typeof snap.data()?.data === 'string'){
-        try{ PROJ_MACROS = JSON.parse(snap.data().data); }catch(_e){}
+    onSnapshot(configRepository.ref('arquitetura'), snap => {
+      try {
+        projApplyArquitetura(snap.exists() && snap.data()?.data ? JSON.parse(snap.data().data) : []);
         projCloudRender();
-      }
+      } catch(e) { console.warn('proj arquitetura:', e.message); }
     }, e => console.warn('proj macros snapshot:', e.message)),
     onSnapshot(configRepository.ref(PROJ_FB.cfgObjetivosId), snap => {
       if(_projFbState.saving){ _projFbState.pendingRender = true; return; }
@@ -485,7 +509,7 @@ async function projFbLoadOnce(){
     const seeded = await projFbSeedIfEmpty(pSnap, gSnap);
     if(!seeded) projFbApplyCollectionSnaps(pSnap, gSnap);
     await Promise.all([
-      projFbLoadConfigDoc(PROJ_FB.cfgMacrosId, PROJ_MACROS, data => { PROJ_MACROS = data; }),
+      projLoadArquitetura(),
       projFbLoadConfigDoc(PROJ_FB.cfgObjetivosId, PROJ_OBJETIVOS, data => { PROJ_OBJETIVOS = data; }),
       projFbLoadConfigDoc(PROJ_FB.cfgGovernancaId, PROJ_GOVERNANCA, data => { PROJ_GOVERNANCA = projGovFixData(data); })
     ]);
@@ -503,6 +527,7 @@ function projLoad() {
   if(fbReady()){
     if(!_projFbState.loaded) projFbLoadOnce().catch(e=>console.warn('projLoad/fb:',e.message));
     PROJETOS = (PROJETOS||[]).map(p => projFixDefaults(p));
+    projSyncArquitetura();
     PROGRAMAS = (PROGRAMAS||[]).map(pg => progFixDefaults(pg));
     if(_projFbState.loaded) projEnsureDailyScheduleBackups();
     return;
@@ -646,6 +671,9 @@ function projFixDefaults(p) {
     dt_criacao: p.dt_criacao || now,
     programa_id: p.programa_id || null,
     macroprocessos: p.macroprocessos || [],
+    macroprocesso_ids: Array.isArray(p.macroprocesso_ids) ? p.macroprocesso_ids : [],
+    macroprocesso_nomes: p.macroprocesso_nomes || {},
+    processos_impactados: Array.isArray(p.processos_impactados) ? p.processos_impactados : [],
     objetivos_estrategicos: p.objetivos_estrategicos || [],
     ppe_ciclos: (p.ppe_ciclos && typeof p.ppe_ciclos === 'object' && !Array.isArray(p.ppe_ciclos)) ? p.ppe_ciclos : {},
     // Dados de cada fase
@@ -2881,9 +2909,15 @@ function projTabAprovacao(p) {
           <select class="proj-fi" id="aprov-macro-sel" style="flex:1"><option value="">Selecione...</option></select>
           <button type="button" class="proj-btn primary" style="font-size:11px;padding:4px 10px;white-space:nowrap" onclick="projAddMacro()">+ Adicionar</button>
         </div>
-        <div style="margin-top:6px;display:flex;gap:6px">
-          <input type="text" class="proj-fi" id="aprov-macro-novo" placeholder="Ou digite um novo..." style="flex:1;font-size:12px">
-          <button type="button" class="proj-btn" style="font-size:11px;padding:4px 10px;white-space:nowrap" onclick="projAddMacroNovo()">+ Novo</button>
+        <div style="margin-top:6px;font-size:12px">Cadastro compartilhado com a arquitetura de Processos.</div>
+      </div>
+      <div class="proj-fg">
+        <label class="proj-fl" for="aprov-impacto-macro">Processos impactados pelo projeto</label>
+        <div id="aprov-impacto-list" style="margin-bottom:6px"></div>
+        <select class="proj-fi" id="aprov-impacto-macro" onchange="projPopulateProcessosImpactados()" aria-label="Filtrar processos por macroprocesso"></select>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <select class="proj-fi" id="aprov-impacto-sel" style="flex:1" aria-label="Processo impactado"></select>
+          <button type="button" class="proj-btn primary" onclick="projAddProcessoImpactado()">+ Adicionar</button>
         </div>
       </div>
       <div class="proj-fg">
@@ -2966,8 +3000,76 @@ function projSalvarAprovacao() {
   projToast('Dados salvos!');
 }
 
-function projAddMacro(){if(!projEnsureWriteAll())return;let s=document.getElementById('aprov-macro-sel');if(!s||!s.value){projToast('Selecione um macroprocesso.','#d97706');return;}projLoad();let p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(p.macroprocessos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.macroprocessos.push(s.value);projSave();projPopulateVinculacoes();}
-function projRemoverMacro(i){if(!projEnsureWriteAll())return;projLoad();let p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.macroprocessos)return;p.macroprocessos.splice(i,1);projSave();projPopulateVinculacoes();}
+function projAddMacro(){
+  if(!projEnsureWriteAll()) return;
+  const id = document.getElementById('aprov-macro-sel')?.value;
+  projLoad();
+  const p = PROJETOS.find(x => String(x.id) === _projCurrentId);
+  const macro = projArquiteturaAtual().find(m => String(m.id) === id);
+  if(!p || !macro) { projToast('Selecione um macroprocesso da arquitetura.', '#d97706'); return; }
+  if(p.macroprocesso_ids.includes(id)) { projToast('Já vinculado.', '#d97706'); return; }
+  p.macroprocesso_ids.push(id);
+  p.macroprocessos.push(macro.nome);
+  p.macroprocesso_nomes[id] = macro.nome;
+  projSave();
+  projPopulateVinculacoes();
+}
+function projRemoverMacro(i){
+  if(!projEnsureWriteAll()) return;
+  projLoad();
+  const p = PROJETOS.find(x => String(x.id) === _projCurrentId);
+  if(!p) return;
+  const macro = projResolveMacro(p.macroprocessos[i]);
+  const macroId = macro ? String(macro.id) : Object.keys(p.macroprocesso_nomes).find(id => p.macroprocesso_nomes[id] === p.macroprocessos[i]);
+  if(macroId) {
+    p.macroprocesso_ids = p.macroprocesso_ids.filter(id => String(id) !== macroId);
+    delete p.macroprocesso_nomes[macroId];
+  }
+  p.macroprocessos.splice(i, 1);
+  projSave();
+  projPopulateVinculacoes();
+}
+
+function projPopulateProcessosImpactados() {
+  const p = PROJETOS.find(x => String(x.id) === _projCurrentId);
+  if(!p) return;
+  const processos = projProcessosArquitetura();
+  const list = document.getElementById('aprov-impacto-list');
+  if(list) projSetHtml(list, p.processos_impactados.map((link, i) => {
+    const current = processos.find(x => x.macro_id === link.macro_id && x.processo_id === link.processo_id);
+    const label = current ? `${current.macro} → ${current.nome}` : `${link.macro || link.macro_id} → ${link.nome || link.processo_id} (indisponível na arquitetura)`;
+    return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="flex:1">${projEsc(label)}</span><button type="button" class="proj-btn" onclick="projRemoverProcessoImpactado(${i})" aria-label="Remover processo impactado">×</button></div>`;
+  }).join(''));
+  const sel = document.getElementById('aprov-impacto-sel');
+  const macroId = document.getElementById('aprov-impacto-macro')?.value;
+  const available = processos.filter(x => (!macroId || x.macro_id === macroId) && !p.processos_impactados.some(link => link.macro_id === x.macro_id && link.processo_id === x.processo_id));
+  if(sel) projSetHtml(sel, `<option value="">${available.length ? 'Selecione um processo...' : 'Nenhum processo disponível'}</option>` + available.map(x => `<option value="${projEsc(JSON.stringify([x.macro_id, x.processo_id]))}">${projEsc(`${x.macro} → ${x.nome}`)}</option>`).join(''));
+}
+
+function projAddProcessoImpactado() {
+  if(!projEnsureWriteAll()) return;
+  const value = document.getElementById('aprov-impacto-sel')?.value;
+  if(!value) { projToast('Selecione um processo.', '#d97706'); return; }
+  const [macroId, processoId] = JSON.parse(value);
+  projLoad();
+  const p = PROJETOS.find(x => String(x.id) === _projCurrentId);
+  const item = projProcessosArquitetura().find(x => x.macro_id === macroId && x.processo_id === processoId);
+  if(!p || !item) { projToast('Processo indisponível na arquitetura.', '#d97706'); return; }
+  if(p.processos_impactados.some(x => x.macro_id === macroId && x.processo_id === processoId)) return;
+  p.processos_impactados.push(item);
+  projSave();
+  projPopulateProcessosImpactados();
+}
+
+function projRemoverProcessoImpactado(index) {
+  if(!projEnsureWriteAll()) return;
+  projLoad();
+  const p = PROJETOS.find(x => String(x.id) === _projCurrentId);
+  if(!p) return;
+  p.processos_impactados.splice(index, 1);
+  projSave();
+  projPopulateProcessosImpactados();
+}
 function projAddObj(){if(!projEnsureWriteAll())return;let s=document.getElementById('aprov-obj-sel');if(!s||!s.value){projToast('Selecione um objetivo.','#d97706');return;}projLoad();let p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(p.objetivos_estrategicos.indexOf(s.value)>=0){projToast('Já vinculado.','#d97706');return;}p.objetivos_estrategicos.push(s.value);projSave();projPopulateVinculacoes();}
 function projRemoverObj(i){if(!projEnsureWriteAll())return;projLoad();let p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p||!p.objetivos_estrategicos)return;p.objetivos_estrategicos.splice(i,1);projSave();projPopulateVinculacoes();}
 
@@ -5046,7 +5148,6 @@ function projImportJSON(){
         projConfirmar('Importar dados? Isso substituira TODOS os projetos e programas atuais.', function(){
           const prevProjetos = PROJETOS;
           const prevProgramas = PROGRAMAS;
-          const prevMacros = PROJ_MACROS;
           const prevObjetivos = PROJ_OBJETIVOS;
 
           projApplyDataSet(data);
@@ -5057,7 +5158,6 @@ function projImportJSON(){
           const gravarCacheLocal = function(){
             localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS));
             localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS));
-            localStorage.setItem('cagePROJ_MACROS_v6', JSON.stringify(PROJ_MACROS||[]));
             localStorage.setItem('cage_objetivos_v6', JSON.stringify(PROJ_OBJETIVOS||[]));
           };
 
@@ -5076,7 +5176,7 @@ function projImportJSON(){
           }).catch(function(err){
             PROJETOS = prevProjetos;
             PROGRAMAS = prevProgramas;
-            PROJ_MACROS = prevMacros;
+            projSyncArquitetura();
             PROJ_OBJETIVOS = prevObjetivos;
             _projFbState.loaded = false;
             console.warn('projImportJSON/fb:', err && err.message);
@@ -5107,7 +5207,6 @@ function projProcessImport(inputEl){
       projConfirmar('Importar dados? Isso substituira TODOS os projetos e programas atuais.', function(){
         const prevProjetos = PROJETOS;
         const prevProgramas = PROGRAMAS;
-        const prevMacros = PROJ_MACROS;
         const prevObjetivos = PROJ_OBJETIVOS;
 
         projApplyDataSet(data);
@@ -5118,7 +5217,6 @@ function projProcessImport(inputEl){
         const gravarCacheLocal = function(){
           localStorage.setItem(PROJ_STORAGE_KEY, JSON.stringify(PROJETOS));
           localStorage.setItem(PROG_STORAGE_KEY, JSON.stringify(PROGRAMAS));
-          localStorage.setItem('cagePROJ_MACROS_v6', JSON.stringify(PROJ_MACROS||[]));
           localStorage.setItem('cage_objetivos_v6', JSON.stringify(PROJ_OBJETIVOS||[]));
         };
 
@@ -5137,7 +5235,7 @@ function projProcessImport(inputEl){
         }).catch(function(err){
           PROJETOS = prevProjetos;
           PROGRAMAS = prevProgramas;
-          PROJ_MACROS = prevMacros;
+          projSyncArquitetura();
           PROJ_OBJETIVOS = prevObjetivos;
           projToast('Falha ao importar na nuvem: ' + err.message, '#dc2626');
         });
@@ -5680,24 +5778,14 @@ function projNormalizeStrategyList(list) {
 
 function projNormalizeStrategyLists() {
   if(typeof projLoadListas === 'function') projLoadListas();
-  const oldM = JSON.stringify(PROJ_MACROS||[]);
   const oldO = JSON.stringify(PROJ_OBJETIVOS||[]);
-  if(Array.isArray(PROJETOS)) {
-    PROJETOS.forEach(p => {
-      projMultiValues(p.macroprocessos, p.macroprocesso).forEach(v => {
-        if(/^\s*\[[^\]]+\]/.test(v) && !(PROJ_MACROS||[]).includes(v)) PROJ_MACROS.push(v);
-      });
-      projMultiValues(p.objetivos_estrategicos, p.ideacao?.objetivo_estrategico).forEach(v => {
-        if(/^\s*\[[^\]]+\]/.test(v) && !(PROJ_OBJETIVOS||[]).includes(v)) PROJ_OBJETIVOS.push(v);
-      });
-    });
-  }
-  PROJ_MACROS = projNormalizeStrategyList(PROJ_MACROS);
+  projSyncArquitetura();
   PROJ_OBJETIVOS = projNormalizeStrategyList(PROJ_OBJETIVOS);
-  if(isEP() && (oldM !== JSON.stringify(PROJ_MACROS) || oldO !== JSON.stringify(PROJ_OBJETIVOS))) projSaveListas();
+  if(isEP() && oldO !== JSON.stringify(PROJ_OBJETIVOS)) projSaveListas();
 }
 
 function projCanonicalStrategyValue(v, list) {
+  if(list === PROJ_OBJETIVOS) return ObjetivosEstrategicos.canonical(v, list);
   const clean = String(v||'').trim();
   if(!clean) return '';
   if((list||[]).includes(clean)) return clean;
@@ -5809,29 +5897,22 @@ function projToggleStrategyEditor(kind) {
   panel.classList.toggle('open');
 }
 
-function projRenderEstrategiaPageLegacy() {
-  projLoad();
-  projNormalizeStrategyLists();
-  const el = document.getElementById('proj-estrategia-content');
-  if(!el) return;
-  projSetHtml(el, `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-card-t">Macroprocessos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Se existir uma versão com prefixo entre colchetes e outra sem, a versão com colchetes é mantida.</div><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div>${projStrategyRelatedHtml('macro', PROJ_MACROS||[])}</div><div class="proj-v9-chart-card"><div class="proj-card-t">Objetivos Estratégicos</div><div class="proj-ib proj-ib-blue" style="font-size:12px">Um item por linha. Estes dados alimentam o workflow e os gráficos do dashboard.</div><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div>${projStrategyRelatedHtml('objetivo', PROJ_OBJETIVOS||[])}</div></div>`);
-}
+function projRenderEstrategiaPageLegacy() { projRenderEstrategiaPage(); }
 
 function projRenderEstrategiaPage() {
   projLoad();
   projNormalizeStrategyLists();
   const el = document.getElementById('proj-estrategia-content');
   if(!el) return;
-  const editors = isEP() ? `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Macroprocessos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('macro')">Abrir edição</button></div><div id="proj-strategy-editor-macro" class="proj-strategy-editor-body"><textarea id="estrat-macros" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_MACROS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('macro')">Salvar Macroprocessos</button></div></div></div><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Objetivos Estratégicos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('objetivo')">Abrir edição</button></div><div id="proj-strategy-editor-objetivo" class="proj-strategy-editor-body"><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div></div></div></div>` : '';
+  const editors = isEP() ? `<div class="proj-v10-strategy-grid"><div class="proj-v9-chart-card"><div class="proj-card-t">Macroprocessos</div><p>Os macroprocessos são cadastrados na arquitetura do módulo de Processos.</p><a class="proj-btn" href="processos.html">Abrir Processos</a></div><div class="proj-v9-chart-card"><div class="proj-strategy-editor-head"><div class="proj-card-t">Editar Objetivos Estratégicos</div><button type="button" class="proj-btn" onclick="projToggleStrategyEditor('objetivo')">Abrir edição</button></div><div id="proj-strategy-editor-objetivo" class="proj-strategy-editor-body"><textarea id="estrat-objetivos" class="proj-fi proj-v10-strategy-text">${projEsc((PROJ_OBJETIVOS||[]).join('\n'))}</textarea><div class="proj-btn-row"><button type="button" class="proj-btn primary" onclick="projSalvarEstrategia('objetivo')">Salvar Objetivos Estratégicos</button></div></div></div></div>` : '';
   projSetHtml(el, `${projStrategyVisual('objetivo', PROJ_OBJETIVOS||[], 'Mapa Estratégico', 'objetivos')}${projStrategyVisual('macro', PROJ_MACROS||[], 'Cadeia de Valor', 'macros')}${editors}`);
 }
 
 function projSalvarEstrategia(kind) {
+  if(kind === 'macro') { projToast('Edite os macroprocessos na arquitetura de Processos.', '#d97706'); return; }
   if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.')) return;
-  const id = kind === 'macro' ? 'estrat-macros' : 'estrat-objetivos';
-  const lines = (document.getElementById(id)?.value||'').split(/\n+/).map(s => s.trim()).filter(Boolean);
-  if(kind === 'macro') PROJ_MACROS = projNormalizeStrategyList(lines);
-  else PROJ_OBJETIVOS = projNormalizeStrategyList(lines);
+  const lines = (document.getElementById('estrat-objetivos')?.value||'').split(/\n+/).map(s => s.trim()).filter(Boolean);
+  PROJ_OBJETIVOS = projNormalizeStrategyList(lines);
   projSaveListas();
   projToast('Estratégia atualizada.');
   projRenderEstrategiaPage();
@@ -5845,14 +5926,22 @@ function projPopulateVinculacoes() {
   let ml = document.getElementById('aprov-macro-list');
   if(ml) projSetHtml(ml, (proj.macroprocessos||[]).map(function(m,i){let v=projCanonicalStrategyValue(m,PROJ_MACROS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:#f0f4ff;border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverMacro('+i+')">✕</button></div>';}).join(''));
   let ms = document.getElementById('aprov-macro-sel');
-  if(ms) projSetHtml(ms, '<option value="">Selecione...</option>' + PROJ_MACROS.map(function(m){return '<option value="'+projEsc(m)+'">'+projEsc(m)+'</option>';}).join(''));
+  if(ms) projSetHtml(ms, '<option value="">Selecione...</option>' + projArquiteturaAtual().map(function(m){return '<option value="'+projEsc(String(m.id))+'">'+projEsc(m.nome)+'</option>';}).join(''));
   let ol = document.getElementById('aprov-obj-list');
   if(ol) projSetHtml(ol, (proj.objetivos_estrategicos||[]).map(function(o,i){let v=projCanonicalStrategyValue(o,PROJ_OBJETIVOS);return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 8px;background:var(--teal-l);border-radius:6px;font-size:12px;color:#1a2540"><span style="flex:1">'+projEsc(v)+'</span><button type="button" style="background:none;border:none;cursor:pointer;color:#b91c1c;font-size:14px;padding:0 4px" onclick="projRemoverObj('+i+')">✕</button></div>';}).join(''));
   let os = document.getElementById('aprov-obj-sel');
   if(os) projSetHtml(os, '<option value="">Selecione...</option>' + PROJ_OBJETIVOS.map(function(o){return '<option value="'+projEsc(o)+'">'+projEsc(o)+'</option>';}).join(''));
+  const filter = document.getElementById('aprov-impacto-macro');
+  if(filter) {
+    const selected = filter.value;
+    projSetHtml(filter, '<option value="">Todos os macroprocessos</option>' + projArquiteturaAtual().map(m => '<option value="' + projEsc(String(m.id)) + '">' + projEsc(m.nome) + '</option>').join(''));
+    filter.value = selected;
+  }
+  projPopulateProcessosImpactados();
+
 }
 
-function projAddMacroNovo(){if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.'))return;let inp=document.getElementById('aprov-macro-novo');if(!inp||!inp.value.trim()){projToast('Digite o macroprocesso.','#d97706');return;}let v=inp.value.trim();PROJ_MACROS=projNormalizeStrategyList([].concat(PROJ_MACROS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_MACROS);projLoad();let p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.macroprocessos)p.macroprocessos=[];if(!p.macroprocessos.includes(v))p.macroprocessos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
+function projAddMacroNovo(){ projToast('Cadastre macroprocessos na arquitetura de Processos.', '#d97706'); }
 function projAddObjNovo(){if(!projEnsureWriteAll('Apenas EPP pode editar Macroprocessos e Objetivos Estratégicos.'))return;let inp=document.getElementById('aprov-obj-novo');if(!inp||!inp.value.trim()){projToast('Digite o objetivo.','#d97706');return;}let v=inp.value.trim();PROJ_OBJETIVOS=projNormalizeStrategyList([].concat(PROJ_OBJETIVOS||[],[v]));projSaveListas();v=projCanonicalStrategyValue(v,PROJ_OBJETIVOS);projLoad();let p=PROJETOS.find(function(x){return String(x.id)===_projCurrentId;});if(!p)return;if(!p.objetivos_estrategicos)p.objetivos_estrategicos=[];if(!p.objetivos_estrategicos.includes(v))p.objetivos_estrategicos.push(v);projSave();inp.value='';projPopulateVinculacoes();}
 
 function projNewsTitleFromUrl(url, i) {
