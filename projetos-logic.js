@@ -3581,6 +3581,37 @@ function projUploadEapHtml() {
 }
 
 // ── ABA: EXECUÇÃO E MONITORAMENTO ────────────────────────────────
+function projKanbanTasks(tarefas, prefix='', parentName='') {
+  return (tarefas || []).flatMap((task,index)=>{
+    const path=prefix ? `${prefix}.${index}` : String(index);
+    if(task.subtarefas?.length) return projKanbanTasks(task.subtarefas,path,[parentName,task.nome].filter(Boolean).join(' / '));
+    const pct=Math.max(0,Math.min(100,Number(task.conclusao)||0));
+    return [{task,path,parentName,pct,status:task.concluida || pct===100 ? 'concluidas' : pct>0 ? 'andamento' : 'pendentes'}];
+  });
+}
+
+function projRenderKanban(p) {
+  const tasks=projKanbanTasks(p.execucao?.tarefas);
+  const canWrite=projCanWriteSchedule(String(p.id));
+  const today=new Date().toISOString().slice(0,10);
+  return `<div class="proj-kanban">${[['pendentes','Pendentes'],['andamento','Em andamento'],['concluidas','Concluídas']].map(([status,label])=>{
+    const items=tasks.filter(item=>item.status===status);
+    return `<section class="proj-kanban-column ${status}" aria-label="${label}"><h3>${label}<span>${items.length}</span></h3>${items.length ? items.map(({task,path,parentName,pct})=>{
+      const overdue=status!=='concluidas' && task.dt_fim && task.dt_fim<today;
+      return `<article class="proj-kanban-card"><div class="proj-kanban-name">${projEsc(task.nome || 'Nova tarefa')}</div>${parentName?`<div class="proj-kanban-context">${projEsc(parentName)}</div>`:''}<div class="proj-kanban-meta">Responsável: ${projEsc(task.responsavel || 'Não informado')}</div><div class="proj-kanban-meta">Início: ${projFormatDate(task.dt_inicio) || '—'}</div><div class="proj-kanban-meta ${overdue?'overdue':''}">Prazo: ${projFormatDate(task.dt_fim) || '—'}${overdue?' · Atrasada':''}</div><div class="proj-kanban-progress"><span>${status==='concluidas'?100:pct}% concluído</span>${task.marco?'<span>Marco</span>':''}${task.ppe?'<span>PPE</span>':''}</div><div class="proj-kanban-bar"><span style="width:${status==='concluidas'?100:pct}%"></span></div>${task.dt_entrega?`<div class="proj-kanban-meta">Entrega: ${projFormatDate(task.dt_entrega)}</div>`:''}<div class="proj-kanban-actions">${canWrite && status!=='concluidas'?`<button type="button" class="proj-kanban-icon complete" aria-label="Marcar como concluída" title="Marcar como concluída" onclick="projToggleTarefa('${path}',true)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></button>`:''}<button type="button" class="proj-kanban-icon" aria-label="Detalhes e comentários" title="Detalhes e comentários" onclick="projOpenTaskNotes('${path}',true)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 1-8 8H5l-4 3 2-6a8 8 0 1 1 17-5Z"/></svg>${task.anotacoes?.length?`<span class="proj-kanban-comment-count">${task.anotacoes.length}</span>`:''}</button></div></article>`;
+    }).join(''):'<p class="proj-kanban-empty">Nenhuma atividade nesta coluna.</p>'}</section>`;
+  }).join('')}</div>`;
+}
+
+function projSetScheduleView(view) {
+  if(!['lista','kanban'].includes(view)) return;
+  globalThis._projScheduleViews ||= {};
+  globalThis._projScheduleViews[String(_projCurrentId)]=view;
+  document.getElementById('exec-schedule-list').hidden=view!=='lista';
+  document.getElementById('exec-schedule-kanban').hidden=view!=='kanban';
+  document.querySelectorAll('[data-schedule-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.scheduleView===view)));
+}
+
 function projTabExecucao(p) {
   const exec = p.execucao || {};
   const reunioes = exec.reunioes || [];
@@ -3590,6 +3621,7 @@ function projTabExecucao(p) {
   const cronNameWidth = Number.parseInt(exec.cron_nome_col_width, 10) || 0;
   const cronNameBaseWidth = Number.parseInt(exec.cron_nome_col_base_width, 10) || 0;
   const tarefas = exec.tarefas || [];
+  const scheduleView=globalThis._projScheduleViews?.[String(p.id)] || 'lista';
   const canScheduleIO = projCanWriteSchedule(String(p.id));
   const todayBackup = projScheduleBackupForDate(p);
   projSyncDerivedTaskDates(tarefas);
@@ -3696,6 +3728,12 @@ function projTabExecucao(p) {
           </div>
         ` : ''}
         <!-- Tabela de tarefas -->
+        <div class="proj-schedule-views" role="group" aria-label="Visualização das atividades">
+          <button type="button" class="proj-btn" data-schedule-view="lista" aria-pressed="${scheduleView==='lista'}" onclick="projSetScheduleView('lista')">Cronograma</button>
+          <button type="button" class="proj-btn" data-schedule-view="kanban" aria-pressed="${scheduleView==='kanban'}" onclick="projSetScheduleView('kanban')">Kanban</button>
+        </div>
+        <div id="exec-schedule-kanban" ${scheduleView==='kanban'?'':'hidden'}>${projRenderKanban(p)}</div>
+        <div id="exec-schedule-list" ${scheduleView==='lista'?'':'hidden'}>
         ${projProjectResponsibleOptions(p.id)}
         <div class="proj-cron-name-mode-toggle">
           <span class="${cronWrapNames?'':'active'}">Redimensionar Nome</span>
@@ -3709,7 +3747,7 @@ function projTabExecucao(p) {
         <div class="proj-cron-table-wrap ${cronWrapNames?'wrap-names':''}" id="proj-cron-table-wrap" onscroll="projSyncCronScroll(this,'main')">
           <table class="proj-cron-table" id="proj-cron-table" data-base-name-width="${cronNameBaseWidth || ''}" style="${cronNameWidth && !cronWrapNames ? `--proj-cron-name-width:${cronNameWidth}px` : ''}">
             <colgroup>
-              <col class="proj-cron-col-drag"><col class="proj-cron-col-num"><col class="proj-cron-col-check"><col class="proj-cron-col-name"><col class="proj-cron-col-ppe"><col class="proj-cron-col-marco"><col class="proj-cron-col-date"><col class="proj-cron-col-date"><col class="proj-cron-col-resp"><col class="proj-cron-col-pct"><col class="proj-cron-col-note"><col class="proj-cron-col-sub"><col class="proj-cron-col-del"><col class="proj-cron-col-order">
+              <col class="proj-cron-col-drag"><col class="proj-cron-col-num"><col class="proj-cron-col-check"><col class="proj-cron-col-name"><col class="proj-cron-col-ppe"><col class="proj-cron-col-marco"><col class="proj-cron-col-date"><col class="proj-cron-col-date"><col class="proj-cron-col-date"><col class="proj-cron-col-resp"><col class="proj-cron-col-pct"><col class="proj-cron-col-note"><col class="proj-cron-col-sub"><col class="proj-cron-col-del"><col class="proj-cron-col-order">
             </colgroup>
             <thead>
               <tr style="background:#f0f4ff">
@@ -3721,6 +3759,7 @@ function projTabExecucao(p) {
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:78px">Marco</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:100px">Início</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:100px">Fim Prev.</th>
+                <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:100px">Entrega</th>
                 <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #d0d5e3;width:120px">Responsável</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:70px">%</th>
                 <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #d0d5e3;width:42px">Anot.</th>
@@ -3743,6 +3782,7 @@ function projTabExecucao(p) {
           ` : ''}
         </div>
         <div style="font-size:10.5px;color:var(--ink3);margin-top:5px">${todayBackup ? `Backup do início do dia salvo em ${projFormatDate(todayBackup.data)}.` : 'O backup do início do dia será criado automaticamente quando houver atividades no cronograma.'}</div>
+        </div>
       </div>
     </div>
 
@@ -3908,6 +3948,7 @@ function projRenderTarefasRows(tarefas, depth, parentIdx) {
       </td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}"><input type="date" value="${t.dt_inicio||''}" ${hasSubs?'disabled data-derived-disabled="1" title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_inicio',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}${overdue?';color:#dc2626;font-weight:600':''}"><input type="date" value="${t.dt_fim||''}" ${hasSubs?'disabled data-derived-disabled="1" title="Data derivada das subtarefas"':''} onchange="projUpdateTarefa('${path}','dt_fim',this.value)" style="font-size:11px;border:1px solid ${overdue?'#fca5a5':'#ddd'};border-radius:4px;padding:2px 4px;width:100%;${hasSubs?'background:#f3f4f6;color:#64748b':''}"></td>
+      <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;font-size:11px">${projFormatDate(t.dt_entrega) || '—'}</td>
       <td style="padding:5px 8px;border-bottom:1px solid #eaecf3;${strike}"><input type="text" list="proj-responsaveis-options" value="${projEsc(t.responsavel||'')}" onchange="projUpdateTarefaResponsavel('${path}',this.value)" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:2px 4px;width:100%" placeholder="Usuário ou área"></td>
       <td style="padding:5px 8px;text-align:center;border-bottom:1px solid #eaecf3;${strike}">
         ${hasSubs ? `<span style="font-size:11px;font-weight:600;color:var(--blue)">${pct}%</span>` :
@@ -4070,7 +4111,7 @@ function projCanDeleteTaskNote(note) {
   return Boolean(noteName && currentName && currentName !== 'usuário' && noteName === currentName);
 }
 
-function projOpenTaskNotes(path) {
+function projOpenTaskNotes(path,showDetails=false) {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
   const ref = proj && proj.execucao ? projGetTarefaByPath(proj.execucao.tarefas || [], path) : null;
@@ -4086,11 +4127,20 @@ function projOpenTaskNotes(path) {
     <div class="proj-task-notes-card" role="dialog" aria-modal="true" aria-labelledby="proj-task-notes-title">
       <div class="proj-task-notes-head">
         <div>
-          <div id="proj-task-notes-title" class="proj-task-notes-title">Anotações</div>
+          <div id="proj-task-notes-title" class="proj-task-notes-title">${showDetails?'Detalhes da atividade':'Anotações'}</div>
           <div class="proj-task-notes-subtitle">${projEsc(task.nome || 'Tarefa')}</div>
         </div>
         <button type="button" class="proj-task-notes-close" onclick="projCloseTaskNotes()" aria-label="Fechar">×</button>
       </div>
+      ${showDetails ? `<div class="proj-kanban-task-details">
+        <div><strong>Situação:</strong> ${task.concluida || Number(task.conclusao)>=100?'Concluída':Number(task.conclusao)>0?'Em andamento':'Pendente'}</div>
+        <div><strong>Responsável:</strong> ${projEsc(task.responsavel || 'Não informado')}</div>
+        <div><strong>Início:</strong> ${projFormatDate(task.dt_inicio) || '—'}</div>
+        <div><strong>Fim previsto:</strong> ${projFormatDate(task.dt_fim) || '—'}</div>
+        <div><strong>Entrega:</strong> ${projFormatDate(task.dt_entrega) || '—'}</div>
+        <div><strong>Conclusão:</strong> ${task.concluida?100:Math.max(0,Math.min(100,Number(task.conclusao)||0))}%</div>
+        <div><strong>Marco:</strong> ${task.marco?'Sim':'Não'} · <strong>PPE:</strong> ${task.ppe?'Sim':'Não'}</div>
+      </div><h3 style="font-size:13px;margin:12px 0">Anotações</h3>` : ''}
       <div class="proj-task-notes-list">
         ${notes.length ? notes.map(n => `
           <article class="proj-task-note-item">
@@ -4267,8 +4317,10 @@ function projUpdateTarefa(path, field, value) {
   const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
   if(ref && ref.list[ref.index]) {
     ref.list[ref.index][field] = value;
-    if(field === 'conclusao' && value >= 100) ref.list[ref.index].concluida = true;
-    if(field === 'conclusao' && value < 100) ref.list[ref.index].concluida = false;
+    if(field === 'conclusao'){
+      ref.list[ref.index].concluida = value >= 100;
+      ref.list[ref.index].dt_entrega = value >= 100 ? (ref.list[ref.index].dt_entrega || projTaskCompletionDate()) : '';
+    }
   }
   projSyncDerivedTaskDates(proj.execucao.tarefas);
   // Update derived pct
@@ -4317,7 +4369,11 @@ function projToggleTarefaFlag(path, field) {
   });
 }
 
-function projToggleTarefa(path) {
+function projTaskCompletionDate(){
+  return new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+}
+
+function projToggleTarefa(path,completeOnly=false) {
   return projWithScheduleWrite(() => {
   projLoad();
   const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
@@ -4325,8 +4381,10 @@ function projToggleTarefa(path) {
   projEnsureCurrentScheduleBackupBeforeMutation(proj);
   const ref = projGetTarefaByPath(proj.execucao.tarefas, path);
   if(ref && ref.list[ref.index]) {
-    ref.list[ref.index].concluida = !ref.list[ref.index].concluida;
+    if(completeOnly && projIsTaskDone(ref.list[ref.index])) return;
+    ref.list[ref.index].concluida = completeOnly || !ref.list[ref.index].concluida;
     ref.list[ref.index].conclusao = ref.list[ref.index].concluida ? 100 : 0;
+    ref.list[ref.index].dt_entrega = ref.list[ref.index].concluida ? projTaskCompletionDate() : '';
   }
   projSyncDerivedTaskDates(proj.execucao.tarefas);
   if(proj.execucao.pct_mode === 'derivado') {

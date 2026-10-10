@@ -2438,6 +2438,31 @@ select.proj-fi { cursor:pointer; }
 .proj-gov-pre { white-space:pre-wrap;font-size:12.5px;line-height:1.55;color:var(--ink2); }
 .proj-gov-decisions { margin:.5rem 0 1rem;padding-left:1.3rem;font-size:12.5px; }
 .proj-gov-decisions li { padding:.45rem 0;line-height:1.5; }
+.proj-schedule-views{display:flex;gap:8px;margin:0 0 16px}
+.proj-schedule-views [aria-pressed="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.proj-kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+.proj-kanban-column{background:#f0f5fa;border:1px solid var(--bdr);border-radius:12px;padding:12px;min-width:0}
+.proj-kanban-column h3{display:flex;justify-content:space-between;gap:8px;font-size:13px;margin:0 0 14px;color:var(--ink)}
+.proj-kanban-column h3 span{background:var(--surf);border-radius:12px;padding:1px 8px;color:var(--ink3)}
+.proj-kanban-card{background:var(--surf);border:1px solid var(--bdr);border-left:3px solid #38bdf8;border-radius:8px;padding:14px;margin-bottom:10px;box-shadow:0 2px 6px #1020300d;overflow-wrap:anywhere}
+.proj-kanban-column.andamento .proj-kanban-card{border-left-color:#f59e0b}
+.proj-kanban-column.concluidas .proj-kanban-card{border-left-color:#10b981}
+.proj-kanban-name{font-size:13px;font-weight:600;color:var(--ink);line-height:1.5;margin-bottom:8px}
+.proj-kanban-actions{display:flex;align-items:center;gap:8px;margin-top:12px}
+.proj-kanban-icon{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:32px;min-height:32px;padding:5px;border:1px solid var(--bdr);border-radius:8px;background:var(--surf);color:var(--ink3);cursor:pointer}
+.proj-kanban-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.proj-kanban-icon.complete{color:#059669}
+.proj-kanban-icon:hover{background:#f0f5fa;color:var(--blue)}
+.proj-kanban-icon:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.proj-kanban-comment-count{font-size:11px}
+.proj-kanban-task-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:12px;line-height:1.6;padding:14px;background:#f0f5fa;border-radius:8px;color:var(--ink)}
+.proj-kanban-context,.proj-kanban-meta,.proj-kanban-empty{font-size:11px;color:var(--ink3);line-height:1.6}
+.proj-kanban-context{margin-bottom:8px}
+.proj-kanban-meta.overdue{color:#b91c1c;font-weight:600}
+.proj-kanban-progress{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:11px;color:var(--ink3)}
+.proj-kanban-bar{height:5px;border-radius:4px;background:#e5e8ef;margin-top:6px;overflow:hidden}
+.proj-kanban-bar span{display:block;height:100%;background:var(--blue)}
+@media(max-width:800px){.proj-kanban{grid-template-columns:1fr}}
 .proj-gov-decision-form { padding:1rem;background:#f7f9fc;border:1px solid var(--bdr);border-radius:9px; }
 .proj-gov-decision-form .proj-g2 { margin:.6rem 0; }
 @media (max-width:800px) { .proj-gov-stats { grid-template-columns:1fr; } .proj-gov-meeting-head { align-items:stretch;flex-direction:column; } }
