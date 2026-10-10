@@ -88,11 +88,34 @@ const path = require('node:path');
     assert.equal(await page.locator('#proj-ind-processos tbody tr').count(),2);
     assert.equal(await page.locator('#proj-ind-processos input').count(),0);
     assert.ok(!(await page.locator('#proj-ind-processos').innerText()).includes('Indicador de controle'));
+    await page.evaluate(()=>{
+      PROJETOS[0].dt_inicio='2026-09-15';
+      PROJETOS[0].dt_fim='2026-09-30';
+      projRenderIndicadoresPage();
+    });
+    assert.equal(await page.locator('#proj-ind-timeline li').count(),2);
+    assert.match(await page.locator('#proj-ind-timeline').innerText(),/out\/2026/);
+    assert.match(await page.locator('#proj-ind-timeline').innerText(),/75/);
     await page.evaluate(()=>processIndicatorCallbacks.kpis({forEach:fn=>fn({data:()=>({arq_id:'pa',nome:'Indicador atualizado',meta:100,realizado:80})})}));
     assert.match(await page.locator('#proj-ind-processos').innerText(),/Indicador atualizado/);
     await page.selectOption('#proj-ind-filter-proj','3');
     assert.match(await page.locator('#proj-ind-processos').innerText(),/Vincule os processos impactados/);
     assert.deepEqual(errors, []);
+    const chartOrder = await page.evaluate(()=>{
+      const rows=[
+        {p:{nome:'Projeto'},ind:{nome:'Prazo',periodo:'janeiro/2026'}},
+        {p:{nome:'Projeto'},ind:{nome:'Acessos',periodo:'fevereiro/2026'}},
+        {p:{nome:'Projeto'},ind:{nome:'Prazo',periodo:'dez/2025'}},
+        {p:{nome:'Projeto'},ind:{nome:'Acessos',periodo:'janeiro/2026'}}
+      ];
+      const container=document.createElement('div');
+      container.innerHTML=projIndicadoresMetaChart(rows);
+      return [...container.querySelectorAll('.proj-v9-meta-name')].map(el=>el.textContent);
+    });
+    assert.match(chartOrder[0],/^Acessos.*janeiro\/2026/);
+    assert.match(chartOrder[1],/^Acessos.*fevereiro\/2026/);
+    assert.match(chartOrder[2],/^Prazo.*dez\/2025/);
+    assert.match(chartOrder[3],/^Prazo.*janeiro\/2026/);
     console.log('Projetos: arquitetura, filtro, vínculos e persistência verificados no Chromium.');
   } finally {
     await browser.close();
