@@ -14,8 +14,23 @@ describe('Indicadores dos processos impactados',()=>{
     const{api,architecture,project}=setup();
     const indicators=[{id:1,arq_id:'pa'},{id:2,pid:99},{id:3,pid:1},{id:4,arq_id:'pb'},{id:5}];
     const rows=api.list(project,architecture,indicators,[{id:99,arq_id:'sa'}]);
-    expect(rows.map(r=>r.ind.id)).toEqual([1,2,3]);
-    expect(rows[1].processo).toBe('Inspecionar');
+    expect(rows.map(r=>r.ind.id)).toEqual([1,3,2]);
+    expect(rows[2].processo).toBe('Inspecionar');
+  });
+  it('agrupa por processo e ordena os períodos do mais antigo para o mais recente',()=>{
+    const{api,architecture,project}=setup();
+    project.processos_impactados.push({macro_id:'b',processo_id:'pb'});
+    const indicators=[
+      {id:1,arq_id:'pb',periodo:'maio/2026'},
+      {id:2,arq_id:'pa',periodo:'agosto/2026'},
+      {id:3,arq_id:'pb',periodo:'dez/2025'},
+      {id:4,arq_id:'pa',periodo:'junho/2026'},
+      {id:5,arq_id:'pa',periodo:'maio/2026'},
+      {id:6,arq_id:'pb',periodo:'2026-01'},
+      {id:7,arq_id:'pa',periodo:'julho/2026'}
+    ];
+    expect(api.list(project,architecture,indicators,[]).map(r=>r.ind.id)).toEqual([5,4,7,2,3,6,1]);
+    expect(indicators.map(ind=>ind.id)).toEqual([1,2,3,4,5,6,7]);
   });
   it('respeita o vínculo explícito mesmo quando o pid aponta para outro processo',()=>{
     const{api,architecture,project}=setup();

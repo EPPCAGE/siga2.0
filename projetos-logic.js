@@ -5578,7 +5578,9 @@ function projIndicadoresMetaChart(rows) {
       const pctReal = meta ? (atual / meta) * 100 : 0;
       const pct = Math.max(0, Math.min(100, pctReal));
       const pctLabel = meta ? Math.round(pctReal) : 0;
-      return `<div class="proj-v9-meta-row" title="${projEsc(r.p.nome)}: ${atual} / ${meta}"><div class="proj-v9-meta-name">${projEsc(r.ind.nome||'Indicador')}<div style="font-size:10.5px;color:var(--ink3)">${projEsc(r.p.nome||'')}</div></div><div class="proj-v9-meta-wrap"><div class="proj-v9-meta-target">${projEsc(meta)}</div><div class="proj-v9-meta-track"><div class="proj-v9-meta-fill" style="width:${pct}%"></div></div><div class="proj-v9-meta-current" style="left:${pct}%">${projEsc(atual)}</div><div class="proj-v9-meta-pct">${pctLabel}%</div></div></div>`;
+      const format = value => Number(value).toLocaleString('pt-BR', {maximumFractionDigits:2});
+      const context = [r.processo, r.ind.periodo, r.p.nome].filter(Boolean).join(' · ');
+      return `<div class="proj-v9-meta-row" title="${projEsc(r.p.nome)}: ${atual} / ${meta}"><div class="proj-v9-meta-name">${projEsc(r.ind.nome||'Indicador')}<div class="proj-v9-meta-context">${projEsc(context)}</div></div><div class="proj-v9-meta-wrap"><div class="proj-v9-meta-values"><span class="proj-v9-meta-current">Resultado: <strong>${projEsc(format(atual))}</strong></span><span class="proj-v9-meta-target">Meta: <strong>${projEsc(format(meta))}</strong></span><span class="proj-v9-meta-pct">${meta ? `${projEsc(format(pctReal))}% da meta` : 'Sem meta'}</span></div><div class="proj-v9-meta-track"><div class="proj-v9-meta-fill" style="width:${pct}%"></div></div></div></div>`;
     }).join('') : '<div style="font-size:12px;color:var(--ink3)">Nenhum indicador encontrado para os filtros atuais.</div>'
   }</div></div>`;
 }
