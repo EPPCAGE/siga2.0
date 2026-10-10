@@ -10,6 +10,7 @@ const assert=require('node:assert/strict');
     await page.setContent(html.slice(html.lastIndexOf('<style>',start),html.indexOf('<div id="page-faq"',start))+'<div id="risco-list"></div><div id="risco-matrix"></div>');
     await page.addScriptTag({path:'src/shared/riscos.js'});
     await page.addScriptTag({path:'src/shared/relatorio-executivo-style.js'});
+    await page.addScriptTag({content:`window._fetchCageLogoBase64=async()=>${JSON.stringify('data:image/png;base64,'+readFileSync('cage-logo-report.png').toString('base64'))};`});
     await page.evaluate(()=>{
       window.esc=value=>String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
       window.usuarioLogado={perfil:'ep',email:'ep@example.org'};window.isEP=()=>usuarioLogado.perfil==='ep';
@@ -58,6 +59,8 @@ const assert=require('node:assert/strict');
     await report.waitForLoadState('domcontentloaded');
     assert.equal(await report.locator('.risk-report-item').count(),1);
     assert.equal(await report.locator('.cover-title').innerText(),'Relatório Executivo');
+    assert.equal(await report.locator('.cover img[alt="CAGE"]').count(),1);
+    assert.ok(await report.locator('.cover img[alt="CAGE"]').evaluate(async img=>{await img.decode();return img.naturalWidth>0;}));
     assert.equal(await report.locator('.kpi').count(),7);
     assert.match(await report.locator('.risk-report-item').innerText(),/Controle implantado/);
     assert.match(await report.locator('.risk-report-item').innerText(),/Testado e eficaz/);
