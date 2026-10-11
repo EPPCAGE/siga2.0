@@ -28,12 +28,12 @@
 <script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
 <script src="src/shared/indicadores-impactados.js?v=20261010-2"></script>
 <script src="src/shared/busca-geral.js?v=20261010-9"></script>
-<script src="src/shared/riscos.js?v=20261010-9"></script>
+<script src="src/shared/riscos.js?v=20261011-2"></script>
 <script src="src/shared/controles-catalogo.js?v=20261010-1"></script>
 <script src="src/shared/controles-biblioteca.js?v=20261010-1"></script>
 <script src="src/processos/controles-biblioteca-ui.js?v=20261010-3"></script>
 <script src="src/shared/relatorio-executivo-style.js?v=20261010-1"></script>
-<script src="src/processos/riscos-module.js?v=20261010-9"></script>
+<script src="src/processos/riscos-module.js?v=20261011-2"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -1372,7 +1372,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 #page-faq .knowledge-count{font-size:12px;color:var(--ink3)}
 @media(max-width:720px){#page-faq .knowledge-panel{padding:16px}}
 </style>
-<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261010-1">
+<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261011-2">
 <div id="page-riscos" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><button type="button" class="btn btn-p" onclick="riscosExportPdf()">Gerar relatório PDF</button></div>
   <div class="risk-filters">
@@ -3358,7 +3358,8 @@ function rPainelGestor(){
   const mapChartHtml=buildMapChartHTML();
 
   const indicadoresCriticosHtml=_htmlIndicadoresCriticos(_coberturaIndicadoresCriticos(todas,kpis,processos));
-  el.innerHTML=statsHtml+pieHtml+indicadoresCriticosHtml+macroHtml+mapChartHtml+andHtml+relIndHtml+matHtml+desatualHtml+relHtml;
+  const riscosHtml=riscosCoverageHtml(Riscos.rows(processos,ARQUITETURA,isCritico),'Visão consolidada dos riscos dos processos');
+  el.innerHTML=statsHtml+pieHtml+riscosHtml+indicadoresCriticosHtml+macroHtml+mapChartHtml+andHtml+relIndHtml+matHtml+desatualHtml+relHtml;
 
   setTimeout(()=>{
     if(typeof Chart==='undefined') return;

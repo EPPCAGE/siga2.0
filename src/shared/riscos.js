@@ -65,5 +65,10 @@
       controle_origem:type==='Aceitar'?'aceitacao':values.controlSource || '',controle_descricao:type==='Aceitar'?'':values.action?.trim() || '',controle_referencia:type==='Aceitar'?'':values.reference?.trim() || '',
       acao_nenhuma:type==='Aceitar' || !values.action?.trim(),responsavel_tratamento:values.owner?.trim() || '',prazo_tratamento:type==='Aceitar'?'':values.deadline || '',evidencia_tratamento:values.evidence?.trim() || ''};
   }
-  scope.Riscos={statuses,key,probabilities,impacts,levels,level,status,rows,filter,summary,matrix,treatment};
+  function coverage(rows){
+    const priority=rows.filter(row=>['high','critical'].includes(level(row.prob,row.imp)));
+    const withTreatment=priority.filter(row=>['planejado','em_tratamento','implementado'].includes(row.status)).length;
+    return {total:priority.length,withTreatment,withoutTreatment:priority.length-withTreatment};
+  }
+  scope.Riscos={statuses,key,probabilities,impacts,levels,level,status,rows,filter,summary,matrix,treatment,coverage};
 })(globalThis);
