@@ -2,11 +2,11 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {describe,it,expect} from 'vitest';
 const html=readFileSync(new URL('../../processos.html',import.meta.url),'utf8');
-const names=['getTarefasUsr','_mappingAccessRestricted','_mappingTaskAllowed','_blockMappingAccess','abrirTarefaProcesso','abrirProc','go','stab'];
+const names=['getTarefasUsr','_mappingAccessRestricted','_mappingTaskAllowed','_blockMappingAccess','_epModuleAllowed','_blockRestrictedModule','abrirTarefaProcesso','abrirProc','go','stab','rPlano','rAuditoria','abrirPlanoModal','abrirMetaModal','abrirModalNovaAuditoria','iniciarNovaAuditoria'];
 const source=names.map(name=>html.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0]).join('\n');
 function setup(perfil){
   const elements={};
-  const node=id=>elements[id] ||= {classList:{add(){},remove(){},contains(){return false;}},innerHTML:''};
+  const node=id=>elements[id] ||= {style:{},classList:{add(){},remove(){},contains(){return false;}},innerHTML:''};
   const c={usuarioLogado:{perfil,nome:'Pessoa',email:'p@example.org'},curProc:null,etapasIdC:1,
     processos:[{id:1,etapa:'questionario',dono:'Pessoa',pat:'Pessoa',atribuicoes:{questionario:{para:perfil}}},{id:2,etapa:'riscos',dono:'Outro',pat:'Outro'}],
     ETAPAS:[{id:'questionario',resp:'dono'},{id:'riscos',resp:'ep'}],
@@ -16,6 +16,22 @@ function setup(perfil){
   vm.createContext(c);vm.runInContext(source,c);return c;
 }
 describe('acesso ao mapeamento',()=>{
+  it.each(['dono','gestor'])('bloqueia plano e aderência inclusive com EP secundário para %s',perfil=>{
+    const c=setup(perfil);c.isEP=()=>true;c.usuarioLogado.perfis=[perfil,'ep'];
+    c.go('plano');expect(c.lastPage).toBe('meusprocessos');
+    expect(c.document.getElementById('nb-plano').style.display).toBe('none');
+    c.go('auditoria');expect(c.lastPage).toBe('meusprocessos');
+    expect(c.document.getElementById('nb-aud').style.display).toBe('none');
+    for(const name of ['rPlano','rAuditoria','abrirPlanoModal','abrirMetaModal','abrirModalNovaAuditoria','iniciarNovaAuditoria']){
+      c[name](1);expect(c.lastPage).toBe('meusprocessos');
+    }
+    c.abrirTarefaProcesso(1);expect(c.opened).toBe(1);
+  });
+  it('mantém a navegação nos dois módulos para EP',()=>{
+    const c=setup('ep');c.isEP=()=>true;
+    c.go('plano');expect(c.lastPage).toBe('plano');
+    c.go('auditoria');expect(c.lastPage).toBe('auditoria');
+  });
   it.each(['dono','gestor'])('bloqueia menus e aberturas diretas para %s, mas libera a tarefa atribuída',perfil=>{
     const c=setup(perfil);
     c.abrirProc(1);
