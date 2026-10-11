@@ -43,6 +43,21 @@ service cloud.firestore {
 
     // KPIs e relatórios: donos escrevem seus próprios indicadores.
     match /kpis/{id}          { allow read: if isAuth(); allow write: if isAuth(); }
+    // Biblioteca compartilhada: usuários autenticados adicionam controles;
+    // aplicações e avaliações ficam nos riscos, sem alterar o catálogo.
+    match /controles_biblioteca/{id} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && request.resource.data.keys().hasOnly(['nome', 'categoria', 'tipo', 'descricao', 'criado_em', 'autor_uid'])
+        && request.resource.data.keys().hasAll(['nome', 'categoria', 'tipo', 'descricao', 'criado_em', 'autor_uid'])
+        && request.resource.data.nome is string && request.resource.data.nome.size() > 0 && request.resource.data.nome.size() <= 200
+        && request.resource.data.categoria is string && request.resource.data.categoria.size() > 0 && request.resource.data.categoria.size() <= 200
+        && request.resource.data.descricao is string && request.resource.data.descricao.size() > 0 && request.resource.data.descricao.size() <= 5000
+        && request.resource.data.tipo in ['Preventivo', 'Detectivo', 'Corretivo']
+        && request.resource.data.autor_uid == request.auth.uid
+        && request.resource.data.criado_em == request.time;
+      allow update, delete: if false;
+    }
     match /relatorios_ind/{id}{ allow read: if isAuth(); allow write: if isAuth(); }
 
     // Conteúdo institucional gerenciado pelo EP.

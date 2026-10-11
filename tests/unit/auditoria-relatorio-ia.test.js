@@ -8,7 +8,7 @@ const functions = readFileSync(new URL('../../functions/index.js', import.meta.u
 const functionSource = (start, end) => html.slice(html.indexOf(start), html.indexOf(end, html.indexOf(start)));
 
 describe('relatório salvo de aderência', () => {
-  const restore = functionSource('function _rAudRestoreRelatorio(p)', '\nfunction salvarTratamentoRisco');
+  const restore = html.match(/function _rAudRestoreRelatorio\(p\)[\s\S]*?\n}/)[0];
   const init = functionSource('function _rAcaoInitBpmn(p, minhaTarefa)', '\n// Q019');
   const save = functionSource('async function salvarRelatorioAuditoria(concluir)', '\nfunction exportarAuditoriaRelPdf');
 

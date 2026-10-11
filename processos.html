@@ -28,9 +28,12 @@
 <script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
 <script src="src/shared/indicadores-impactados.js?v=20261010-2"></script>
 <script src="src/shared/busca-geral.js?v=20261010-9"></script>
-<script src="src/shared/riscos.js?v=20261010-1"></script>
+<script src="src/shared/riscos.js?v=20261010-9"></script>
+<script src="src/shared/controles-catalogo.js?v=20261010-1"></script>
+<script src="src/shared/controles-biblioteca.js?v=20261010-1"></script>
+<script src="src/processos/controles-biblioteca-ui.js?v=20261010-3"></script>
 <script src="src/shared/relatorio-executivo-style.js?v=20261010-1"></script>
-<script src="src/processos/riscos-module.js?v=20261010-1"></script>
+<script src="src/processos/riscos-module.js?v=20261010-9"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -103,10 +106,11 @@ html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
   --sh2:0 2px 8px rgba(28,28,46,.08),0 12px 32px rgba(28,28,46,.1);
   --r:10px;--rl:14px;
   --f:'DM Sans',system-ui,sans-serif;
-  --fh:'Syne',system-ui,sans-serif;
+  --fh:var(--f);
   --fm:'DM Mono',monospace;
 }
 body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;min-height:100vh}
+button,input,select,textarea,optgroup,option{font-family:var(--f)}
 body.drawer-open{overflow:hidden;touch-action:none}
 .shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
 .aside{background:var(--ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:10;scrollbar-width:none}.aside::-webkit-scrollbar{display:none}
@@ -868,7 +872,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </div>
 </dialog>
 <!-- LOGIN -->
-<div id="boot-overlay" style="position:fixed;inset:0;background:#1C1C2E;z-index:1001;display:none;align-items:center;justify-content:center"><div style="color:rgba(255,255,255,.3);font-size:13px;font-family:'Syne',system-ui,sans-serif">Carregando…</div></div>
+<div id="boot-overlay" style="position:fixed;inset:0;background:#1C1C2E;z-index:1001;display:none;align-items:center;justify-content:center"><div style="color:rgba(255,255,255,.3);font-size:13px;font-family:var(--f)">Carregando…</div></div>
 <div id="login-screen" class="login-screen">
   <div class="login-box">
     <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:1.8rem">
@@ -1368,15 +1372,18 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 #page-faq .knowledge-count{font-size:12px;color:var(--ink3)}
 @media(max-width:720px){#page-faq .knowledge-panel{padding:16px}}
 </style>
+<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261010-1">
 <div id="page-riscos" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><button type="button" class="btn btn-p" onclick="riscosExportPdf()">Gerar relatório PDF</button></div>
   <div class="risk-filters">
     <div class="risk-filter"><label id="riscos-label-prob" for="riscos-prob">Probabilidade</label><select class="fi" id="riscos-prob" onchange="rRiscos()"><option value="">Todas</option><option>Baixa</option><option value="Media">Média</option><option>Alta</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-level" for="riscos-level">Nível de risco</label><select class="fi" id="riscos-level" onchange="rRiscos()"><option value="">Todos</option><option value="low">Baixo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="critical">Crítico</option></select></div>
     <div class="risk-filter"><label id="riscos-label-imp" for="riscos-imp">Impacto</label><select class="fi" id="riscos-imp" onchange="rRiscos()"><option value="">Todos</option><option>Baixo</option><option value="Medio">Médio</option><option>Alto</option><option value="Critico">Crítico</option></select></div>
     <div class="risk-filter"><label id="riscos-label-processId" for="riscos-processId">Processo</label><select class="fi" id="riscos-processId" onchange="rRiscos()"><option value="">Todos</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-critical" for="riscos-critical">Processo crítico</label><select class="fi" id="riscos-critical" onchange="rRiscos()"><option value="">Todos</option><option value="sim">Sim</option><option value="nao">Não</option></select></div>
     <div class="risk-filter"><label id="riscos-label-area" for="riscos-area">Área</label><select class="fi" id="riscos-area" onchange="rRiscos()"><option value="">Todas</option></select></div>
     <div class="risk-filter"><label id="riscos-label-macro" for="riscos-macro">Macroprocesso</label><select class="fi" id="riscos-macro" onchange="rRiscos()"><option value="">Todos</option></select></div>
-    <div class="risk-filter"><label id="riscos-label-status" for="riscos-status">Situação</label><select class="fi" id="riscos-status" onchange="rRiscos()"><option value="">Todas</option><option value="sem_tratamento">Sem tratamento</option><option value="planejado">Tratamento planejado</option><option value="em_tratamento">Em tratamento</option><option value="aguardando_verificacao">Tratamento implementado, aguardando verificação</option><option value="tratado">Tratado</option><option value="nao_confirmado">Situação não confirmada</option></select></div>
+    <div class="risk-filter"><label id="riscos-label-status" for="riscos-status">Situação</label><select class="fi" id="riscos-status" onchange="rRiscos()"><option value="">Todas</option><option value="sem_tratamento">Sem tratamento</option><option value="planejado">Tratamento planejado</option><option value="em_tratamento">Em tratamento</option><option value="implementado">Tratamento implementado</option><option value="nao_confirmado">Situação não confirmada</option></select></div>
     <div class="risk-filter"><label id="riscos-label-query" for="riscos-query">Palavra-chave</label><input class="fi" id="riscos-query" type="search" oninput="rRiscos()" placeholder="Descrição, processo ou tratamento"></div>
   </div><div id="riscos-content" aria-live="polite"></div>
 </div></div>
@@ -3931,47 +3938,7 @@ async function iaDescreverAchado(){
 
 // ── RISCOS NA AUDITORIA ──────────────────────────────────────────────────────
 function _rAudRiscos(p){
-  const riscos = p.ent?.riscos||[];
-  if(!riscos.length) return '<div class="ib ibb" style="font-size:12px">Nenhum risco mapeado na etapa de Identificação de Riscos. Registre os riscos no mapeamento do processo para utilizá-los aqui.</div>';
-  const probScore={Baixa:1,Media:2,Alta:3};
-  const impScore={Baixo:1,Medio:2,Alto:3,Critico:4};
-  function _zona(r){
-    const s=(probScore[r.prob]||1)*(impScore[r.imp]||1);
-    if(s<=4) return {bg:'#d1fae5',tx:'#065f46',lb:'Baixo'};
-    if(s<=6) return {bg:'#fef3c7',tx:'#92400e',lb:'Moderado'};
-    if(s<=9) return {bg:'#ffedd5',tx:'#9a3412',lb:'Alto'};
-    return {bg:'#fee2e2',tx:'#991b1b',lb:'Crítico'};
-  }
-  const cards = riscos.map((r,i)=>{
-    const z=_zona(r);
-    const nenhuma = !!r.acao_nenhuma;
-    return `<div style="border:1px solid var(--bdr);border-radius:var(--r);padding:.75rem;margin-bottom:.6rem;border-left:3px solid ${z.tx}">
-      <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:.35rem">
-        <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:${z.bg};color:${z.tx};flex-shrink:0;margin-top:1px">${z.lb}</span>
-        <div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(r.desc)}</div>
-      </div>
-      <div style="font-size:11px;color:var(--ink3);margin-bottom:.6rem">Probabilidade: <strong>${r.prob||'—'}</strong> · Impacto: <strong>${r.imp||'—'}</strong></div>
-      <div class="g2" style="gap:.5rem;margin-bottom:.5rem">
-        <div class="fg" style="margin-bottom:0">
-          <label class="fl">Tratamento Recebido</label>
-          <select class="fi" id="aud-risco-trat-${i}" style="font-size:12px">
-            <option value="">— selecione —</option>
-            ${['Mitigado','Aceito','Transferido','Evitado'].map(o=>`<option${r.tratamento===o?' selected':''}>${o}</option>`).join('')}
-          </select>
-        </div>
-        <div class="fg" style="margin-bottom:0">
-          <label class="fl">Ação realizada para tratamento</label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);margin-bottom:.35rem;cursor:pointer">
-            <input type="checkbox" id="aud-risco-nenhuma-${i}" ${nenhuma?'checked':''} onchange="document.getElementById('aud-risco-acao-${i}').disabled=this.checked;document.getElementById('aud-risco-acao-${i}').style.opacity=this.checked?'.4':'1'">
-            Nenhuma
-          </label>
-          <textarea class="fi" id="aud-risco-acao-${i}" style="min-height:58px;font-size:12px;${nenhuma?'opacity:.4':''}" placeholder="Descreva a ação realizada..." ${nenhuma?'disabled':''}>${esc(r.acao_tratamento||'')}</textarea>
-        </div>
-      </div>
-      <button type="button" class="btn" style="font-size:11px" onclick="salvarTratamentoRisco(${i})">Salvar</button>
-    </div>`;
-  }).join('');
-  return `<div style="font-size:13px;color:var(--ink3);margin-bottom:.9rem">Riscos inerentes identificados no mapeamento do processo. Registre abaixo como cada risco foi tratado na prática — estes riscos existem independentemente dos achados da auditoria.</div>${cards}`;
+  return (p.ent?.riscos || []).map(risk=>`<div class="card"><h3>${esc(risk.desc || risk.descricao)}</h3>${pbBadge(risk.prob)}${ibBadge(risk.imp)}${riscoControlesHtml(risk)}</div>`).join('') || '<div class="ib ibb">Nenhum risco registrado.</div>';
 }
 
 function _rAudRestoreRelatorio(p){
@@ -3989,15 +3956,7 @@ function _rAudRestoreRelatorio(p){
   }
 }
 
-function salvarTratamentoRisco(idx){
-  const p=curProc; if(!p) return;
-  const r=(p.ent?.riscos||[])[idx]; if(!r) return;
-  r.tratamento = document.getElementById('aud-risco-trat-'+idx)?.value||'';
-  r.acao_nenhuma = !!(document.getElementById('aud-risco-nenhuma-'+idx)?.checked);
-  r.acao_tratamento = r.acao_nenhuma ? '' : (document.getElementById('aud-risco-acao-'+idx)?.value.trim()||'');
-  fbAutoSave('salvar');
-  toast('Tratamento salvo!','var(--teal)');
-}
+
 
 // ── FOLLOW-UP DE AUDITORIA ───────────────────────────────────────────────────
 function rAbaFollowup(p, aud){
@@ -4692,9 +4651,7 @@ function rDetalhe(){
   document.getElementById('det-titulo').textContent=p.nome;
   document.getElementById('det-badge').innerHTML=fBadge(p.etapa)+' '+_eBadgeAcomp(p)+_statusBadge(p);
   document.getElementById('det-prio').innerHTML=pBadge(p.prio)
-    +(p.arq_id?` <button type="button" class="btn" data-arq-id="${esc(p.arq_id)}" onclick="abrirHistoricoRegistrosProcesso(this.dataset.arqId)">Registros do processo</button>`:'')
-    +(isEP()?` <button type="button" class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Editar dono, interessados e produto" onclick="abrirEditarMetadados()">✎ Editar</button>`:'')
-    +(!_mappingAccessRestricted() && (isEP()||usuarioLogado?.perfil==='gestor') ? _renderCicloBar(p) : '');
+    +(!_mappingAccessRestricted() && (p.arq_id || isEP() || usuarioLogado?.perfil==='gestor')?` <button type="button" class="btn" title="Configuração do mapeamento" aria-label="Configuração do mapeamento" aria-haspopup="dialog" onclick="abrirConfiguracaoMapeamento()" style="font-size:18px;padding:4px 10px;margin-left:6px">⚙</button>`:'');
   epRetroEtapa = null;
   const _etapasEfetivas=getEtapas(p);
   const idx=_etapasEfetivas.findIndex(e=>e.id===p.etapa);
@@ -4850,6 +4807,19 @@ function _desviosPrazo(p){
   if(!prev||!efet) return null;
   const dias=Math.round((new Date(efet)-new Date(prev))/(1000*60*60*24));
   return dias; // positivo = atrasado, negativo = adiantado
+}
+function abrirConfiguracaoMapeamento(){
+  if(_mappingAccessRestricted() || !curProc)return;
+  document.getElementById('mapping-config-dialog')?.remove();
+  const p=curProc,dialog=document.createElement('dialog');
+  dialog.id='mapping-config-dialog';dialog.className='risk-treatment-modal';
+  dialog.setAttribute('aria-labelledby','mapping-config-title');
+  dialog.innerHTML=`<h2 id="mapping-config-title">Configuração do mapeamento</h2><div class="mapping-config-actions">${p.arq_id?`<button type="button" class="btn" data-arq-id="${esc(p.arq_id)}" onclick="abrirHistoricoRegistrosProcesso(this.dataset.arqId)">Registros do processo</button>`:''}${isEP()?'<button type="button" class="btn" onclick="abrirEditarMetadados()">Editar dono, interessados e produto</button>':''}${isEP()||usuarioLogado?.perfil==='gestor'?_renderCicloBar(p):''}</div><div class="btn-row" style="margin-top:16px"><button type="button" class="btn" onclick="this.closest('dialog').close()">Fechar</button></div>`;
+  dialog.querySelector('.mapping-config-actions').style.cssText='display:flex;flex-direction:column;gap:8px';
+  dialog.querySelectorAll('.mapping-config-actions button').forEach(button=>{button.style.margin='0';button.style.padding='10px 12px';button.style.fontSize='13px';button.style.textAlign='left';});
+  dialog.querySelector('.mapping-config-actions').addEventListener('click',event=>{if(event.target.closest('button'))dialog.close();},true);
+  dialog.addEventListener('close',()=>dialog.remove());
+  document.body.append(dialog);dialog.showModal();
 }
 function _renderCicloBar(p){
   const suspenso=p.status_ciclo==='suspenso', cancelado=p.status_ciclo==='cancelado';
@@ -6009,10 +5979,12 @@ const ACOES = {
     <div id="risco-list" style="margin-bottom:.5rem">${rRiscoList(p.ent.riscos)}</div>
     <div id="risco-matrix">${rRiscoMatriz(p.ent.riscos)}</div>
     <div class="g3">
-      <input class="fi" id="rd" placeholder="Descrição do risco">
-      <select class="fi" id="rp"><option value="">Probabilidade</option><option>Baixa</option><option>Media</option><option>Alta</option></select>
-      <select class="fi" id="ri"><option value="">Impacto</option><option>Baixo</option><option>Medio</option><option>Alto</option><option>Critico</option></select>
+      <div class="fg"><label class="fl" for="rd">Descrição do risco</label><input class="fi" id="rd" placeholder="Descreva o risco identificado"></div>
+      <div class="fg"><label class="fl" for="rp">Probabilidade</label><select class="fi" id="rp" aria-label="Probabilidade" onchange="riscoRespostaAtualizar('new-risk','rp','ri')"><option value="">Probabilidade</option><option>Baixa</option><option>Media</option><option>Alta</option></select></div>
+      <div class="fg"><label class="fl" for="ri">Impacto</label><select class="fi" id="ri" aria-label="Impacto" onchange="riscoRespostaAtualizar('new-risk','rp','ri')"><option value="">Impacto</option><option>Baixo</option><option>Medio</option><option>Alto</option><option>Critico</option></select></div>
     </div>
+    ${riscoControlesEditor('new-risk-controls')}
+    <div>${riscoRespostaEditor('new-risk').replace('class="card risk-response-form"','class="card risk-response-form" hidden')}</div>
     <button type="button" class="btn" style="margin-top:6px;font-size:12px" onclick="addRisco()">+ Adicionar risco</button>
     `},
 
@@ -7609,6 +7581,7 @@ async function iaGerarRiscos(){
 }
 function salvarRiscos(avancar=true){
   const p=curProc;
+  if((p.ent.riscos || []).some(r=>!riscoValidarResposta(r)))return;
   if(avancar) av('riscos','EP','Riscos identificados: '+(p.ent.riscos||[]).length+' registro(s).');
   else{fbAutoSave('salvarRiscos');toast('Dados salvos!','var(--teal)');}
 }
@@ -11058,12 +11031,8 @@ function _renderAnaliseItem(items, label, cssClass, icon){
   return `<div class="analise-item"><div class="analise-cat ${cssClass}">${label} (${items.length})</div>${rows}</div>`;
 }
 function _renderRiscosCard(riscos){
-  if(!riscos.length) return '';
-  const rows=riscos.map(r=>`<tr><td>${esc(r.desc)}</td><td>${pbBadge(r.prob)}</td><td>${ibBadge(r.imp)}</td><td>${esc(riscosLabel(Riscos.status(r)))}</td><td style="white-space:pre-wrap">${esc([r.tratamento,r.acao_tratamento].filter(Boolean).join(' — '))}</td></tr>`).join('');
-  return `<div class="card"><div class="card-t">Riscos (${riscos.length})</div>
-    <table class="pop-tbl"><thead><tr><th>Risco</th><th>Prob.</th><th>Impacto</th><th>Situação</th><th>Tratamento</th></tr></thead>
-    <tbody>${rows}</tbody></table>
-  </div>`;
+  if(!riscos.length)return '';
+  return `<div class="card"><div class="card-t">Riscos (${riscos.length})</div>${riscos.map(r=>`<div><strong>${esc(r.desc)}</strong> ${pbBadge(r.prob)} ${ibBadge(r.imp)}${riscoControlesHtml(r)}</div>`).join('')}</div>`;
 }
 function _rFormHtml(p){
   const pd=p.form?.pop;
@@ -13080,30 +13049,75 @@ function atualizarRiscoUI(){
   if(el) el.innerHTML=rRiscoList(rs);
   if(em) em.innerHTML=rRiscoMatriz(rs);
 }
+function riscoControles(r){
+  return Array.isArray(r.controles_existentes)?r.controles_existentes:[];
+}
+function riscoControlesHtml(r){
+  const controls=riscoControles(r);
+  const response=riscoResposta(r),level=Riscos.level(r.prob,r.imp);
+  const proposal=response.descricao?`<p style="white-space:pre-wrap"><strong>Resposta proposta — ${esc(response.tipo)}:</strong> ${esc(response.descricao)}<br><strong>Responsável:</strong> ${esc(response.responsavel)}</p>`:['high','critical'].includes(level)?'<p class="ib iba">Resposta obrigatória pendente. Edite o risco para propor uma resposta.</p>':'';
+  return (controls.length?controls.map(c=>`<div style="margin:8px 0;white-space:pre-wrap"><strong>Controle existente:</strong> ${c.nome?`${esc(c.biblioteca_id)} · ${esc(c.nome)}<br><strong>Aplicação no processo:</strong> `:''}${esc(c.descricao)}<br><strong>Tipo:</strong> ${esc(c.tipo || 'Não informado')} · <strong>Responsável:</strong> ${esc(c.responsavel || 'Não informado')} · <strong>Efetividade:</strong> ${esc(c.efetividade || 'Não informada')}</div>`).join(''):'<p>Nenhum controle existente informado.</p>')+proposal;
+}
+function riscoResposta(r){
+  return r.resposta_proposta || {tipo:({Mitigado:'Mitigar',Transferido:'Compartilhar',Evitado:'Evitar'})[r.tratamento] || r.tratamento || '',descricao:r.acao_tratamento || '',responsavel:r.responsavel_tratamento || ''};
+}
+function riscoRespostaEditor(prefix,r={}){
+  const response=riscoResposta(r);
+  return `<div id="${prefix}-response" class="card risk-response-form"><p id="${prefix}-response-level" class="risk-response-level"></p><p class="risk-form-help">Para riscos altos ou críticos, proponha uma resposta e informe o responsável. A execução será acompanhada no módulo Riscos.</p><div class="fg"><label class="fl" for="${prefix}-response-type">Resposta proposta</label><select class="fi" id="${prefix}-response-type"><option value="">Selecione</option>${['Evitar','Compartilhar','Mitigar'].map(v=>`<option ${response.tipo===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="fg"><label class="fl" for="${prefix}-response-action">Descrição da resposta</label><textarea class="fi" id="${prefix}-response-action" rows="3">${esc(response.descricao)}</textarea></div><div class="fg"><label class="fl" for="${prefix}-response-owner">Responsável pela resposta</label><input class="fi" id="${prefix}-response-owner" value="${esc(response.responsavel)}"></div></div>`;
+}
+function riscoRespostaAtualizar(prefix,probId,impId){
+  const level=Riscos.level(document.getElementById(probId)?.value,document.getElementById(impId)?.value),required=['high','critical'].includes(level);
+  const box=document.getElementById(prefix+'-response');if(!box)return;
+  box.hidden=!required;
+  document.getElementById(prefix+'-response-level').textContent='Classificação: '+(Riscos.levels[level] || 'Não informada')+' — resposta obrigatória';
+  ['type','action','owner'].forEach(field=>document.getElementById(prefix+'-response-'+field).required=required);
+}
+function riscoLerResposta(prefix){
+  return {tipo:document.getElementById(prefix+'-response-type')?.value || '',descricao:document.getElementById(prefix+'-response-action')?.value.trim() || '',responsavel:document.getElementById(prefix+'-response-owner')?.value.trim() || ''};
+}
+function riscoValidarResposta(r,response=riscoResposta(r)){
+  if(['high','critical'].includes(Riscos.level(r.prob,r.imp)) && (!['Evitar','Compartilhar','Mitigar'].includes(response.tipo) || !response.descricao.trim() || !response.responsavel.trim())){toast('Risco alto ou crítico: informe a resposta proposta, sua descrição e o responsável.','var(--amber)');return false;}
+  return true;
+}
+function riscoControleForm(c={}){
+  const uid='risk-control-'+(globalThis._riskControlSequence=(globalThis._riskControlSequence || 0)+1);
+  const library=c.biblioteca_id?`<strong class="risk-control-heading">${esc(c.biblioteca_id)} · ${esc(c.nome)}</strong><p class="risk-control-meta">${esc(c.categoria)} · ${esc(c.tipo)}</p><p class="risk-form-help">${esc(c.descricao_catalogo)}</p>${['biblioteca_id','nome','categoria','descricao_catalogo'].map(field=>`<input type="hidden" data-control="${field}" value="${esc(c[field] || '')}">`).join('')}`:'';
+  return `<div class="card risk-existing-control" data-library-id="${esc(c.biblioteca_id || '')}">${library}<div class="fg"><label class="fl" for="${uid}-description">${c.biblioteca_id?'Aplicação do controle neste processo':'Controle existente'}</label><textarea class="fi" id="${uid}-description" data-control="descricao" rows="2" placeholder="Descreva como a medida é atualmente adotada neste processo">${esc(c.descricao || '')}</textarea></div><div class="g2"><div class="fg"><label class="fl" for="${uid}-type">Tipo de controle</label><select class="fi" id="${uid}-type" data-control="tipo" ${c.biblioteca_id?'disabled':''}><option value="">Selecione</option>${['Preventivo','Detectivo','Corretivo'].map(v=>`<option ${c.tipo===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="fg"><label class="fl" for="${uid}-owner">Responsável</label><input class="fi" id="${uid}-owner" data-control="responsavel" placeholder="Servidor ou unidade" value="${esc(c.responsavel || '')}"></div></div><div class="fg"><label class="fl" for="${uid}-effectiveness">Efetividade</label><select class="fi" id="${uid}-effectiveness" data-control="efetividade"><option value="">Selecione</option>${['Eficaz','Parcialmente eficaz','Ineficaz'].map(v=>`<option ${c.efetividade===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="risk-control-footer"><button type="button" class="btn" onclick="this.closest('.risk-existing-control').remove()">Remover controle</button></div></div>`;
+}
+function riscoControlesEditor(id,controls=[]){
+  return `<div class="fg risk-controls-section"><span class="fl">Controles atualmente existentes</span><div id="${id}">${controls.map(c=>riscoControleForm(c)).join('')}</div><button type="button" class="btn" data-controls-id="${id}" onclick="riscoBibliotecaAbrir(this.dataset.controlsId)">+ Adicionar controle existente</button></div>`;
+}
+function riscoLerControles(id){
+  return Array.from(document.querySelectorAll('#'+id+' .risk-existing-control')).map(el=>Object.fromEntries(Array.from(el.querySelectorAll('[data-control]')).map(input=>[input.dataset.control,input.value.trim()])));
+}
+function riscoValidarControles(controls){
+  if(controls.some(c=>!c.descricao || !['Preventivo','Detectivo','Corretivo'].includes(c.tipo) || !c.responsavel || !['Eficaz','Parcialmente eficaz','Ineficaz'].includes(c.efetividade))){toast('Preencha descrição, tipo, responsável e efetividade de cada controle.','var(--amber)');return false;}
+  return true;
+}
 function rRiscoList(rs){
-  if(!rs||!rs.length)return '<div style="font-size:12px;color:var(--ink4);padding:4px 0">Nenhum risco adicionado.</div>';
-  return rs.map((r,i)=>`<div class="ri-item"><span>${esc(r.desc)}</span>${pbBadge(r.prob)}${ibBadge(r.imp)}<span class="badge ${Riscos.status(r)==='tratado'?'bg':'ba'}">${riscosLabel(Riscos.status(r))}</span>${r.acao_tratamento?`<span style="font-size:12px;white-space:pre-wrap">${esc(r.acao_tratamento)}</span>`:''}${riscosCanEdit()?`<button type="button" class="btn" data-pid="${esc(String(curProc.id))}" onclick="riscosEdit(this.dataset.pid,${i})">Tratamento</button>`:''}<button type="button" class="btn" style="font-size:11px;padding:2px 8px" onclick="editarRisco(${i})" aria-label="Editar risco">✎</button><button type="button" class="ri-del" onclick="remR(${i})" aria-label="Remover risco">×</button></div>`).join('');
+  if(!rs||!rs.length)return '<div>Nenhum risco adicionado.</div>';
+  return rs.map((r,i)=>`<div class="card" style="margin-bottom:8px"><div class="ri-item"><strong>${esc(r.desc)}</strong>${pbBadge(r.prob)}${ibBadge(r.imp)}<button type="button" class="btn" onclick="editarRisco(${i})" aria-label="Editar risco">✎</button><button type="button" class="ri-del" onclick="remR(${i})" aria-label="Remover risco">×</button></div>${riscoControlesHtml(r)}</div>`).join('');
 }
 function editarRisco(i){
   const r=curProc.ent.riscos[i];
   if(!r)return;
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center';
-  ov.innerHTML=`<div style="background:var(--surf);border-radius:14px;padding:1.8rem;max-width:480px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,.25)">
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:1.2rem">✎ Editar risco</div>
+  ov.innerHTML=`<div class="risk-edit-modal">
+    <div class="risk-form-title">Editar risco</div>
     <div class="fg" style="margin-bottom:.8rem">
-      <label class="fl">Descrição do risco</label>
+      <label class="fl" for="er-desc">Descrição do risco</label>
       <textarea class="fi" id="er-desc" style="min-height:80px">${esc(r.desc)}</textarea>
     </div>
     <div class="g2" style="margin-bottom:1.2rem">
-      <div class="fg"><label class="fl">Probabilidade</label>
+      <div class="fg"><label class="fl" for="er-prob">Probabilidade</label>
         <select class="fi" id="er-prob">
           <option value="Baixa" ${r.prob==='Baixa'?'selected':''}>Baixa</option>
           <option value="Media" ${r.prob==='Media'?'selected':''}>Média</option>
           <option value="Alta"  ${r.prob==='Alta' ?'selected':''}>Alta</option>
         </select>
       </div>
-      <div class="fg"><label class="fl">Impacto</label>
+      <div class="fg"><label class="fl" for="er-imp">Impacto</label>
         <select class="fi" id="er-imp">
           <option value="Baixo"  ${r.imp==='Baixo'  ?'selected':''}>Baixo</option>
           <option value="Medio"  ${r.imp==='Medio'  ?'selected':''}>Médio</option>
@@ -13112,12 +13126,16 @@ function editarRisco(i){
         </select>
       </div>
     </div>
+    ${riscoControlesEditor('edit-risk-controls',riscoControles(r))}
+    ${riscoRespostaEditor('edit-risk',r)}
     <div class="btn-row">
       <button type="button" class="btn" onclick="this.closest('div[style*=fixed]').remove()">Cancelar</button>
       <button type="button" class="btn btn-p" onclick="salvarEdicaoRisco(${i},this)">Salvar →</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
+  ['er-prob','er-imp'].forEach(id=>document.getElementById(id).addEventListener('change',()=>riscoRespostaAtualizar('edit-risk','er-prob','er-imp')));
+  riscoRespostaAtualizar('edit-risk','er-prob','er-imp');
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
 }
 function salvarEdicaoRisco(i,el){
@@ -13126,7 +13144,14 @@ function salvarEdicaoRisco(i,el){
   const imp=document.getElementById('er-imp')?.value;
   if(!desc){toast('A descrição não pode ficar em branco.','var(--amber)');return;}
   const r=curProc.ent.riscos[i];
-  r.desc=desc;r.prob=prob;r.imp=imp;
+  const controls=riscoLerControles('edit-risk-controls');
+  if(!riscoValidarControles(controls))return;
+  let response=riscoLerResposta('edit-risk');
+  const removedResponse=!response.descricao && (Boolean(riscoResposta(r).descricao) || Object.hasOwn(r,'resposta_proposta'));
+  if(removedResponse)response={tipo:'',descricao:'',responsavel:''};
+  if(!removedResponse && !riscoValidarResposta({prob,imp},response))return;
+  r.desc=desc;r.prob=prob;r.imp=imp;r.controles_existentes=controls;
+  r.resposta_proposta=response;
   el.closest('div[style*=fixed]').remove();
   atualizarRiscoUI();
   fbAutoSave('editarRisco');
@@ -13135,9 +13160,17 @@ function addRisco(){
   const desc=document.getElementById('rd')?.value.trim(),prob=document.getElementById('rp')?.value,imp=document.getElementById('ri')?.value;
   if(!desc||!prob||!imp){toast('Preencha descrição, probabilidade e impacto.','var(--amber)');return;}
   if(!curProc.ent.riscos)curProc.ent.riscos=[];
-  curProc.ent.riscos.push({desc,prob,imp});
+  const controls=riscoLerControles('new-risk-controls');
+  if(!riscoValidarControles(controls))return;
+  const response=riscoLerResposta('new-risk');
+  if(!riscoValidarResposta({prob,imp},response))return;
+  curProc.ent.riscos.push({desc,prob,imp,controles_existentes:controls,resposta_proposta:response});
+  document.getElementById('new-risk-controls')?.replaceChildren();
   document.getElementById('rd').value='';document.getElementById('rp').value='';document.getElementById('ri').value='';
+  ['type','action','owner'].forEach(field=>document.getElementById('new-risk-response-'+field).value='');
+  riscoRespostaAtualizar('new-risk','rp','ri');
   atualizarRiscoUI();
+  fbAutoSave('addRisco');
 }
 function remR(i){if(!curProc?.ent?.riscos){return;} curProc.ent.riscos.splice(i,1);atualizarRiscoUI();}
 

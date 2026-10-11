@@ -6,7 +6,7 @@ function hoje(data=new Date()){
 }
 function pendente(risco,data){
   const prazo=risco?.prazo_tratamento;
-  return /^\d{4}-\d{2}-\d{2}$/.test(prazo || '') && prazo<data && risco.status_tratamento!=='tratado' && !(risco.tratado===true && !risco.status_tratamento);
+  return /^\d{4}-\d{2}-\d{2}$/.test(prazo || '') && prazo<data && !['tratado','implementado'].includes(risco.status_tratamento) && !(risco.tratado===true && !risco.status_tratamento);
 }
 function destinatarios(raw){
   const users=typeof raw==='string'?JSON.parse(raw):raw;
