@@ -8,7 +8,7 @@
   }
   function search(type,query,data){
     if(type==='riscos' || type==='problemas') return [];
-    if(type==='todos') return ['faq','pops'].flatMap(kind=>search(kind,query,data));
+    if(type==='todos') return ['faq','pops',...(!data.processId && !data.macro?['glossario']:[])].flatMap(kind=>search(kind,query,data));
     const rows=[];
     const add=(title,detail,target,extra='')=>rows.push({title:title || 'Sem título',
       detail:Object.entries(detail).filter(([,value])=>text(value).trim()).map(([label,value])=>`${label}: ${text(value)}`).join('\n'),
@@ -19,6 +19,8 @@
       return unit?{...p,macro:unit.macro}:p;
     }).filter(p=>(!data.processId || String(p.id)===String(data.processId)) && (!data.macro || p.macro===data.macro));
     const allowedIds=new Set([...processes.map(p=>String(p.arq_id)),...(!data.processId?units.filter(item=>!data.macro || item.macro===data.macro).map(item=>String(item.id)):[])]);
+    if(type==='glossario') (data.glossario || globalScope.GlossarioProcessos?.entries || []).forEach(item=>
+      add(item.term,{'Definição':item.definition},{kind:'glossario',id:item.id},item.synonyms));
     if(type==='faq') processes.forEach(p=>{
       String(p.form?.faq || '').split(/\n(?=P\s*:)/i).forEach(block=>{
         const lines=block.trim().split('\n');

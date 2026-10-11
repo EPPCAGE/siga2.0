@@ -3,10 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<link rel="stylesheet" href="src/shared/date-fields.css?v=20261011-1">
+<script src="src/shared/date-fields.js?v=20261011-1" defer></script>
+<script src="src/shared/text-language.js?v=20261011-2" defer></script>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://firestore.googleapis.com https://firebasestorage.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.emailjs.com https://*.a.run.app https://*.cloudfunctions.net https://docs.google.com https://*.googleusercontent.com https://api.allorigins.win; img-src 'self' data: https://firebasestorage.googleapis.com https://*.googleusercontent.com; font-src 'self' https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com">
 <title>SIGA - EPP</title>
 <link rel="icon" type="image/png" href="assets/siga-epp-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="src/processos/cadeia-valor.css?v=20261011-1">
+<link rel="stylesheet" href="src/processos/maturidade-gestao.css?v=20261011-3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css" integrity="sha384-2WPRuHNLlqer/8fKQLOMZSWVINTz4vDTnIB1SXm75ubMI3oBGJyfvuOcPPc0Pfjh" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-js.css" integrity="sha384-d5fPuJ8qoomhVwsLNT3CIO4Wr1Ur5kNIP6IkZ1c1m5deqBd43hlGyuXPeFUiuA0N" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-font/css/bpmn-embedded.css" integrity="sha384-ijOXkuNXUCNgtx44AmGWdFd8myXyI3JBDEOUZnqQQ6B2TWkjl+kYe39QSnikx1vD" crossorigin="anonymous">
@@ -25,15 +30,20 @@
 <script src="src/shared/bizagi-import.js"></script>
 <script src="src/processos/registros-processo.js"></script>
 <script src="src/shared/firestore-repositories.js"></script>
+<script src="src/shared/cadeia-valor.js?v=20261011-2"></script>
+<script src="src/processos/cadeia-valor-module.js?v=20261011-2"></script>
 <script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
 <script src="src/shared/indicadores-impactados.js?v=20261010-2"></script>
-<script src="src/shared/busca-geral.js?v=20261010-9"></script>
-<script src="src/shared/riscos.js?v=20261011-2"></script>
+<script src="src/shared/glossario-processos.js?v=20261011-1"></script>
+<script src="src/shared/busca-geral.js?v=20261011-3"></script>
+<script src="src/shared/maturidade-gestao.js?v=20261011-1"></script>
+<script src="src/processos/maturidade-gestao-module.js?v=20261011-3"></script>
+<script src="src/shared/riscos.js?v=20261011-3"></script>
 <script src="src/shared/controles-catalogo.js?v=20261010-1"></script>
 <script src="src/shared/controles-biblioteca.js?v=20261010-1"></script>
 <script src="src/processos/controles-biblioteca-ui.js?v=20261010-3"></script>
 <script src="src/shared/relatorio-executivo-style.js?v=20261010-1"></script>
-<script src="src/processos/riscos-module.js?v=20261011-2"></script>
+<script src="src/processos/riscos-module.js?v=20261011-3"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -51,7 +61,7 @@
 <!-- Firebase -->
 <script type="module">
   import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getFirestore, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, and, or, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { getFirestore, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, runTransaction, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, and, or, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
   import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
@@ -78,7 +88,7 @@
       const auth = getAuth(app);
       const storage = getStorage(app);
       const functions = getFunctions(app);
-      globalThis._fb = { db, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, and, or, serverTimestamp, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, functions, httpsCallable, FIREBASE_CONFIG };
+      globalThis._fb = { db, doc, getDoc, getDocFromServer, setDoc, collection, getDocs, onSnapshot, writeBatch, runTransaction, deleteDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, and, or, serverTimestamp, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, onAuthStateChanged, deleteUser, updatePassword, reauthenticateWithCredential, EmailAuthProvider, initializeApp, deleteApp, getAuth, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, functions, httpsCallable, FIREBASE_CONFIG };
       globalThis._fbReady = true;
       console.info('Firebase conectado');
     } catch(e) {
@@ -1151,6 +1161,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     Mapeamentos <span class="nav-cnt" id="nb-total">0</span>
   </button>
   <div class="nav-sec">Módulos</div>
+  <button type="button" class="nav-btn" onclick="go('cadeiavalor',this)" id="nb-cadeiavalor">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 3h13l3 3-3 3H2l3-3-3-3ZM2 11h13l3 3-3 3H2l3-3-3-3Z"/></svg>Cadeia de valor
+  </button>
   <button type="button" class="nav-btn" onclick="go('arq',this)" id="nb-arq">
     <svg viewBox="0 0 16 16" fill="none"><rect x="6" y="1" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1" y="6" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="11" y="6" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="6" y="11" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M8 4v2M8 9v2M3 9v1a1 1 0 001 1h4M13 9v1a1 1 0 01-1 1H8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
     Arquitetura
@@ -1166,6 +1179,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <button type="button" class="nav-btn" onclick="go('riscos',this)" id="nb-riscos">
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2 15 14H1L8 2Z" stroke="currentColor" stroke-width="1.4"/><path d="M8 6v4" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="12" r=".8" fill="currentColor"/></svg>
     Riscos
+  </button>
+  <button type="button" class="nav-btn" onclick="go('maturidadegestao',this)" id="nb-maturidadegestao">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 14h14M3 12V9h3v3M7 12V6h3v6M11 12V2h3v10"/></svg>Maturidade da gestão
   </button>
   <button type="button" class="nav-btn ep-only" onclick="go('plano',this)" id="nb-plano">
     <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="3.5" y="9" width="2.5" height="2.5" rx=".4" fill="currentColor" opacity=".6"/><rect x="6.8" y="9" width="2.5" height="2.5" rx=".4" fill="currentColor" opacity=".6"/><rect x="10" y="9" width="2.5" height="2.5" rx=".4" fill="currentColor" opacity=".3"/></svg>
@@ -1398,11 +1414,21 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <button type="button" class="knowledge-filter" data-busca-tipo="todos" aria-pressed="true" onclick="selecionarTipoBusca('todos')">Todos</button>
     <button type="button" class="knowledge-filter" data-busca-tipo="faq" aria-pressed="false" onclick="selecionarTipoBusca('faq')">Perguntas frequentes</button>
     <button type="button" class="knowledge-filter" data-busca-tipo="pops" aria-pressed="false" onclick="selecionarTipoBusca('pops')">POPs</button>
+    <button type="button" class="knowledge-filter" data-busca-tipo="glossario" aria-pressed="false" onclick="selecionarTipoBusca('glossario')">Glossário</button>
   </div>
   <div id="faq-result-cnt" class="knowledge-count" aria-live="polite"></div>
   <div id="faq-c"></div>
 </div></div>
 
+<div id="page-maturidadegestao" class="page"><div class="mg-page">
+  <div class="ph"><div><div class="ph-t">Maturidade da gestão de processos</div><div class="ph-s">Diagnóstico institucional · 26 perguntas · 6 dimensões</div></div></div>
+  <div id="maturidade-gestao-content"></div>
+</div></div>
+<div id="page-cadeiavalor" class="page"><div class="chain-page">
+  <div class="ph"><div><div class="ph-t">Cadeia de valor</div><div class="ph-s">Defina os norteadores, as entregas de valor e os macroprocessos da organização.</div></div></div>
+  <div class="chain-journey" aria-label="Jornada da gestão de processos"><strong>1. Cadeia de valor</strong><span aria-hidden="true">→</span><span>2. Arquitetura e desdobramentos</span><span aria-hidden="true">→</span><span>3. Mapeamentos</span></div>
+  <div id="cadeia-content"></div>
+</div></div>
 <div id="page-arq" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Arquitetura de processos</div><div class="ph-s" id="arq-sub">Macroprocesso → Processo → Subprocesso</div></div>
   <div id="btn-arq-actions"></div></div>
@@ -2575,7 +2601,7 @@ function go(page,btn){
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
   const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de conhecimento',riscos:'Riscos',indicadores:'Indicadores',plano:'Plano de Trabalho',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
-  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||'SIGA 2.0';
+  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão'})[page]||'SIGA 2.0';
 }
 function _invokeGlobalHandler(handlerName){
   const handler = globalThis[handlerName];
@@ -2588,6 +2614,8 @@ function _getPageRenderer(page){
     meusprocessos:rMeusProc,
     processos:renderProcs,
     arq:rArq,
+    cadeiavalor:rCadeiaValor,
+    maturidadegestao:rMaturidadeGestao,
     faq:rFaq,
     riscos:rRiscos,
     indicadores:()=>{rInd();},
@@ -6012,6 +6040,7 @@ const ACOES = {
       <div class="fg"><label class="fl" for="rp">Probabilidade</label><select class="fi" id="rp" aria-label="Probabilidade" onchange="riscoRespostaAtualizar('new-risk','rp','ri')"><option value="">Probabilidade</option><option>Baixa</option><option>Media</option><option>Alta</option></select></div>
       <div class="fg"><label class="fl" for="ri">Impacto</label><select class="fi" id="ri" aria-label="Impacto" onchange="riscoRespostaAtualizar('new-risk','rp','ri')"><option value="">Impacto</option><option>Baixo</option><option>Medio</option><option>Alto</option><option>Critico</option></select></div>
     </div>
+    <div class="fg"><label class="fl" for="rcausa">Causa provável</label><textarea class="fi" id="rcausa" rows="3" placeholder="O que pode provocar a ocorrência deste risco?"></textarea></div>
     ${riscoControlesEditor('new-risk-controls')}
     <div>${riscoRespostaEditor('new-risk').replace('class="card risk-response-form"','class="card risk-response-form" hidden')}</div>
     <button type="button" class="btn" style="margin-top:6px;font-size:12px" onclick="addRisco()">+ Adicionar risco</button>
@@ -11061,7 +11090,7 @@ function _renderAnaliseItem(items, label, cssClass, icon){
 }
 function _renderRiscosCard(riscos){
   if(!riscos.length)return '';
-  return `<div class="card"><div class="card-t">Riscos (${riscos.length})</div>${riscos.map(r=>`<div><strong>${esc(r.desc)}</strong> ${pbBadge(r.prob)} ${ibBadge(r.imp)}${riscoControlesHtml(r)}</div>`).join('')}</div>`;
+  return `<div class="card"><div class="card-t">Riscos (${riscos.length})</div>${riscos.map(r=>`<div><strong>${esc(r.desc)}</strong> ${pbBadge(r.prob)} ${ibBadge(r.imp)}<p class="risk-text"><strong>Causa provável:</strong> ${esc(r.causa_provavel || 'Não informada')}</p>${riscoControlesHtml(r)}</div>`).join('')}</div>`;
 }
 function _rFormHtml(p){
   const pd=p.form?.pop;
@@ -13125,7 +13154,7 @@ function riscoValidarControles(controls){
 }
 function rRiscoList(rs){
   if(!rs||!rs.length)return '<div>Nenhum risco adicionado.</div>';
-  return rs.map((r,i)=>`<div class="card" style="margin-bottom:8px"><div class="ri-item"><strong>${esc(r.desc)}</strong>${pbBadge(r.prob)}${ibBadge(r.imp)}<button type="button" class="btn" onclick="editarRisco(${i})" aria-label="Editar risco">✎</button><button type="button" class="ri-del" onclick="remR(${i})" aria-label="Remover risco">×</button></div>${riscoControlesHtml(r)}</div>`).join('');
+  return rs.map((r,i)=>`<div class="card" style="margin-bottom:8px"><div class="ri-item"><strong>${esc(r.desc)}</strong>${pbBadge(r.prob)}${ibBadge(r.imp)}<button type="button" class="btn" onclick="editarRisco(${i})" aria-label="Editar risco">✎</button><button type="button" class="ri-del" onclick="remR(${i})" aria-label="Remover risco">×</button></div><p class="risk-text"><strong>Causa provável:</strong> ${esc(r.causa_provavel || 'Não informada')}</p>${riscoControlesHtml(r)}</div>`).join('');
 }
 function editarRisco(i){
   const r=curProc.ent.riscos[i];
@@ -13138,6 +13167,7 @@ function editarRisco(i){
       <label class="fl" for="er-desc">Descrição do risco</label>
       <textarea class="fi" id="er-desc" style="min-height:80px">${esc(r.desc)}</textarea>
     </div>
+    <div class="fg"><label class="fl" for="er-causa">Causa provável</label><textarea class="fi" id="er-causa" rows="3">${esc(r.causa_provavel || '')}</textarea></div>
     <div class="g2" style="margin-bottom:1.2rem">
       <div class="fg"><label class="fl" for="er-prob">Probabilidade</label>
         <select class="fi" id="er-prob">
@@ -13179,7 +13209,7 @@ function salvarEdicaoRisco(i,el){
   const removedResponse=!response.descricao && (Boolean(riscoResposta(r).descricao) || Object.hasOwn(r,'resposta_proposta'));
   if(removedResponse)response={tipo:'',descricao:'',responsavel:''};
   if(!removedResponse && !riscoValidarResposta({prob,imp},response))return;
-  r.desc=desc;r.prob=prob;r.imp=imp;r.controles_existentes=controls;
+  r.desc=desc;r.prob=prob;r.imp=imp;r.controles_existentes=controls;r.causa_provavel=document.getElementById('er-causa')?.value.trim() || '';
   r.resposta_proposta=response;
   el.closest('div[style*=fixed]').remove();
   atualizarRiscoUI();
@@ -13193,7 +13223,8 @@ function addRisco(){
   if(!riscoValidarControles(controls))return;
   const response=riscoLerResposta('new-risk');
   if(!riscoValidarResposta({prob,imp},response))return;
-  curProc.ent.riscos.push({desc,prob,imp,controles_existentes:controls,resposta_proposta:response});
+  curProc.ent.riscos.push({desc,prob,imp,causa_provavel:document.getElementById('rcausa')?.value.trim() || '',controles_existentes:controls,resposta_proposta:response});
+  if(document.getElementById('rcausa'))document.getElementById('rcausa').value='';
   document.getElementById('new-risk-controls')?.replaceChildren();
   document.getElementById('rd').value='';document.getElementById('rp').value='';document.getElementById('ri').value='';
   ['type','action','owner'].forEach(field=>document.getElementById('new-risk-response-'+field).value='');
@@ -13491,6 +13522,7 @@ function rFaq(){
 }
 function selecionarTipoBusca(type){
   globalThis._buscaTipo=type;
+  if(type==='glossario')['busca-processo','busca-macro'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   rFaq();
 }
 function _buscaPodeAbrir(type,target){
@@ -13524,17 +13556,17 @@ function rBuscaGeral(type){
   if(!type){container.innerHTML='<div class="ib ibb">Selecione o que deseja buscar.</div>';return;}
   const query=document.getElementById('faq-srch')?.value || '';
   const macro=document.getElementById('busca-macro')?.value || '',processId=document.getElementById('busca-processo')?.value || '';
-  if(!query.trim() && !macro && !processId){container.innerHTML='<p class="knowledge-detail">Digite uma palavra-chave ou selecione um processo ou macroprocesso.</p>';return;}
+  if(!query.trim() && !macro && !processId && type!=='glossario'){container.innerHTML='<p class="knowledge-detail">Digite uma palavra-chave ou selecione um processo ou macroprocesso.</p>';return;}
   const rows=BuscaGeral.search(type,query,{processos,publicacoes,macro,processId,arquitetura:typeof ARQUITETURA==='undefined'?[]:ARQUITETURA});
   if(count) count.textContent=rows.length+' resultado(s)';
   container.innerHTML=rows.length?rows.map(row=>{
     const target=row.target;
     const actionLabel=target.kind==='info-processo'?'Sobre o processo':'Abrir';
     const url=target.kind==='projeto'?'projetos.html?projeto='+encodeURIComponent(target.id)+'&aba=execucao#exec-cronograma-section':target.kind==='publicacao'?safeUrl(target.url || ''):'';
-    const action=!_buscaPodeAbrir(type,target)?'':url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir documento externo ↗</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-search-type="${esc(type)}" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this,event)">${actionLabel}</button>`;
+    const action=target.kind==='glossario' || !_buscaPodeAbrir(type,target)?'':url?`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Abrir documento externo ↗</a>`:target.kind==='publicacao'?'':`<button type="button" class="btn" data-search-type="${esc(type)}" data-target="${esc(JSON.stringify(target))}" onclick="abrirResultadoBusca(this,event)">${actionLabel}</button>`;
     const faqControls=isEP() && row.category==='faq'?`<button type="button" class="btn" data-id="${esc(String(target.id))}" data-question="${esc(encodeURIComponent(row.title))}" onclick="abrirEditarFaqItem(Number(this.dataset.id),this.dataset.question)">Editar pergunta</button>`:'';
-    const label=({faq:'Perguntas frequentes',riscos:'Riscos',problemas:'Problemas',pops:'POPs'})[row.category];
-    const icon=({faq:'❓',riscos:'△',problemas:'⚒',pops:'📄'})[row.category];
+    const label=({faq:'Perguntas frequentes',riscos:'Riscos',problemas:'Problemas',pops:'POPs',glossario:'Glossário'})[row.category];
+    const icon=({faq:'❓',riscos:'△',problemas:'⚒',pops:'📄',glossario:'📖'})[row.category];
     return `<article class="knowledge-card"><div class="knowledge-card-title"><span aria-hidden="true">${icon}</span><span>${esc(row.title)}</span></div><p class="knowledge-detail">${esc(row.detail)}</p><div class="knowledge-footer"><span class="knowledge-tag">${label}</span>${action}${faqControls}</div></article>`;
   }).join(''):'<div class="ib ibb">Nenhum resultado encontrado para a busca.</div>';
 }
@@ -18738,6 +18770,7 @@ async function _fbLoadArquitetura(){
   try {
     ARQUITETURA = JSON.parse(arqDoc.data().data);
     _fbConfigCache.set('arquitetura', JSON.stringify(ARQUITETURA));
+    CadeiaValor.migrateDeliveryLinks(ARQUITETURA);
     AreasArquitetura.migrate(ARQUITETURA);
     AreasArquitetura.migrateRecords(processos,ARQUITETURA);
     AreasArquitetura.migrateRecords(kpis,ARQUITETURA);
