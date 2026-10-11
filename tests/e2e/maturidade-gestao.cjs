@@ -74,7 +74,7 @@ const assert=require('node:assert/strict');
       for(const item of [previous,older])store.set('maturidade_gestao_'+item.id,{data:JSON.stringify(item)});
       current.history=[...[older,previous].map(item=>({id:item.id,title:item.title,cycle:item.cycle,date:item.date,level:item.level})),...current.history];
       store.set('maturidade_gestao',{data:JSON.stringify(current)});
-      maturidadeGestaoReload();
+      return maturidadeGestaoReload();
     });
     await page.waitForSelector('#mg-delete');
     await page.waitForFunction(()=>document.querySelectorAll('.mg-chart-point').length===18);
