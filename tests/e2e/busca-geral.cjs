@@ -26,13 +26,13 @@ const assert=require('node:assert/strict');
     assert.equal(await page.locator('#faq-srch').isEnabled(),true);
     assert.equal(await page.locator('#busca-processo, #busca-macro').count(),2);
     await page.selectOption('#busca-processo','1');
-    assert.equal(await page.locator('.knowledge-card').count(),3);
+    assert.equal(await page.locator('.knowledge-card').count(),2);
     await page.selectOption('#busca-processo','');
     await page.selectOption('#busca-macro','Auditoria');
-    assert.equal(await page.locator('.knowledge-card').count(),3);
+    assert.equal(await page.locator('.knowledge-card').count(),2);
     await page.selectOption('#busca-macro','');
-    assert.deepEqual(await page.locator('[data-busca-tipo]').allTextContents(),['Todos','Perguntas frequentes','Problemas','POPs']);
-    for(const [type,query,expected] of [['faq','auditar','Como auditar'],['problemas','relatorio','Falha no relatório']]){
+    assert.deepEqual(await page.locator('[data-busca-tipo]').allTextContents(),['Todos','Perguntas frequentes','POPs']);
+    for(const [type,query,expected] of [['faq','auditar','Como auditar']]){
       await page.locator(`[data-busca-tipo="${type}"]`).click();
       assert.equal(await page.locator('#faq-srch').isEnabled(),true);
       await page.fill('#faq-srch',query);
@@ -40,11 +40,11 @@ const assert=require('node:assert/strict');
       assert.equal(await page.locator(`[data-busca-tipo="${type}"]`).getAttribute('aria-pressed'),'true');
       assert.equal(await page.locator('.knowledge-card').count(),1);
     }
-    await page.locator('#faq-c button').click();
+    await page.locator('#faq-c button').first().click();
     assert.equal(await page.evaluate(()=>window.openedProcess),1);
     for(const profile of ['dono','gestor']){
       await page.evaluate(profile=>{window.usuarioLogado={perfil:profile};window.openedProcess=null;},profile);
-      for(const [type,query] of [['problemas','falha']]){
+      for(const [type,query] of [['faq','como']]){
         await page.locator(`[data-busca-tipo="${type}"]`).click();
         await page.fill('#faq-srch',query);
         assert.equal(await page.locator('#faq-c button, #faq-c a').count(),0);
@@ -55,15 +55,15 @@ const assert=require('node:assert/strict');
       await page.fill('#faq-srch','auditar');
       assert.match(await page.locator('#faq-c').innerText(),/Como auditar/);
       assert.ok(!(await page.locator('#faq-c').innerText()).includes('Atraso na emissão'));
-      assert.match(await page.locator('#faq-c').innerText(),/Falha no relatório/);
+      assert.ok(!(await page.locator('#faq-c').innerText()).includes('Falha no relatório'));
       assert.equal(await page.locator('#faq-c button').count(),1);
       await page.locator('#faq-c button').click();
       assert.equal(await page.evaluate(()=>window.openedInfo.processId),1);
       assert.equal(await page.evaluate(()=>window.openedProcess),null);
     }
     await page.evaluate(()=>{window.usuarioLogado={perfil:'ep'};});
-    await page.locator('[data-busca-tipo="problemas"]').click();
-    await page.fill('#faq-srch','falha');
+    await page.locator('[data-busca-tipo="pops"]').click();
+    await page.fill('#faq-srch','relatorio');
     assert.equal(await page.locator('#faq-c button').count(),1);
     await page.fill('#faq-srch','inexistente');
     assert.match(await page.locator('#faq-c').innerText(),/Nenhum resultado/);

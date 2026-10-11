@@ -14,10 +14,11 @@
   --sh2:0 2px 8px rgba(28,28,46,.08),0 12px 32px rgba(28,28,46,.1);
   --r:10px;--rl:14px;
   --f:'DM Sans',system-ui,sans-serif;
-  --fh:'Syne',system-ui,sans-serif;
+  --fh:var(--f);
   --fm:'DM Mono',monospace;
 }
 body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;min-height:100vh}
+button,input,select,textarea,optgroup,option{font-family:var(--f)}
 .shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
 .aside{background:var(--ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:10}
 .main-area{overflow-y:auto;max-height:100vh}
