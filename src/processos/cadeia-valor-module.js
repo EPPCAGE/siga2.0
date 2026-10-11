@@ -28,7 +28,7 @@ async function rCadeiaValor(){
     state.chain=CadeiaValor.initial(ARQUITETURA,state.details);state.ready=true;cadeiaRender();
   }catch(error){root.innerHTML=`<div class="ib iba">Não foi possível carregar a cadeia de valor. ${esc(error.message)}</div><button type="button" class="btn" onclick="cadeiaReload()">Tentar novamente</button>`;}
 }
-function cadeiaReload(){_cadeiaState=null;rCadeiaValor();}
+function cadeiaReload(){_cadeiaState=null;return rCadeiaValor();}
 function cadeiaRender(){
   const state=_cadeiaState,root=document.getElementById('cadeia-content');if(!state?.ready || !root)return;
   const canEdit=cadeiaCanEdit(),chain=state.chain;
