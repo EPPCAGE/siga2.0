@@ -43,7 +43,7 @@ describe('cores do relatorio executivo', () => {
       URL: { createObjectURL: () => 'blob:test' },
       _registrarRelatorioPatEmitido: () => {},
     });
-    for (const name of ['statusReportCorPct', 'statusReportTrimAtual', 'statusReportDateIso', 'statusReportDateBr', 'statusReportRecente', 'gerarStatusReportPDF']) load(context, name);
+    for (const name of ['_epModuleAllowed', '_blockRestrictedModule', 'statusReportCorPct', 'statusReportTrimAtual', 'statusReportDateIso', 'statusReportDateBr', 'statusReportRecente', 'gerarStatusReportPDF']) load(context, name);
     context.gerarStatusReportPDF();
     const donuts = [...output.matchAll(/--pct:(\d+);--color:(#[a-f0-9]+)/g)];
     expect(donuts).toHaveLength(3);

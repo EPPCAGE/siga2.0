@@ -2546,7 +2546,23 @@ function _blockMappingAccess(allowTask=false){
   go('meusprocessos',document.getElementById('nb-meusproc'));
   return true;
 }
+function _epModuleAllowed(){
+  return isEP() && !['dono','gestor'].includes(typeof usuarioLogado==='undefined'?'':usuarioLogado?.perfil);
+}
+function _blockRestrictedModule(page){
+  if(!['plano','auditoria'].includes(page) || _epModuleAllowed())return false;
+  const element=document.getElementById('page-'+page);
+  if(element){element.classList.remove('on');element.style.display='none';}
+  const nav=document.getElementById(page==='plano'?'nb-plano':'nb-aud');
+  if(nav)nav.style.display='none';
+  for(const id of page==='plano'?['plano-modal','meta-modal']:['modal-nova-auditoria']){
+    const modal=document.getElementById(id);if(modal)modal.style.display='none';
+  }
+  if(typeof usuarioLogado!=='undefined' && usuarioLogado)go('meusprocessos',document.getElementById('nb-meusproc'));
+  return true;
+}
 function go(page,btn){
+  if(_blockRestrictedModule(page))return;
   if(_mappingAccessRestricted() && ['processos','detalhe','novo'].includes(page)){
     if(page==='detalhe' && _mappingTaskAllowed()) return;
     _blockMappingAccess();return;
@@ -2998,6 +3014,7 @@ function filtAuditoria(modo,el){
   rAuditoria();
 }
 function abrirModalNovaAuditoria(){
+  if(_blockRestrictedModule('auditoria'))return;
   document.getElementById('modal-nova-auditoria').style.display='block';
   document.getElementById('aud-srch').value='';
   rListaAptosAuditoria();
@@ -3006,6 +3023,7 @@ function fecharModalNovaAuditoria(){
   document.getElementById('modal-nova-auditoria').style.display='none';
 }
 function rListaAptosAuditoria(){
+  if(_blockRestrictedModule('auditoria'))return;
   const el=document.getElementById('aud-aptos-list');
   if(!el)return;
   const srch=(document.getElementById('aud-srch')?.value||'').toLowerCase().trim();
@@ -3042,6 +3060,7 @@ function rListaAptosAuditoria(){
     </div>`).join('');
 }
 function iniciarNovaAuditoria(procId){
+  if(_blockRestrictedModule('auditoria'))return;
   const p=processos.find(x=>x.id===procId);
   if(!p) return;
   confirmar('Iniciar análise de aderência de "'+p.nome+'"?\nO processo será movido para a etapa Análise de Aderência.', () => {
@@ -3061,6 +3080,7 @@ function iniciarNovaAuditoria(procId){
   });
 }
 function rAuditoria(){
+  if(_blockRestrictedModule('auditoria'))return;
   const el=document.getElementById('aud-list');
   if(!el)return;
   const lista=processos.filter(p=>{
@@ -3330,7 +3350,8 @@ function rPainelGestor(){
   </div>`:'';
 
   // Histórico de relatórios PAT emitidos
-  const relRows=relatoriosPat.map(r=>{
+  const relatoriosVisiveis=_epModuleAllowed()?relatoriosPat:[];
+  const relRows=relatoriosVisiveis.map(r=>{
     const dt=new Date(r.gerado_em).toLocaleDateString('pt-BR');
     const link=r.url
       ?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;font-weight:600;color:var(--blue);text-decoration:none">Abrir →</a>`
@@ -3342,7 +3363,7 @@ function rPainelGestor(){
       <td style="padding:.4rem .6rem;text-align:right">${link}</td>
     </tr>`;
   }).join('');
-  const relHtml=relatoriosPat.length?`<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1.5rem">
+  const relHtml=relatoriosVisiveis.length?`<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);padding:1rem;margin-bottom:1.5rem">
     <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.75rem">📄 Relatórios de Status Report emitidos</div>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
       <thead><tr style="border-bottom:2px solid var(--bdr)">
@@ -4266,6 +4287,13 @@ function aplicarPermissoes(){
   const nbNotif = document.getElementById('nb-notif');
   if(nbNotif) nbNotif.style.display = (usuarioLogado?.perfil==='dono'||usuarioLogado?.perfil==='gestor') ? 'none' : '';
   document.querySelectorAll('.ep-only').forEach(el=>{ el.style.display=isEP()?'':'none'; });
+  for(const page of ['plano','auditoria']){
+    const nav=document.getElementById(page==='plano'?'nb-plano':'nb-aud');
+    if(nav)nav.style.display=_epModuleAllowed()?'':'none';
+    const element=document.getElementById('page-'+page);
+    if(element)element.style.display=_epModuleAllowed()?'':'none';
+    if(!_epModuleAllowed() && element?.classList.contains('on'))_blockRestrictedModule(page);
+  }
   if(_mappingAccessRestricted() && document.querySelector('#page-processos.on, #page-detalhe.on, #page-novo.on')) _blockMappingAccess(true);
 }
 
@@ -16987,7 +17015,7 @@ function _planoCheckNotificacoes(lista){
 }
 
 function rPlano(){
-  if(!isEP()) return;
+  if(_blockRestrictedModule('plano'))return;
   plano.forEach(_planoAutomatizar);
   planoPopulateAnoSel();
   const ano  = planoAno();
@@ -17117,6 +17145,7 @@ function _renderPlanoMetaCard(m){
 }
 
 function renderPlanoMetas(){
+  if(_blockRestrictedModule('plano'))return;
   const el=document.getElementById('plano-metas');
   if(!el) return;
   const ano=planoAno();
@@ -17210,6 +17239,7 @@ function _mmFillMetaModal(m, ano){
   _mmSetValue('mm-kpi-sel', m ? m.kpi_id || '' : '');
 }
 function abrirMetaModal(id){
+  if(_blockRestrictedModule('plano'))return;
   const m=id===null ? null : PAT_METAS.find(x=>x.id===id);
   const ano=planoAno();
   if(!document.getElementById('meta-modal')) _criarMetaModal();
@@ -17290,6 +17320,7 @@ function _criarMetaModal(){
 }
 
 async function salvarMeta(){
+  if(_blockRestrictedModule('plano'))return;
   const titulo=(document.getElementById('mm-titulo')?.value||'').trim();
   if(!titulo){toast('Informe o título da meta.','var(--amber)');return;}
   const metaVal=Number.parseFloat(document.getElementById('mm-meta')?.value);
@@ -17322,6 +17353,7 @@ async function salvarMeta(){
 }
 
 async function deletarMeta(id){
+  if(_blockRestrictedModule('plano'))return;
   confirmar('Excluir esta meta?',async()=>{
     PAT_METAS=PAT_METAS.filter(m=>m.id!==id);
     await fbSaveAll();
@@ -17665,7 +17697,7 @@ function statusReportRecente(d, limite){
 
 // ── STATUS REPORT MENSAL — geração automática de .pptx ───────────────────────
 function gerarStatusReportPDF(){
-  if(!isEP()){toast('Restrito ao EP.','var(--amber)');return;}
+  if(_blockRestrictedModule('plano'))return;
 
   // ── Dados base ───────────────────────────────────────────────────────────────
   const ano=planoAno();
@@ -18156,6 +18188,7 @@ function _planoModalApplyValues(at){
   document.getElementById('pm-evid').value = cur.evidencia||'';
 }
 function abrirPlanoModal(idOrObj){
+  if(_blockRestrictedModule('plano'))return;
   const at = typeof idOrObj==='number' ? plano.find(a=>a.id===idOrObj) : (idOrObj||null);
   const isNew = !at||!at.id;
   document.getElementById('plano-modal-title').textContent = isNew?'Nova atividade':'Editar atividade';
@@ -18220,6 +18253,7 @@ function planoAtualizarTriDatas(){
 }
 
 async function salvarAtividade(){
+  if(_blockRestrictedModule('plano'))return;
   const nome = document.getElementById('pm-nome')?.value.trim();
   if(!nome){toast('Informe o nome da atividade.','var(--amber)');return;}
   const id    = Number.parseInt(document.getElementById('pm-id')?.value)||0;
@@ -18319,6 +18353,7 @@ function _planoConcluirVinculadosMapeamento(p){
 }
 
 async function deletarAtividade(id){
+  if(_blockRestrictedModule('plano'))return;
   confirmar('Excluir esta atividade do plano?', async () => {
     plano = plano.filter(a=>a.id!==id);
     if(fbReady()){
@@ -18335,6 +18370,7 @@ async function deletarAtividade(id){
 }
 
 function duplicarAtividade(id){
+  if(_blockRestrictedModule('plano'))return;
   const src = plano.find(a=>a.id===id);
   if(!src) return;
   abrirPlanoModal({...src, id:0, nome:src.nome+' (cópia)', status:'planejado', qt_realizada:0, evidencia:'', dt_criacao:'', dt_atualizacao:''});
