@@ -29,7 +29,7 @@
       const values=Array.isArray(filters[field])?filters[field].filter(Boolean):filters[field]?[filters[field]]:[];
       return !values.length || values.includes(field==='level'?level(row.prob,row.imp):row[field]);
     }) &&
-      (!filters.query || key([row.risk.desc || row.risk.descricao,row.processName,row.risk.acao_tratamento].join(' ')).includes(key(filters.query))));
+      (!filters.query || key([row.risk.desc || row.risk.descricao,row.processName,row.risk.causa_provavel,row.risk.acao_tratamento].join(' ')).includes(key(filters.query))));
   }
   function summary(rows,today){
     const priority=rows.filter(row=>['high','critical'].includes(level(row.prob,row.imp)));

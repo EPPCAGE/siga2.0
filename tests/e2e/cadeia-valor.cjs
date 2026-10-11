@@ -1,0 +1,80 @@
+const {chromium}=require('playwright');
+const {readFileSync}=require('node:fs');
+const assert=require('node:assert/strict');
+(async()=>{
+  const browser=await chromium.launch({headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    const html=readFileSync('processos.html','utf8'),start=html.indexOf('<div id="page-cadeiavalor"');
+    await page.setContent(html.slice(start,html.indexOf('<div id="page-arq"',start)));
+    await page.addStyleTag({content:html.slice(html.indexOf('<style>')+7,html.indexOf('</style>'))});
+    await page.addStyleTag({path:'src/processos/cadeia-valor.css'});
+    await page.evaluate(()=>{
+      document.getElementById('page-cadeiavalor').classList.add('on');
+      window.esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
+      window.ORG_CONFIG={institutionName:'CAGE'};window.usuarioLogado={perfil:'ep',email:'ep@example.org'};
+      window.isEP=()=>usuarioLogado.perfil==='ep';window.fbReady=()=>true;window._fbLoadedAt=1;
+      let sequence=0;window.crypto.randomUUID=()=>String(++sequence);
+      window.ARQUITETURA=[{id:'m1',nome:'Auditoria',processos:[{id:'p1',nome:'Auditar',area:'DAUD',subprocessos:[{id:'s1',nome:'Relatório',pop:'documento'}]}]},{id:'m2',nome:'Gestão de TIC',processos:[]}];
+      window.processos=[{id:1,arq_id:'p1',macro:'Auditoria',ent:{riscos:[{desc:'Risco'}]}},{id:2,arq_id:'s1',macro:'Auditoria'}];
+      window._fbConfigCache=new Map();window.toast=()=>{};window.rArqPopulateFilters=()=>{};window.go=()=>{};
+      window.store=new Map([['arquitetura',{data:JSON.stringify(ARQUITETURA)}],['processos/1',structuredClone(processos[0])],['processos/2',structuredClone(processos[1])]]);
+      const snapshot=key=>({exists:()=>store.has(key),data:()=>store.get(key)});
+      window.configRepository={ref:id=>id,get:async id=>snapshot(id)};
+      window.processosRepository={ref:id=>'processos/'+id};
+      window.FirestoreRepositories={config:configRepository};
+      window.fb=()=>({db:{},runTransaction:async(db,callback)=>{
+        const pending=[];
+        await callback({get:async key=>snapshot(key),set:(key,data)=>pending.push(()=>store.set(key,data)),update:(key,data)=>pending.push(()=>store.set(key,{...store.get(key),...data}))});
+        pending.forEach(write=>write());
+      }});
+    });
+    await page.addScriptTag({path:'src/shared/cadeia-valor.js'});
+    await page.addScriptTag({path:'src/processos/cadeia-valor-module.js'});
+    await page.evaluate(()=>rCadeiaValor());
+    if(process.env.CADEIA_PREVIEW){
+      await page.evaluate(()=>{
+        const names=['Gestão estratégica','Comunicação e relacionamento institucional','Orientação e suporte à tomada de decisão','Contabilidade','Transparência e estímulo ao controle social','Controle','Auditoria','Promoção da integridade e prevenção à corrupção','Gestão de dados e informações','Gestão administrativa','Gestão de TIC','Gestão de pessoas'];
+        const preview=CadeiaValor.initial(names.map((nome,i)=>({id:'preview'+i,nome})),cadeiaDefaults());
+        document.getElementById('cadeia-preview').innerHTML=cadeiaDiagramHtml(preview);
+      });
+      await page.locator('.chain-diagram-header img').evaluate((img,data)=>img.src=data,'data:image/png;base64,'+readFileSync('cage-logo.png').toString('base64'));
+      await page.locator('.chain-diagram').screenshot({path:'.tmp-cadeia-preview.png'});
+      await page.evaluate(()=>cadeiaRender());
+    }
+    assert.equal(await page.locator('.chain-lane').count(),3);
+    await page.getByRole('button',{name:'Construir cadeia',exact:true}).click();
+    await page.getByRole('button',{name:'+ Adicionar macroprocesso',exact:true}).click();
+    const newMacro=page.locator('.chain-macro-row').last();
+    await newMacro.locator('input').fill('Auditoria especializada');
+    await newMacro.locator('select').selectOption('finalistico');
+    const destination=await newMacro.getAttribute('data-id');
+    await page.locator('[data-process-id="p1"]').selectOption(destination);
+    await page.getByRole('button',{name:'Salvar cadeia e arquitetura',exact:true}).click();
+    await page.waitForFunction(()=>store.has('cadeia_valor') && JSON.parse(store.get('cadeia_valor').data).versao===1);
+    assert.equal(await page.locator('#cadeia-form').count(),0);
+    const saved=await page.evaluate(()=>({arch:ARQUITETURA,mapped:store.get('processos/1'),history:JSON.parse(store.get('cadeia_valor').data).historico}));
+    assert.equal(saved.arch[0].processos.length,0);
+    assert.deepEqual(saved.arch[0].entregas_valor,['Contribuição para a viabilização de políticas públicas']);
+    assert.equal(saved.arch[2].processos[0].subprocessos[0].pop,'documento');
+    assert.equal(saved.mapped.macro,'Auditoria especializada');assert.equal(saved.mapped.ent.riscos[0].desc,'Risco');
+    assert.equal(saved.history.length,1);
+    await page.locator('#cadeia-history').selectOption(saved.history[0].id);
+    await page.waitForFunction(()=>document.getElementById('cadeia-preview').textContent.includes('Versão histórica'));
+    await page.locator('#cadeia-history').selectOption('');
+    await page.getByRole('button',{name:'Construir cadeia',exact:true}).click();
+    await page.locator('#cv-nome').fill('Mudança concorrente');
+    await page.evaluate(()=>store.set('arquitetura',{data:'[]'}));
+    await page.getByRole('button',{name:'Salvar cadeia e arquitetura',exact:true}).click();
+    assert.match(await page.locator('#cadeia-error').innerText(),/Outra pessoa/);
+    assert.equal(await page.evaluate(()=>JSON.parse(store.get('cadeia_valor').data).versao),1);
+    await page.getByRole('button',{name:'Descartar alterações',exact:true}).click();
+    await page.evaluate(()=>{usuarioLogado.perfil='gestor';cadeiaRender();});
+    assert.equal(await page.getByRole('button',{name:'Construir cadeia',exact:true}).count(),0);
+    await page.setViewportSize({width:390,height:844});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
+    assert.deepEqual(errors,[]);
+    console.log('Cadeia: prévia, persistência atômica, reorganização, histórico, concorrência, permissões e responsividade OK.');
+  }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
