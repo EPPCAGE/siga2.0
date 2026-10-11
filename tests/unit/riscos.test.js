@@ -6,6 +6,13 @@ const R=context.Riscos;
 const architecture=[{nome:'Auditoria',processos:[{id:'p',nome:'Auditar',area:'DAUD'}]}];
 const processes=[{id:1,arq_id:'p',nome:'Antigo',area:'Antiga',ent:{riscos:[{desc:'A',prob:'Média',imp:'Crítico'},{desc:'B',prob:'Alta',imp:'Alto',status_tratamento:'em_tratamento',prazo_tratamento:'2026-01-01'},{desc:'C',prob:'Baixa',imp:'Baixo',tratamento:'Mitigado',acao_tratamento:'Texto antigo'}]}}];
 describe('Riscos consolidados',()=>{
+  it('divide altos/críticos em com e sem tratamento, incluindo planejados e sem confirmação',()=>{
+    const risks=[{prob:'Media',imp:'Alto'},...['planejado','em_tratamento','implementado','nao_confirmado'].map(status_tratamento=>({prob:'Alta',imp:'Critico',status_tratamento})),{prob:'Alta',imp:'Baixo',status_tratamento:'implementado'}];
+    const rows=R.rows([{id:1,ent:{riscos:risks}}],[]);
+    expect(R.coverage(rows)).toEqual({total:5,withTreatment:3,withoutTreatment:2});
+    expect(R.coverage([])).toEqual({total:0,withTreatment:0,withoutTreatment:0});
+    expect(R.coverage(R.filter(rows,{status:['implementado']}))).toEqual({total:1,withTreatment:1,withoutTreatment:0});
+  });
   it('filtra pela criticidade do processo sem confundir com nível do risco',()=>{
     const critical=R.rows(processes,architecture,id=>id==='p');
     expect(R.filter(critical,{critical:['sim']})).toHaveLength(3);

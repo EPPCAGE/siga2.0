@@ -63,6 +63,16 @@
 .risk-treatment-modal [role="alert"]:empty { display: none; }
 .mapping-config-actions { display: flex; flex-direction: column; gap: 10px; }
 .mapping-config-actions .btn { width: 100%; margin: 0; padding: 10px 12px; font-size: 13px; text-align: left; }
+.risk-coverage { margin: 0 0 20px; }
+.risk-coverage-body { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; margin: 16px 0; }
+.risk-donut { width: 180px; height: 180px; flex-shrink: 0; }
+.risk-donut text { font-family: var(--f); fill: var(--ink); }
+.risk-donut-total { font-size: 30px; font-weight: 700; }
+.risk-donut-caption { font-size: 12px; }
+.risk-coverage-legend { display: flex; flex-direction: column; gap: 14px; font-size: 13px; }
+.risk-coverage-legend > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.risk-coverage-legend > div > span:last-child { color: var(--ink3); font-size: 12px; }
+.risk-coverage-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 @media(max-width: 720px) {
   .risk-treatment-modal, .risk-edit-modal { max-width: calc(100vw - 24px); padding: 20px; max-height: 90vh; }
   .risk-treatment-modal .g2, .risk-edit-modal .g2 { grid-template-columns: 1fr; gap: 0; }
