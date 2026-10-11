@@ -15,7 +15,7 @@ async function rMaturidadeGestao(){
     if(_mg!==state)return;state.ready=true;maturidadeGestaoRender();
   }catch(e){root.innerHTML='<div class="ib iba">Não foi possível carregar a avaliação. '+esc(e.message)+'</div><button type="button" class="btn" onclick="maturidadeGestaoReload()">Tentar novamente</button>';}
 }
-function maturidadeGestaoReload(){_mg=null;rMaturidadeGestao();}
+function maturidadeGestaoReload(){_mg=null;return rMaturidadeGestao();}
 function maturidadeGestaoResultHtml(answers){
   const result=MaturidadeGestao.calculate(answers),level=MaturidadeGestao.levels[result.level];
   return `<section class="card mg-result"><div class="card-t">Diagnóstico da gestão de processos</div>${level?`<div class="mg-grade">${result.level}<span>de 5 · ${esc(level.name)}</span></div><p>${esc(level.meaning)}</p><h3>${result.level===5?'Como sustentar e evoluir':'Para alcançar o nível '+(result.level+1)}</h3><p>${esc(level.next)}</p>`:`<p>Respostas: <strong>${result.answered} de ${result.total}</strong>. A nota geral será apresentada quando todas as dimensões estiverem completas.</p>`}<div class="mg-dim-results">${result.dimensions.map(d=>`<div><strong>${esc(d.name)}</strong><span>${d.level?'Nível '+d.level+' · '+esc(MaturidadeGestao.levels[d.level].name):d.answered+'/'+d.total+' respondidas'}${d.mean!==null?' · Média '+d.mean.toLocaleString('pt-BR',{maximumFractionDigits:2}):''}</span><progress max="5" value="${d.level || 0}" aria-label="Maturidade em ${esc(d.name)}"></progress></div>`).join('')}</div><details class="mg-method"><summary>Como a nota é calculada</summary><p>Cada alternativa vale de 1 a 5, na ordem do formulário. Calculamos a média das respostas de cada dimensão e a convertemos em nível: até 1,5 = 1; até 2,5 = 2; até 3,5 = 3; até 4,5 = 4; acima de 4,5 = 5. A nota geral é a moda dos seis níveis das dimensões. Em empate, prevalece o menor nível empatado. Cada dimensão tem o mesmo peso. Respostas ausentes não recebem nota.</p></details>${result.complete?`<details class="mg-method"><summary>Oportunidades de evolução por pergunta</summary><p>Orientações derivadas da alternativa imediatamente superior à resposta selecionada. As notas mais baixas aparecem primeiro.</p>${MaturidadeGestao.improvements(answers).map(item=>`<article class="mg-improvement"><strong>${item.question.number}. ${esc(item.question.title)}</strong><p>Nível ${item.level} → ${item.target}: ${esc(item.practice)}</p></article>`).join('') || '<p>Todas as respostas estão no nível 5. Reavalie evidências e sustente as práticas ao longo dos próximos ciclos.</p>'}</details>`:''}</section>`;
@@ -30,11 +30,11 @@ function maturidadeGestaoRender(){
     root.querySelector('.mg-toolbar').appendChild(remove);
   }
   if(editing){
-    const form=root.querySelector('form');form.onsubmit=e=>{e.preventDefault();maturidadeGestaoSave(true);};
+    const form=root.querySelector('form');form.onsubmit=e=>{e.preventDefault();void maturidadeGestaoSave(true);};
     form.addEventListener('input',()=>{maturidadeGestaoRead();document.getElementById('mg-result').innerHTML=maturidadeGestaoResultHtml(state.answers);});
   }
   const charts=document.createElement('section');charts.className='mg-history-charts';charts.id='mg-history-charts';root.appendChild(charts);
-  maturidadeGestaoCharts(state,charts);
+  void maturidadeGestaoCharts(state,charts);
 }
 async function maturidadeGestaoCharts(state,container){
   if(!state.history.length){container.innerHTML='<div class="card"><div class="card-t">Evolução por dimensão</div><p>Conclua uma avaliação para iniciar o histórico dos gráficos.</p></div>';return;}
