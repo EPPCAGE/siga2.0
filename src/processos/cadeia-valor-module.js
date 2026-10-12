@@ -29,6 +29,15 @@ async function rCadeiaValor(){
   }catch(error){root.innerHTML=`<div class="ib iba">Não foi possível carregar a cadeia de valor. ${esc(error.message)}</div><button type="button" class="btn" onclick="cadeiaReload()">Tentar novamente</button>`;}
 }
 function cadeiaReload(){_cadeiaState=null;return rCadeiaValor();}
+function cadeiaHasChanges(){
+  const state=_cadeiaState;if(!state?.ready)return false;
+  const snapshot=chain=>JSON.stringify({nome:chain.nome,missao:chain.missao,visao:chain.visao,valores:chain.valores,entregas:chain.entregas,macros:chain.macros,desdobramentos:ARQUITETURA.flatMap(m=>(m.processos || []).map(p=>[String(p.id),String(chain.desdobramentos?.[String(p.id)] ?? m.id)]))});
+  return snapshot(state.chain)!==snapshot(CadeiaValor.initial(ARQUITETURA,state.details));
+}
+function cadeiaPreviewHtml(){
+  const draft=cadeiaHasChanges();
+  return (draft?'<div class="chain-draft" role="status"><strong>Rascunho — alterações não salvas.</strong> Salve a cadeia para atualizar a versão compartilhada.'+(!_cadeiaState.editing?'<div class="chain-draft-actions"><button type="button" class="btn" onclick="cadeiaSetEditing(true)">Continuar edição e salvar</button><button type="button" class="btn" onclick="cadeiaDiscard()">Descartar alterações</button></div>':'')+'</div>':'')+cadeiaDiagramHtml(_cadeiaState.chain);
+}
 function cadeiaRender(){
   const state=_cadeiaState,root=document.getElementById('cadeia-content');if(!state?.ready || !root)return;
   const canEdit=cadeiaCanEdit(),chain=state.chain;
@@ -43,10 +52,12 @@ function cadeiaRender(){
     root.querySelector('#cadeia-history')?.setAttribute('disabled','');
   }
   const unclassified=chain.macros.filter(m=>!m.categoria);
+  document.getElementById('cadeia-preview').innerHTML=cadeiaPreviewHtml();
   if(unclassified.length)document.getElementById('cadeia-error').textContent='Classifique os macroprocessos ainda sem categoria: '+unclassified.map(m=>m.nome).join('; ')+'.';
 }
 function cadeiaSetEditing(editing){
   if(editing && !cadeiaCanEdit())return;
+  if(_cadeiaState.editing && document.getElementById('cadeia-form'))cadeiaRead();
   _cadeiaState.editing=editing;cadeiaRender();
 }
 function cadeiaRead(){
@@ -62,7 +73,7 @@ function cadeiaRead(){
   return state.chain;
 }
 function cadeiaPreview(){
-  const chain=cadeiaRead();document.getElementById('cadeia-preview').innerHTML=cadeiaDiagramHtml(chain);
+  const chain=cadeiaRead();document.getElementById('cadeia-preview').innerHTML=cadeiaPreviewHtml();
   document.querySelectorAll('[data-process-id] option').forEach(option=>{
     const macro=chain.macros.find(m=>m.id===option.value);if(macro)option.textContent=macro.nome || 'Novo macroprocesso';
   });
@@ -70,7 +81,10 @@ function cadeiaPreview(){
 function cadeiaRenderAssignments(){
   const section=document.getElementById('cv-desdobramentos');if(!section)return;
   const chain=_cadeiaState.chain,assignments=chain.desdobramentos || {};
-  section.innerHTML='<div class="card-t">4. Reorganizar os processos existentes</div><p>Escolha o macroprocesso de destino. Os subprocessos e vínculos acompanham o processo.</p>'+ARQUITETURA.flatMap(m=>(m.processos || []).map(p=>`<div class="chain-assignment"><label class="fl" for="cv-dest-${esc(p.id)}">${esc(p.nome)}</label><select class="fi" id="cv-dest-${esc(p.id)}" data-process-id="${esc(p.id)}">${chain.macros.map(dest=>`<option value="${esc(dest.id)}" ${String(assignments[String(p.id)] || m.id)===dest.id?'selected':''}>${esc(dest.nome || 'Novo macroprocesso')}</option>`).join('')}</select></div>`)).join('');
+  section.innerHTML='<div class="card-t">4. Reorganizar os processos existentes</div><p>Escolha o macroprocesso de destino. Os subprocessos e vínculos acompanham o processo.</p>'+ARQUITETURA.flatMap(m=>(m.processos || []).map(p=>{
+    const destination=String(assignments[String(p.id)] ?? m.id),valid=chain.macros.some(dest=>String(dest.id)===destination);
+    return `<div class="chain-assignment"><label class="fl" for="cv-dest-${esc(p.id)}">${esc(p.nome)}</label><select class="fi" id="cv-dest-${esc(p.id)}" data-process-id="${esc(p.id)}" required><option value="" ${valid?'':'selected'} disabled>Selecione um macroprocesso de destino</option>${chain.macros.map(dest=>`<option value="${esc(dest.id)}" ${destination===String(dest.id)?'selected':''}>${esc(dest.nome || 'Novo macroprocesso')}</option>`).join('')}</select></div>`;
+  })).join('');
   section.querySelectorAll('select').forEach(select=>select.addEventListener('change',()=>{
     _cadeiaState.chain.desdobramentos={..._cadeiaState.chain.desdobramentos,[select.dataset.processId]:select.value};
   }));
@@ -80,7 +94,13 @@ function cadeiaRenderMacros(){
 }
 function cadeiaAddMacro(){if(!cadeiaCanEdit())return;cadeiaRead();_cadeiaState.chain.macros.push({id:'m-'+crypto.randomUUID(),nome:'',categoria:''});cadeiaRenderMacros();cadeiaRenderAssignments();cadeiaPreview();}
 function cadeiaMoveMacro(index,offset){if(!cadeiaCanEdit())return;cadeiaRead();const rows=_cadeiaState.chain.macros,other=index+offset;if(other<0 || other>=rows.length)return;[rows[index],rows[other]]=[rows[other],rows[index]];cadeiaRenderMacros();cadeiaPreview();}
-function cadeiaRemoveMacro(index){if(!cadeiaCanEdit())return;cadeiaRead();const m=_cadeiaState.chain.macros[index];if(ARQUITETURA.find(a=>String(a.id)===m.id)?.processos?.length)return;_cadeiaState.chain.macros.splice(index,1);cadeiaRenderMacros();cadeiaPreview();}
+function cadeiaRemoveMacro(index){
+  if(!cadeiaCanEdit())return;cadeiaRead();const chain=_cadeiaState.chain,m=chain.macros[index];
+  if(!m || ARQUITETURA.find(a=>String(a.id)===m.id)?.processos?.length)return;
+  chain.macros.splice(index,1);
+  Object.keys(chain.desdobramentos || {}).forEach(id=>{if(chain.desdobramentos[id]===m.id)chain.desdobramentos[id]='';});
+  cadeiaRenderMacros();cadeiaRenderAssignments();cadeiaPreview();
+}
 function cadeiaDiscard(){_cadeiaState.chain=CadeiaValor.initial(ARQUITETURA,_cadeiaState.details);_cadeiaState.editing=false;cadeiaRender();}
 async function cadeiaSave(event){
   event.preventDefault();if(!cadeiaCanEdit())return;
@@ -115,7 +135,7 @@ async function cadeiaSave(event){
 async function cadeiaHistory(id){
   const target=document.getElementById('cadeia-preview'),error=document.getElementById('cadeia-error');error.textContent='';
   const token=Symbol();target._historyToken=token;
-  if(!id){target.innerHTML=cadeiaDiagramHtml(_cadeiaState.chain);return;}
+  if(!id){target.innerHTML=cadeiaPreviewHtml();return;}
   try{const doc=await configRepository.get('cadeia_valor_'+id);if(!doc.exists())throw Error('Versão não encontrada.');const data=JSON.parse(doc.data().data);if(target._historyToken===token){target.innerHTML='<div class="ib ibb">Versão histórica para consulta. A arquitetura atual permanece ativa.</div>'+cadeiaDiagramHtml(data.cadeia);}}
   catch(e){error.textContent=e.message;}
 }
