@@ -62,6 +62,11 @@ describe('cadeia de valor integrada à arquitetura',()=>{
     const value=chain(architecture());value.macros[1].nome='AUDITORÍA';
     expect(()=>api.validate(value)).toThrow(/únicos/);
   });
+  it('exige nova escolha quando o destino foi removido, sem retornar ao macro original',()=>{
+    const arq=architecture(),value=chain(arq);value.desdobramentos={p1:''};
+    expect(()=>api.merge(arq,value)).toThrow(/Escolha um macroprocesso válido/);
+    expect(arq[0].processos).toHaveLength(1);
+  });
   it('classifica os macroprocessos conhecidos e exige classificação dos novos',()=>{
     expect(api.category({nome:'Gestão estratégica'})).toBe('gestao');
     expect(api.category({nome:'Transparência e estímulo ao controle social'})).toBe('finalistico');
