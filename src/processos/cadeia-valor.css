@@ -43,5 +43,8 @@
 .chain-deliveries li { padding: 20px 8px; border-bottom: 1px solid #00aaa6; text-align: center; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .chain-deliveries li:last-child { border-bottom: 0; }
 .chain-error { color: var(--red); font-size: 13px; }
+.chain-draft { padding: 12px 16px; margin-bottom: 16px; border: 1px solid #b7791f; border-radius: 8px; background: #fff8e6; color: #714b12; font-size: 13px; }
+.chain-draft-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+@media print { .chain-draft-actions { display: none; } }
 @media(max-width:720px) { .chain-page { padding: 16px; }.chain-macro-row,.chain-assignment { grid-template-columns: 1fr; }.chain-macro-actions { padding-top: 0; }.chain-history { max-width: none; } }
 @media print { .chain-preview-scroll { overflow: visible; }.chain-diagram { width: 100%; min-width: 0; box-sizing: border-box; }.chain-diagram-header { padding-bottom: 18px; }.chain-diagram-header h2 { font-size: 22px; } }

@@ -49,13 +49,13 @@
     const exists=id=>chain.macros.some(m=>String(m.id)===String(id));
     for(const macro of architecture){
       for(const process of macro.processos || []){
-        const destination=destinations[String(process.id)] || macro.id;
+        const destination=destinations[String(process.id)] ?? macro.id;
         if(!exists(destination))throw Error('Escolha um macroprocesso válido para o processo "'+process.nome+'".');
       }
     }
     return chain.macros.map(m=>{
       const existing=architecture.find(old=>String(old.id)===String(m.id));
-      const processes=architecture.flatMap(old=>(old.processos || []).filter(p=>String(destinations[String(p.id)] || old.id)===String(m.id)));
+      const processes=architecture.flatMap(old=>(old.processos || []).filter(p=>String(destinations[String(p.id)] ?? old.id)===String(m.id)));
       return {...(existing || {id:m.id}),processos:processes,nome:m.nome.trim(),categoria_cadeia:m.categoria,entregas_valor:deliveriesFor(m,chain.entregas)};
     });
   }
