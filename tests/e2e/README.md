@@ -16,3 +16,11 @@ npm run test:e2e:projetos
 ```
 
 Artefatos gerados ficam em `tests/e2e/artifacts/` e nao devem ser versionados.
+
+Cadastro manual de riscos e integração com o mapeamento:
+
+```bash
+node tests/e2e/riscos-manual.cjs
+```
+
+Esse teste usa dados e persistência simulados, sem serviços de produção. Valida o cadastro com e sem resposta/controle, recuperação após recarregar os dados, início de mapeamento, permissões e falhas de gravação.

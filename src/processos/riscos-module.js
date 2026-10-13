@@ -40,6 +40,7 @@ function riscosCoverageHtml(rows,context='Riscos nos filtros selecionados'){
 }
 function rRiscos(){
   const container=document.getElementById('riscos-content');if(!container)return;
+  const createButton=document.getElementById('riscos-new');if(createButton)createButton.hidden=!riscosCanEdit();
   const all=Riscos.rows(processos,ARQUITETURA,isCritico),filters=riscosFilters();
   for(const field of ['area','macro','processId']){
     const select=document.getElementById('riscos-'+field);if(!select)continue;
@@ -55,14 +56,14 @@ function rRiscos(){
     ${riscosMatrixHtml(rows,'Matriz consolidada')}
     <h2 class="risk-list-title">Riscos e tratamentos (${rows.length})</h2><div class="risk-list">${rows.map(row=>`<article class="card risk-item"><h3>${esc(row.risk.desc || row.risk.descricao || 'Risco sem descrição')}</h3><p>Processo: ${esc(row.processName)}<br>Área: ${esc(row.area)} · Macroprocesso: ${esc(row.macro)}</p><div class="risk-tags"><span class="badge bgr">Probabilidade: ${riscosLabel(row.prob) || 'Não informada'}</span><span class="badge bgr">Impacto: ${riscosLabel(row.imp) || 'Não informado'}</span><span class="badge ${row.status==='implementado'?'bg':'ba'}">${riscosLabel(row.status)}</span></div>${riscosCauseHtml(row.risk)}${riscoControlesHtml(row.risk)}${riscosTreatmentCatalogHtml(row.risk)}${row.risk.tratamento?`<p><strong>Tratamento:</strong> ${esc(row.risk.tratamento)}</p>`:''}${row.risk.acao_tratamento?`<p class="risk-text">${esc(row.risk.acao_tratamento)}</p>`:''}<p>Responsável: ${esc(row.risk.responsavel_tratamento || 'Não informado')} · Prazo: ${esc(row.risk.prazo_tratamento || 'Não informado')}${row.status!=='implementado' && row.risk.prazo_tratamento && row.risk.prazo_tratamento<riscosToday()?' · Vencido':''}</p>${row.risk.controle_origem?`<p><strong>Controle:</strong> ${esc(riscosControlLabel(row.risk.controle_origem))}${row.risk.controle_referencia?` · ${esc(row.risk.controle_referencia)}`:''}</p>`:''}${row.risk.evidencia_tratamento?`<p class="risk-text"><strong>Verificação:</strong> ${esc(row.risk.evidencia_tratamento)}</p>`:''}<div class="btn-row"><button type="button" class="btn" data-pid="${esc(row.processId)}" onclick="riscosOpenProcess(this.dataset.pid)">Sobre o processo</button>${riscosCanEdit()?`<button type="button" class="btn btn-p" data-pid="${esc(row.processId)}" data-index="${row.index}" onclick="riscosEdit(this.dataset.pid,Number(this.dataset.index))">Registrar tratamento</button>`:''}</div></article>`).join('') || '<div class="ib ibb">Nenhum risco encontrado para os filtros.</div>'}</div>`;
 }
-function riscosOpenProcess(id){const process=processos.find(p=>String(p.id)===String(id));if(process)abrirInfoMeusProc(process.arq_id,process.id);}
+function riscosOpenProcess(id){const process=Riscos.resolve(processos,ARQUITETURA,id);if(process)abrirInfoMeusProc(process.arq_id,process.architectureUnit?null:process.id);}
 function riscosReportHtml(rows,filters,issuedAt=new Date(),cageLogo=''){
   const date=value=>value && /^\d{4}-\d{2}-\d{2}$/.test(value)?value.split('-').reverse().join('/'):value || 'Não informado';
   const summary=Riscos.summary(rows,riscosToday());
   const filterLabels={prob:'Probabilidade',imp:'Impacto',processId:'Processo',area:'Área',macro:'Macroprocesso',level:'Nível de risco',critical:'Processo crítico',status:'Situação',query:'Palavra-chave'};
   const filterText=Object.entries(filterLabels).map(([field,label])=>{
     const values=filters[field];
-    const names=field==='query'?values || 'Todas':(values || []).map(value=>field==='processId'?processos.find(p=>String(p.id)===value)?.nome || value:riscosLabel(value)).join(', ') || 'Todos';
+    const names=field==='query'?values || 'Todas':(values || []).map(value=>field==='processId'?Riscos.resolve(processos,ARQUITETURA,value)?.nome || value:riscosLabel(value)).join(', ') || 'Todos';
     return `<div><strong>${label}:</strong> ${esc(names)}</div>`;
   }).join('');
   const issued=issuedAt.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
@@ -131,7 +132,7 @@ function riscosSelectTreatmentControl(){
 }
 function riscosEdit(id,index){
   if(!riscosCanEdit())return;
-  const process=processos.find(p=>String(p.id)===String(id)),risk=process?.ent?.riscos?.[index];if(!risk)return;
+  const process=Riscos.resolve(processos,ARQUITETURA,id),risk=process?.ent?.riscos?.[index];if(!risk)return;
   document.getElementById('risk-treatment-modal')?.remove();
   const dialog=document.createElement('dialog');dialog.id='risk-treatment-modal';dialog.className='risk-treatment-modal';
   dialog.innerHTML=riscosTreatmentForm(risk);
@@ -141,8 +142,9 @@ function riscosEdit(id,index){
   dialog.querySelector('form').onsubmit=async event=>{
     event.preventDefault();if(!riscosCanEdit())return;
     const error=document.getElementById('risk-save-error'),button=dialog.querySelector('[type="submit"]');
-    if(processos.find(p=>String(p.id)===String(id))?.ent?.riscos?.[index]!==risk){error.textContent='O risco foi atualizado. Feche e abra novamente antes de salvar.';return;}
+    if(Riscos.resolve(processos,ARQUITETURA,id)?.ent?.riscos?.[index]!==risk){error.textContent='O risco foi atualizado. Feche e abra novamente antes de salvar.';return;}
     if(globalThis._fbConflictedProcIds?.has(process.id) || (curProc && String(curProc.id)===String(id) && curProc!==process)){error.textContent='Há uma atualização pendente neste processo. Recarregue os dados antes de registrar o tratamento.';return;}
+    if(process.architectureUnit && (typeof _arqSaveEnabled==='undefined' || !_arqSaveEnabled)){error.textContent='Aguarde o carregamento da arquitetura antes de salvar.';return;}
     let values;
     try{values=Riscos.treatment(risk,{status:document.getElementById('risk-status').value,type:document.getElementById('risk-type').value,action:document.getElementById('risk-action').value,owner:document.getElementById('risk-owner').value,deadline:document.getElementById('risk-deadline').value,evidence:document.getElementById('risk-evidence').value,controlSource:document.getElementById('risk-control-source').value,reference:document.getElementById('risk-control-reference').value});}catch(e){error.textContent=e.message;return;}
     values.causa_provavel=document.getElementById('risk-cause').value.trim();
@@ -154,4 +156,49 @@ function riscosEdit(id,index){
     }catch(e){for(const field of Object.keys(risk))delete risk[field];Object.assign(risk,before);error.textContent='Não foi possível salvar. Tente novamente.';button.disabled=false;}
   };
   document.body.appendChild(dialog);riscosRenderTreatmentControls();riscosTreatmentVisibility();dialog.showModal();
+}
+
+function riscosCreate(){
+  if(!riscosCanEdit())return;
+  document.getElementById('risk-create-modal')?.remove();
+  const entries=Riscos.units(ARQUITETURA).sort((a,b)=>a.label.localeCompare(b.label,'pt-BR'));
+  const dialog=document.createElement('dialog');dialog.id='risk-create-modal';dialog.className='risk-treatment-modal risk-edit-modal';dialog.setAttribute('aria-labelledby','risk-create-title');
+  dialog.innerHTML=`<form><h2 id="risk-create-title">Novo risco</h2><p class="risk-form-help">Associe o risco a um processo da arquitetura. Ele também aparecerá na identificação de riscos quando esse processo estiver em mapeamento.</p>
+    <div class="fg"><label class="fl" for="risk-create-process">Processo da arquitetura</label><select class="fi" id="risk-create-process" required><option value="">Selecione o processo ou subprocesso</option>${entries.map(({unit,label})=>`<option value="${esc(unit.id)}">${esc(label)}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl" for="risk-create-description">Descrição do risco</label><textarea class="fi" id="risk-create-description" required rows="3"></textarea></div>
+    <div class="g2"><div class="fg"><label class="fl" for="risk-create-prob">Probabilidade</label><select class="fi" id="risk-create-prob" required><option value="">Selecione</option>${Riscos.probabilities.map(v=>`<option value="${v}">${riscosLabel(v)}</option>`).join('')}</select></div><div class="fg"><label class="fl" for="risk-create-impact">Impacto</label><select class="fi" id="risk-create-impact" required><option value="">Selecione</option>${Riscos.impacts.map(v=>`<option value="${v}">${riscosLabel(v)}</option>`).join('')}</select></div></div>
+    <div class="fg"><label class="fl" for="risk-create-cause">Causa provável (opcional)</label><textarea class="fi" id="risk-create-cause" rows="2"></textarea></div>
+    <details class="risk-create-optional"><summary>Resposta proposta (opcional)</summary><div class="fg"><label class="fl" for="risk-create-response-type">Tipo de resposta</label><select class="fi" id="risk-create-response-type"><option value="">Sem resposta proposta</option>${['Evitar','Compartilhar','Mitigar','Aceitar'].map(v=>`<option>${v}</option>`).join('')}</select></div><div class="fg"><label class="fl" for="risk-create-response-action">Descrição da resposta</label><textarea class="fi" id="risk-create-response-action" rows="3"></textarea></div><div class="fg"><label class="fl" for="risk-create-response-owner">Responsável pela resposta</label><input class="fi" id="risk-create-response-owner"></div></details>
+    <details class="risk-create-optional"><summary>Controles existentes (opcional)</summary>${riscoControlesEditor('risk-create-controls')}</details>
+    <p role="alert" id="risk-create-error"></p><div class="btn-row"><button type="button" class="btn" id="risk-create-cancel">Cancelar</button><button type="submit" class="btn btn-p" ${entries.length?'':'disabled'}>Cadastrar risco</button></div></form>`;
+  if(!entries.length)dialog.querySelector('#risk-create-error').textContent='Cadastre um processo na arquitetura antes de incluir riscos.';
+  dialog.addEventListener('cancel',event=>{if(dialog.querySelector('[type="submit"]').disabled)event.preventDefault();});
+  dialog.querySelector('#risk-create-cancel').onclick=()=>dialog.close();
+  dialog.addEventListener('close',()=>dialog.remove());
+  dialog.querySelector('form').onsubmit=async event=>{
+    event.preventDefault();if(!riscosCanEdit())return;
+    const error=dialog.querySelector('#risk-create-error'),button=dialog.querySelector('[type="submit"]');if(button.disabled)return;error.textContent='';
+    if(!fbReady() || !globalThis._fbLoadedAt){error.textContent='Conecte-se e aguarde o carregamento dos dados antes de cadastrar o risco.';return;}
+    const target=Riscos.target(processos,ARQUITETURA,dialog.querySelector('#risk-create-process').value);
+    if(!target){error.textContent='O processo não está mais disponível na arquitetura. Reabra o cadastro.';return;}
+    const process=target.process;
+    if(process && (globalThis._fbConflictedProcIds?.has(process.id) || (curProc && String(curProc.id)===String(process.id) && curProc!==process))){error.textContent='Há uma atualização pendente neste processo. Recarregue os dados antes de cadastrar o risco.';return;}
+    if(!process && (typeof _arqSaveEnabled==='undefined' || !_arqSaveEnabled)){error.textContent='Aguarde o carregamento da arquitetura antes de salvar.';return;}
+    let risk;
+    try{risk=Riscos.manual({desc:dialog.querySelector('#risk-create-description').value,prob:dialog.querySelector('#risk-create-prob').value,imp:dialog.querySelector('#risk-create-impact').value,causa_provavel:dialog.querySelector('#risk-create-cause').value,
+      resposta_proposta:{tipo:dialog.querySelector('#risk-create-response-type').value,descricao:dialog.querySelector('#risk-create-response-action').value,responsavel:dialog.querySelector('#risk-create-response-owner').value},controles_existentes:riscoLerControles('risk-create-controls')});}catch(e){error.textContent=e.message;return;}
+    Object.assign(risk,{id:crypto.randomUUID(),criado_em:new Date().toISOString(),criado_por:usuarioLogado?.email || usuarioLogado?.nome || ''});
+    const owner=process?(process.ent ||= {}):target.unit;
+    const hadRisks=Object.hasOwn(owner,'riscos');owner.riscos ||= [];const risks=owner.riscos;
+    button.disabled=true;dialog.querySelector('#risk-create-cancel').disabled=true;risks.push(risk);
+    try{
+      if(await fbSaveAll()===false)throw Error('Falha ao salvar');
+      dialog.close();rRiscos();if(process && curProc===process)atualizarRiscoUI();toast('Risco cadastrado.','var(--teal)');
+    }catch(e){
+      const index=risks.indexOf(risk);if(index>=0)risks.splice(index,1);
+      if(!hadRisks && !risks.length)delete owner.riscos;
+      error.textContent='Não foi possível salvar o risco. Tente novamente.';button.disabled=false;dialog.querySelector('#risk-create-cancel').disabled=false;
+    }
+  };
+  document.body.appendChild(dialog);dialog.showModal();
 }

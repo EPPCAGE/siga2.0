@@ -39,12 +39,12 @@
 <script src="src/shared/busca-geral.js?v=20261011-3"></script>
 <script src="src/shared/maturidade-gestao.js?v=20261011-1"></script>
 <script src="src/processos/maturidade-gestao-module.js?v=20261011-4"></script>
-<script src="src/shared/riscos.js?v=20261011-3"></script>
+<script src="src/shared/riscos.js?v=20261013-1"></script>
 <script src="src/shared/controles-catalogo.js?v=20261010-1"></script>
 <script src="src/shared/controles-biblioteca.js?v=20261013-2"></script>
 <script src="src/processos/controles-biblioteca-ui.js?v=20261010-3"></script>
 <script src="src/shared/relatorio-executivo-style.js?v=20261010-1"></script>
-<script src="src/processos/riscos-module.js?v=20261011-3"></script>
+<script src="src/processos/riscos-module.js?v=20261013-1"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -1391,9 +1391,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 #page-faq .knowledge-count{font-size:12px;color:var(--ink3)}
 @media(max-width:720px){#page-faq .knowledge-panel{padding:16px}}
 </style>
-<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261013-1">
+<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261013-2">
 <div id="page-riscos" class="page"><div style="padding:2rem">
-  <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><button type="button" class="btn btn-p" onclick="riscosExportPdf()">Gerar relatório PDF</button></div>
+  <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><div class="risk-page-actions"><button type="button" class="btn btn-p" id="riscos-new" hidden onclick="riscosCreate()">+ Novo risco</button><button type="button" class="btn" onclick="riscosExportPdf()">Gerar relatório PDF</button></div></div>
   <div class="risk-filters">
     <div class="risk-filter"><label id="riscos-label-prob" for="riscos-prob">Probabilidade</label><select class="fi" id="riscos-prob" onchange="rRiscos()"><option value="">Todas</option><option>Baixa</option><option value="Media">Média</option><option>Alta</option></select></div>
     <div class="risk-filter"><label id="riscos-label-level" for="riscos-level">Nível de risco</label><select class="fi" id="riscos-level" onchange="rRiscos()"><option value="">Todos</option><option value="low">Baixo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="critical">Crítico</option></select></div>
@@ -5225,6 +5225,7 @@ function criarProcesso(){
     hist:[{step:'abertura',role:'EP',acao:'Processo aberto e vinculado à arquitetura',data:now()}],
   };
   syncDonoProcessoUsuario({ nome: p.dono, email: p.dono_email, arqId: p.arq_id });
+  Riscos.adopt(p,ARQUITETURA);
   processos.push(p);
   updCounts();
   renderAdmin();
@@ -20073,6 +20074,7 @@ function confirmarImportPOP(){
     hist:[{acao:'Processo criado via importação de POP Word (IA)',role:'EP',data:agora}],
     auditoria:null
   };
+  Riscos.adopt(novoProc,ARQUITETURA);
   processos.push(novoProc);
   // Marca como mapeado manualmente se não tem arq_id
   if(arqId){mapeadosManual.add(arqId);lsSet('mapeadosManual',JSON.stringify([...mapeadosManual]));fbAutoSave('mapeados');}
