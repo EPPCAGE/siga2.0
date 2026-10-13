@@ -1,0 +1,44 @@
+#page-controles .controls-page{padding:1.5rem 2rem}
+#page-controles .controls-heading .btn{display:inline-flex;align-items:center;gap:6px}
+#page-controles .controls-heading svg{width:15px;height:15px}
+#page-controles .controls-filters{align-items:flex-end;gap:12px}
+#page-controles .controls-filters .fg{margin:0;flex:1;min-width:175px}
+#page-controles .controls-filters .controls-query{flex:2;min-width:230px}
+#page-controles .controls-table-card{padding:0;overflow:hidden}
+#page-controles .controls-table-meta{display:flex;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--bdr);font-size:12px;color:var(--ink3)}
+#page-controles .controls-table-scroll{overflow:auto;max-height:65vh}
+#page-controles .controls-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;min-width:940px}
+#page-controles .controls-table th{position:sticky;top:0;z-index:1;background:var(--bg2);color:var(--ink3);font-size:10px;text-transform:uppercase;letter-spacing:.04em;text-align:left;white-space:nowrap;padding:11px 14px;border-bottom:1px solid var(--bdr)}
+#page-controles .controls-table td{padding:12px 14px;border-bottom:1px solid var(--bdr);vertical-align:middle;color:var(--ink2);line-height:1.5}
+#page-controles .controls-table tr:last-child td{border-bottom:0}
+#page-controles .controls-table tbody tr:hover{background:var(--bg2)}
+#page-controles .control-name{font-size:12.5px;font-weight:600;color:var(--ink);min-width:200px}
+#page-controles .control-category{font-size:10.5px;color:var(--ink3);margin-top:3px}
+#page-controles .control-muted{color:var(--ink4);font-size:11px}
+#page-controles .control-action{white-space:nowrap;font-size:11px;padding:5px 9px}
+#page-controles .control-processes{min-width:130px;max-width:190px;font-size:11px}
+#page-controles .control-processes div+div{margin-top:3px}
+#page-controles .control-empty{padding:36px 20px;text-align:center;color:var(--ink3);font-size:12px}
+#controls-dialog{background:rgba(15,28,46,.45);padding:24px}
+#controls-dialog .controls-modal{background:var(--surf);color:var(--ink);border:1px solid var(--bdr);border-radius:var(--rl);box-shadow:var(--sh2);width:100%;max-width:760px;max-height:90vh;overflow:auto;padding:24px;font-family:var(--f)}
+#controls-dialog .controls-modal h2{font:600 18px var(--fh);margin:0}
+#controls-dialog .controls-modal h3{font:600 14px var(--fh);margin:20px 0 12px}
+#controls-dialog .controls-modal p{font-size:12px;line-height:1.6;color:var(--ink3)}
+#controls-dialog .controls-modal .ph{margin-bottom:18px}
+#controls-dialog .controls-modal .fi[readonly]{background:var(--bg2);color:var(--ink3)}
+#controls-dialog .control-error{color:var(--red);font-size:12px;margin:10px 0}
+#controls-dialog .controls-associations{border:0;padding:0;margin:8px 0 18px;min-width:0}
+#controls-dialog .controls-associations legend{font-size:11px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+#controls-dialog .control-process-picker{border:1px solid var(--bdr2);border-radius:7px;max-height:180px;overflow:auto;background:var(--surf)}
+#controls-dialog .control-process-option{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;border-bottom:1px solid var(--bdr);font-size:12px;cursor:pointer}
+#controls-dialog .control-process-option:last-child{border-bottom:0}
+#controls-dialog .control-process-option input{accent-color:var(--blue);margin-top:2px;flex-shrink:0}
+#controls-dialog .control-process-option:hover{background:var(--bg2)}
+#controls-dialog .control-risk-application{padding:12px 14px;box-shadow:none}
+#controls-dialog .control-risk-application strong{font-size:12px}
+#controls-dialog .control-risk-application p{margin:5px 0}
+#controls-dialog .control-risk-application .badge{margin-right:5px}
+@media(max-width:720px){#page-controles .controls-page{padding:1rem}#page-controles .controls-filters .fg{min-width:100%;width:100%}#page-controles .controls-table-meta{flex-wrap:wrap}#controls-dialog{padding:12px}#controls-dialog .controls-modal{padding:18px;max-height:90vh}#controls-dialog .g2{grid-template-columns:1fr}}
+
+#controls-dialog{position:fixed;inset:0;z-index:30000;display:flex;justify-content:center;align-items:center;font-family:var(--f);color:var(--ink)}
+#page-controles [hidden],#controls-dialog [hidden]{display:none!important}

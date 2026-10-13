@@ -3,8 +3,8 @@
   const stop=new Set(['para','pela','pelo','pelos','pelas','como','com','dos','das','uma','que','por','nos','nas','risco','processo']);
   const tokens=value=>[...new Set(key(value).split(' ').filter(word=>word.length>2 && !stop.has(word)).map(word=>word.length>5?word.replace(/(coes|cao|mente|s)$/,''):word))];
   const themes=[[/praz|atras|venc|demora|temp/,['PRA','TEC-04']], [/dados|inconsisten|duplic|registr|informac/,['QUA','TEC-01','TEC-03']], [/fraud|indevid|conflit|irregular|norm|legal/,['CON','GOV-02','TEC-02']], [/falh|interrup|perda|indispon|continui/,['TEC-05','PRA-04','MON-05']], [/pessoa|servidor|competenc|conhec|capacit/,['PES']], [/aprova|responsab|autoriz|decis/,['GOV']], [/erro|proced|execuc|padron/,['PRO','MON-02']]];
-  let custom=[],loaded=false,pending;
-  function all(){return [...(scope.CONTROLES_CATALOGO || []),...custom].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR') || a.id.localeCompare(b.id));}
+  let central=[],custom=[],loaded=false,pending;
+  function all(){return [...new Map([...(scope.CONTROLES_CATALOGO || []),...custom,...central].map(c=>[c.id,c])).values()].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR') || a.id.localeCompare(b.id));}
   function search(query){if(/^[a-z]+-\d+$/i.test(query.trim()))return all().filter(control=>key(control.id)===key(query));const words=key(query).split(' ').filter(Boolean);return all().filter(control=>words.every(word=>key([control.id,control.nome,control.categoria,control.tipo,control.descricao].join(' ')).includes(word)));}
   function suggest(text,limit=6){
     const words=tokens(text),normalized=key(text);
@@ -15,7 +15,7 @@
     if(!scope.fbReady?.())return all();
     if(pending)return pending;
     if(loaded && !force)return all();
-    pending=(async()=>{const snapshot=await scope.FirestoreRepositories.collection('controles_biblioteca').list();custom=snapshot.docs.map(doc=>({...doc.data,id:doc.id}));loaded=true;return all();})();
+    pending=(async()=>{const snapshot=await scope.FirestoreRepositories.collection('controles_biblioteca').list();custom=snapshot.docs.map(doc=>({...doc.data,id:doc.id}));const registry=await scope.FirestoreRepositories.collection('central_controles').list();central=registry.docs.map(doc=>({...doc.data,id:doc.id}));loaded=true;return all();})();
     try{return await pending;}finally{pending=null;}
   }
   async function create(values){
