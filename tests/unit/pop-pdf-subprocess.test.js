@@ -11,7 +11,7 @@ describe('subprocessos BPMN no PDF do POP', () => {
 
     expect(renderAll).toContain('canvas.getRootElements?.()');
     expect(renderAll).toContain('canvas.setRootElement(info.root)');
-    expect(renderAll).toContain('viewer.saveSVG()');
+    expect(renderAll).toContain('bpmnExportSvg(viewer)');
   });
 
   it('insere fluxo principal e subprocessos na seção 10.0', () => {
