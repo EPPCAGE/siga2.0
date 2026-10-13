@@ -29,7 +29,7 @@
 #controls-dialog .control-error{color:var(--red);font-size:12px;margin:10px 0}
 #controls-dialog .controls-associations{border:0;padding:0;margin:8px 0 18px;min-width:0}
 #controls-dialog .controls-associations legend{font-size:11px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
-#controls-dialog .control-process-picker{border:1px solid var(--bdr2);border-radius:7px;max-height:180px;overflow:auto;background:var(--surf)}
+#controls-dialog .control-process-picker{border:1px solid var(--bdr2);border-radius:7px;max-height:480px;overflow:auto;background:var(--surf)}
 #controls-dialog .control-process-option{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;border-bottom:1px solid var(--bdr);font-size:12px;cursor:pointer}
 #controls-dialog .control-process-option:last-child{border-bottom:0}
 #controls-dialog .control-process-option input{accent-color:var(--blue);margin-top:2px;flex-shrink:0}
@@ -43,7 +43,6 @@
 #controls-dialog{position:fixed;inset:0;z-index:30000;display:flex;justify-content:center;align-items:center;font-family:var(--f);color:var(--ink)}
 #page-controles [hidden],#controls-dialog [hidden]{display:none!important}
 
-#controls-dialog .control-process-picker{max-height:480px}
 #controls-dialog .control-process-assessment{padding:12px}
 #controls-dialog .control-application{padding:12px;margin-bottom:10px;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px}
 #controls-dialog .control-application-actions{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
