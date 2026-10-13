@@ -1391,7 +1391,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 #page-faq .knowledge-count{font-size:12px;color:var(--ink3)}
 @media(max-width:720px){#page-faq .knowledge-panel{padding:16px}}
 </style>
-<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261011-2">
+<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261013-1">
 <div id="page-riscos" class="page"><div style="padding:2rem">
   <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><button type="button" class="btn btn-p" onclick="riscosExportPdf()">Gerar relatório PDF</button></div>
   <div class="risk-filters">
@@ -11211,7 +11211,7 @@ function rForm(p){
 async function _bpmnGetSvg(which,p){
   const m=bpmnModelers[which];
   if(m&&bpmnProcIds[which]===p?.id){
-    try{const {svg}=await m.saveSVG();if(svg)return svg;}catch(e){console.warn('_bpmnGetSvg active modeler failed',e);}
+    try{const {svg}=await bpmnExportSvg(m);if(svg)return svg;}catch(e){console.warn('_bpmnGetSvg active modeler failed',e);}
   }
   // SVG salvo junto com o XML no último bpmnSave — evita re-renderização offscreen
   const svgKey=which==='asis'?'bpmnAsIsSvg':'bpmnToBeSvg';
@@ -11227,7 +11227,7 @@ async function _bpmnGetSvg(which,p){
     let viewer;
     try{viewer=new BpmnJS(bpmnModelerOptions(tmp));}catch(e){console.warn('_bpmnGetSvg BpmnJS init failed',e);clearTimeout(tid);tmp.remove();return resolve(null);}
     viewer.importXML(xml)
-      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
+      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return bpmnExportSvg(viewer);})
       .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg||null);})
       .catch(e=>{console.warn('_bpmnGetSvg offscreen render failed',e);clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(null);});
   });
@@ -11275,7 +11275,7 @@ async function _bpmnRenderAllRoots(xml){
       try{
         canvas.setRootElement(info.root);
         canvas.zoom('fit-viewport');
-        const {svg}=await viewer.saveSVG();
+        const {svg}=await bpmnExportSvg(viewer);
         if(svg)diagrams.push({...info,svg,root:undefined});
       }catch(e){console.warn('_bpmnRenderAllRoots root failed',info.id,e);}
     }
@@ -11340,7 +11340,7 @@ async function renderBpmnToPng(xml){
     let viewer;
     try{viewer=new BpmnJS(bpmnModelerOptions(tmp));}catch(e){clearTimeout(tid);tmp.remove();return resolve(null);}
     viewer.importXML(xml)
-      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
+      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return bpmnExportSvg(viewer);})
       .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg||null);})
       .catch(()=>{clearTimeout(tid);try{viewer?.destroy();}catch{}tmp.remove();resolve(null);});
   });
@@ -12251,6 +12251,22 @@ function BpmnMilestoneRenderer(eventBus,elementRegistry){
   });
 }
 BpmnMilestoneRenderer.$inject=['eventBus','elementRegistry'];
+async function bpmnExportSvg(modeler){
+    const {svg}=await modeler.saveSVG();
+    // O SVG exportado contém grupos aninhados: a piscina pode cobrir uma fase
+    // mesmo quando ela aparece corretamente no editor. Ordena apenas a cópia.
+    const doc=new DOMParser().parseFromString(svg,'image/svg+xml');
+    const shapes=Array.from(doc.querySelectorAll('.djs-group')).filter(group=>
+      Array.from(group.children).some(child=>child.classList.contains('djs-element')));
+    const element=group=>modeler.get('elementRegistry').get(Array.from(group.children).find(child=>child.classList.contains('djs-element'))?.getAttribute('data-element-id'));
+    if(!shapes.some(group=>element(group)?.businessObject?.get('siga:milestone')))return {svg};
+    const rank=group=>['bpmn:Participant','bpmn:Lane'].includes(element(group)?.type)?0:element(group)?.businessObject?.get('siga:milestone')?1:2;
+    // As coordenadas BPMN são absolutas nos djs-element; os grupos não têm
+    // transformações. Retira a hierarquia visual na cópia, preservando os dados.
+    shapes.forEach(group=>Array.from(group.children).filter(child=>child.classList.contains('djs-children')).forEach(child=>child.remove()));
+    shapes.sort((a,b)=>rank(a)-rank(b)).forEach(group=>doc.documentElement.appendChild(group));
+    return {svg:new XMLSerializer().serializeToString(doc)};
+}
 function bpmnModelerOptions(container){
   return {
     container,
@@ -12677,7 +12693,7 @@ async function bpmnSave(which){
     push(curProc,curProc.etapa,'EP','Fluxo BPMN '+which.toUpperCase()+' salvo');
     // O SVG é auxiliar; uma falha ao gerá-lo não impede a persistência do XML.
     try{
-      const {svg}=await mod.saveSVG();
+      const {svg}=await bpmnExportSvg(mod);
       if(svg&&curProc?.mod) curProc.mod[svgKey]=svg;
     }catch{}
     const saved=await fbSaveAll();
@@ -12798,7 +12814,7 @@ function bpmnColorize(which){
 function bpmnExportPNG(which){
   const m=bpmnModelers[which];
   if(!m||!curProc){toast('Editor BPMN não carregado.','var(--amber)');return;}
-  m.saveSVG().then(({svg})=>{
+  bpmnExportSvg(m).then(({svg})=>{
     // Usa data URI base64 em vez de blob URL para evitar canvas tainted
     const svgUri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
     const img=new Image();
@@ -13158,10 +13174,17 @@ function riscoValidarControles(controls){
   if(controls.some(c=>!c.descricao || !['Preventivo','Detectivo','Corretivo'].includes(c.tipo) || !c.responsavel || !['Não avaliada','Eficaz','Parcialmente eficaz','Ineficaz'].includes(c.efetividade))){toast('Preencha descrição, tipo, responsável e efetividade de cada controle.','var(--amber)');return false;}
   return true;
 }
-function rRiscoList(rs){
-  if(!rs||!rs.length)return '<div>Nenhum risco adicionado.</div>';
-  return rs.map((r,i)=>`<div class="card" style="margin-bottom:8px"><div class="ri-item"><strong>${esc(r.desc)}</strong>${pbBadge(r.prob)}${ibBadge(r.imp)}<button type="button" class="btn" onclick="editarRisco(${i})" aria-label="Editar risco">✎</button><button type="button" class="ri-del" onclick="remR(${i})" aria-label="Remover risco">×</button></div><p class="risk-text"><strong>Causa provável:</strong> ${esc(r.causa_provavel || 'Não informada')}</p>${riscoControlesHtml(r)}</div>`).join('');
+function riscoMapeamentoDetalhes(r){
+  const controls=riscoControles(r),response=riscoResposta(r),level=Riscos.level(r.prob,r.imp);
+  const controlsHtml=controls.length?controls.map(c=>`<div class="mapping-risk-control">${c.nome?`<div class="mapping-risk-control-name">${esc(c.biblioteca_id)} · ${esc(c.nome)}</div><span class="mapping-risk-label">Aplicação no processo</span>`:''}<p class="mapping-risk-text">${esc(c.descricao)}</p><dl class="mapping-risk-meta"><div><dt>Tipo</dt><dd>${esc(c.tipo || 'Não informado')}</dd></div><div><dt>Responsável</dt><dd>${esc(c.responsavel || 'Não informado')}</dd></div><div><dt>Efetividade</dt><dd>${esc(c.efetividade || 'Não informada')}</dd></div></dl></div>`).join(''):'<p class="mapping-risk-empty">Nenhum controle existente informado.</p>';
+  const proposal=response.descricao?`<div class="mapping-risk-response"><div class="mapping-risk-section-title">Resposta proposta <span class="badge bb">${esc(response.tipo || 'Não informada')}</span></div><p class="mapping-risk-text">${esc(response.descricao)}</p><dl class="mapping-risk-meta"><div><dt>Responsável pela resposta</dt><dd>${esc(response.responsavel || 'Não informado')}</dd></div></dl></div>`:['high','critical'].includes(level)?'<div class="ib iba mapping-risk-response">Resposta obrigatória pendente. Edite o risco para propor uma resposta.</div>':'';
+  return `<div class="mapping-risk-body"><section class="mapping-risk-cause"><div class="mapping-risk-section-title">Causa provável</div><p class="mapping-risk-text">${esc(r.causa_provavel || 'Não informada')}</p></section><section class="mapping-risk-controls"><div class="mapping-risk-section-title">Controles existentes</div>${controlsHtml}</section>${proposal}</div>`;
 }
+function rRiscoList(rs){
+  if(!rs||!rs.length)return '<div class="ib ibb">Nenhum risco adicionado.</div>';
+  return rs.map((r,i)=>`<article class="card mapping-risk-card"><div class="mapping-risk-header"><h3 class="mapping-risk-title">${esc(r.desc)}</h3><div class="mapping-risk-actions"><button type="button" class="btn" onclick="editarRisco(${i})" aria-label="Editar risco">✎ <span>Editar</span></button><button type="button" class="btn btn-r" onclick="remR(${i})" aria-label="Remover risco">× <span>Remover</span></button></div></div><div class="mapping-risk-assessment"><span>Probabilidade ${pbBadge(r.prob)}</span><span>Impacto ${ibBadge(r.imp)}</span></div>${riscoMapeamentoDetalhes(r)}</article>`).join('');
+}
+
 function editarRisco(i){
   const r=curProc.ent.riscos[i];
   if(!r)return;
