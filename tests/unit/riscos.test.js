@@ -75,3 +75,33 @@ describe('Riscos consolidados',()=>{
     expect(()=>R.treatment(risk,{...values,action:''})).toThrow(/controle/);
   });
 });
+
+describe('cadastro manual de riscos da arquitetura',()=>{
+  it('permite cadastrar riscos altos sem resposta ou controle e valida os campos obrigatórios',()=>{
+    expect(R.manual({desc:' Prazo legal ',prob:'Alta',imp:'Critico'})).toMatchObject({desc:'Prazo legal',prob:'Alta',imp:'Critico',controles_existentes:[],status_tratamento:'sem_tratamento'});
+    expect(()=>R.manual({desc:'',prob:'Alta',imp:'Critico'})).toThrow(/Descreva/);
+    expect(()=>R.manual({desc:'A',prob:'',imp:'Critico'})).toThrow(/probabilidade/);
+    expect(()=>R.manual({desc:'A',prob:'Alta',imp:'Critico',resposta_proposta:{tipo:'Aceitar',descricao:'Aceitar',responsavel:'Maria'}})).toThrow(/baixos ou moderados/);
+    expect(()=>R.manual({desc:'A',prob:'Baixa',imp:'Baixo',resposta_proposta:{tipo:'Mitigar'}})).toThrow(/Complete/);
+    expect(()=>R.manual({desc:'A',prob:'Baixa',imp:'Baixo',controles_existentes:[{descricao:'Aplicação'}]})).toThrow(/controle/);
+  });
+  it('usa o vínculo de mapeamento da arquitetura quando há mais de um registro do processo',()=>{
+    const arq=[{nome:'Macro',processos:[{id:'p',nome:'Processo',proc_id:2}]}];
+    const ps=[{id:1,arq_id:'p'},{id:2,arq_id:'p'}];
+    expect(R.target(ps,arq,'p').process).toBe(ps[1]);
+    expect(R.target(ps,arq,'inexistente')).toBeNull();
+  });
+  it('mostra riscos sem mapeamento e os transfere ao iniciar o processo sem duplicá-los',()=>{
+    const risk={id:'r1',...R.manual({desc:'Risco manual',prob:'Media',imp:'Alto',resposta_proposta:{tipo:'Mitigar',descricao:'Conferir',responsavel:'Maria'},controles_existentes:[{biblioteca_id:'PRO-02',nome:'Checklist',descricao:'Conferir o expediente',tipo:'Preventivo',responsavel:'João',efetividade:'Eficaz'}]})};
+    const arq=[{nome:'Macro',processos:[{id:'p',nome:'Processo',subprocessos:[{id:'s',nome:'Subprocesso',riscos:[risk]}]}]}];
+    const before=R.rows([],arq);
+    expect(before).toHaveLength(1);expect(before[0]).toMatchObject({processId:'arq:s',processName:'Subprocesso',macro:'Macro'});
+    expect(R.resolve([],arq,'arq:s').ent.riscos[0]).toBe(risk);
+    const process={id:1,arq_id:'s',ent:{riscos:[]}};
+    R.adopt(process,arq);R.adopt(process,arq);
+    expect(process.ent.riscos).toEqual([risk]);expect(arq[0].processos[0].subprocessos[0].riscos).toEqual([]);
+    expect(R.rows([process],arq)).toHaveLength(1);
+    expect(process.ent.riscos[0].resposta_proposta.descricao).toBe('Conferir');
+    expect(process.ent.riscos[0].controles_existentes[0].biblioteca_id).toBe('PRO-02');
+  });
+});

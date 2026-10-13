@@ -108,3 +108,9 @@
   .mapping-risk-actions { flex-wrap: wrap; }
   .mapping-risk-meta { grid-template-columns: minmax(0,1fr); }
 }
+
+.risk-page-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.risk-create-optional { border-top: 1px solid var(--bdr); padding-top: 16px; margin-bottom: 20px; }
+.risk-create-optional summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink2); margin-bottom: 16px; }
+#risk-create-modal [role="alert"] { color: var(--red); font-size: 12px; }
+#risk-create-modal [role="alert"]:empty { display: none; }

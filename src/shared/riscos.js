@@ -14,13 +14,57 @@
     if(['tratado','aguardando_verificacao'].includes(risk.status_tratamento) || risk.tratado===true) return 'implementado';
     return risk.tratamento || risk.acao_tratamento ? 'nao_confirmado' : 'sem_tratamento';
   }
+  function units(architecture){
+    return (architecture||[]).flatMap(m=>(m.processos||[]).flatMap(p=>[
+      {unit:p,macro:m.nome,label:m.nome+' › '+p.nome},
+      ...(p.subprocessos||[]).map(sub=>({unit:sub,macro:m.nome,label:m.nome+' › '+p.nome+' › '+sub.nome})),
+    ]));
+  }
+  function target(processes,architecture,architectureId){
+    const entry=units(architecture).find(({unit})=>String(unit.id)===String(architectureId));
+    if(!entry)return null;
+    const linked=(processes||[]).find(p=>String(p.arq_id)===String(entry.unit.id) && String(p.id)===String(entry.unit.proc_id));
+    const process=linked || (processes||[]).find(p=>String(p.arq_id)===String(entry.unit.id));
+    return {...entry,process:process || null};
+  }
+  function resolve(processes,architecture,id){
+    const process=(processes||[]).find(p=>String(p.id)===String(id));
+    if(process)return process;
+    if(!String(id).startsWith('arq:'))return null;
+    const entry=target(processes,architecture,String(id).slice(4));
+    return entry?{id:'arq:'+entry.unit.id,arq_id:entry.unit.id,nome:entry.unit.nome,ent:{riscos:entry.unit.riscos || []},architectureUnit:entry.unit}:null;
+  }
+  function adopt(process,architecture){
+    const entry=units(architecture).find(({unit})=>String(unit.id)===String(process.arq_id));
+    if(!entry?.unit.riscos?.length)return;
+    process.ent ||= {};
+    process.ent.riscos ||= [];
+    const ids=new Set(process.ent.riscos.map(r=>r.id).filter(Boolean));
+    process.ent.riscos.push(...entry.unit.riscos.filter(r=>!r.id || !ids.has(r.id)));
+    entry.unit.riscos=[];
+  }
+  function manual(values){
+    const desc=values.desc?.trim(),prob=canonical(values.prob,probabilities),imp=canonical(values.imp,impacts);
+    if(!desc)throw new Error('Descreva o risco.');
+    if(!prob || !imp)throw new Error('Informe a probabilidade e o impacto.');
+    const response=values.resposta_proposta || {},type=response.tipo || '',action=response.descricao?.trim() || '',owner=response.responsavel?.trim() || '';
+    if(type || action || owner){
+      if(!['Evitar','Compartilhar','Mitigar','Aceitar'].includes(type) || !action || !owner)throw new Error('Complete o tipo, a descrição e o responsável da resposta, ou deixe a resposta em branco.');
+      if(type==='Aceitar' && ['high','critical'].includes(level(prob,imp)))throw new Error('Aceitar é permitido apenas para riscos baixos ou moderados.');
+    }
+    const controls=values.controles_existentes || [];
+    if(controls.some(c=>!c.descricao?.trim() || !['Preventivo','Detectivo','Corretivo'].includes(c.tipo) || !c.responsavel?.trim() || !['Não avaliada','Eficaz','Parcialmente eficaz','Ineficaz'].includes(c.efetividade)))throw new Error('Complete a aplicação, o tipo, o responsável e a efetividade de cada controle.');
+    return {desc,prob,imp,causa_provavel:values.causa_provavel?.trim() || '',controles_existentes:controls,
+      resposta_proposta:{tipo:type,descricao:action,responsavel:owner},status_tratamento:'sem_tratamento',origem:'manual'};
+  }
   function rows(processes,architecture,isCritical=()=>false){
-    const units=(architecture||[]).flatMap(m=>(m.processos||[]).flatMap(p=>[{...p,macro:m.nome},...(p.subprocessos||[]).map(s=>({...s,macro:m.nome}))]));
-    return (processes||[]).flatMap(process=>{
-      const unit=units.find(u=>String(u.id)===String(process.arq_id));
+    const entries=units(architecture);
+    const pending=entries.filter(({unit})=>unit.riscos?.length).map(({unit,macro})=>({id:'arq:'+unit.id,arq_id:unit.id,nome:unit.nome,macro,ent:{riscos:unit.riscos},architectureUnit:unit}));
+    return [...(processes||[]),...pending].flatMap(process=>{
+      const entry=entries.find(({unit})=>String(unit.id)===String(process.arq_id)),unit=entry?.unit;
       return (process.ent?.riscos||[]).map((risk,index)=>({process,risk,index,processId:String(process.id),processName:unit?.nome || process.nome,
         area:scope.AreasArquitetura?.canonical(unit?.area || process.area) || unit?.area || process.area || 'Área não informada',
-        macro:unit?.macro || process.macro || 'Macroprocesso não informado',critical:isCritical(process.arq_id)?'sim':'nao',
+        macro:entry?.macro || process.macro || 'Macroprocesso não informado',critical:isCritical(process.arq_id)?'sim':'nao',
         prob:canonical(risk.prob || risk.probabilidade,probabilities),imp:canonical(risk.imp || risk.impacto,impacts),status:status(risk)}));
     });
   }
@@ -70,5 +114,5 @@
     const withTreatment=priority.filter(row=>['planejado','em_tratamento','implementado'].includes(row.status)).length;
     return {total:priority.length,withTreatment,withoutTreatment:priority.length-withTreatment};
   }
-  scope.Riscos={statuses,key,probabilities,impacts,levels,level,status,rows,filter,summary,matrix,treatment,coverage};
+  scope.Riscos={units,target,resolve,adopt,manual,statuses,key,probabilities,impacts,levels,level,status,rows,filter,summary,matrix,treatment,coverage};
 })(globalThis);
