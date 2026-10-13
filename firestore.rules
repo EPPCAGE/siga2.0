@@ -62,23 +62,28 @@ service cloud.firestore {
     match /central_controles/{id} {
       function validControl() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['nome', 'categoria', 'descricao', 'tipo', 'setor', 'responsavel', 'efetividade', 'origem', 'processos_associados', 'autor_uid', 'criado_em', 'atualizado_em'])
-          && d.keys().hasAll(['nome', 'categoria', 'descricao', 'tipo', 'setor', 'responsavel', 'efetividade', 'origem', 'processos_associados', 'autor_uid', 'criado_em', 'atualizado_em'])
+        let common = ['nome', 'categoria', 'descricao', 'tipo', 'origem', 'processos_associados', 'autor_uid', 'criado_em', 'atualizado_em'];
+        let legacy = ['setor', 'responsavel', 'efetividade'];
+        return d.keys().hasAll(common)
+          && d.keys().hasOnly(common.concat(legacy).concat(['schema_version', 'classificacao_anterior']))
           && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 200
           && d.categoria is string && d.categoria.size() > 0 && d.categoria.size() <= 200
           && d.descricao is string && d.descricao.size() > 0 && d.descricao.size() <= 5000
-          && d.setor is string && d.setor.size() <= 200
-          && d.responsavel is string && d.responsavel.size() <= 200
           && d.tipo in ['Preventivo', 'Detectivo', 'Corretivo']
-          && d.efetividade in ['Não avaliada', 'Eficaz', 'Parcialmente eficaz', 'Ineficaz']
           && d.origem in ['Fábrica', 'Cadastrado', 'Mapeamento']
           && d.processos_associados is list && d.processos_associados.size() <= 500
           && d.autor_uid == request.auth.uid
-          && d.criado_em is timestamp && d.atualizado_em == request.time;
+          && d.criado_em is timestamp && d.atualizado_em == request.time
+          && ((d.get('schema_version', 1) == 2 && !d.keys().hasAny(legacy)) ||
+            (d.get('schema_version', 1) == 1 && d.keys().hasAll(legacy)
+              && d.setor is string && d.setor.size() <= 200
+              && d.responsavel is string && d.responsavel.size() <= 200
+              && d.efetividade in ['Não avaliada', 'Eficaz', 'Parcialmente eficaz', 'Ineficaz']));
       }
       allow read: if isAuth();
       allow create: if isEP() && validControl() && request.resource.data.criado_em == request.time;
       allow update: if isEP() && validControl()
+        && (resource.data.get('schema_version', 1) != 2 || request.resource.data.get('schema_version', 1) == 2)
         && request.resource.data.criado_em == resource.data.criado_em
         && request.resource.data.origem == resource.data.origem
         && (resource.data.origem != 'Fábrica' ||
@@ -86,6 +91,27 @@ service cloud.firestore {
            && request.resource.data.categoria == resource.data.categoria
            && request.resource.data.descricao == resource.data.descricao));
       allow delete: if false;
+    }
+    match /controles_aplicacoes/{id} {
+      function validApplication() {
+        let d = request.resource.data;
+        return d.keys().hasAll(['controle_id', 'processo_id', 'setor', 'responsavel', 'efetividade', 'autor_uid', 'criado_em', 'atualizado_em'])
+          && d.keys().hasOnly(['controle_id', 'processo_id', 'setor', 'responsavel', 'efetividade', 'autor_uid', 'criado_em', 'atualizado_em'])
+          && d.controle_id is string && d.controle_id.size() > 0 && d.controle_id.size() <= 200
+          && d.processo_id is string && d.processo_id.size() > 0 && d.processo_id.size() <= 200
+          && d.setor is string && d.setor.size() <= 200
+          && d.responsavel is string && d.responsavel.size() <= 200
+          && d.efetividade in ['Não avaliada', 'Eficaz', 'Parcialmente eficaz', 'Ineficaz']
+          && d.autor_uid == request.auth.uid
+          && d.criado_em is timestamp && d.atualizado_em == request.time
+          && getAfter(/databases/$(database)/documents/central_controles/$(d.controle_id)).data.schema_version == 2;
+      }
+      allow read: if isAuth();
+      allow create: if isEP() && validApplication() && request.resource.data.criado_em == request.time;
+      allow update: if isEP() && validApplication()
+        && request.resource.data.controle_id == resource.data.controle_id
+        && request.resource.data.criado_em == resource.data.criado_em;
+      allow delete: if isEP();
     }
 
     match /relatorios_ind/{id}{ allow read: if isAuth(); allow write: if isAuth(); }

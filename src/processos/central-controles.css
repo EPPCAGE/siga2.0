@@ -42,3 +42,13 @@
 
 #controls-dialog{position:fixed;inset:0;z-index:30000;display:flex;justify-content:center;align-items:center;font-family:var(--f);color:var(--ink)}
 #page-controles [hidden],#controls-dialog [hidden]{display:none!important}
+
+#controls-dialog .control-process-picker{max-height:480px}
+#controls-dialog .control-process-assessment{padding:12px}
+#controls-dialog .control-application{padding:12px;margin-bottom:10px;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px}
+#controls-dialog .control-application-actions{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+#controls-dialog .control-application-actions .fg{flex:1;min-width:180px;margin-bottom:0}
+#controls-dialog .control-process-group+ .control-process-group{border-top:1px solid var(--bdr)}
+#page-controles .control-application-summary{font-size:11px;padding:6px 0}
+#page-controles .control-application-summary+ .control-application-summary{border-top:1px solid var(--bdr)}
+#page-controles .control-application-summary .badge{margin-top:4px}
