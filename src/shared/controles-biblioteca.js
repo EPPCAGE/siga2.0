@@ -15,7 +15,7 @@
     if(!scope.fbReady?.())return all();
     if(pending)return pending;
     if(loaded && !force)return all();
-    pending=(async()=>{const snapshot=await scope.FirestoreRepositories.collection('controles_biblioteca').list();custom=snapshot.docs.map(doc=>({...doc.data,id:doc.id}));const registry=await scope.FirestoreRepositories.collection('central_controles').list();central=registry.docs.map(doc=>({...doc.data,id:doc.id}));loaded=true;return all();})();
+    pending=(async()=>{const snapshot=await scope.FirestoreRepositories.collection('controles_biblioteca').list();custom=snapshot.docs.map(doc=>({...doc.data,id:doc.id}));const registry=await scope.FirestoreRepositories.collection('central_controles').list();const assessments=await scope.FirestoreRepositories.collection('controles_aplicacoes').list();central=registry.docs.map(doc=>{const c={...doc.data,id:doc.id,aplicacoes:assessments.docs.filter(a=>a.data.controle_id===doc.id).map(a=>({...a.data,id:a.id}))};delete c.setor;delete c.responsavel;delete c.efetividade;return c;});loaded=true;return all();})();
     try{return await pending;}finally{pending=null;}
   }
   async function create(values){
