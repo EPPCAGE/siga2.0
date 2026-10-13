@@ -1180,6 +1180,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2 15 14H1L8 2Z" stroke="currentColor" stroke-width="1.4"/><path d="M8 6v4" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="12" r=".8" fill="currentColor"/></svg>
     Riscos
   </button>
+  <button type="button" class="nav-btn" hidden style="display:none" onclick="go('licencaslite',this)" id="nb-licencaslite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 9h6M5 12h3"/></svg>Central de Licenças SIGA Lite</button>
   <button type="button" class="nav-btn" onclick="go('maturidadegestao',this)" id="nb-maturidadegestao">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 14h14M3 12V9h3v3M7 12V6h3v6M11 12V2h3v10"/></svg>Maturidade da gestão
   </button>
@@ -1420,6 +1421,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="faq-c"></div>
 </div></div>
 
+<div id="page-licencaslite" class="page"><div class="ph"><h1>Central de Licenças SIGA Lite</h1></div><div id="siga-lite-licenses-content"></div></div>
 <div id="page-maturidadegestao" class="page"><div class="mg-page">
   <div class="ph"><div><div class="ph-t">Maturidade da gestão de processos</div><div class="ph-s">Diagnóstico institucional · 26 perguntas · 6 dimensões</div></div></div>
   <div id="maturidade-gestao-content"></div>
@@ -2601,7 +2603,7 @@ function go(page,btn){
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
   const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de conhecimento',riscos:'Riscos',indicadores:'Indicadores',plano:'Plano de Trabalho',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
-  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão'})[page]||'SIGA 2.0';
+  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão',licencaslite:'Central de Licenças SIGA Lite'})[page]||'SIGA 2.0';
 }
 function _invokeGlobalHandler(handlerName){
   const handler = globalThis[handlerName];
@@ -2616,6 +2618,7 @@ function _getPageRenderer(page){
     arq:rArq,
     cadeiavalor:rCadeiaValor,
     maturidadegestao:rMaturidadeGestao,
+    licencaslite:()=>{void globalThis.SigaLiteLicenses?.open();},
     faq:rFaq,
     riscos:rRiscos,
     indicadores:()=>{rInd();},
@@ -20097,5 +20100,6 @@ function confirmarImportPOP(){
   </div>
 </div>
 
+<script src="src/admin/licencas-lite.js?v=3"></script>
 </body>
 </html>
