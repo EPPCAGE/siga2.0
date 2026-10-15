@@ -3,12 +3,12 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 const html = readFileSync(new URL('../../processos.html', import.meta.url), 'utf8');
-const names = ['parseNumBR', '_kpiMetaInformada', '_kpiMeta', 'periodoToNum', '_kpiGetSamePeriods', 'editKpi', '_kpiNavFlushCurrent', '_kpiEditingPeriods', '_kpiNavLoadCurrent'];
+const names = ['_kpiPeriodoPrevisto','_kpiAtualizarPeriodicidade','parseNumBR', '_kpiMetaInformada', '_kpiMeta', 'periodoToNum', '_kpiGetSamePeriods', 'editKpi', '_kpiNavFlushCurrent', '_kpiEditingPeriods', '_kpiNavLoadCurrent'];
 const code = names.map(name => html.match(new RegExp('function ' + name + '\\([^]*?\\n}'))[0]).join('\n');
 function setup(metas = [null, 80, '', 90, null]) {
   const elements = {};
   const rows = metas.map((meta, index) => ({ id: index + 1, codigo: 'I1', periodo: `${String(index + 1).padStart(2, '0')}/2026`, meta, realizado: 70 }));
-  const c = { kpis: rows, document: { getElementById: id => elements[id] ||= { value: '', style: {} } },
+  const c = { kpis: rows, document: { getElementById: id => elements[id] ||= { value: '', style: {}, closest:()=>null } },
     _kpiUpdateNavDisplay() {}, _kpiNavUpdateSelector() {}, calcPctReal() {},
     _kpiFormSetFields(k) { c.formRecord = k; } };
   runInNewContext(code, c);

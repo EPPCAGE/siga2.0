@@ -1576,7 +1576,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
       <div class="g2">
         <div class="fg"><label class="fl" for="nkpi-period">Periodicidade</label>
-          <select class="fi" id="nkpi-period">
+          <select class="fi" id="nkpi-period" onchange="_kpiAtualizarPeriodicidade();calcPctReal()">
             <option>Mensal</option><option>Bimestral</option><option>Trimestral</option><option>Semestral</option><option>Anual</option>
           </select>
         </div>
@@ -1620,7 +1620,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <!-- Period-specific values -->
       <div id="kpi-valores-periodo-lbl" style="display:none;font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem;padding-top:.6rem;border-top:1px solid var(--bdr)">Valores do período</div>
       <div class="g3">
-        <div class="fg" id="kpi-periodo-field"><label class="fl" for="nkpi-periodo">Período</label><input class="fi" id="nkpi-periodo" placeholder="Ex: jan/2026"></div>
+        <div class="fg" id="kpi-periodo-field"><label class="fl" for="nkpi-periodo">Período</label><input class="fi" id="nkpi-periodo" oninput="_kpiAtualizarPeriodicidade();calcPctReal()" placeholder="Ex: jan/2026"></div>
         <div class="fg"><label class="fl" for="nkpi-real">Realizado</label><input class="fi" id="nkpi-real" type="number" placeholder="100" oninput="calcPctReal()"></div>
         <div class="fg"><label class="fl" for="nkpi-indice">% Índice</label><input class="fi" id="nkpi-indice" type="number" placeholder="80"></div>
       </div>
@@ -1638,6 +1638,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
           <span>Sem medição neste período (N/A) — exclui da análise de desempenho</span>
         </label>
       </div>
+      <p class="ib ibb" id="kpi-trimestral-note" hidden>Indicadores trimestrais têm metas e resultados apenas em janeiro, abril, julho e outubro. Neste período, registre somente a análise.</p>
       <div class="fg"><label class="fl" for="nkpi-analise">Análise</label>
         <textarea class="fi" id="nkpi-analise" style="min-height:70px" placeholder="Comentário sobre o resultado..."></textarea>
       </div>
@@ -14713,7 +14714,33 @@ function parseNumBR(v, fallback = 0){
   return Number.isFinite(n) ? n : fallback;
 }
 
+function _kpiPeriodoPrevisto(k){
+  if(String(k.periodicidade||'').trim().toLowerCase()!=='trimestral')return true;
+  const text=String(k.periodo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const quarter=text.match(/(?:^t([1-4])\b|^([1-4])(?:[ºo°]\s*)?\s*(?:trimestre|tri|t)\b)/);
+  if(quarter)return true;
+  let month;
+  const iso=text.match(/^\d{4}[-/](\d{1,2})(?:[-/]\d{1,2})?$/),numeric=text.match(/^(\d{1,2})[/.-]\d{4}$/);
+  if(iso)month=Number(iso[1]);
+  else if(numeric)month=Number(numeric[1]);
+  else{
+    const months=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    const index=months.findIndex(name=>new RegExp('^'+name+'[a-z]*(?:[. /-]|$)').test(text));
+    if(index>=0)month=index+1;
+  }
+  return [1,4,7,10].includes(month);
+}
+function _kpiAtualizarPeriodicidade(){
+  const allowed=_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value});
+  for(const id of ['nkpi-real','nkpi-meta','nkpi-indice','nkpi-pct-real','nkpi-sem-dado']){
+    const input=document.getElementById(id);if(!input)continue;
+    const field=input.closest('.fg');if(field)field.hidden=!allowed;
+    input.disabled=!allowed;
+  }
+  const note=document.getElementById('kpi-trimestral-note');if(note)note.hidden=allowed;
+}
 function _kpiMetaInformada(k){
+  if(!_kpiPeriodoPrevisto(k))return null;
   const meta = parseNumBR(k.meta, null);
   // Importações antigas perderam a distinção entre célula sem meta e zero.
   // Um zero só é meta nesses registros quando confirmado pela nova importação/edição.
@@ -14721,6 +14748,7 @@ function _kpiMetaInformada(k){
   return meta;
 }
 function _kpiMeta(k, source=typeof kpis==='undefined'?[]:kpis){
+  if(!_kpiPeriodoPrevisto(k))return null;
   const key = (k.codigo||k.nome||'').trim();
   if(!key || !k.periodo) return _kpiMetaInformada(k);
   const series = source.filter(i=>(i.codigo||i.nome||'').trim()===key);
@@ -14769,6 +14797,10 @@ async function _kpiLoadDiscontinued(){
     if(typeof lsSet==='function') lsSet('kpis_descontinuados',JSON.stringify(registry));
   }
 }
+function _kpiImportKey(k){
+  const normalize=value=>String(value??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
+  return normalize(k.codigo || k.nome)+'|'+normalize(fmtPeriodo(k.periodo));
+}
 async function importarIndicadores(input){
   const file = input.files[0]; if(!file) return;
     try{
@@ -14801,7 +14833,7 @@ async function importarIndicadores(input){
       // Build protection set — skip indicators already edited manually (importado_editado)
       const editadosImport = new Set(
         kpis.filter(k => k.origem === 'importado_editado')
-            .map(k => (k.codigo||k.nome||'').trim() + '|' + (k.periodo||'').trim())
+            .map(_kpiImportKey)
       );
       // Build full config map from edited rows so new periods inherit manual changes.
       // meta fica de fora da herança "por linha existente na planilha" — cada mês tem sua própria
@@ -14819,7 +14851,7 @@ async function importarIndicadores(input){
         };
       });
 
-      let added = 0;
+      let added = 0, updated = 0, protectedRows = 0;
       rows.forEach(row => {
         const area    = (cArea    ? row[cArea]    : '').toString().trim();
         const nome    = (cCodigo  ? row[cCodigo]  : '').toString().trim();
@@ -14839,17 +14871,19 @@ async function importarIndicadores(input){
         }
         const polSheet = cPol ? (row[cPol]||'').toString().trim() : '';
         const groupKey = (nome||enunc||'').trim();
-        const chaveImp = groupKey + '|' + periodo.trim();
+        const chaveImp = _kpiImportKey({codigo:nome,nome:enunc || nome,periodo});
         if(!area && !nome && !enunc) return; // skip empty rows
         if(_kpiIsDiscontinued({codigo:nome,nome:enunc || nome})) return;
-        if(editadosImport.has(chaveImp)) return; // skip manually edited periods
+        if(editadosImport.has(chaveImp)){protectedRows++;return;} // preserve manual edits
         const cfg = cfgEditadoImport[groupKey] || {};
         const metaFinal = cMeta ? meta : (cfg.meta ?? null);
         if(metaFinal === null || real === null) pctReal = null;
         const polaridade = cfg.polaridade
           || (polSheet === 'Menor é melhor' ? 'Menor é melhor' : 'Maior é melhor');
-        kpis.push({
-          id: _kpiIdC++,
+        const existing=kpis.find(k=>k.origem==='importado' && _kpiImportKey(k)===chaveImp);
+        const imported={
+          ...existing,
+          id: existing?.id ?? _kpiIdC++,
           area:          cfg.area          || area,
           codigo:        nome,
           nome:          cfg.nome          || enunc||nome,
@@ -14860,19 +14894,26 @@ async function importarIndicadores(input){
           unidade:       cfg.unidade       || '',
           meta:          metaFinal,
           meta_definida: metaFinal !== null,
-          pid:           cfg.pid  ?? null,
-          arq_id:        cfg.arq_id ?? null,
+          pid:           cfg.pid  ?? existing?.pid ?? null,
+          arq_id:        cfg.arq_id ?? existing?.arq_id ?? null,
           periodo, indice, realizado: real,
           sem_dado: real === null,
           analise, pct_realizado: pctReal,
           polaridade, origem: 'importado',
-        });
-        added++;
+        };
+        if(existing){
+          Object.assign(existing,imported);
+          // Reimportações antigas criavam duplicatas; mantém o ID original.
+          for(let i=kpis.length-1;i>=0;i--){
+            if(kpis[i]!==existing && kpis[i].origem==='importado' && _kpiImportKey(kpis[i])===chaveImp)kpis.splice(i,1);
+          }
+          updated++;
+        }else{kpis.push(imported);added++;}
       });
 
       rInd();
       fbAutoSave('importarInd');
-      toast(added + ' indicador(es) importado(s)');
+      toast(added+' registro(s) novo(s), '+updated+' atualizado(s)'+(protectedRows?'; '+protectedRows+' preservado(s) por edição manual.':'.'));
     } catch(err){ toast('Erro ao ler planilha: ' + err.message,'var(--red)'); }
     input.value = '';
 }
@@ -14980,6 +15021,7 @@ function _kpiGrpWithData(items){
   return items
     .filter(i=>!i.sem_dado)
     .filter(i=>{
+      if(!_kpiPeriodoPrevisto(i))return false;
       const r = Number.parseFloat(i.realizado);
       return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
     });
@@ -15087,12 +15129,14 @@ function rInd(){
 
 let _indCharts = [];
 function kpiGrupoCardHTML(key, items){
+  items=items.map(k=>_kpiPeriodoPrevisto(k)?k:{...k,realizado:null,meta:null,pct_realizado:null,sem_dado:true});
   const nome = items[0].nome;
   const polaridade = items[0].polaridade||'Maior é melhor';
   const area = items[0].area||'';
 
   // Border color based on most recent measured period (any numeric realizado, not sem_dado)
   const withData = items.filter(i=>{
+    if(!_kpiPeriodoPrevisto(i))return false;
     if(i.sem_dado) return false;
     const r = Number.parseFloat(i.realizado);
     return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
@@ -15270,6 +15314,7 @@ function createKpiChart(key, items, container=document, charts=_indCharts){
   if(!canvas) return;
   // Only show measured periods with a numeric realizado (not sem_dado)
   const withData = items.filter(i=>{
+    if(!_kpiPeriodoPrevisto(i))return false;
     if(i.sem_dado) return false;
     const r = Number.parseFloat(i.realizado);
     return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
@@ -15344,6 +15389,7 @@ function createKpiChart(key, items, container=document, charts=_indCharts){
 // rIndGraficos removida (dead code — alias sem chamador; use rInd())
 
 function kpiCard(k){
+  if(!_kpiPeriodoPrevisto(k))k={...k,realizado:null,meta:null,pct_realizado:null,sem_dado:true};
   const polaridade = k.polaridade || 'Maior é melhor';
   const unidade    = k.unidade ? ' '+k.unidade : '';
   const polIcon    = polaridade === 'Menor é melhor' ? '↓' : '↑';
@@ -15438,6 +15484,7 @@ function _kpiFormSetFields(k){
   if(cumEl) cumEl.checked = !!k.cumulativo;
   _kpiPopulateProcessSelector(k);
   void _kpiPopulateProjectSelector(k);
+  _kpiAtualizarPeriodicidade();
 }
 async function _kpiPopulateProjectSelector(k){
   const select=document.getElementById('nkpi-projetos');
@@ -15568,6 +15615,7 @@ function _kpiNavFlushCurrent(){
   const k = globalThis._kpiPeriodos[globalThis._kpiPeriodoIdx];
   if(!k) return;
   if(!globalThis._kpiPeriodEdits) globalThis._kpiPeriodEdits = {};
+  const allowed=_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value});
   const metaRaw = Number.parseFloat(document.getElementById('nkpi-meta')?.value);
   const metaValue = Number.isNaN(metaRaw) ? null : metaRaw;
   const previous = globalThis._kpiPeriodEdits[k.id];
@@ -15581,11 +15629,13 @@ function _kpiNavFlushCurrent(){
     sem_dado:  !!(document.getElementById('nkpi-sem-dado')?.checked),
     meta:      metaValue === effectiveMeta ? (previous ? previous.meta : k.meta) : metaValue,
   };
+  if(!allowed)Object.assign(globalThis._kpiPeriodEdits[k.id],{meta:null,realizado:null,indice:null,sem_dado:true});
 }
 function _kpiEditingPeriods(){
   return (globalThis._kpiPeriodos||[]).map(k=>{
     const edits = (globalThis._kpiPeriodEdits||{})[k.id];
-    return edits ? {...k, ...edits, meta_definida:parseNumBR(edits.meta,null)!==null} : k;
+    const periodicidade=document.getElementById('nkpi-period')?.value || k.periodicidade;
+    return edits ? {...k, periodicidade, ...edits, meta_definida:parseNumBR(edits.meta,null)!==null} : {...k,periodicidade};
   });
 }
 
@@ -15607,6 +15657,7 @@ function _kpiNavLoadCurrent(){
   if(sdEl2) sdEl2.checked = !!(edits ? edits.sem_dado : k.sem_dado);
   calcPctReal();
   _kpiNavUpdateSelector();
+  _kpiAtualizarPeriodicidade();
 }
 
 function _kpiNavGoto(){
@@ -15631,6 +15682,7 @@ function _kpiNavStep(dir){
 }
 
 function calcPctReal(){
+  if(!_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value})){const field=document.getElementById('nkpi-pct-real');if(field)field.value='';return;}
   const semDado = document.getElementById('nkpi-sem-dado')?.checked;
   const pctEl   = document.getElementById('nkpi-pct-real');
   if(semDado){ if(pctEl){pctEl.value = 'N/A';} return; }
@@ -15684,6 +15736,7 @@ function _kpiPromotedOrigin(origem){
   return origem;
 }
 function _kpiReadPeriodFields(){
+  if(!_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value}))return {metaVal:null,realVal:null,semDado:true,polaridade:document.getElementById('nkpi-polaridade').value,pct:null};
   const meta = Number.parseFloat(document.getElementById('nkpi-meta').value);
   const real = Number.parseFloat(document.getElementById('nkpi-real').value);
   const metaVal = Number.isNaN(meta) ? null : meta;
@@ -15723,7 +15776,7 @@ function _kpiReadSinglePayload(area, nome, origem, id){
     origem,
     ..._kpiReadCommonFields(area, nome),
     periodo: document.getElementById('nkpi-periodo').value.trim(),
-    indice: Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
+    indice: _kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value})?(Number.parseFloat(document.getElementById('nkpi-indice').value) || 0):null,
     polaridade: periodo.polaridade,
     meta: periodo.metaVal,
     meta_definida: periodo.metaVal !== null,
@@ -15744,6 +15797,7 @@ function _kpiApplyPeriodEdits(target, edits){
   target.meta_definida = parseNumBR(edits.meta, null) !== null;
 }
 function _kpiRefreshPct(target){
+  if(!_kpiPeriodoPrevisto(target)){Object.assign(target,{meta:null,meta_definida:false,realizado:null,indice:null,pct_realizado:null,sem_dado:true});return;}
   const real = Number.parseFloat(target.realizado);
   const metaVal = _kpiMeta(target);
   const realVal = Number.isNaN(real) ? 0 : real;
