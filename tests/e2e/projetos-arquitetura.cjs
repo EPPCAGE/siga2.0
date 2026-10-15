@@ -170,6 +170,7 @@ const {readFileSync} = require('node:fs');
     await page.setContent('<select id="arq-f-projeto"></select><select id="ind-projeto-sel"></select><select id="ind-area-sel"><option value="">Todas</option><option>Outra área</option></select><div id="ind-c"></div>');
     const filterFunctions=['_populateProjetoFilters','getProjetosVinculaveis','getArqFilters','itemMatchesFilters','_itemMatchesBaseFilters','_itemMatchesMatFilter','_itemMatchesSearch','rInd'].map(name=>
       processesHtml.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0]).join('\n');
+    await page.addScriptTag({path:'src/processos/indicadores-manuais.js'});
     await page.addScriptTag({content:filterFunctions});
     await page.evaluate(()=>{
       window.PROJETOS_USUARIOS=[];

@@ -1,0 +1,74 @@
+const {chromium}=require('playwright');
+const {readFileSync}=require('node:fs');
+const assert=require('node:assert/strict');
+(async()=>{
+  const html=readFileSync('processos.html','utf8');
+  const browser=await chromium.launch({headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    const start=html.indexOf('<div id="page-indicadores"'),end=html.indexOf('  <!-- Modal novo/editar KPI -->',start);
+    await page.setContent(html.slice(start,end)+'</div></div>');
+    await page.addStyleTag({content:html.slice(html.indexOf('<style>')+7,html.indexOf('</style>'))});
+    await page.addStyleTag({path:'src/processos/indicadores-manuais.css'});
+    await page.evaluate(()=>{
+      document.getElementById('page-indicadores').classList.add('on');
+      window.esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      let serial=0;crypto.randomUUID=()=> 'result-'+(++serial);
+      window.role='ep';window.isEP=()=>role==='ep';window.usuarioLogado={email:'ep@example.org'};
+      window.ARQUITETURA=[{nome:'Macro',processos:[{id:'a',nome:'Processo A',subprocessos:[{id:'b',nome:'Subprocesso B',area:'DAUD'}]}]}];
+      window.processos=[{id:1,arq_id:'a',nome:'Processo A',form:{indicadores_proc:[{nome:'Prazo',meta:'10',unidade:'dias',periodicidade:'Mensal',formula:'Soma / total',fonte:'Sistema',incluir_pop:false}]}},{id:2,arq_id:'b',nome:'Subprocesso B',form:{indicadores_proc:[{nome:'Prazo',meta:'20',unidade:'dias'}]}}];
+      window.curProc=processos[0];window.kpis=[{id:1,nome:'Indicador da planilha',origem:'importado',periodo:'10/2026',realizado:7}];
+      window.PROJETOS_USUARIOS=[];window._indCharts=[];window._populateProjetoFilters=()=>{};window.populateIndFilters=()=>{};window.lsGet=()=>'';
+      window.kpiGroupByKey=rows=>Object.fromEntries(rows.map(r=>[r.nome,[r]]));window._kpiGrpStatus=()=>null;window.kpiApplyMetaFallback=()=>{};window.kpiGrupoCardHTML=(key)=>'<div>'+key+'</div>';window.createKpiChart=()=>{};window.injectIaIndicadores=()=>{};window._periodoInIntervalo=()=>true;
+      window.toast=()=>{};window.fbReady=()=>true;window._fbLoadedAt=1;window.failSave=false;window.saves=0;
+      window.fbSaveAll=async()=>{saves++;if(failSave)return false;window.persisted=JSON.parse(JSON.stringify(processos));return true;};
+    });
+    await page.addScriptTag({path:'src/shared/indicadores-manuais.js'});
+    await page.addScriptTag({path:'src/processos/indicadores-manuais.js'});
+    await page.addScriptTag({content:html.match(/function rInd\(\)[^]*?\n}/)[0]});
+    await page.evaluate(()=>rInd());
+    assert.equal(await page.getByRole('tab',{name:'Indicadores SISPLAN'}).getAttribute('aria-selected'),'true');
+    assert.equal(await page.locator('#ind-c').innerText(),'Indicador da planilha');
+    await page.getByRole('tab',{name:'Indicadores manuais',exact:true}).click();
+    assert.equal(await page.locator('#ind-actions-ep').isVisible(),false);
+    assert.equal(await page.locator('.manual-indicator').count(),2);
+    assert.match(await page.locator('.manual-indicator').first().innerText(),/Soma \/ total/);
+    assert.match(await page.locator('.manual-indicator').nth(1).innerText(),/Subprocesso B/);
+    assert.doesNotMatch(await page.locator('#ind-panel-manuais').innerText(),/Indicador da planilha/);
+    await page.locator('.manual-indicator').first().getByRole('button',{name:'+ Registrar resultado',exact:true}).click();
+    await page.fill('#ind-manual-period','Outubro/2026');await page.fill('#ind-manual-value','0');
+    const modal=page.locator('#ind-manual-result-dialog');
+    await modal.getByRole('button',{name:'Salvar resultado',exact:true}).click();await modal.waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>persisted[0].form.indicadores_proc[0].resultados[0].resultado),0);
+    assert.equal(await page.evaluate(()=>processos[1].form.indicadores_proc[0].resultados),undefined);
+    await page.locator('.manual-indicator').first().getByRole('button',{name:'+ Registrar resultado',exact:true}).click();
+    await page.fill('#ind-manual-period','outubro/2026');await page.fill('#ind-manual-value','12,5');
+    await modal.getByRole('button',{name:'Salvar resultado',exact:true}).click();assert.match(await modal.getByRole('alert').innerText(),/Já existe/);
+    await modal.getByRole('button',{name:'Cancelar',exact:true}).click();
+    await page.locator('.manual-indicator').first().getByRole('button',{name:'Editar resultado',exact:true}).click();
+    await page.fill('#ind-manual-value','12,5');await page.evaluate(()=>failSave=true);
+    await modal.getByRole('button',{name:'Salvar resultado',exact:true}).click();assert.match(await modal.getByRole('alert').innerText(),/Não foi possível salvar/);
+    assert.equal(await page.evaluate(()=>processos[0].form.indicadores_proc[0].resultados[0].resultado),0);
+    await page.evaluate(()=>failSave=false);await modal.getByRole('button',{name:'Salvar resultado',exact:true}).click();await modal.waitFor({state:'detached'});
+    assert.equal(await page.evaluate(()=>processos[0].form.indicadores_proc[0].resultados.length),1);
+    assert.equal(await page.evaluate(()=>persisted[0].form.indicadores_proc[0].resultados[0].resultado),12.5);
+    // Reload persisted mapping data and confirm results remain bound to the right indicator.
+    await page.evaluate(()=>{processos=JSON.parse(JSON.stringify(persisted));curProc=processos[0];rIndicadoresManuais();});
+    assert.match(await page.locator('.manual-indicator').first().innerText(),/12,5 dias/);
+    await page.selectOption('#ind-manual-process','2');assert.equal(await page.locator('.manual-indicator').count(),1);
+    await page.selectOption('#ind-manual-process','');await page.fill('#ind-manual-search','Subprocesso B');assert.equal(await page.locator('.manual-indicator').count(),1);await page.fill('#ind-manual-search','');
+    // A changed mapping while the dialog is open must not be overwritten.
+    await page.locator('.manual-indicator').first().getByRole('button',{name:'+ Registrar resultado',exact:true}).click();
+    await page.fill('#ind-manual-period','Novembro/2026');await page.fill('#ind-manual-value','9');
+    await page.evaluate(()=>{processos[0]=structuredClone(processos[0]);});
+    await modal.getByRole('button',{name:'Salvar resultado',exact:true}).click();assert.match(await modal.getByRole('alert').innerText(),/atualizado/);await modal.getByRole('button',{name:'Cancelar',exact:true}).click();
+    await page.getByRole('tab',{name:'Indicadores SISPLAN',exact:true}).click();assert.equal(await page.locator('#ind-c').innerText(),'Indicador da planilha');assert.equal(await page.locator('#ind-actions-ep').isVisible(),true);
+    assert.equal(await page.evaluate(()=>JSON.stringify(kpis)),JSON.stringify([{id:1,nome:'Indicador da planilha',origem:'importado',periodo:'10/2026',realizado:7}]));
+    await page.evaluate(()=>role='dono');await page.getByRole('tab',{name:'Indicadores manuais',exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:'+ Registrar resultado',exact:true}).count(),0);
+    await page.evaluate(()=>abrirResultadoIndicadorManual('1',0));assert.equal(await modal.count(),0);
+    await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    assert.deepEqual(errors,[]);
+    console.log('Indicadores: abas SISPLAN/manuais, agregação de mapeamentos, períodos, zero/decimais, edição, duplicidade, rollback, recarga, conflito, permissões e mobile validados.');
+  }finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

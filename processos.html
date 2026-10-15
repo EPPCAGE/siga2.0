@@ -10,6 +10,9 @@
 <title>SIGA - EPP</title>
 <link rel="icon" type="image/png" href="assets/siga-epp-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261015-1">
+<script src="src/shared/indicadores-manuais.js?v=20261015-1"></script>
+<script src="src/processos/indicadores-manuais.js?v=20261015-1"></script>
 <link rel="stylesheet" href="src/admin/licencas-lite.css?v=20261013-1">
 <link rel="stylesheet" href="src/processos/cadeia-valor.css?v=20261011-1">
 <link rel="stylesheet" href="src/processos/maturidade-gestao.css?v=20261011-3">
@@ -1503,6 +1506,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="btn btn-p" onclick="abrirNovoKpi()">+ Novo indicador</button>
     </div>
   </div>
+  <div class="tabs" role="tablist" aria-label="Origem dos indicadores">
+    <button type="button" class="tab on" role="tab" id="ind-tab-sisplan" aria-selected="true" aria-controls="ind-panel-sisplan" onclick="selecionarAbaIndicadores('sisplan')">Indicadores SISPLAN</button>
+    <button type="button" class="tab" role="tab" id="ind-tab-manuais" aria-selected="false" aria-controls="ind-panel-manuais" onclick="selecionarAbaIndicadores('manuais')">Indicadores manuais</button>
+  </div>
+  <div id="ind-panel-sisplan" role="tabpanel" aria-labelledby="ind-tab-sisplan">
   <div id="ind-gsheets-sec" class="ep-only" style="display:none;margin-bottom:.75rem;padding:.55rem .8rem;background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);gap:8px;align-items:center;flex-wrap:wrap">
     <span style="font-size:12px;font-weight:600;color:var(--ink3);white-space:nowrap">Google Sheets (CSV publicado)</span>
     <input class="fi" id="ind-gsheets-url" aria-label="URL do Google Sheets CSV publicado" placeholder="https://docs.google.com/spreadsheets/..." style="flex:1;min-width:220px;font-size:12px" oninput="salvarGSheetsUrl()">
@@ -1536,6 +1544,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="ind-summary" style="margin-bottom:.8rem"></div>
   <div id="ind-c"></div>
 
+  </div>
+  <div id="ind-panel-manuais" role="tabpanel" aria-labelledby="ind-tab-manuais" hidden>
+    <div class="manual-indicator-filters"><div class="fg"><label class="fl" for="ind-manual-process">Processo</label><select class="fi" id="ind-manual-process" onchange="rIndicadoresManuais()"><option value="">Todos os processos</option></select></div><div class="fg"><label class="fl" for="ind-manual-search">Pesquisar indicador ou processo</label><input class="fi" type="search" id="ind-manual-search" oninput="rIndicadoresManuais()"></div></div>
+    <p class="ph-s" id="ind-manual-count" aria-live="polite"></p><div id="ind-manual-list"></div>
+  </div>
   <!-- Modal novo/editar KPI -->
   <div id="novo-kpi-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
     <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
@@ -14995,6 +15008,7 @@ function _kpiGrpStatus(items){
   return pct>=100?'ok':'nok';
 }
 function rInd(){
+  if(atualizarAbasIndicadores()){rIndicadoresManuais();return;}
   _populateProjetoFilters();
   const epAct = document.getElementById('ind-actions-ep');
   if(epAct) epAct.style.display = isEP() ? 'flex' : 'none';
@@ -15065,7 +15079,7 @@ function rInd(){
 
   Object.values(grupos).forEach(kpiApplyMetaFallback);
   el.innerHTML = Object.entries(grupos).map(([key,items])=>kpiGrupoCardHTML(key,items)).join('');
-  setTimeout(()=>{ Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
+  setTimeout(()=>{ if(indicadoresAba==='manuais')return; Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
   setTimeout(injectIaIndicadores, 100);
 }
 
@@ -19862,6 +19876,7 @@ function injectIaPop(){
 // Indicadores page — inject IA analysis button
 
 function injectIaIndicadores(){
+  if(indicadoresAba==='manuais')return;
   const el = document.getElementById('ind-c');
   if(!el || document.getElementById('ia-ind-panel')) return;
 

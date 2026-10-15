@@ -24,3 +24,11 @@ node tests/e2e/riscos-manual.cjs
 ```
 
 Esse teste usa dados e persistência simulados, sem serviços de produção. Valida o cadastro com e sem resposta/controle, recuperação após recarregar os dados, início de mapeamento, permissões e falhas de gravação.
+
+Abas de indicadores e lançamento de resultados dos mapeamentos:
+
+```bash
+node tests/e2e/indicadores-manuais.cjs
+```
+
+Usa Chromium e persistência simulada para verificar as abas SISPLAN/manuais, vínculos com processos, lançamento e edição de resultados, períodos duplicados, falhas de gravação, recarga dos dados e permissões.
