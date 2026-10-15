@@ -1638,7 +1638,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
           <span>Sem medição neste período (N/A) — exclui da análise de desempenho</span>
         </label>
       </div>
-      <p class="ib ibb" id="kpi-trimestral-note" hidden>Indicadores trimestrais têm metas e resultados apenas em janeiro, abril, julho e outubro. Neste período, registre somente a análise.</p>
+      <p class="ib ibb" id="kpi-trimestral-note" hidden>Indicadores trimestrais têm metas e resultados apenas em março, junho, setembro e dezembro. Neste período, registre somente a análise.</p>
       <div class="fg"><label class="fl" for="nkpi-analise">Análise</label>
         <textarea class="fi" id="nkpi-analise" style="min-height:70px" placeholder="Comentário sobre o resultado..."></textarea>
       </div>
@@ -14728,7 +14728,7 @@ function _kpiPeriodoPrevisto(k){
     const index=months.findIndex(name=>new RegExp('^'+name+'[a-z]*(?:[. /-]|$)').test(text));
     if(index>=0)month=index+1;
   }
-  return [1,4,7,10].includes(month);
+  return [3,6,9,12].includes(month);
 }
 function _kpiAtualizarPeriodicidade(){
   const allowed=_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value});

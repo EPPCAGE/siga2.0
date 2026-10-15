@@ -45,11 +45,11 @@ const assert = require('node:assert/strict');
     assert.equal(await page.evaluate(() => document.getElementById('inds-proc-modal')._kpiCharts.length), 0);
     await page.evaluate(() => {
       fecharIndicadoresProc();
-      kpis=['jan/2026','fev/2026','abr/2026'].map((periodo,i)=>({arq_id:'a',periodo,periodicidade:'Trimestral',meta:100,realizado:10+i}));
+      kpis=['mar/2026','abr/2026','jun/2026'].map((periodo,i)=>({arq_id:'a',periodo,periodicidade:'Trimestral',meta:100,realizado:10+i}));
       abrirIndicadoresProc('a');
     });
     await page.waitForFunction(() => document.getElementById('inds-proc-modal')._kpiCharts.length === 1);
-    assert.deepEqual(await page.evaluate(()=>document.getElementById('inds-proc-modal')._kpiCharts[0].data.labels),['jan/2026','abr/2026']);
+    assert.deepEqual(await page.evaluate(()=>document.getElementById('inds-proc-modal')._kpiCharts[0].data.labels),['mar/2026','jun/2026']);
     await page.evaluate(()=>fecharIndicadoresProc());
     assert.deepEqual(errors, []);
     console.log('Indicadores: gráfico do pop-up, fechamento e ausência de medições verificados.');
