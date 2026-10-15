@@ -1511,6 +1511,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <button type="button" class="tab" role="tab" id="ind-tab-manuais" aria-selected="false" aria-controls="ind-panel-manuais" onclick="selecionarAbaIndicadores('manuais')">Indicadores manuais</button>
   </div>
   <div id="ind-panel-sisplan" role="tabpanel" aria-labelledby="ind-tab-sisplan">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:1rem"><button type="button" class="btn btn-p" id="ind-report-without-ai" onclick="gerarRelatorioIndPdf(true)">Gerar relatório PDF sem IA</button></div>
   <div id="ind-gsheets-sec" class="ep-only" style="display:none;margin-bottom:.75rem;padding:.55rem .8rem;background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);gap:8px;align-items:center;flex-wrap:wrap">
     <span style="font-size:12px;font-weight:600;color:var(--ink3);white-space:nowrap">Google Sheets (CSV publicado)</span>
     <input class="fi" id="ind-gsheets-url" aria-label="URL do Google Sheets CSV publicado" placeholder="https://docs.google.com/spreadsheets/..." style="flex:1;min-width:220px;font-size:12px" oninput="salvarGSheetsUrl()">
@@ -19691,8 +19692,20 @@ function _resumoIndicadoresRelatorioPdf(lista){
   };
 }
 
-function gerarRelatorioIndPdf(){
-  if(!_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
+function _indicadoresFiltradosRelatorio(){
+  const value=id=>document.getElementById(id)?.value || '';
+  const filters={area:value('ind-area-sel'),ciclo:value('ind-ciclo-sel'),periodo:value('ind-periodo-sel'),nome:value('ind-nome-sel'),ppe:value('ind-ppe-sel')};
+  const macro=value('ind-macro-sel'),process=value('ind-proc-sel'),interval=value('ind-intervalo-sel'),projectId=value('ind-projeto-sel');
+  const project=projectId?PROJETOS_USUARIOS.find(p=>String(p.id)===projectId):null;
+  const projectIndicators=projectId?new Set(project?IndicadoresImpactados.list(project,ARQUITETURA,kpis,processos).map(row=>row.ind):[]):null;
+  return kpis.filter(k=>{
+    if(projectIndicators && !projectIndicators.has(k))return false;
+    const link=(macro || process)?_kpiGetMacroProc(k):{};
+    return Object.entries(filters).every(([key,value])=>!value || k[key]===value) && (!macro || link.macro===macro) && (!process || link.proc===process) && _periodoInIntervalo(k.periodo,interval) && _kpiPeriodoPrevisto(k);
+  });
+}
+function gerarRelatorioIndPdf(semIA=false){
+  if(!semIA && !_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
 
   const area      = document.getElementById('ind-area-sel')?.value      || '';
   const ciclo     = document.getElementById('ind-ciclo-sel')?.value     || '';
@@ -19700,7 +19713,7 @@ function gerarRelatorioIndPdf(){
   const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const dtHoje = new Date().toLocaleDateString('pt-BR');
 
-  const lista = _filtrarIndicadoresRelatorioPdf(_lastIndLista);
+  const lista = _filtrarIndicadoresRelatorioPdf(semIA?_indicadoresFiltradosRelatorio():_lastIndLista);
 
   if(!lista.length){ toast('Nenhum indicador com dados para o relatório.','var(--amber)'); return; }
 
@@ -19709,7 +19722,8 @@ function gerarRelatorioIndPdf(){
   _ordenarIndicadoresRelatorioPdf(lista);
   const rows = _rowsIndicadoresRelatorioPdf(lista, kpis, {period, intervalo});
   const resumo = _resumoIndicadoresRelatorioPdf(lista);
-  const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:'', period?'Período: '+period:'', intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
+  const filterFields=[['ind-area-sel','Área'],['ind-ciclo-sel','Ciclo'],['ind-periodo-sel','Período'],['ind-intervalo-sel','Intervalo'],['ind-nome-sel','Indicador'],['ind-ppe-sel','PPE'],['ind-macro-sel','Macroprocesso'],['ind-proc-sel','Processo'],['ind-projeto-sel','Projeto']];
+  const filtros=filterFields.filter((_,index)=>semIA || index<4).map(([id,label])=>{const field=document.getElementById(id);return field?.value?label+': '+(field.selectedOptions?.[0]?.textContent || field.value):'';}).filter(Boolean).join(' · ') || 'Todos os indicadores';
   const _kpiHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -19751,8 +19765,8 @@ function gerarRelatorioIndPdf(){
 </div>
 <div class="sec">Taxa de atingimento por macroprocesso</div>
 <div class="area-grid">${macroprocessoCards}</div>
-<div class="sec">Análise dos Resultados</div>
-<div class="ia-box">${esc(_lastIndAnalise).replaceAll('\n','<br>')}</div>
+${semIA?'':`<div class="sec">Análise dos Resultados</div>
+<div class="ia-box">${esc(_lastIndAnalise).replaceAll('\n','<br>')}</div>`}
 <div class="sec">Indicadores com dados no período</div>
 <table>
   <thead><tr>
