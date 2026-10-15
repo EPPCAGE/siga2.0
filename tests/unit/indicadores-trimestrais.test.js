@@ -8,20 +8,20 @@ function setup(){
   runInNewContext(names.map(name=>html.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0]).join('\n'),c);return c;
 }
 describe('indicadores trimestrais',()=>{
-  it('aceita apenas janeiro, abril, julho e outubro em períodos mensais',()=>{
+  it('aceita apenas março, junho, setembro e dezembro em períodos mensais',()=>{
     const c=setup();
-    for(let month=1;month<=12;month++)expect(c._kpiPeriodoPrevisto({periodicidade:'Trimestral',periodo:`${String(month).padStart(2,'0')}/2026`})).toBe([1,4,7,10].includes(month));
-    for(const periodo of ['jan/2026','abril/2026','jul. de 2026','2026-10','T1/2026','2º trimestre/2026'])expect(c._kpiPeriodoPrevisto({periodicidade:'Trimestral',periodo})).toBe(true);
-    for(const periodo of ['fev/2026','2026-03','agosto/2026','nov. de 2026',''])expect(c._kpiPeriodoPrevisto({periodicidade:'Trimestral',periodo})).toBe(false);
+    for(let month=1;month<=12;month++)expect(c._kpiPeriodoPrevisto({periodicidade:'Trimestral',periodo:`${String(month).padStart(2,'0')}/2026`})).toBe([3,6,9,12].includes(month));
+    for(const periodo of ['mar/2026','junho/2026','set. de 2026','2026-12','T1/2026','2º trimestre/2026'])expect(c._kpiPeriodoPrevisto({periodicidade:'Trimestral',periodo})).toBe(true);
+    for(const periodo of ['jan/2026','2026-04','julho/2026','out. de 2026',''])expect(c._kpiPeriodoPrevisto({periodicidade:'Trimestral',periodo})).toBe(false);
     expect(c._kpiPeriodoPrevisto({periodicidade:'Mensal',periodo:'02/2026'})).toBe(true);
   });
   it('não herda metas nem considera medições fora dos meses previstos',()=>{
-    const c=setup();c.kpis=[{codigo:'I',periodicidade:'Trimestral',periodo:'jan/2026',meta:10,realizado:9},{codigo:'I',periodicidade:'Trimestral',periodo:'fev/2026',meta:999,realizado:999},{codigo:'I',periodicidade:'Trimestral',periodo:'abr/2026',meta:null,realizado:8}];
+    const c=setup();c.kpis=[{codigo:'I',periodicidade:'Trimestral',periodo:'mar/2026',meta:10,realizado:9},{codigo:'I',periodicidade:'Trimestral',periodo:'fev/2026',meta:999,realizado:999},{codigo:'I',periodicidade:'Trimestral',periodo:'jun/2026',meta:null,realizado:8}];
     expect(c._kpiMeta(c.kpis[1])).toBeNull();expect(c._kpiMeta(c.kpis[2])).toBe(10);
     expect(c._kpiGrpWithData(c.kpis)).toHaveLength(2);
     const canvas={id:'chart-kpi-I',parentElement:{style:{}}};
     c.createKpiChart('I',c.kpis,{querySelectorAll:()=>[canvas]},[]);
-    expect(c.chart.data.labels).toEqual(['jan/2026','abr/2026']);expect(c.chart.data.datasets[0].data).toEqual([9,8]);
+    expect(c.chart.data.labels).toEqual(['mar/2026','jun/2026']);expect(c.chart.data.datasets[0].data).toEqual([9,8]);
     expect(c.chart.data.datasets[1].data).toEqual([10,10]);
   });
   it('limpa valores numéricos ao salvar mês sem medição e preserva a análise',()=>{
