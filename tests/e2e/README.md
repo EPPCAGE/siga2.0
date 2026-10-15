@@ -32,3 +32,11 @@ node tests/e2e/indicadores-manuais.cjs
 ```
 
 Usa Chromium e persistência simulada para verificar as abas SISPLAN/manuais, vínculos com processos, lançamento e edição de resultados, períodos duplicados, falhas de gravação, recarga dos dados e permissões.
+
+Relatório de indicadores sem IA, com filtros e geração de PDF:
+
+```bash
+node tests/e2e/indicadores-relatorio-sem-ia.cjs
+```
+
+Valida o relatório direto sem chamadas de rede/IA, os filtros atuais, os resultados anteriores e a omissão da análise textual.
