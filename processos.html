@@ -19498,9 +19498,10 @@ function _calcKpiPct(k){
   const r = Number(k.realizado);
   const m = _kpiMeta(k);
   if(m === null || !Number.isFinite(r)) return null;
-  if(r===0 && m===0) return 100;
-  if(m<=0) return null;
   const isMenorMelhor = (k.polaridade||'Maior é melhor')==='Menor é melhor';
+  // A zero target is defined: evaluate attainment without dividing by zero.
+  if(m===0) return (isMenorMelhor ? r<=0 : r>=0) ? 100 : 0;
+  if(m<0) return null;
   if(isMenorMelhor){
     // realizado=0 com meta positiva é o melhor resultado possível (ex: zero incidentes) — meta cumprida
     return r > 0 ? Math.round((m/r)*100) : 100;
