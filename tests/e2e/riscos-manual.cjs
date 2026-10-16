@@ -86,7 +86,7 @@ const assert=require('node:assert/strict');
     await page.evaluate(()=>saveFails=true);await modal.getByRole('button',{name:'Cadastrar risco',exact:true}).click();
     assert.match(await page.locator('#risk-create-error').innerText(),/Não foi possível salvar/);
     assert.equal(await page.evaluate(()=>processos[1].ent.riscos.length),1);
-    await modal.getByRole('button',{name:'Cancelar',exact:true}).click();await page.evaluate(()=>saveFails=false);
+    await modal.getByRole('button',{name:'Cancelar',exact:true}).click();await modal.waitFor({state:'detached'});await page.evaluate(()=>saveFails=false);
     // Edit permissions and mobile layout.
     await page.evaluate(()=>{usuarioLogado.perfil='dono';rRiscos();riscosCreate();});
     assert.equal(await page.locator('#risk-create-modal').count(),0);assert.equal(await page.locator('#riscos-new').isVisible(),false);
