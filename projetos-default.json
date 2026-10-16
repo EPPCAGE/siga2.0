@@ -296,6 +296,7 @@
             "urgencia": "media"
           }
         ],
+        "riscos_canvas_sync": "Dependência de partes externas para integração do sistema; Atrasos no andamento do Profisco III; Risco de impactos negativos na qualidade e risco de imagem.",
         "planner_link": "",
         "eap_link": "",
         "eap_sub_mode": "texto",

@@ -272,6 +272,9 @@ const PROJ_FB = Object.freeze({
   cfgObjetivosId: ObjetivosEstrategicos.configId,
   cfgGovernancaId: 'proj_governanca'
 });
+let _projRiscoEdit = null; // {proj, idx} — risco em edição na aba Planejamento
+let _projRiscosMigrados = false; // sinaliza que a carga alterou riscos e precisa ser gravada
+
 const _projFbState = {loaded:false, loading:false, saveTimer:null, listenersStarted:false, unsubscribers:[], saving:false, pendingRender:false};
 
 function projRepositoryFor(col){
@@ -526,7 +529,9 @@ async function projFbLoadOnce(){
 
     // Fallback/migração: se a nuvem estiver vazia, semeia pela base padrão versionada.
     const seeded = await projFbSeedIfEmpty(pSnap, gSnap);
+    _projRiscosMigrados = false;
     if(!seeded) projFbApplyCollectionSnaps(pSnap, gSnap);
+    if(_projRiscosMigrados && !seeded && isEP()){ _projRiscosMigrados = false; projFbAutoSave('projetos').catch(()=>{}); }
     await Promise.all([
       projLoadArquitetura(),
       projFbLoadConfigDoc(PROJ_FB.cfgObjetivosId, PROJ_OBJETIVOS, data => { PROJ_OBJETIVOS = data; }),
@@ -706,7 +711,7 @@ function projFixDefaults(p) {
       partes_interessadas:'', objetivo_estrategico:'',
       custos:'', resultados_esperados:'', acoes_imediatas:''
     },
-    planejamento: projPlanejamentoMigrar(p.planejamento) || {
+    planejamento: projPlanejamentoSincronizarCanvas(projPlanejamentoMigrar(p.planejamento), p.ideacao) || {
       eap_html: '', eap_link: '', riscos: [], planner_link: ''
     },
     execucao: p.execucao || {
@@ -3320,6 +3325,8 @@ function projSalvarIdeacao() {
 function projTabPlanejamento(p) {
   const plan = p.planejamento || {};
   const riscos = plan.riscos || [];
+  const editIdx = (_projRiscoEdit && _projRiscoEdit.proj === String(p.id) && riscos[_projRiscoEdit.idx]) ? _projRiscoEdit.idx : -1;
+  const edit = editIdx >= 0 ? riscos[editIdx] : null;
 
   const eapMode = plan.eap_mode || 'html'; // 'html' or 'link'
   const eapSubMode = plan.eap_sub_mode || 'texto'; // 'upload' or 'texto'
@@ -3407,20 +3414,23 @@ function projTabPlanejamento(p) {
         Registre os riscos do projeto. O mapa de calor será gerado automaticamente com base na probabilidade e impacto.
       </div>
 
-      <!-- Adicionar risco -->
+      <!-- Adicionar / editar risco -->
+      ${edit ? '<div style="font-size:11.5px;font-weight:700;color:#b45309;margin-bottom:.4rem">✎ Editando o risco #'+(editIdx+1)+'</div>' : ''}
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:.8rem">
-        <div class="proj-fg" style="margin:0"><label class="proj-fl">Risco</label><input type="text" class="proj-fi" id="risco-desc" placeholder="Descrição do risco"></div>
+        <div class="proj-fg" style="margin:0"><label class="proj-fl">Risco</label><input type="text" class="proj-fi" id="risco-desc" placeholder="Descrição do risco" value="${edit ? projEsc(edit.descricao) : ''}"></div>
         <div class="proj-fg" style="margin:0"><label class="proj-fl">Probabilidade</label>
-          <select class="proj-fi" id="risco-prob">${projRiscoOpcoes(PROJ_RISCO_PROB,'Media')}</select></div>
+          <select class="proj-fi" id="risco-prob">${projRiscoOpcoes(PROJ_RISCO_PROB, edit ? edit.probabilidade : 'Media')}</select></div>
         <div class="proj-fg" style="margin:0"><label class="proj-fl">Impacto</label>
-          <select class="proj-fi" id="risco-impacto">${projRiscoOpcoes(PROJ_RISCO_IMPACTO,'Medio')}</select></div>
+          <select class="proj-fi" id="risco-impacto">${projRiscoOpcoes(PROJ_RISCO_IMPACTO, edit ? edit.impacto : 'Medio')}</select></div>
         <div class="proj-fg" style="margin:0"><label class="proj-fl">Urgência</label>
           <select class="proj-fi" id="risco-urgencia">
-            <option value="baixa">Baixa</option><option value="media" selected>Média</option><option value="alta">Alta</option>
+            ${['baixa','media','alta'].map(u => '<option value="'+u+'"'+(u===(edit ? edit.urgencia : 'media')?' selected':'')+'>'+({baixa:'Baixa',media:'Média',alta:'Alta'})[u]+'</option>').join('')}
           </select></div>
-        <button type="button" class="proj-btn primary" style="margin-bottom:0;align-self:flex-end;padding:8px 14px" onclick="projAdicionarRisco()">+ Adicionar</button>
+        <div style="display:flex;gap:6px;align-self:flex-end">
+          <button type="button" class="proj-btn primary" style="margin-bottom:0;padding:8px 14px" onclick="projAdicionarRisco()">${edit ? '💾 Salvar risco' : '+ Adicionar'}</button>
+          ${edit ? '<button type="button" class="proj-btn" style="margin-bottom:0;padding:8px 14px" onclick="projCancelarEdicaoRisco()">Cancelar</button>' : ''}
+        </div>
       </div>
-      ${projRiscosCanvasLista(p).length ? `<div style="margin-bottom:.8rem"><button type="button" class="proj-btn" style="font-size:11.5px" onclick="projImportarRiscosCanvas()" title="Cria na matriz os riscos informados no Canvas (Ideação) que ainda não estão cadastrados">⬇ Importar riscos do Canvas</button></div>` : ''}
 
       <!-- Tabela de riscos -->
       ${riscos.length > 0 ? `
@@ -3438,7 +3448,7 @@ function projTabPlanejamento(p) {
                 <td><select class="proj-fi" style="padding:3px 6px;font-size:12px" aria-label="Impacto" onchange="projAtualizarRisco(${i},'impacto',this.value)">${projRiscoOpcoes(PROJ_RISCO_IMPACTO, r.impacto)}</select></td>
                 <td style="text-align:center">${projEsc(r.urgencia||'—')}</td>
                 <td><span class="risk-heat ${nivel.cls}">${nivel.label}</span></td>
-                <td><button type="button" class="proj-btn danger" style="font-size:11px;padding:2px 7px" onclick="projExcluirRisco(${i})">✕</button></td>
+                <td style="white-space:nowrap"><button type="button" class="proj-btn" style="font-size:11px;padding:2px 7px" title="Editar risco" aria-label="Editar risco" onclick="projEditarRisco(${i})">✎</button> <button type="button" class="proj-btn danger" style="font-size:11px;padding:2px 7px" title="Excluir risco" aria-label="Excluir risco" onclick="projExcluirRisco(${i})">✕</button></td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -3494,7 +3504,9 @@ function projRiscoMigrar(r) {
 function projPlanejamentoMigrar(plan) {
   if(!plan || !Array.isArray(plan.riscos)) return plan;
   const novos = plan.riscos.map(projRiscoMigrar);
-  return novos.some(function(r, i){ return r !== plan.riscos[i]; }) ? Object.assign({}, plan, {riscos: novos}) : plan;
+  if(!novos.some(function(r, i){ return r !== plan.riscos[i]; })) return plan;
+  _projRiscosMigrados = true;
+  return Object.assign({}, plan, {riscos: novos});
 }
 
 function projGerarMapaCalor(riscos) {
@@ -3531,25 +3543,47 @@ function projRiscoChave(t) {
   return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 }
 
-function projImportarRiscosCanvas() {
-  if(!projEnsureWriteAll()) return;
-  projLoad();
-  const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
-  if(!proj) return;
-  if(!proj.planejamento) proj.planejamento = { eap_html:'', riscos:[], planner_link:'' };
-  if(!proj.planejamento.riscos) proj.planejamento.riscos = [];
-  const existentes = proj.planejamento.riscos.map(r => projRiscoChave(r.descricao));
-  let base = Date.now(), n = 0;
-  projRiscosCanvasLista(proj).forEach(function(desc) {
-    const k = projRiscoChave(desc);
-    if(existentes.some(e => e === k || e.includes(k) || k.includes(e))) return;
-    existentes.push(k);
-    proj.planejamento.riscos.push({ id: base + n++, descricao: desc, probabilidade: 'Media', impacto: 'Medio', urgencia: 'media' });
+// Análise automática (heurística por palavras-chave) de probabilidade e impacto de um risco.
+function projRiscoAnalisar(texto) {
+  const t = projRiscoChave(texto);
+  const tem = function(re){ return re.test(t); };
+  let impacto = 'Medio';
+  if(tem(/vazamento|fraude|seguranca da informacao|paralisa|inviabiliz|perda de dados|sancao|descumpriment|judicial|legal\b|legislac/)) impacto = 'Critico';
+  else if(tem(/dependencia|externa|terceiro|fornecedor|integracao|atraso|prazo|qualidade|imagem|reputac|orcamento|custo|contrat|licitac|indisponibilidade|falha|retrabalho/)) impacto = 'Alto';
+  else if(tem(/resistencia|treinamento|capacitacao|comunicacao|documentacao|engajamento/)) impacto = 'Baixo';
+  let probabilidade = 'Media';
+  if(tem(/dependencia|atraso|escassez|falta de|insuficien|excess|sobrecarga|rotatividade|demora|alta demanda/)) probabilidade = 'Alta';
+  else if(tem(/vazamento|fraude|desastre|incendio|judicial|paralisa/)) probabilidade = 'Baixa';
+  const nivel = projRiscoNivel(probabilidade, impacto).label;
+  return { probabilidade: probabilidade, impacto: impacto, urgencia: nivel === 'Crítico' || nivel === 'Alto' ? 'alta' : nivel === 'Moderado' ? 'media' : 'baixa' };
+}
+
+function projRiscoTokens(t) {
+  const stop = ['para','com','dos','das','que','por','uma','nos','nas','sobre','entre'];
+  return projRiscoChave(t).split(/[^a-z0-9]+/).filter(function(w){ return w.length > 3 && !stop.includes(w); }).map(function(w){ return w.replace(/s$/, ''); });
+}
+
+function projRiscoMesmo(a, b) {
+  const ta = projRiscoTokens(a), tb = projRiscoTokens(b);
+  if(!ta.length || !tb.length) return projRiscoChave(a) === projRiscoChave(b);
+  const [menor, maior] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
+  return menor.length >= 2 ? menor.every(function(w){ return maior.includes(w); }) : projRiscoChave(a) === projRiscoChave(b);
+}
+
+// Transporta, sem ação do usuário, os riscos do Canvas (Ideação) para a matriz do Planejamento.
+// Idempotente: só reprocessa quando o texto do Canvas muda; riscos já cadastrados (mesmo nome) são preservados.
+function projPlanejamentoSincronizarCanvas(plan, ideacao) {
+  const canvas = String(ideacao?.riscos_canvas || '').trim();
+  if(!canvas || (plan && plan.riscos_canvas_sync === canvas)) return plan;
+  const base = plan || { eap_html:'', eap_link:'', riscos:[], planner_link:'' };
+  const riscos = Array.isArray(base.riscos) ? base.riscos.slice() : [];
+  let id = Date.now();
+  projRiscosCanvasLista({ ideacao: { riscos_canvas: canvas } }).forEach(function(desc) {
+    if(riscos.some(function(r){ return projRiscoMesmo(r.descricao, desc); })) return;
+    riscos.push(Object.assign({ id: id++, descricao: desc, origem: 'canvas' }, projRiscoAnalisar(desc)));
   });
-  if(!n) { projToast('Todos os riscos do Canvas já estão cadastrados.', '#d97706'); return; }
-  projSave();
-  projToast(n + ' risco(s) importado(s). Revise probabilidade e impacto.');
-  projDetalheTab('planejamento', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(3)'));
+  _projRiscosMigrados = true;
+  return Object.assign({}, base, { riscos: riscos, riscos_canvas_sync: canvas });
 }
 
 function projAtualizarRisco(idx, campo, valor) {
@@ -3565,6 +3599,17 @@ function projAtualizarRisco(idx, campo, valor) {
   projDetalheTab('planejamento', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(3)'));
 }
 
+function projEditarRisco(idx) {
+  _projRiscoEdit = { proj: String(_projCurrentId), idx: idx };
+  projDetalheTab('planejamento', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(3)'));
+  document.getElementById('risco-desc')?.focus();
+}
+
+function projCancelarEdicaoRisco() {
+  _projRiscoEdit = null;
+  projDetalheTab('planejamento', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(3)'));
+}
+
 function projAdicionarRisco() {
   const desc = document.getElementById('risco-desc')?.value.trim();
   if(!desc) { projToast('Informe a descrição do risco.', '#d97706'); return; }
@@ -3575,15 +3620,18 @@ function projAdicionarRisco() {
   if(!proj.planejamento.riscos) proj.planejamento.riscos = [];
   const prob = document.getElementById('risco-prob')?.value;
   const imp = document.getElementById('risco-impacto')?.value;
-  proj.planejamento.riscos.push({
-    id: Date.now(),
+  const dados = {
     descricao: desc,
     probabilidade: PROJ_RISCO_PROB.some(o => o[0] === prob) ? prob : 'Media',
     impacto: PROJ_RISCO_IMPACTO.some(o => o[0] === imp) ? imp : 'Medio',
     urgencia: document.getElementById('risco-urgencia')?.value||'media'
-  });
+  };
+  const existente = (_projRiscoEdit && _projRiscoEdit.proj === String(proj.id)) ? proj.planejamento.riscos[_projRiscoEdit.idx] : null;
+  if(existente) Object.assign(existente, dados);
+  else proj.planejamento.riscos.push(Object.assign({ id: Date.now() }, dados));
+  _projRiscoEdit = null;
   projSave();
-  projToast('Risco adicionado!');
+  projToast(existente ? 'Risco atualizado!' : 'Risco adicionado!');
   projDetalheTab('planejamento', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(3)'));
 }
 
@@ -3593,6 +3641,7 @@ function projExcluirRisco(idx) {
     const proj = PROJETOS.find(p => String(p.id) === _projCurrentId);
     if(!proj) return;
     proj.planejamento.riscos.splice(idx, 1);
+    _projRiscoEdit = null;
     projSave();
     projToast('Risco excluído.');
     projDetalheTab('planejamento', document.querySelector('#proj-detalhe-tabs .proj-tab:nth-child(3)'));
