@@ -18,7 +18,7 @@ function riscosSelecionarAba(aba){
     document.getElementById('riscos-panel-'+value).hidden=value!==riscosAba;
   }
   if(riscosAba==='projetos'){
-    if(!riscosProjetosCarregado)riscosProjetosCarregar();else rRiscosProjetos();
+    if(!riscosProjetosCarregado)void riscosProjetosCarregar();else rRiscosProjetos();
   }else rRiscos();
 }
 async function riscosProjetosCarregar(){
