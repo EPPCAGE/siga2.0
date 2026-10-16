@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 (async () => {
   const html = readFileSync('processos.html', 'utf8');
-  const functions = ['parseNumBR', '_kpiMetaInformada', '_kpiMeta', 'periodoToNum', 'fecharIndicadoresProc', 'abrirIndicadoresProc', 'createKpiChart']
+  const functions = ['_kpiPeriodoPrevisto','parseNumBR', '_kpiMetaInformada', '_kpiMeta', 'periodoToNum', 'fecharIndicadoresProc', 'abrirIndicadoresProc', 'createKpiChart']
     .map(name => html.match(new RegExp('function ' + name + '\\([^]*?\\n}'))[0]).join('\n');
   const browser = await chromium.launch({ headless: true });
   try {
@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.setContent('<div id="main" style="width:600px;height:200px"><canvas id="chart-kpi-test"></canvas></div>');
-    await page.addScriptTag({ url: 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js' });
+    await page.addScriptTag(process.env.CHART_JS_PATH?{path:process.env.CHART_JS_PATH}:{ url: 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js' });
     await page.evaluate(() => {
       window._indCharts = [];
       window.kpis = [{ arq_id: 'a', realizado: 80, meta: 90, periodo: 'janeiro/2026' }];
@@ -43,6 +43,14 @@ const assert = require('node:assert/strict');
     await page.evaluate(() => { kpis[0].sem_dado = true; abrirIndicadoresProc('a'); });
     await page.waitForFunction(() => document.querySelector('#inds-proc-modal canvas').parentElement.style.display === 'none');
     assert.equal(await page.evaluate(() => document.getElementById('inds-proc-modal')._kpiCharts.length), 0);
+    await page.evaluate(() => {
+      fecharIndicadoresProc();
+      kpis=['mar/2026','abr/2026','jun/2026'].map((periodo,i)=>({arq_id:'a',periodo,periodicidade:'Trimestral',meta:100,realizado:10+i}));
+      abrirIndicadoresProc('a');
+    });
+    await page.waitForFunction(() => document.getElementById('inds-proc-modal')._kpiCharts.length === 1);
+    assert.deepEqual(await page.evaluate(()=>document.getElementById('inds-proc-modal')._kpiCharts[0].data.labels),['mar/2026','jun/2026']);
+    await page.evaluate(()=>fecharIndicadoresProc());
     assert.deepEqual(errors, []);
     console.log('Indicadores: gráfico do pop-up, fechamento e ausência de medições verificados.');
   } finally {

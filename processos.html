@@ -10,6 +10,10 @@
 <title>SIGA - EPP</title>
 <link rel="icon" type="image/png" href="assets/siga-epp-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261015-1">
+<script src="src/shared/indicadores-manuais.js?v=20261015-1"></script>
+<script src="src/processos/indicadores-manuais.js?v=20261015-1"></script>
+<link rel="stylesheet" href="src/admin/licencas-lite.css?v=20261013-1">
 <link rel="stylesheet" href="src/processos/cadeia-valor.css?v=20261011-1">
 <link rel="stylesheet" href="src/processos/maturidade-gestao.css?v=20261011-3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css" integrity="sha384-2WPRuHNLlqer/8fKQLOMZSWVINTz4vDTnIB1SXm75ubMI3oBGJyfvuOcPPc0Pfjh" crossorigin="anonymous">
@@ -38,12 +42,12 @@
 <script src="src/shared/busca-geral.js?v=20261011-3"></script>
 <script src="src/shared/maturidade-gestao.js?v=20261011-1"></script>
 <script src="src/processos/maturidade-gestao-module.js?v=20261011-4"></script>
-<script src="src/shared/riscos.js?v=20261011-3"></script>
+<script src="src/shared/riscos.js?v=20261013-1"></script>
 <script src="src/shared/controles-catalogo.js?v=20261010-1"></script>
 <script src="src/shared/controles-biblioteca.js?v=20261013-2"></script>
 <script src="src/processos/controles-biblioteca-ui.js?v=20261010-3"></script>
 <script src="src/shared/relatorio-executivo-style.js?v=20261010-1"></script>
-<script src="src/processos/riscos-module.js?v=20261011-3"></script>
+<script src="src/processos/riscos-module.js?v=20261013-1"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -1180,6 +1184,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2 15 14H1L8 2Z" stroke="currentColor" stroke-width="1.4"/><path d="M8 6v4" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="12" r=".8" fill="currentColor"/></svg>
     Riscos
   </button>
+  <button type="button" class="nav-btn" id="nb-controles" onclick="go('controles',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.5l5.5 2v4c0 3-2.2 5.4-5.5 7-3.3-1.6-5.5-4-5.5-7v-4z"/><path d="M5.5 8l1.7 1.7 3.3-3.4"/></svg>Catálogo de controles</button>
   <button type="button" class="nav-btn" hidden style="display:none" onclick="go('licencaslite',this)" id="nb-licencaslite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 9h6M5 12h3"/></svg>Central de Licenças SIGA Lite</button>
   <button type="button" class="nav-btn" onclick="go('maturidadegestao',this)" id="nb-maturidadegestao">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 14h14M3 12V9h3v3M7 12V6h3v6M11 12V2h3v10"/></svg>Maturidade da gestão
@@ -1196,7 +1201,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/><path d="M10 2v3h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
     Publicações
   </button>
-<button type="button" class="nav-btn" id="nb-controles" onclick="go('controles',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.5l5.5 2v4c0 3-2.2 5.4-5.5 7-3.3-1.6-5.5-4-5.5-7v-4z"/><path d="M5.5 8l1.7 1.7 3.3-3.4"/></svg>Central de Controles</button>
 
   <button type="button" class="nav-btn" onclick="go('notificacoes',this)" id="nb-notif">
     <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a5 5 0 00-5 5v3l-1 2h12l-1-2V7a5 5 0 00-5-5z" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -1390,9 +1394,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 #page-faq .knowledge-count{font-size:12px;color:var(--ink3)}
 @media(max-width:720px){#page-faq .knowledge-panel{padding:16px}}
 </style>
-<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261011-2">
+<link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261013-2">
 <div id="page-riscos" class="page"><div style="padding:2rem">
-  <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><button type="button" class="btn btn-p" onclick="riscosExportPdf()">Gerar relatório PDF</button></div>
+  <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><div class="risk-page-actions"><button type="button" class="btn btn-p" id="riscos-new" hidden onclick="riscosCreate()">+ Novo risco</button><button type="button" class="btn" onclick="riscosExportPdf()">Gerar relatório PDF</button></div></div>
   <div class="risk-filters">
     <div class="risk-filter"><label id="riscos-label-prob" for="riscos-prob">Probabilidade</label><select class="fi" id="riscos-prob" onchange="rRiscos()"><option value="">Todas</option><option>Baixa</option><option value="Media">Média</option><option>Alta</option></select></div>
     <div class="risk-filter"><label id="riscos-label-level" for="riscos-level">Nível de risco</label><select class="fi" id="riscos-level" onchange="rRiscos()"><option value="">Todos</option><option value="low">Baixo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="critical">Crítico</option></select></div>
@@ -1422,7 +1426,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="faq-c"></div>
 </div></div>
 
-<div id="page-licencaslite" class="page"><div class="ph"><h1>Central de Licenças SIGA Lite</h1></div><div id="siga-lite-licenses-content"></div></div>
+<div id="page-licencaslite" class="page"><div class="ph"><div><div class="ph-t">Central de Licenças SIGA Lite</div><div class="ph-s">Emissão de licenças e acompanhamento das instalações autorizadas</div></div></div><div id="siga-lite-licenses-content"></div></div>
 <div id="page-maturidadegestao" class="page"><div class="mg-page">
   <div class="ph"><div><div class="ph-t">Maturidade da gestão de processos</div><div class="ph-s">Diagnóstico institucional · 26 perguntas · 6 dimensões</div></div></div>
   <div id="maturidade-gestao-content"></div>
@@ -1502,6 +1506,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="btn btn-p" onclick="abrirNovoKpi()">+ Novo indicador</button>
     </div>
   </div>
+  <div class="tabs" role="tablist" aria-label="Origem dos indicadores">
+    <button type="button" class="tab on" role="tab" id="ind-tab-sisplan" aria-selected="true" aria-controls="ind-panel-sisplan" onclick="selecionarAbaIndicadores('sisplan')">Indicadores SISPLAN</button>
+    <button type="button" class="tab" role="tab" id="ind-tab-manuais" aria-selected="false" aria-controls="ind-panel-manuais" onclick="selecionarAbaIndicadores('manuais')">Indicadores manuais</button>
+  </div>
+  <div id="ind-panel-sisplan" role="tabpanel" aria-labelledby="ind-tab-sisplan">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:1rem"><button type="button" class="btn btn-p" id="ind-report-without-ai" onclick="gerarRelatorioIndPdf(true)">Gerar relatório PDF sem IA</button></div>
   <div id="ind-gsheets-sec" class="ep-only" style="display:none;margin-bottom:.75rem;padding:.55rem .8rem;background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);gap:8px;align-items:center;flex-wrap:wrap">
     <span style="font-size:12px;font-weight:600;color:var(--ink3);white-space:nowrap">Google Sheets (CSV publicado)</span>
     <input class="fi" id="ind-gsheets-url" aria-label="URL do Google Sheets CSV publicado" placeholder="https://docs.google.com/spreadsheets/..." style="flex:1;min-width:220px;font-size:12px" oninput="salvarGSheetsUrl()">
@@ -1533,6 +1543,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="ind-summary" style="margin-bottom:.8rem"></div>
   <div id="ind-c"></div>
 
+  </div>
+  <div id="ind-panel-manuais" role="tabpanel" aria-labelledby="ind-tab-manuais" hidden>
+    <div class="manual-indicator-filters"><div class="fg"><label class="fl" for="ind-manual-process">Processo</label><select class="fi" id="ind-manual-process" onchange="rIndicadoresManuais()"><option value="">Todos os processos</option></select></div><div class="fg"><label class="fl" for="ind-manual-search">Pesquisar indicador ou processo</label><input class="fi" type="search" id="ind-manual-search" oninput="rIndicadoresManuais()"></div></div>
+    <p class="ph-s" id="ind-manual-count" aria-live="polite"></p><div id="ind-manual-list"></div>
+  </div>
   <!-- Modal novo/editar KPI -->
   <div id="novo-kpi-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;padding:1rem">
     <div style="background:var(--surf);border-radius:var(--rl);padding:1.5rem;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)">
@@ -1560,7 +1575,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       </div>
       <div class="g2">
         <div class="fg"><label class="fl" for="nkpi-period">Periodicidade</label>
-          <select class="fi" id="nkpi-period">
+          <select class="fi" id="nkpi-period" onchange="_kpiAtualizarPeriodicidade();calcPctReal()">
             <option>Mensal</option><option>Bimestral</option><option>Trimestral</option><option>Semestral</option><option>Anual</option>
           </select>
         </div>
@@ -1603,7 +1618,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <!-- Period-specific values -->
       <div id="kpi-valores-periodo-lbl" style="display:none;font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem;padding-top:.6rem;border-top:1px solid var(--bdr)">Valores do período</div>
       <div class="g3">
-        <div class="fg" id="kpi-periodo-field"><label class="fl" for="nkpi-periodo">Período</label><input class="fi" id="nkpi-periodo" placeholder="Ex: jan/2026"></div>
+        <div class="fg" id="kpi-periodo-field"><label class="fl" for="nkpi-periodo">Período</label><input class="fi" id="nkpi-periodo" oninput="_kpiAtualizarPeriodicidade();calcPctReal()" placeholder="Ex: jan/2026"></div>
         <div class="fg"><label class="fl" for="nkpi-real">Realizado</label><input class="fi" id="nkpi-real" type="number" placeholder="100" oninput="calcPctReal()"></div>
         <div class="fg"><label class="fl" for="nkpi-indice">% Índice</label><input class="fi" id="nkpi-indice" type="number" placeholder="80"></div>
       </div>
@@ -1621,6 +1636,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
           <span>Sem medição neste período (N/A) — exclui da análise de desempenho</span>
         </label>
       </div>
+      <p class="ib ibb" id="kpi-trimestral-note" hidden>Indicadores trimestrais têm metas e resultados apenas em março, junho, setembro e dezembro. Neste período, registre somente a análise.</p>
       <div class="fg"><label class="fl" for="nkpi-analise">Análise</label>
         <textarea class="fi" id="nkpi-analise" style="min-height:70px" placeholder="Comentário sobre o resultado..."></textarea>
       </div>
@@ -2600,7 +2616,7 @@ function go(page,btn){
   _getPageRenderer(page)();
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
-  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de conhecimento',riscos:'Riscos',indicadores:'Indicadores',plano:'Plano de Trabalho',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',controles:'Central de Controles',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
+  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de conhecimento',riscos:'Riscos',indicadores:'Indicadores',plano:'Plano de Trabalho',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',controles:'Catálogo de controles',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
   const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão',licencaslite:'Central de Licenças SIGA Lite'})[page]||'SIGA 2.0';
 }
 function _invokeGlobalHandler(handlerName){
@@ -5221,6 +5237,7 @@ function criarProcesso(){
     hist:[{step:'abertura',role:'EP',acao:'Processo aberto e vinculado à arquitetura',data:now()}],
   };
   syncDonoProcessoUsuario({ nome: p.dono, email: p.dono_email, arqId: p.arq_id });
+  Riscos.adopt(p,ARQUITETURA);
   processos.push(p);
   updCounts();
   renderAdmin();
@@ -11207,7 +11224,7 @@ function rForm(p){
 async function _bpmnGetSvg(which,p){
   const m=bpmnModelers[which];
   if(m&&bpmnProcIds[which]===p?.id){
-    try{const {svg}=await m.saveSVG();if(svg)return svg;}catch(e){console.warn('_bpmnGetSvg active modeler failed',e);}
+    try{const {svg}=await bpmnExportSvg(m);if(svg)return svg;}catch(e){console.warn('_bpmnGetSvg active modeler failed',e);}
   }
   // SVG salvo junto com o XML no último bpmnSave — evita re-renderização offscreen
   const svgKey=which==='asis'?'bpmnAsIsSvg':'bpmnToBeSvg';
@@ -11223,7 +11240,7 @@ async function _bpmnGetSvg(which,p){
     let viewer;
     try{viewer=new BpmnJS(bpmnModelerOptions(tmp));}catch(e){console.warn('_bpmnGetSvg BpmnJS init failed',e);clearTimeout(tid);tmp.remove();return resolve(null);}
     viewer.importXML(xml)
-      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
+      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return bpmnExportSvg(viewer);})
       .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg||null);})
       .catch(e=>{console.warn('_bpmnGetSvg offscreen render failed',e);clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(null);});
   });
@@ -11271,7 +11288,7 @@ async function _bpmnRenderAllRoots(xml){
       try{
         canvas.setRootElement(info.root);
         canvas.zoom('fit-viewport');
-        const {svg}=await viewer.saveSVG();
+        const {svg}=await bpmnExportSvg(viewer);
         if(svg)diagrams.push({...info,svg,root:undefined});
       }catch(e){console.warn('_bpmnRenderAllRoots root failed',info.id,e);}
     }
@@ -11336,7 +11353,7 @@ async function renderBpmnToPng(xml){
     let viewer;
     try{viewer=new BpmnJS(bpmnModelerOptions(tmp));}catch(e){clearTimeout(tid);tmp.remove();return resolve(null);}
     viewer.importXML(xml)
-      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return viewer.saveSVG();})
+      .then(()=>{viewer.get('canvas').zoom('fit-viewport');return bpmnExportSvg(viewer);})
       .then(({svg})=>{clearTimeout(tid);try{viewer.destroy();}catch{}tmp.remove();resolve(svg||null);})
       .catch(()=>{clearTimeout(tid);try{viewer?.destroy();}catch{}tmp.remove();resolve(null);});
   });
@@ -12247,6 +12264,22 @@ function BpmnMilestoneRenderer(eventBus,elementRegistry){
   });
 }
 BpmnMilestoneRenderer.$inject=['eventBus','elementRegistry'];
+async function bpmnExportSvg(modeler){
+    const {svg}=await modeler.saveSVG();
+    // O SVG exportado contém grupos aninhados: a piscina pode cobrir uma fase
+    // mesmo quando ela aparece corretamente no editor. Ordena apenas a cópia.
+    const doc=new DOMParser().parseFromString(svg,'image/svg+xml');
+    const shapes=Array.from(doc.querySelectorAll('.djs-group')).filter(group=>
+      Array.from(group.children).some(child=>child.classList.contains('djs-element')));
+    const element=group=>modeler.get('elementRegistry').get(Array.from(group.children).find(child=>child.classList.contains('djs-element'))?.getAttribute('data-element-id'));
+    if(!shapes.some(group=>element(group)?.businessObject?.get('siga:milestone')))return {svg};
+    const rank=group=>['bpmn:Participant','bpmn:Lane'].includes(element(group)?.type)?0:element(group)?.businessObject?.get('siga:milestone')?1:2;
+    // As coordenadas BPMN são absolutas nos djs-element; os grupos não têm
+    // transformações. Retira a hierarquia visual na cópia, preservando os dados.
+    shapes.forEach(group=>Array.from(group.children).filter(child=>child.classList.contains('djs-children')).forEach(child=>child.remove()));
+    shapes.sort((a,b)=>rank(a)-rank(b)).forEach(group=>doc.documentElement.appendChild(group));
+    return {svg:new XMLSerializer().serializeToString(doc)};
+}
 function bpmnModelerOptions(container){
   return {
     container,
@@ -12673,7 +12706,7 @@ async function bpmnSave(which){
     push(curProc,curProc.etapa,'EP','Fluxo BPMN '+which.toUpperCase()+' salvo');
     // O SVG é auxiliar; uma falha ao gerá-lo não impede a persistência do XML.
     try{
-      const {svg}=await mod.saveSVG();
+      const {svg}=await bpmnExportSvg(mod);
       if(svg&&curProc?.mod) curProc.mod[svgKey]=svg;
     }catch{}
     const saved=await fbSaveAll();
@@ -12794,7 +12827,7 @@ function bpmnColorize(which){
 function bpmnExportPNG(which){
   const m=bpmnModelers[which];
   if(!m||!curProc){toast('Editor BPMN não carregado.','var(--amber)');return;}
-  m.saveSVG().then(({svg})=>{
+  bpmnExportSvg(m).then(({svg})=>{
     // Usa data URI base64 em vez de blob URL para evitar canvas tainted
     const svgUri='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
     const img=new Image();
@@ -13154,10 +13187,17 @@ function riscoValidarControles(controls){
   if(controls.some(c=>!c.descricao || !['Preventivo','Detectivo','Corretivo'].includes(c.tipo) || !c.responsavel || !['Não avaliada','Eficaz','Parcialmente eficaz','Ineficaz'].includes(c.efetividade))){toast('Preencha descrição, tipo, responsável e efetividade de cada controle.','var(--amber)');return false;}
   return true;
 }
-function rRiscoList(rs){
-  if(!rs||!rs.length)return '<div>Nenhum risco adicionado.</div>';
-  return rs.map((r,i)=>`<div class="card" style="margin-bottom:8px"><div class="ri-item"><strong>${esc(r.desc)}</strong>${pbBadge(r.prob)}${ibBadge(r.imp)}<button type="button" class="btn" onclick="editarRisco(${i})" aria-label="Editar risco">✎</button><button type="button" class="ri-del" onclick="remR(${i})" aria-label="Remover risco">×</button></div><p class="risk-text"><strong>Causa provável:</strong> ${esc(r.causa_provavel || 'Não informada')}</p>${riscoControlesHtml(r)}</div>`).join('');
+function riscoMapeamentoDetalhes(r){
+  const controls=riscoControles(r),response=riscoResposta(r),level=Riscos.level(r.prob,r.imp);
+  const controlsHtml=controls.length?controls.map(c=>`<div class="mapping-risk-control">${c.nome?`<div class="mapping-risk-control-name">${esc(c.biblioteca_id)} · ${esc(c.nome)}</div><span class="mapping-risk-label">Aplicação no processo</span>`:''}<p class="mapping-risk-text">${esc(c.descricao)}</p><dl class="mapping-risk-meta"><div><dt>Tipo</dt><dd>${esc(c.tipo || 'Não informado')}</dd></div><div><dt>Responsável</dt><dd>${esc(c.responsavel || 'Não informado')}</dd></div><div><dt>Efetividade</dt><dd>${esc(c.efetividade || 'Não informada')}</dd></div></dl></div>`).join(''):'<p class="mapping-risk-empty">Nenhum controle existente informado.</p>';
+  const proposal=response.descricao?`<div class="mapping-risk-response"><div class="mapping-risk-section-title">Resposta proposta <span class="badge bb">${esc(response.tipo || 'Não informada')}</span></div><p class="mapping-risk-text">${esc(response.descricao)}</p><dl class="mapping-risk-meta"><div><dt>Responsável pela resposta</dt><dd>${esc(response.responsavel || 'Não informado')}</dd></div></dl></div>`:['high','critical'].includes(level)?'<div class="ib iba mapping-risk-response">Resposta obrigatória pendente. Edite o risco para propor uma resposta.</div>':'';
+  return `<div class="mapping-risk-body"><section class="mapping-risk-cause"><div class="mapping-risk-section-title">Causa provável</div><p class="mapping-risk-text">${esc(r.causa_provavel || 'Não informada')}</p></section><section class="mapping-risk-controls"><div class="mapping-risk-section-title">Controles existentes</div>${controlsHtml}</section>${proposal}</div>`;
 }
+function rRiscoList(rs){
+  if(!rs||!rs.length)return '<div class="ib ibb">Nenhum risco adicionado.</div>';
+  return rs.map((r,i)=>`<article class="card mapping-risk-card"><div class="mapping-risk-header"><h3 class="mapping-risk-title">${esc(r.desc)}</h3><div class="mapping-risk-actions"><button type="button" class="btn" onclick="editarRisco(${i})" aria-label="Editar risco">✎ <span>Editar</span></button><button type="button" class="btn btn-r" onclick="remR(${i})" aria-label="Remover risco">× <span>Remover</span></button></div></div><div class="mapping-risk-assessment"><span>Probabilidade ${pbBadge(r.prob)}</span><span>Impacto ${ibBadge(r.imp)}</span></div>${riscoMapeamentoDetalhes(r)}</article>`).join('');
+}
+
 function editarRisco(i){
   const r=curProc.ent.riscos[i];
   if(!r)return;
@@ -14672,7 +14712,33 @@ function parseNumBR(v, fallback = 0){
   return Number.isFinite(n) ? n : fallback;
 }
 
+function _kpiPeriodoPrevisto(k){
+  if(String(k.periodicidade||'').trim().toLowerCase()!=='trimestral')return true;
+  const text=String(k.periodo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const quarter=text.match(/(?:^t([1-4])\b|^([1-4])(?:[ºo°]\s*)?\s*(?:trimestre|tri|t)\b)/);
+  if(quarter)return true;
+  let month;
+  const iso=text.match(/^\d{4}[-/](\d{1,2})(?:[-/]\d{1,2})?$/),numeric=text.match(/^(\d{1,2})[/.-]\d{4}$/);
+  if(iso)month=Number(iso[1]);
+  else if(numeric)month=Number(numeric[1]);
+  else{
+    const months=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    const index=months.findIndex(name=>new RegExp('^'+name+'[a-z]*(?:[. /-]|$)').test(text));
+    if(index>=0)month=index+1;
+  }
+  return [3,6,9,12].includes(month);
+}
+function _kpiAtualizarPeriodicidade(){
+  const allowed=_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value});
+  for(const id of ['nkpi-real','nkpi-meta','nkpi-indice','nkpi-pct-real','nkpi-sem-dado']){
+    const input=document.getElementById(id);if(!input)continue;
+    const field=input.closest('.fg');if(field)field.hidden=!allowed;
+    input.disabled=!allowed;
+  }
+  const note=document.getElementById('kpi-trimestral-note');if(note)note.hidden=allowed;
+}
 function _kpiMetaInformada(k){
+  if(!_kpiPeriodoPrevisto(k))return null;
   const meta = parseNumBR(k.meta, null);
   // Importações antigas perderam a distinção entre célula sem meta e zero.
   // Um zero só é meta nesses registros quando confirmado pela nova importação/edição.
@@ -14680,6 +14746,7 @@ function _kpiMetaInformada(k){
   return meta;
 }
 function _kpiMeta(k, source=typeof kpis==='undefined'?[]:kpis){
+  if(!_kpiPeriodoPrevisto(k))return null;
   const key = (k.codigo||k.nome||'').trim();
   if(!key || !k.periodo) return _kpiMetaInformada(k);
   const series = source.filter(i=>(i.codigo||i.nome||'').trim()===key);
@@ -14728,6 +14795,10 @@ async function _kpiLoadDiscontinued(){
     if(typeof lsSet==='function') lsSet('kpis_descontinuados',JSON.stringify(registry));
   }
 }
+function _kpiImportKey(k){
+  const normalize=value=>String(value??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
+  return normalize(k.codigo || k.nome)+'|'+normalize(fmtPeriodo(k.periodo));
+}
 async function importarIndicadores(input){
   const file = input.files[0]; if(!file) return;
     try{
@@ -14759,7 +14830,7 @@ async function importarIndicadores(input){
       // Build protection set — skip indicators already edited manually (importado_editado)
       const editadosImport = new Set(
         kpis.filter(k => k.origem === 'importado_editado')
-            .map(k => (k.codigo||k.nome||'').trim() + '|' + (k.periodo||'').trim())
+            .map(_kpiImportKey)
       );
       // Build full config map from edited rows so new periods inherit manual changes.
       // meta fica de fora da herança "por linha existente na planilha" — cada mês tem sua própria
@@ -14777,7 +14848,7 @@ async function importarIndicadores(input){
         };
       });
 
-      let added = 0;
+      let added = 0, updated = 0, protectedRows = 0;
       rows.forEach(row => {
         const area    = (cArea    ? row[cArea]    : '').toString().trim();
         const nome    = (cCodigo  ? row[cCodigo]  : '').toString().trim();
@@ -14796,17 +14867,19 @@ async function importarIndicadores(input){
         }
         const polSheet = cPol ? (row[cPol]||'').toString().trim() : '';
         const groupKey = (nome||enunc||'').trim();
-        const chaveImp = groupKey + '|' + periodo.trim();
+        const chaveImp = _kpiImportKey({codigo:nome,nome:enunc || nome,periodo});
         if(!area && !nome && !enunc) return; // skip empty rows
         if(_kpiIsDiscontinued({codigo:nome,nome:enunc || nome})) return;
-        if(editadosImport.has(chaveImp)) return; // skip manually edited periods
+        if(editadosImport.has(chaveImp)){protectedRows++;return;} // preserve manual edits
         const cfg = cfgEditadoImport[groupKey] || {};
         const metaFinal = cMeta ? meta : (cfg.meta ?? null);
         if(metaFinal === null || real === null) pctReal = null;
         const polaridade = cfg.polaridade
           || (polSheet === 'Menor é melhor' ? 'Menor é melhor' : 'Maior é melhor');
-        kpis.push({
-          id: _kpiIdC++,
+        const existing=kpis.find(k=>k.origem==='importado' && _kpiImportKey(k)===chaveImp);
+        const imported={
+          ...existing,
+          id: existing?.id ?? _kpiIdC++,
           area:          cfg.area          || area,
           codigo:        nome,
           nome:          cfg.nome          || enunc||nome,
@@ -14816,19 +14889,26 @@ async function importarIndicadores(input){
           unidade:       cfg.unidade       || '',
           meta:          metaFinal,
           meta_definida: metaFinal !== null,
-          pid:           cfg.pid  ?? null,
-          arq_id:        cfg.arq_id ?? null,
+          pid:           cfg.pid  ?? existing?.pid ?? null,
+          arq_id:        cfg.arq_id ?? existing?.arq_id ?? null,
           periodo, indice, realizado: real,
           sem_dado: real === null,
           analise, pct_realizado: pctReal,
           polaridade, origem: 'importado',
-        });
-        added++;
+        };
+        if(existing){
+          Object.assign(existing,imported);
+          // Reimportações antigas criavam duplicatas; mantém o ID original.
+          for(let i=kpis.length-1;i>=0;i--){
+            if(kpis[i]!==existing && kpis[i].origem==='importado' && _kpiImportKey(kpis[i])===chaveImp)kpis.splice(i,1);
+          }
+          updated++;
+        }else{kpis.push(imported);added++;}
       });
 
       rInd();
       fbAutoSave('importarInd');
-      toast(added + ' indicador(es) importado(s)');
+      toast(added+' registro(s) novo(s), '+updated+' atualizado(s)'+(protectedRows?'; '+protectedRows+' preservado(s) por edição manual.':'.'));
     } catch(err){ toast('Erro ao ler planilha: ' + err.message,'var(--red)'); }
     input.value = '';
 }
@@ -14932,6 +15012,7 @@ function _kpiGrpWithData(items){
   return items
     .filter(i=>!i.sem_dado)
     .filter(i=>{
+      if(!_kpiPeriodoPrevisto(i))return false;
       const r = Number.parseFloat(i.realizado);
       return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
     });
@@ -14960,6 +15041,7 @@ function _kpiGrpStatus(items){
   return pct>=100?'ok':'nok';
 }
 function rInd(){
+  if(atualizarAbasIndicadores()){rIndicadoresManuais();return;}
   _populateProjetoFilters();
   const epAct = document.getElementById('ind-actions-ep');
   if(epAct) epAct.style.display = isEP() ? 'flex' : 'none';
@@ -15028,7 +15110,7 @@ function rInd(){
 
   Object.values(grupos).forEach(kpiApplyMetaFallback);
   el.innerHTML = Object.entries(grupos).map(([key,items])=>kpiGrupoCardHTML(key,items)).join('');
-  setTimeout(()=>{ Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
+  setTimeout(()=>{ if(indicadoresAba==='manuais')return; Object.entries(grupos).forEach(([key,items])=>createKpiChart(key,items)); }, 50);
   setTimeout(injectIaIndicadores, 100);
 }
 
@@ -15036,12 +15118,14 @@ function rInd(){
 
 let _indCharts = [];
 function kpiGrupoCardHTML(key, items){
+  items=items.map(k=>_kpiPeriodoPrevisto(k)?k:{...k,realizado:null,meta:null,pct_realizado:null,sem_dado:true});
   const nome = items[0].nome;
   const polaridade = items[0].polaridade||'Maior é melhor';
   const area = items[0].area||'';
 
   // Border color based on most recent measured period (any numeric realizado, not sem_dado)
   const withData = items.filter(i=>{
+    if(!_kpiPeriodoPrevisto(i))return false;
     if(i.sem_dado) return false;
     const r = Number.parseFloat(i.realizado);
     return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
@@ -15219,6 +15303,7 @@ function createKpiChart(key, items, container=document, charts=_indCharts){
   if(!canvas) return;
   // Only show measured periods with a numeric realizado (not sem_dado)
   const withData = items.filter(i=>{
+    if(!_kpiPeriodoPrevisto(i))return false;
     if(i.sem_dado) return false;
     const r = Number.parseFloat(i.realizado);
     return !Number.isNaN(r) && i.realizado !== null && i.realizado !== undefined && i.realizado !== '';
@@ -15293,6 +15378,7 @@ function createKpiChart(key, items, container=document, charts=_indCharts){
 // rIndGraficos removida (dead code — alias sem chamador; use rInd())
 
 function kpiCard(k){
+  if(!_kpiPeriodoPrevisto(k))k={...k,realizado:null,meta:null,pct_realizado:null,sem_dado:true};
   const polaridade = k.polaridade || 'Maior é melhor';
   const unidade    = k.unidade ? ' '+k.unidade : '';
   const polIcon    = polaridade === 'Menor é melhor' ? '↓' : '↑';
@@ -15386,6 +15472,7 @@ function _kpiFormSetFields(k){
   if(cumEl) cumEl.checked = !!k.cumulativo;
   _kpiPopulateProcessSelector(k);
   void _kpiPopulateProjectSelector(k);
+  _kpiAtualizarPeriodicidade();
 }
 async function _kpiPopulateProjectSelector(k){
   const select=document.getElementById('nkpi-projetos');
@@ -15516,6 +15603,7 @@ function _kpiNavFlushCurrent(){
   const k = globalThis._kpiPeriodos[globalThis._kpiPeriodoIdx];
   if(!k) return;
   if(!globalThis._kpiPeriodEdits) globalThis._kpiPeriodEdits = {};
+  const allowed=_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value});
   const metaRaw = Number.parseFloat(document.getElementById('nkpi-meta')?.value);
   const metaValue = Number.isNaN(metaRaw) ? null : metaRaw;
   const previous = globalThis._kpiPeriodEdits[k.id];
@@ -15529,11 +15617,13 @@ function _kpiNavFlushCurrent(){
     sem_dado:  !!(document.getElementById('nkpi-sem-dado')?.checked),
     meta:      metaValue === effectiveMeta ? (previous ? previous.meta : k.meta) : metaValue,
   };
+  if(!allowed)Object.assign(globalThis._kpiPeriodEdits[k.id],{meta:null,realizado:null,indice:null,sem_dado:true});
 }
 function _kpiEditingPeriods(){
   return (globalThis._kpiPeriodos||[]).map(k=>{
     const edits = (globalThis._kpiPeriodEdits||{})[k.id];
-    return edits ? {...k, ...edits, meta_definida:parseNumBR(edits.meta,null)!==null} : k;
+    const periodicidade=document.getElementById('nkpi-period')?.value || k.periodicidade;
+    return edits ? {...k, periodicidade, ...edits, meta_definida:parseNumBR(edits.meta,null)!==null} : {...k,periodicidade};
   });
 }
 
@@ -15555,6 +15645,7 @@ function _kpiNavLoadCurrent(){
   if(sdEl2) sdEl2.checked = !!(edits ? edits.sem_dado : k.sem_dado);
   calcPctReal();
   _kpiNavUpdateSelector();
+  _kpiAtualizarPeriodicidade();
 }
 
 function _kpiNavGoto(){
@@ -15579,6 +15670,7 @@ function _kpiNavStep(dir){
 }
 
 function calcPctReal(){
+  if(!_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value})){const field=document.getElementById('nkpi-pct-real');if(field)field.value='';return;}
   const semDado = document.getElementById('nkpi-sem-dado')?.checked;
   const pctEl   = document.getElementById('nkpi-pct-real');
   if(semDado){ if(pctEl){pctEl.value = 'N/A';} return; }
@@ -15632,6 +15724,7 @@ function _kpiPromotedOrigin(origem){
   return origem;
 }
 function _kpiReadPeriodFields(){
+  if(!_kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value}))return {metaVal:null,realVal:null,semDado:true,polaridade:document.getElementById('nkpi-polaridade').value,pct:null};
   const meta = Number.parseFloat(document.getElementById('nkpi-meta').value);
   const real = Number.parseFloat(document.getElementById('nkpi-real').value);
   const metaVal = Number.isNaN(meta) ? null : meta;
@@ -15670,7 +15763,7 @@ function _kpiReadSinglePayload(area, nome, origem, id){
     origem,
     ..._kpiReadCommonFields(area, nome),
     periodo: document.getElementById('nkpi-periodo').value.trim(),
-    indice: Number.parseFloat(document.getElementById('nkpi-indice').value) || 0,
+    indice: _kpiPeriodoPrevisto({periodicidade:document.getElementById('nkpi-period')?.value,periodo:document.getElementById('nkpi-periodo')?.value})?(Number.parseFloat(document.getElementById('nkpi-indice').value) || 0):null,
     polaridade: periodo.polaridade,
     meta: periodo.metaVal,
     meta_definida: periodo.metaVal !== null,
@@ -15691,6 +15784,7 @@ function _kpiApplyPeriodEdits(target, edits){
   target.meta_definida = parseNumBR(edits.meta, null) !== null;
 }
 function _kpiRefreshPct(target){
+  if(!_kpiPeriodoPrevisto(target)){Object.assign(target,{meta:null,meta_definida:false,realizado:null,indice:null,pct_realizado:null,sem_dado:true});return;}
   const real = Number.parseFloat(target.realizado);
   const metaVal = _kpiMeta(target);
   const realVal = Number.isNaN(real) ? 0 : real;
@@ -19580,15 +19674,27 @@ function _resumoIndicadoresRelatorioPdf(lista){
   };
 }
 
-function gerarRelatorioIndPdf(){
-  if(!_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
+function _indicadoresFiltradosRelatorio(){
+  const value=id=>document.getElementById(id)?.value || '';
+  const filters={area:value('ind-area-sel'),periodo:value('ind-periodo-sel'),nome:value('ind-nome-sel'),ppe:value('ind-ppe-sel')};
+  const macro=value('ind-macro-sel'),process=value('ind-proc-sel'),interval=value('ind-intervalo-sel'),projectId=value('ind-projeto-sel');
+  const project=projectId?PROJETOS_USUARIOS.find(p=>String(p.id)===projectId):null;
+  const projectIndicators=projectId?new Set(project?IndicadoresImpactados.list(project,ARQUITETURA,kpis,processos).map(row=>row.ind):[]):null;
+  return kpis.filter(k=>{
+    if(projectIndicators && !projectIndicators.has(k))return false;
+    const link=(macro || process)?_kpiGetMacroProc(k):{};
+    return Object.entries(filters).every(([key,value])=>!value || k[key]===value) && (!macro || link.macro===macro) && (!process || link.proc===process) && _periodoInIntervalo(k.periodo,interval) && _kpiPeriodoPrevisto(k);
+  });
+}
+function gerarRelatorioIndPdf(semIA=false){
+  if(!semIA && !_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
 
   const area      = document.getElementById('ind-area-sel')?.value      || '';
   const period    = document.getElementById('ind-periodo-sel')?.value   || '';
   const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const dtHoje = new Date().toLocaleDateString('pt-BR');
 
-  const lista = _filtrarIndicadoresRelatorioPdf(_lastIndLista);
+  const lista = _filtrarIndicadoresRelatorioPdf(semIA?_indicadoresFiltradosRelatorio():_lastIndLista);
 
   if(!lista.length){ toast('Nenhum indicador com dados para o relatório.','var(--amber)'); return; }
 
@@ -19597,7 +19703,8 @@ function gerarRelatorioIndPdf(){
   _ordenarIndicadoresRelatorioPdf(lista);
   const rows = _rowsIndicadoresRelatorioPdf(lista, kpis, {period, intervalo});
   const resumo = _resumoIndicadoresRelatorioPdf(lista);
-  const filtros = [area?'Área: '+area:'', period?'Período: '+period:'', intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
+  const filterFields=[['ind-area-sel','Área'],['ind-periodo-sel','Período'],['ind-intervalo-sel','Intervalo'],['ind-nome-sel','Indicador'],['ind-ppe-sel','PPE'],['ind-macro-sel','Macroprocesso'],['ind-proc-sel','Processo'],['ind-projeto-sel','Projeto']];
+  const filtros=filterFields.filter((_,index)=>semIA || index<3).map(([id,label])=>{const field=document.getElementById(id);return field?.value?label+': '+(field.selectedOptions?.[0]?.textContent || field.value):'';}).filter(Boolean).join(' · ') || 'Todos os indicadores';
   const _kpiHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -19639,8 +19746,8 @@ function gerarRelatorioIndPdf(){
 </div>
 <div class="sec">Taxa de atingimento por macroprocesso</div>
 <div class="area-grid">${macroprocessoCards}</div>
-<div class="sec">Análise dos Resultados</div>
-<div class="ia-box">${esc(_lastIndAnalise).replaceAll('\n','<br>')}</div>
+${semIA?'':`<div class="sec">Análise dos Resultados</div>
+<div class="ia-box">${esc(_lastIndAnalise).replaceAll('\n','<br>')}</div>`}
 <div class="sec">Indicadores com dados no período</div>
 <table>
   <thead><tr>
@@ -19818,6 +19925,7 @@ function injectIaPop(){
 // Indicadores page — inject IA analysis button
 
 function injectIaIndicadores(){
+  if(indicadoresAba==='manuais')return;
   const el = document.getElementById('ind-c');
   if(!el || document.getElementById('ia-ind-panel')) return;
 
@@ -20030,6 +20138,7 @@ function confirmarImportPOP(){
     hist:[{acao:'Processo criado via importação de POP Word (IA)',role:'EP',data:agora}],
     auditoria:null
   };
+  Riscos.adopt(novoProc,ARQUITETURA);
   processos.push(novoProc);
   // Marca como mapeado manualmente se não tem arq_id
   if(arqId){mapeadosManual.add(arqId);lsSet('mapeadosManual',JSON.stringify([...mapeadosManual]));fbAutoSave('mapeados');}
@@ -20083,6 +20192,6 @@ function confirmarImportPOP(){
   </div>
 </div>
 
-<script src="src/admin/licencas-lite.js?v=3"></script>
+<script src="src/admin/licencas-lite.js?v=4"></script>
 <script src="src/processos/central-controles-view.js?v=20261013-2"></script><script src="src/processos/central-controles-core.js?v=20261013-2"></script><script src="src/processos/central-controles.js?v=20261013-2"></script></body>
 </html>
