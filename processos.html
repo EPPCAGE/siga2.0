@@ -10,7 +10,7 @@
 <title>SIGA - EPP</title>
 <link rel="icon" type="image/png" href="assets/siga-epp-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
-<link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261015-1">
+<link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261016-2">
 <script src="src/shared/indicadores-manuais.js?v=20261015-1"></script>
 <script src="src/processos/indicadores-manuais.js?v=20261015-1"></script>
 <link rel="stylesheet" href="src/admin/licencas-lite.css?v=20261013-1">
@@ -49,7 +49,7 @@
 <script src="src/shared/relatorio-executivo-style.js?v=20261010-1"></script>
 <script src="src/processos/riscos-module.js?v=20261013-1"></script>
 <script src="src/shared/riscos-projetos.js?v=20261016-1"></script>
-<script src="src/processos/riscos-projetos-module.js?v=20261016-1"></script>
+<script src="src/processos/riscos-projetos-module.js?v=20261016-2"></script>
 <script src="src/shared/objetivos-estrategicos.js?v=20261009-2"></script>
 <!-- ⭐ FASE 0: Módulos compartilhados entre processos e projetos -->
 <script src="src/shared/users/users-state.js"></script>
@@ -1398,12 +1398,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 </style>
 <link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261013-2">
 <div id="page-riscos" class="page"><div style="padding:2rem">
-  <div role="tablist" aria-label="Tipo de risco" onkeydown="riscosAbasTeclado(event)" class="tabs">
+  <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s" id="riscos-page-subtitle">Exposição dos processos e acompanhamento dos tratamentos</div></div><div class="risk-page-actions" id="riscos-process-actions"><button type="button" class="btn btn-p" id="riscos-new" hidden onclick="riscosCreate()">+ Novo risco</button><button type="button" class="btn" onclick="riscosExportPdf()">Gerar relatório PDF</button></div></div>
+  <div role="tablist" tabindex="0" aria-label="Tipo de risco" onkeydown="riscosAbasTeclado(event)" class="tabs">
     <button type="button" class="tab on" role="tab" id="riscos-tab-processos" aria-controls="riscos-panel-processos" aria-selected="true" onclick="riscosSelecionarAba('processos')">Riscos de processos</button>
     <button type="button" class="tab" role="tab" id="riscos-tab-projetos" tabindex="-1" aria-controls="riscos-panel-projetos" aria-selected="false" onclick="riscosSelecionarAba('projetos')">Riscos de projetos</button>
   </div>
   <div id="riscos-panel-processos" role="tabpanel" aria-labelledby="riscos-tab-processos">
-  <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><div class="risk-page-actions"><button type="button" class="btn btn-p" id="riscos-new" hidden onclick="riscosCreate()">+ Novo risco</button><button type="button" class="btn" onclick="riscosExportPdf()">Gerar relatório PDF</button></div></div>
   <div class="risk-filters">
     <div class="risk-filter"><label id="riscos-label-prob" for="riscos-prob">Probabilidade</label><select class="fi" id="riscos-prob" onchange="rRiscos()"><option value="">Todas</option><option>Baixa</option><option value="Media">Média</option><option>Alta</option></select></div>
     <div class="risk-filter"><label id="riscos-label-level" for="riscos-level">Nível de risco</label><select class="fi" id="riscos-level" onchange="rRiscos()"><option value="">Todos</option><option value="low">Baixo</option><option value="moderate">Moderado</option><option value="high">Alto</option><option value="critical">Crítico</option></select></div>
@@ -1417,7 +1417,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   </div><div id="riscos-content" aria-live="polite"></div>
   </div>
   <div id="riscos-panel-projetos" role="tabpanel" aria-labelledby="riscos-tab-projetos" hidden>
-    <div class="ph"><div><div class="ph-t">Riscos de projetos</div><div class="ph-s">Riscos informados nos canvas de ideação e acompanhamento dos tratamentos</div></div><button type="button" class="btn" onclick="riscosProjetosCarregar()">Atualizar riscos</button></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem"><button type="button" class="btn" onclick="riscosProjetosCarregar()">Atualizar riscos</button></div>
     <p class="risk-note">Cada item do canvas aparece como um risco. Edite as descrições no canvas do projeto; registre a avaliação e o tratamento aqui.</p>
     <div class="risk-filters"><div class="risk-filter"><label for="riscos-projeto-processId">Projeto</label><select class="fi" id="riscos-projeto-processId" onchange="rRiscosProjetos()"><option value="">Todos</option></select></div><div class="risk-filter"><label for="riscos-projeto-prob">Probabilidade</label><select class="fi" id="riscos-projeto-prob" onchange="rRiscosProjetos()"><option value="">Todos</option><option value="Baixa">Baixa</option><option value="Media">Média</option><option value="Alta">Alta</option></select></div><div class="risk-filter"><label for="riscos-projeto-imp">Impacto</label><select class="fi" id="riscos-projeto-imp" onchange="rRiscosProjetos()"><option value="">Todos</option><option value="Baixo">Baixo</option><option value="Medio">Médio</option><option value="Alto">Alto</option><option value="Critico">Crítico</option></select></div><div class="risk-filter"><label for="riscos-projeto-status">Situação</label><select class="fi" id="riscos-projeto-status" onchange="rRiscosProjetos()"><option value="">Todos</option><option value="sem_tratamento">Sem tratamento</option><option value="planejado">Tratamento planejado</option><option value="em_tratamento">Em tratamento</option><option value="implementado">Tratamento implementado</option></select></div>
     <div class="risk-filter"><label for="riscos-projeto-query">Palavra-chave</label><input class="fi" type="search" id="riscos-projeto-query" oninput="rRiscosProjetos()" placeholder="Risco, projeto ou tratamento"></div></div>
@@ -1521,7 +1521,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="btn btn-p" onclick="abrirNovoKpi()">+ Novo indicador</button>
     </div>
   </div>
-  <div class="tabs" role="tablist" aria-label="Origem dos indicadores">
+  <div class="tabs" role="tablist" tabindex="0" aria-label="Origem dos indicadores">
     <button type="button" class="tab on" role="tab" id="ind-tab-sisplan" aria-selected="true" aria-controls="ind-panel-sisplan" onclick="selecionarAbaIndicadores('sisplan')">Indicadores SISPLAN</button>
     <button type="button" class="tab" role="tab" id="ind-tab-manuais" aria-selected="false" aria-controls="ind-panel-manuais" onclick="selecionarAbaIndicadores('manuais')">Indicadores manuais</button>
   </div>
@@ -14730,7 +14730,7 @@ function parseNumBR(v, fallback = 0){
 function _kpiPeriodoPrevisto(k){
   if(String(k.periodicidade||'').trim().toLowerCase()!=='trimestral')return true;
   const text=String(k.periodo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  const quarter=text.match(/(?:^t([1-4])\b|^([1-4])(?:[ºo°]\s*)?\s*(?:trimestre|tri|t)\b)/);
+  const quarter=text.match(/(?:^t([1-4])\b|^([1-4])[ºo°]?\s*(?:trimestre|tri|t)\b)/);
   if(quarter)return true;
   let month;
   const iso=text.match(/^\d{4}[-/](\d{1,2})(?:[-/]\d{1,2})?$/),numeric=text.match(/^(\d{1,2})[/.-]\d{4}$/);
