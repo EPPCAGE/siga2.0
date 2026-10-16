@@ -85,6 +85,16 @@ describe('resultado do período anterior no relatório', () => {
     expect(c.media(lista.map(k=>({...k,meta:null})),filtros)[0].meta).toBeNull();
   });
 
+  it.each([[0,100],[2,0]])('preserva meta zero no trimestre com media %s', (realizado,pct) => {
+    const c=context(),filtros={intervalo:'T3/2026'};
+    const lista=['jul','ago','set'].map(mes=>({...kpi,nome:'Erros na MSC por parametriza\u00e7\u00e3o e/ou normatiza\u00e7\u00e3o',area:'Contabilidade',periodo:mes+'/2026',meta:0,meta_definida:true,origem:'gsheets',sem_dado:false,polaridade:'Menor \u00e9 melhor',realizado}));
+    expect(c.media(lista,filtros)[0].meta).toBe(0);
+    const rows=c.rows(lista,[],filtros);
+    expect(rows).not.toContain('Sem meta');
+    expect(rows).toContain(pct+'%');
+    expect(rows).toContain(pct===100?'Meta atingida':'Muito abaixo');
+  });
+
   it('soma o semestre e o ano anteriores, inclusive com mudança de ano', () => {
     const c = context();
     const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
