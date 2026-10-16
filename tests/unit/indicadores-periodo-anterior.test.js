@@ -38,16 +38,24 @@ describe('resultado do período anterior no relatório', () => {
     expect(cell(c.rows([kpi], history))).toBe('—');
   });
 
-  it('soma os três meses do trimestre anterior, mesmo para cada linha mensal filtrada', () => {
+  it('compara cada mes com a mesma posicao do trimestre anterior', () => {
     const c = context();
     const history = ['abr/2026', 'mai/2026', 'jun/2026'].map((periodo, i) => ({ ...kpi, periodo, realizado: (i + 1) * 10 }));
-    history.push({ ...kpi, periodo: 'mar/2026', realizado: 999 }, kpi);
     const filtros = { intervalo: 'T3/2026' };
-    for (const periodo of ['jul/2026', 'ago/2026', 'set/2026']) {
-      expect(c.anterior({ ...kpi, periodo }, history, filtros)).toEqual({ valor: 60, periodo: 'T2/2026' });
+    for (const [i, periodo] of ['jul/2026', 'ago/2026', 'set/2026'].entries()) {
+      const current = { ...kpi, periodo };
+      expect(c.anterior(current, history, filtros)).toEqual({ valor: (i + 1) * 10, periodo: history[i].periodo });
+      expect(cell(c.rows([current], history, filtros))).toContain(history[i].periodo);
+      expect(cell(c.rows([current], history, filtros))).toContain((i + 1) * 10 + ' unidades');
     }
-    expect(cell(c.rows([kpi], history, filtros))).toContain('60 unidades');
-    expect(cell(c.rows([kpi], history, filtros))).toContain('T2/2026');
+  });
+
+  it('compara meses na virada do ano e aceita trimestre explicito', () => {
+    const c = context();
+    for (const [periodo, anterior] of [['jan/2026','out/2025'],['fev/2026','nov/2025'],['mar/2026','dez/2025']]) {
+      expect(c.anterior({...kpi, periodo}, [{...kpi, periodo:anterior, realizado:7}], {intervalo:'T1/2026'})).toEqual({valor:7, periodo:anterior});
+    }
+    expect(c.anterior({...kpi, periodo:'T3/2026'}, [{...kpi, periodo:'T2/2026', realizado:42}], {intervalo:'T3/2026'})).toEqual({valor:42, periodo:'T2/2026'});
   });
 
   it('soma o semestre e o ano anteriores, inclusive com mudança de ano', () => {
@@ -62,13 +70,13 @@ describe('resultado do período anterior no relatório', () => {
     expect(context().anterior(kpi, [{ ...kpi, periodo: 'jul/2026', realizado: 3 }], { period: 'ago/2026', intervalo: 'T3/2026' })).toEqual({ valor: 3, periodo: 'jul/2026' });
   });
 
-  it('não apresenta um total parcial nem soma períodos duplicados', () => {
+  it('exige apenas o mes correspondente e nao soma duplicatas', () => {
     const c = context();
     const history = ['abr/2026', 'mai/2026', 'jun/2026'].map(periodo => ({ ...kpi, periodo, realizado: 2 }));
     const filtros = { intervalo: 'T3/2026' };
-    expect(c.anterior(kpi, history.slice(1), filtros)).toBeNull();
-    expect(c.anterior(kpi, [...history, { ...history[0] }], filtros)?.valor).toBe(6);
-    expect(c.anterior(kpi, [...history, { ...history[0], sem_dado: true }], filtros)).toBeNull();
+    expect(c.anterior(kpi, history.filter(k => k.periodo !== 'mai/2026'), filtros)).toBeNull();
+    expect(c.anterior(kpi, [...history, { ...history[0] }], filtros)?.valor).toBe(2);
+    expect(c.anterior(kpi, [...history, { ...history[1], sem_dado: true }], filtros)).toBeNull();
   });
 
   it.each([null, undefined, '', 'Sem dado', Infinity])('mostra traço para resultado inválido: %s', realizado => {
@@ -101,9 +109,9 @@ describe('resultado do período anterior no relatório', () => {
     expect(cell(c.rows([history[3]], history, filtros))).toContain('9,17 horas');
   });
 
-  it('soma os meses do trimestre anterior mesmo com periodicidade cadastral anual', () => {
+  it('compara o mes correspondente mesmo com periodicidade cadastral anual', () => {
     const history = ['abr/2026', 'mai/2026', 'jun/2026'].map(periodo => ({ ...kpi, periodo, periodicidade: 'Anual', realizado: 2 }));
-    expect(context().anterior({ ...kpi, periodicidade: 'Anual' }, history, { intervalo: 'T3/2026' })).toEqual({ valor: 6, periodo: 'T2/2026' });
+    expect(context().anterior({ ...kpi, periodicidade: 'Anual' }, history, { intervalo: 'T3/2026' })).toEqual({ valor: 2, periodo: 'mai/2026' });
   });
 
   it('mostra comparação com e sem meta, preservando desempenho e removendo códigos', () => {

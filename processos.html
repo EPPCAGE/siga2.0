@@ -19595,7 +19595,11 @@ function _resultadoAnteriorIndicadorRelatorio(k, historico, filtros = {}){
   const atual = _periodoIndicadorRelatorio(k.periodo);
   if(!chave || !atual) return null;
   const selecionado = _periodoIndicadorRelatorio(filtros.period || filtros.intervalo);
-  const referencia = selecionado || atual;
+  // Monthly rows in a quarterly report compare the same position in the previous quarter.
+  const trimestreMensal = selecionado?.meses === 3 && atual.meses === 1;
+  const referencia = trimestreMensal
+    ? {inicio:atual.inicio - selecionado.meses + atual.meses, meses:atual.meses}
+    : selecionado || atual;
   if(referencia.meses % atual.meses !== 0) return null;
   const inicioAnterior = referencia.inicio - referencia.meses;
   const porPeriodo = new Map();
@@ -19765,7 +19769,7 @@ ${semIA?'':`<div class="sec">Análise dos Resultados</div>
     <td></td>
   </tr></tfoot>`}
 </table>
-<p style="margin-top:6px;font-size:9.5px;color:#6b7280">Resultado anterior: valor do período imediatamente anterior ao selecionado. Em intervalos maiores, soma os resultados que compõem o período anterior (ex.: os três meses do trimestre anterior). Sem filtro, segue o período registrado em cada linha. “—” indica ausência de dados completos para a comparação.</p>
+<p style="margin-top:6px;font-size:9.5px;color:#6b7280">Resultado anterior: valor do período imediatamente anterior ao selecionado. No relatório trimestral, cada mês é comparado ao mês correspondente do trimestre anterior (ex.: julho com abril, agosto com maio e setembro com junho). Nos demais intervalos maiores, soma os resultados do intervalo anterior. Sem filtro, segue o período registrado em cada linha. “—” indica ausência de dados completos para a comparação.</p>
 <div class="legend">
   <span><span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-weight:700">⭐ Destaque</span> ≥ 130% da meta</span>
   <span><span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:10px;font-weight:700">✓ Meta atingida</span> ≥ 100%</span>
