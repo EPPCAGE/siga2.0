@@ -1398,7 +1398,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 </style>
 <link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261013-2">
 <div id="page-riscos" class="page"><div style="padding:2rem">
-  <div role="tablist" aria-label="Tipo de risco" onkeydown="riscosAbasTeclado(event)" class="tabs">
+  <div role="tablist" tabindex="0" aria-label="Tipo de risco" onkeydown="riscosAbasTeclado(event)" class="tabs">
     <button type="button" class="tab on" role="tab" id="riscos-tab-processos" aria-controls="riscos-panel-processos" aria-selected="true" onclick="riscosSelecionarAba('processos')">Riscos de processos</button>
     <button type="button" class="tab" role="tab" id="riscos-tab-projetos" tabindex="-1" aria-controls="riscos-panel-projetos" aria-selected="false" onclick="riscosSelecionarAba('projetos')">Riscos de projetos</button>
   </div>
@@ -1521,7 +1521,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <button type="button" class="btn btn-p" onclick="abrirNovoKpi()">+ Novo indicador</button>
     </div>
   </div>
-  <div class="tabs" role="tablist" aria-label="Origem dos indicadores">
+  <div class="tabs" role="tablist" tabindex="0" aria-label="Origem dos indicadores">
     <button type="button" class="tab on" role="tab" id="ind-tab-sisplan" aria-selected="true" aria-controls="ind-panel-sisplan" onclick="selecionarAbaIndicadores('sisplan')">Indicadores SISPLAN</button>
     <button type="button" class="tab" role="tab" id="ind-tab-manuais" aria-selected="false" aria-controls="ind-panel-manuais" onclick="selecionarAbaIndicadores('manuais')">Indicadores manuais</button>
   </div>
@@ -14730,7 +14730,7 @@ function parseNumBR(v, fallback = 0){
 function _kpiPeriodoPrevisto(k){
   if(String(k.periodicidade||'').trim().toLowerCase()!=='trimestral')return true;
   const text=String(k.periodo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  const quarter=text.match(/(?:^t([1-4])\b|^([1-4])(?:[ºo°]\s*)?\s*(?:trimestre|tri|t)\b)/);
+  const quarter=text.match(/(?:^t([1-4])\b|^([1-4])[ºo°]?\s*(?:trimestre|tri|t)\b)/);
   if(quarter)return true;
   let month;
   const iso=text.match(/^\d{4}[-/](\d{1,2})(?:[-/]\d{1,2})?$/),numeric=text.match(/^(\d{1,2})[/.-]\d{4}$/);
