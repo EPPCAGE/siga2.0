@@ -19646,10 +19646,9 @@ function _rowIndicadorRelatorioPdf(k, resultadoAnterior = null){
     <td>${esc(k.nome)}${_kpiEtiquetasHtml(k)}</td>
     <td style="font-size:10px;color:#6b7280">${esc(_macroprocessoIndicador(k))}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
-    <td style="font-size:10px;color:#6b7280">${esc(k.periodo||'—')}</td>
     <td style="text-align:center">${hasMeta?_kpiMeta(k)+und:'—'}</td>
     <td style="text-align:center">${resultadoAnterior ? resultadoAnterior.valor.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und)+`<div style="font-size:9px;color:#6b7280">${esc(resultadoAnterior.periodo)}</div>` : '—'}</td>
-    <td style="text-align:center;font-weight:600">${k.realizado}${und}</td>
+    <td style="text-align:center;font-weight:600">${k.realizado}${und}<div style="font-size:9px;font-weight:400;color:#6b7280">${esc(k.periodo||'—')}</div></td>
     <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
     <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
   </tr>`;
@@ -19755,7 +19754,7 @@ ${semIA?'':`<div class="sec">Análise dos Resultados</div>
 <div class="sec">Indicadores com dados no período</div>
 <table>
   <thead><tr>
-    <th>Indicador</th><th>Macroprocesso</th><th>Área</th><th>Período</th>
+    <th>Indicador</th><th>Macroprocesso</th><th>Área</th>
     <th style="text-align:center">Meta</th>
     <th style="text-align:center">Resultado do período anterior</th>
     <th style="text-align:center">Realizado</th>

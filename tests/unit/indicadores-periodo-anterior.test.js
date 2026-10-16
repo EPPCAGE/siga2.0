@@ -16,7 +16,7 @@ function context() {
     '({ anterior: _resultadoAnteriorIndicadorRelatorio, rows: _rowsIndicadoresRelatorioPdf })',
   ].join('\n'), { kpis: [], processos: [], isCritico: () => false, esc: v => String(v), _kpiGetMacroProc: () => ({ macro: 'Macro' }) });
 }
-const cell = row => [...row.matchAll(/<td[^>]*>(.*?)<\/td>/g)][5][1];
+const cell = row => [...row.matchAll(/<td[^>]*>(.*?)<\/td>/g)][4][1];
 
 describe('resultado do período anterior no relatório', () => {
   it.each([
@@ -122,7 +122,7 @@ describe('resultado do período anterior no relatório', () => {
       expect(cell(row)).toContain('1,25 unidades');
       expect(row).toContain(meta === null ? 'Sem meta' : '67%');
       expect(row).not.toContain('IND-123');
-      expect(row.match(/<td[ >]/g)).toHaveLength(9);
+      expect(row.match(/<td[ >]/g)).toHaveLength(8);
     }
   });
 });

@@ -11,7 +11,7 @@ describe('relatório de indicadores por macroprocesso', () => {
   });
 
   it('exibe o macroprocesso junto à área na tabela de indicadores', () => {
-    expect(html).toContain('<th>Indicador</th><th>Macroprocesso</th><th>Área</th><th>Período</th>');
+    expect(html).toContain('<th>Indicador</th><th>Macroprocesso</th><th>Área</th>');
     expect(html).toContain('esc(_macroprocessoIndicador(k))');
   });
 
