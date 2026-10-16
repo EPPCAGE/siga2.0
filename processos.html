@@ -1523,8 +1523,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <select class="fi ind-filtros-avancados" id="ind-ppe-sel" aria-label="Filtrar por PPE" onchange="rInd()" style="max-width:90px">
       <option value="">Todos</option><option>Sim</option><option>Não</option>
     </select>
-    <span class="fbar-l ind-filtros-avancados">Ciclo</span>
-    <select class="fi ind-filtros-avancados" id="ind-ciclo-sel" aria-label="Filtrar por ciclo" onchange="rInd()" style="max-width:150px"><option value="">Todos</option></select>
     <span class="fbar-l ind-filtros-avancados">Período</span>
     <select class="fi ind-filtros-avancados" id="ind-periodo-sel" aria-label="Filtrar por período" onchange="rInd()" style="max-width:140px"><option value="">Todos</option></select>
     <span class="fbar-l ind-filtros-avancados">Intervalo</span>
@@ -1566,7 +1564,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
             <option>Mensal</option><option>Bimestral</option><option>Trimestral</option><option>Semestral</option><option>Anual</option>
           </select>
         </div>
-        <div class="fg"><label class="fl" for="nkpi-ciclo">Ciclo</label><input class="fi" id="nkpi-ciclo" placeholder="Ex: JAN/2026 - DEZ/2026"></div>
       </div>
       <div class="g2">
         <div class="fg"><label class="fl" for="nkpi-unidade">Unidade de medida</label>
@@ -14634,11 +14631,11 @@ function isMeuProcesso(arq_id){
 // ═══════════════════════════════════════════
 // INDICADORES — estrutura real da planilha
 // Colunas: Área, Indicador, Enunciado, Descrição, Periodicidade,
-//          Período, Ciclo, PPE?, % Índice, Meta, Realizado, Análise, % Realizado
+//          Período, PPE?, % Índice, Meta, Realizado, Análise, % Realizado
 // ═══════════════════════════════════════════
 
 // kpis[] agora armazena objetos com todos os campos da planilha
-// {id, area, codigo, nome, enunciado, desc, periodicidade, periodo, ciclo,
+// {id, area, codigo, nome, enunciado, desc, periodicidade, periodo,
 //  ppe, indice, meta, realizado, analise, pct_realizado}
 
 let _kpiIdC = 1;
@@ -14751,7 +14748,6 @@ async function importarIndicadores(input){
       const cDesc     = col(['descrição ind','descri','description']);
       const cPeriod   = col(['periodicidade']);
       const cPeriodo  = col(['período','periodo']) ;
-      const cCiclo    = col(['ciclo']);
       const cPPE      = col(['ppe']);
       const cPol      = col(['polaridade','polarity']);
       const cIndice   = col(['índice','indice','% índice','% indice']);
@@ -14774,7 +14770,7 @@ async function importarIndicadores(input){
         if(!gk || cfgEditadoImport[gk]) return;
         cfgEditadoImport[gk] = {
           area: k.area, nome: k.nome, desc: k.desc,
-          periodicidade: k.periodicidade, ciclo: k.ciclo, ppe: k.ppe,
+          periodicidade: k.periodicidade, ppe: k.ppe,
           polaridade: k.polaridade, meta: _kpiMeta(k), unidade: k.unidade,
           pid: k.pid ?? null,
           arq_id: k.arq_id ?? null,
@@ -14789,7 +14785,6 @@ async function importarIndicadores(input){
         const desc    = (cDesc    ? row[cDesc]    : '').toString().trim();
         const period  = (cPeriod  ? row[cPeriod]  : 'Mensal').toString().trim();
         const periodo = fmtPeriodo(cPeriodo ? row[cPeriodo] : '');
-        const ciclo   = (cCiclo   ? row[cCiclo]   : '').toString().trim();
         const ppe     = (cPPE     ? row[cPPE]     : 'Não').toString().trim();
         const indice  = parseNumBR(cIndice  ? row[cIndice]  : 0);
         const meta    = parseNumBR(cMeta    ? row[cMeta]    : null, null);
@@ -14817,7 +14812,6 @@ async function importarIndicadores(input){
           nome:          cfg.nome          || enunc||nome,
           desc:          cfg.desc          || desc,
           periodicidade: cfg.periodicidade || period,
-          ciclo:         cfg.ciclo         || ciclo,
           ppe:           cfg.ppe           || ppe,
           unidade:       cfg.unidade       || '',
           meta:          metaFinal,
@@ -14888,7 +14882,6 @@ function _indMacroChange(){
 }
 function populateIndFilters(){
   const areaSel      = document.getElementById('ind-area-sel');
-  const cicloSel     = document.getElementById('ind-ciclo-sel');
   const periSel      = document.getElementById('ind-periodo-sel');
   const nomeSel      = document.getElementById('ind-nome-sel');
   const intervaloSel = document.getElementById('ind-intervalo-sel');
@@ -14897,7 +14890,6 @@ function populateIndFilters(){
   if(!areaSel) return;
 
   const curArea      = areaSel.value;
-  const curCiclo     = cicloSel.value;
   const curPeri      = periSel.value;
   const curNome      = nomeSel ? nomeSel.value : '';
   const curIntervalo = intervaloSel ? intervaloSel.value : '';
@@ -14905,7 +14897,6 @@ function populateIndFilters(){
   const curProc      = procSel  ? procSel.value  : '';
 
   const areas   = [...new Set(kpis.map(k=>k.area).filter(Boolean))].sort();
-  const ciclos  = [...new Set(kpis.map(k=>k.ciclo).filter(Boolean))].sort();
   const periods = [...new Set(kpis.map(k=>k.periodo).filter(Boolean))].sort((a,b)=>periodoToNum(a)-periodoToNum(b));
   const nomes   = [...new Set(kpis.map(k=>k.nome).filter(Boolean))].sort();
   const macros  = [...new Set(kpis.map(k=>_kpiGetMacroProc(k).macro).filter(Boolean))].sort();
@@ -14914,7 +14905,6 @@ function populateIndFilters(){
     .map(k=>_kpiGetMacroProc(k).proc).filter(Boolean))].sort();
 
   areaSel.innerHTML  = '<option value="">Todas as áreas</option>'  + areas.map(a=>`<option ${curArea===a?'selected':''}>${esc(a)}</option>`).join('');
-  cicloSel.innerHTML = '<option value="">Todos os ciclos</option>' + ciclos.map(a=>`<option ${curCiclo===a?'selected':''}>${esc(a)}</option>`).join('');
   periSel.innerHTML  = '<option value="">Todos os períodos</option>' + periods.map(a=>`<option ${curPeri===a?'selected':''}>${esc(a)}</option>`).join('');
   if(nomeSel) nomeSel.innerHTML = '<option value="">Todos os indicadores</option>' + nomes.map(a=>`<option ${curNome===a?'selected':''}>${esc(a)}</option>`).join('');
   if(macroSel) macroSel.innerHTML = '<option value="">Todos os macroprocessos</option>' + macros.map(m=>`<option ${curMacro===m?'selected':''}>${esc(m)}</option>`).join('');
@@ -14986,7 +14976,6 @@ function rInd(){
 
   populateIndFilters();
   const area      = document.getElementById('ind-area-sel')?.value      || '';
-  const ciclo     = document.getElementById('ind-ciclo-sel')?.value     || '';
   const period    = document.getElementById('ind-periodo-sel')?.value   || '';
   const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const nome      = document.getElementById('ind-nome-sel')?.value      || '';
@@ -15001,7 +14990,6 @@ function rInd(){
     if(projectIndicators && !projectIndicators.has(k)) return false;
     const mp=(macro||proc)?_kpiGetMacroProc(k):{macro:'',proc:''};
     return (!area      || k.area    === area)   &&
-      (!ciclo     || k.ciclo   === ciclo)  &&
       (!period    || k.periodo === period) &&
       _periodoInIntervalo(k.periodo, intervalo) &&
       (!nome      || k.nome    === nome)   &&
@@ -15336,7 +15324,7 @@ function kpiCard(k){
   return `<div style="background:var(--surf);border:1px solid var(--bdr);border-left:3px solid ${borderColor};border-radius:var(--r);padding:.85rem 1rem;box-shadow:var(--sh)">
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;margin-bottom:.5rem">
       <div>
-        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${k.codigo ? '<strong>'+esc(k.codigo)+'</strong> · ' : ''}${esc(k.periodicidade)} · ${esc(k.periodo)}${k.ciclo?' · '+esc(k.ciclo):''}</div>
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:2px">${k.codigo ? '<strong>'+esc(k.codigo)+'</strong> · ' : ''}${esc(k.periodicidade)} · ${esc(k.periodo)}</div>
         <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.4">${esc(k.nome)}</div>
         ${k.desc ? `<div style="font-size:11px;color:var(--ink3);margin-top:2px">${esc(k.desc)}</div>` : ''}
       </div>
@@ -15384,7 +15372,6 @@ function _kpiFormSetFields(k){
   fv('nkpi-desc',       k.desc       || '');
   fv('nkpi-period',     k.periodicidade || 'Mensal');
   fv('nkpi-periodo',    k.periodo    || '');
-  fv('nkpi-ciclo',      k.ciclo      || '');
   fv('nkpi-ppe',        k.ppe        || 'Não');
   fv('nkpi-indice',     k.indice     || '');
   fv('nkpi-meta',       _kpiMeta(k) ?? '');
@@ -15667,7 +15654,6 @@ function _kpiReadCommonFields(area, nome){
     nome,
     desc: document.getElementById('nkpi-desc').value.trim(),
     periodicidade: document.getElementById('nkpi-period').value,
-    ciclo: document.getElementById('nkpi-ciclo').value.trim(),
     ppe: document.getElementById('nkpi-ppe').value,
     unidade: document.getElementById('nkpi-unidade').value.trim(),
     polaridade: document.getElementById('nkpi-polaridade').value,
@@ -15850,7 +15836,7 @@ function _gsheetsEditedConfigMap(){
       if(!gk || cfgEditadoSync[gk]) return;
       cfgEditadoSync[gk] = {
         area: k.area, nome: k.nome, desc: k.desc,
-        periodicidade: k.periodicidade, ciclo: k.ciclo, ppe: k.ppe,
+        periodicidade: k.periodicidade, ppe: k.ppe,
         polaridade: k.polaridade, meta: _kpiMeta(k), unidade: k.unidade,
         pid: k.pid ?? null,
         arq_id: k.arq_id ?? null,
@@ -15888,7 +15874,6 @@ function _gsheetsRowToKpi(row, cols, cfgEditadoSync, editados){
     nome: cfg.nome || enunc || nome,
     desc: cfg.desc || val(cols.cDesc),
     periodicidade: cfg.periodicidade || val(cols.cPeriod) || 'Mensal',
-    ciclo: cfg.ciclo || val(cols.cCiclo),
     ppe: cfg.ppe || val(cols.cPPE) || 'Não',
     unidade: cfg.unidade || '',
     meta: metaFinal,
@@ -15944,7 +15929,6 @@ async function sincronizarGSheets(){
       cDesc: col(['descrição ind','descri','description']),
       cPeriod: col(['periodicidade']),
       cPeriodo: col(['período','periodo']),
-      cCiclo: col(['ciclo']),
       cPPE: col(['ppe']),
       cPol: col(['polaridade','polarity']),
       cIndice: col(['índice','indice','% índice','% indice']),
@@ -19324,12 +19308,10 @@ async function iaAssistente(){
 // ── 4. ANALISAR INDICADORES ───────────────
 async function iaAnalisarIndicadores(){
   const area      = document.getElementById('ind-area-sel')?.value      || '';
-  const ciclo     = document.getElementById('ind-ciclo-sel')?.value     || '';
   const period    = document.getElementById('ind-periodo-sel')?.value   || '';
   const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const lista  = kpis.filter(k=>
     (!area   || k.area  === area)  &&
-    (!ciclo  || k.ciclo === ciclo) &&
     (!period || k.periodo === period) &&
     _periodoInIntervalo(k.periodo, intervalo)
   );
@@ -19602,7 +19584,6 @@ function gerarRelatorioIndPdf(){
   if(!_lastIndAnalise){ toast('Execute a análise de IA primeiro.','var(--amber)'); return; }
 
   const area      = document.getElementById('ind-area-sel')?.value      || '';
-  const ciclo     = document.getElementById('ind-ciclo-sel')?.value     || '';
   const period    = document.getElementById('ind-periodo-sel')?.value   || '';
   const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const dtHoje = new Date().toLocaleDateString('pt-BR');
@@ -19616,7 +19597,7 @@ function gerarRelatorioIndPdf(){
   _ordenarIndicadoresRelatorioPdf(lista);
   const rows = _rowsIndicadoresRelatorioPdf(lista, kpis, {period, intervalo});
   const resumo = _resumoIndicadoresRelatorioPdf(lista);
-  const filtros = [area?'Área: '+area:'', ciclo?'Ciclo: '+ciclo:'', period?'Período: '+period:'', intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
+  const filtros = [area?'Área: '+area:'', period?'Período: '+period:'', intervalo?'Intervalo: '+intervalo:''].filter(Boolean).join(' · ') || 'Todos os indicadores';
   const _kpiHtml = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Indicadores</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
