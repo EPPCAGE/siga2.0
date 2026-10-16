@@ -18,6 +18,8 @@ function riscosSelecionarAba(aba){
     document.getElementById('riscos-tab-'+value).tabIndex=value===riscosAba?0:-1;
     document.getElementById('riscos-panel-'+value).hidden=value!==riscosAba;
   }
+  document.getElementById('riscos-process-actions').hidden=riscosAba==='projetos';
+  document.getElementById('riscos-page-subtitle').textContent=riscosAba==='projetos'?'Riscos dos canvas de ideação e acompanhamento dos tratamentos':'Exposição dos processos e acompanhamento dos tratamentos';
   if(riscosAba==='projetos'){
     if(!riscosProjetosCarregado)void riscosProjetosCarregar();else rRiscosProjetos();
   }else rRiscos();

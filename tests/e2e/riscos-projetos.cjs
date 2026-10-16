@@ -9,7 +9,21 @@ const assert=require('node:assert/strict');
   const browser=await chromium.launch({headless:true});
   try{
     const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.setContent(pageHtml);
+    const indStart=html.indexOf('<div id="page-indicadores"');
+    const indHtml=html.slice(indStart,html.indexOf('<div id="ind-panel-sisplan"',indStart))+'</div></div>';
+    await page.setContent(pageHtml+indHtml);
+    for(const style of html.matchAll(/<style>([\s\S]*?)<\/style>/g))await page.addStyleTag({content:style[1]});
+    await page.addStyleTag({path:'src/processos/indicadores-manuais.css'});
+    await page.addStyleTag({path:'src/processos/riscos-formularios.css'});
+    await page.evaluate(()=>{for(const id of ['page-riscos','page-indicadores'])document.getElementById(id).classList.add('on');});
+    const visual=await page.evaluate(()=>{
+      const props=['backgroundColor','borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth','borderBottomColor','fontSize','fontFamily','paddingTop','paddingRight','paddingBottom','paddingLeft','color'];
+      const style=id=>{const css=getComputedStyle(document.getElementById(id));return Object.fromEntries(props.map(p=>[p,css[p]]));};
+      return {risk:style('riscos-tab-processos'),indicator:style('ind-tab-sisplan'),headingBeforeTabs:document.querySelector('#page-riscos .ph').getBoundingClientRect().bottom<=document.querySelector('#page-riscos [role=tablist]').getBoundingClientRect().top};
+    });
+    assert.deepEqual(visual.risk,visual.indicator);
+    assert.ok(visual.headingBeforeTabs);
+    await page.locator('#page-riscos').screenshot({path:'tests/e2e/artifacts/riscos-abas.png'});
     await page.evaluate(()=>{
       window.esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
       window.isEP=()=>true;window.usuarioLogado={perfil:'ep',nome:'Teste'};

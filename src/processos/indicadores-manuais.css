@@ -1,5 +1,5 @@
-#page-indicadores [role=tab]{background:none;border:0;border-bottom:2px solid transparent;font-family:var(--f)}
-#page-indicadores [role=tab].on{border-bottom-color:var(--blue)}
+#page-indicadores [role=tab],#page-riscos [role=tab]{background:none;border:0;border-bottom:2px solid transparent;font-family:var(--f)}
+#page-indicadores [role=tab].on,#page-riscos [role=tab].on{border-bottom-color:var(--blue)}
 #ind-panel-sisplan[hidden],#ind-panel-manuais[hidden]{display:none!important}
 .manual-indicator-filters{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:20px}
 .manual-indicator-filters .fg{flex:1 1 220px;margin:0}
