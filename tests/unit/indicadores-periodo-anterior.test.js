@@ -13,7 +13,7 @@ function context() {
     source('function _kpiClassificacao(', 'function _kpiGetMacroProc('),
     source('function parseNumBR(', 'async function importarIndicadores('),
     source('function statusInfo(', 'function _resumoIndicadoresRelatorioPdf('),
-    '({ anterior: _resultadoAnteriorIndicadorRelatorio, rows: _rowsIndicadoresRelatorioPdf })',
+    '({ anterior: _resultadoAnteriorIndicadorRelatorio, media: _mediaTrimestralIndicadoresRelatorio, rows: _rowsIndicadoresRelatorioPdf })',
   ].join('\n'), { kpis: [], processos: [], isCritico: () => false, esc: v => String(v), _kpiGetMacroProc: () => ({ macro: 'Macro' }) });
 }
 const cell = row => [...row.matchAll(/<td[^>]*>(.*?)<\/td>/g)][4][1];
@@ -38,24 +38,51 @@ describe('resultado do período anterior no relatório', () => {
     expect(cell(c.rows([kpi], history))).toBe('—');
   });
 
-  it('compara cada mes com a mesma posicao do trimestre anterior', () => {
-    const c = context();
-    const history = ['abr/2026', 'mai/2026', 'jun/2026'].map((periodo, i) => ({ ...kpi, periodo, realizado: (i + 1) * 10 }));
-    const filtros = { intervalo: 'T3/2026' };
-    for (const [i, periodo] of ['jul/2026', 'ago/2026', 'set/2026'].entries()) {
-      const current = { ...kpi, periodo };
-      expect(c.anterior(current, history, filtros)).toEqual({ valor: (i + 1) * 10, periodo: history[i].periodo });
-      expect(cell(c.rows([current], history, filtros))).toContain(history[i].periodo);
-      expect(cell(c.rows([current], history, filtros))).toContain((i + 1) * 10 + ' unidades');
-    }
+  it('mostra uma linha com medias aritmeticas dos dois trimestres', () => {
+    const c=context();
+    const history=['abr','mai','jun','jul','ago','set'].map((mes,i)=>({...kpi,periodo:mes+'/2026',realizado:[10,20,30,30,60,90][i],meta:100}));
+    const filtros={intervalo:'T3/2026'};
+    const current=history.slice(3);
+    const media=c.media(current,filtros);
+    expect(media).toHaveLength(1);
+    expect(media[0]).toMatchObject({realizado:60,periodo:'T3/2026',meta:100});
+    expect(current.map(k=>k.realizado)).toEqual([30,60,90]);
+    expect(c.anterior(media[0],history,filtros)).toEqual({valor:20,periodo:'T2/2026'});
+    const rows=c.rows(current,history,filtros);
+    expect(rows.match(/<tr /g)).toHaveLength(1);
+    expect(rows).toContain('60 unidades');
+    expect(rows).toContain('20 unidades');
+    expect(rows).toContain('T3/2026');
+    expect(rows).toContain('T2/2026');
+    expect(rows).toContain('60%');
   });
 
-  it('compara meses na virada do ano e aceita trimestre explicito', () => {
-    const c = context();
-    for (const [periodo, anterior] of [['jan/2026','out/2025'],['fev/2026','nov/2025'],['mar/2026','dez/2025']]) {
-      expect(c.anterior({...kpi, periodo}, [{...kpi, periodo:anterior, realizado:7}], {intervalo:'T1/2026'})).toEqual({valor:7, periodo:anterior});
-    }
-    expect(c.anterior({...kpi, periodo:'T3/2026'}, [{...kpi, periodo:'T2/2026', realizado:42}], {intervalo:'T3/2026'})).toEqual({valor:42, periodo:'T2/2026'});
+  it('compara medias na virada do ano e preserva registros trimestrais', () => {
+    const c=context();
+    const history=['out/2025','nov/2025','dez/2025'].map((periodo,i)=>({...kpi,periodo,realizado:(i+1)*3}));
+    expect(c.anterior({...kpi,periodo:'jan/2026'},history,{intervalo:'T1/2026'})).toEqual({valor:6,periodo:'T4/2025'});
+    expect(c.anterior({...kpi,periodo:'T3/2026'},[{...kpi,periodo:'T2/2026',realizado:42}],{intervalo:'T3/2026'})).toEqual({valor:42,periodo:'T2/2026'});
+  });
+
+  it('inclui zero valido, ignora ausencias e nao duplica meses', () => {
+    const c=context(),filtros={intervalo:'T3/2026'};
+    const rows=[{...kpi,periodo:'jul/2026',realizado:0,sem_dado:false},{...kpi,periodo:'ago/2026',realizado:30},{...kpi,periodo:'set/2026',realizado:null}];
+    expect(c.media([...rows,rows[1]],filtros)[0].realizado).toBe(15);
+    expect(c.media([{...rows[0],sem_dado:true}],filtros)).toHaveLength(0);
+    expect(c.anterior(kpi,[],filtros)).toBeNull();
+    expect(c.media([{...rows[0],origem:'gsheets',sem_dado:undefined}],filtros)).toHaveLength(0);
+    expect(c.media(rows,{period:'ago/2026',...filtros})).toEqual(rows);
+    expect(c.media([...rows,{...rows[1],area:'B'}],filtros)).toHaveLength(2);
+  });
+
+  it('calcula a meta media e o desempenho sobre o realizado medio', () => {
+    const c=context(), filtros={intervalo:'T3/2026'};
+    const lista=['jul','ago','set'].map((mes,i)=>({...kpi,periodo:mes+'/2026',realizado:[10,20,30][i],meta:[20,40,60][i]}));
+    const media=c.media(lista,filtros);
+    expect(media[0]).toMatchObject({realizado:20,meta:40});
+    expect(c.rows(lista,[],filtros)).toContain('50%');
+    expect(c.media(media,filtros)[0].meta).toBe(40);
+    expect(c.media(lista.map(k=>({...k,meta:null})),filtros)[0].meta).toBeNull();
   });
 
   it('soma o semestre e o ano anteriores, inclusive com mudança de ano', () => {
@@ -68,15 +95,6 @@ describe('resultado do período anterior no relatório', () => {
 
   it('prioriza o mês selecionado sobre o filtro de intervalo', () => {
     expect(context().anterior(kpi, [{ ...kpi, periodo: 'jul/2026', realizado: 3 }], { period: 'ago/2026', intervalo: 'T3/2026' })).toEqual({ valor: 3, periodo: 'jul/2026' });
-  });
-
-  it('exige apenas o mes correspondente e nao soma duplicatas', () => {
-    const c = context();
-    const history = ['abr/2026', 'mai/2026', 'jun/2026'].map(periodo => ({ ...kpi, periodo, realizado: 2 }));
-    const filtros = { intervalo: 'T3/2026' };
-    expect(c.anterior(kpi, history.filter(k => k.periodo !== 'mai/2026'), filtros)).toBeNull();
-    expect(c.anterior(kpi, [...history, { ...history[0] }], filtros)?.valor).toBe(2);
-    expect(c.anterior(kpi, [...history, { ...history[1], sem_dado: true }], filtros)).toBeNull();
   });
 
   it.each([null, undefined, '', 'Sem dado', Infinity])('mostra traço para resultado inválido: %s', realizado => {
@@ -111,7 +129,7 @@ describe('resultado do período anterior no relatório', () => {
 
   it('compara o mes correspondente mesmo com periodicidade cadastral anual', () => {
     const history = ['abr/2026', 'mai/2026', 'jun/2026'].map(periodo => ({ ...kpi, periodo, periodicidade: 'Anual', realizado: 2 }));
-    expect(context().anterior({ ...kpi, periodicidade: 'Anual' }, history, { intervalo: 'T3/2026' })).toEqual({ valor: 2, periodo: 'mai/2026' });
+    expect(context().anterior({ ...kpi, periodicidade: 'Anual' }, history, { intervalo: 'T3/2026' })).toEqual({ valor: 2, periodo: 'T2/2026' });
   });
 
   it('mostra comparação com e sem meta, preservando desempenho e removendo códigos', () => {

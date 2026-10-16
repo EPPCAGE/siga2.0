@@ -14746,6 +14746,7 @@ function _kpiMetaInformada(k){
   return meta;
 }
 function _kpiMeta(k, source=typeof kpis==='undefined'?[]:kpis){
+  if(k._relatorio_media_trimestral) return _kpiMetaInformada(k);
   if(!_kpiPeriodoPrevisto(k))return null;
   const key = (k.codigo||k.nome||'').trim();
   if(!key || !k.periodo) return _kpiMetaInformada(k);
@@ -19590,16 +19591,53 @@ function _periodoIndicadorRelatorio(periodo){
   if(/^\d{4}$/.test(texto)) return {inicio:Number(ano[1])*12, meses:12};
   return null;
 }
+function _chaveIndicadorRelatorio(k){
+  return JSON.stringify([(k.codigo||k.nome||'').trim(), k.area||'', k.unidade||'', k.pid??null, k.arq_id??null]);
+}
+function _mediaTrimestralIndicadoresRelatorio(lista, filtros = {}){
+  const trimestre = _periodoIndicadorRelatorio(filtros.period || filtros.intervalo);
+  if(trimestre?.meses !== 3 || lista.every(k=>k._relatorio_media_trimestral)) return lista;
+  const grupos = new Map();
+  for(const k of lista){
+    const periodo = _periodoIndicadorRelatorio(k.periodo);
+    if(!periodo || periodo.inicio < trimestre.inicio || periodo.inicio >= trimestre.inicio+3) continue;
+    if(periodo.meses !== 1 && !(periodo.meses === 3 && periodo.inicio === trimestre.inicio)) continue;
+    const chave = _chaveIndicadorRelatorio(k);
+    if(!grupos.has(chave)) grupos.set(chave, {mensais:new Map(), trimestral:null});
+    const grupo = grupos.get(chave);
+    if(periodo.meses === 1) grupo.mensais.set(periodo.inicio, k);
+    else grupo.trimestral = k;
+  }
+  const resultado = [];
+  for(const grupo of grupos.values()){
+    const candidatos = grupo.mensais.size ? [...grupo.mensais.values()] : [grupo.trimestral];
+    const validos = candidatos.filter(k=>{
+      const valor = parseNumBR(k.realizado, null);
+      return !k.sem_dado && Number.isFinite(valor) &&
+        !(valor === 0 && /^(importado|gsheets)(_editado)?$/.test(k.origem||'') && k.sem_dado !== false);
+    });
+    if(!validos.length) continue;
+    const metas = validos.map(k=>_kpiMeta(k));
+    const meta = metas.every(m=>m!==null) ? metas.reduce((a,b)=>a+b,0)/metas.length : null;
+    resultado.push({...validos[0], periodo:'T'+(Math.floor((trimestre.inicio%12)/3)+1)+'/'+Math.floor(trimestre.inicio/12),
+      realizado:validos.reduce((total,k)=>total+parseNumBR(k.realizado,null),0)/validos.length,
+      meta, meta_definida:meta!==null, sem_dado:false, _relatorio_media_trimestral:true});
+  }
+  return resultado;
+}
 function _resultadoAnteriorIndicadorRelatorio(k, historico, filtros = {}){
   const chave = (k.codigo || k.nome || '').trim();
   const atual = _periodoIndicadorRelatorio(k.periodo);
   if(!chave || !atual) return null;
   const selecionado = _periodoIndicadorRelatorio(filtros.period || filtros.intervalo);
-  // Monthly rows in a quarterly report compare the same position in the previous quarter.
-  const trimestreMensal = selecionado?.meses === 3 && atual.meses === 1;
-  const referencia = trimestreMensal
-    ? {inicio:atual.inicio - selecionado.meses + atual.meses, meses:atual.meses}
-    : selecionado || atual;
+  if(selecionado?.meses === 3){
+    const inicio = selecionado.inicio-3;
+    const periodo = 'T'+(Math.floor((inicio%12)/3)+1)+'/'+Math.floor(inicio/12);
+    const anterior = _mediaTrimestralIndicadoresRelatorio(historico, {period:periodo})
+      .find(item=>_chaveIndicadorRelatorio(item)===_chaveIndicadorRelatorio(k));
+    return anterior ? {valor:anterior.realizado, periodo} : null;
+  }
+  const referencia = selecionado || atual;
   if(referencia.meses % atual.meses !== 0) return null;
   const inicioAnterior = referencia.inicio - referencia.meses;
   const porPeriodo = new Map();
@@ -19648,13 +19686,13 @@ function _rowIndicadorRelatorioPdf(k, resultadoAnterior = null){
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
     <td style="text-align:center">${hasMeta?_kpiMeta(k)+und:'—'}</td>
     <td style="text-align:center">${resultadoAnterior ? resultadoAnterior.valor.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und)+`<div style="font-size:9px;color:#6b7280">${esc(resultadoAnterior.periodo)}</div>` : '—'}</td>
-    <td style="text-align:center;font-weight:600">${k.realizado}${und}<div style="font-size:9px;font-weight:400;color:#6b7280">${esc(k.periodo||'—')}</div></td>
+    <td style="text-align:center;font-weight:600">${k._relatorio_media_trimestral ? k.realizado.toLocaleString('pt-BR', {maximumFractionDigits:2}) : k.realizado}${und}<div style="font-size:9px;font-weight:400;color:#6b7280">${esc(k.periodo||'—')}</div></td>
     <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
     <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
   </tr>`;
 }
 function _rowsIndicadoresRelatorioPdf(lista, historico = kpis, filtros = {}){
-  return lista.map(k => _rowIndicadorRelatorioPdf(k, _resultadoAnteriorIndicadorRelatorio(k, historico, filtros))).join('');
+  return _mediaTrimestralIndicadoresRelatorio(lista, filtros).map(k => _rowIndicadorRelatorioPdf(k, _resultadoAnteriorIndicadorRelatorio(k, historico, filtros))).join('');
 }
 function _resumoIndicadoresRelatorioPdf(lista){
   const comMeta = lista.filter(k=>_calcKpiPct(k)!==null);
@@ -19697,7 +19735,8 @@ function gerarRelatorioIndPdf(semIA=false){
   const intervalo = document.getElementById('ind-intervalo-sel')?.value || '';
   const dtHoje = new Date().toLocaleDateString('pt-BR');
 
-  const lista = _filtrarIndicadoresRelatorioPdf(semIA?_indicadoresFiltradosRelatorio():_lastIndLista);
+  const trimestral = _periodoIndicadorRelatorio(period || intervalo)?.meses === 3;
+  const lista = _mediaTrimestralIndicadoresRelatorio(_filtrarIndicadoresRelatorioPdf(semIA?_indicadoresFiltradosRelatorio():_lastIndLista), {period, intervalo});
 
   if(!lista.length){ toast('Nenhum indicador com dados para o relatório.','var(--amber)'); return; }
 
@@ -19745,6 +19784,7 @@ function gerarRelatorioIndPdf(semIA=false){
   </div>
 </div>
 <div style="margin-bottom:12px;padding:9px 12px;background:#f8fafc;border-left:3px solid #64748b;border-radius:5px;font-size:11px;line-height:1.6;color:#475569">
+  <div style="margin-bottom:6px"><strong>Relatórios trimestrais:</strong> será considerada como resultado a média aritmética dos três meses do trimestre, comparada à média do trimestre anterior. Meses sem dados são desconsiderados no cálculo.</div>
   <strong>Sobre o período de referência:</strong> Constam neste relatório apenas os indicadores com valores registrados no período de referência. Indicadores alimentados trimestralmente constarão apenas nos relatórios dos meses de encerramento de trimestre (março, junho, setembro e dezembro).
 </div>
 <div class="sec">Taxa de atingimento por macroprocesso</div>
@@ -19756,8 +19796,8 @@ ${semIA?'':`<div class="sec">Análise dos Resultados</div>
   <thead><tr>
     <th>Indicador</th><th>Macroprocesso</th><th>Área</th>
     <th style="text-align:center">Meta</th>
-    <th style="text-align:center">Resultado do período anterior</th>
-    <th style="text-align:center">Realizado</th>
+    <th style="text-align:center">${trimestral?'Média do trimestre anterior':'Resultado do período anterior'}</th>
+    <th style="text-align:center">${trimestral?'Realizado (média trimestral)':'Realizado'}</th>
     <th style="text-align:center">Desempenho</th>
     <th style="text-align:center">Status</th>
   </tr></thead>
@@ -19768,7 +19808,7 @@ ${semIA?'':`<div class="sec">Análise dos Resultados</div>
     <td></td>
   </tr></tfoot>`}
 </table>
-<p style="margin-top:6px;font-size:9.5px;color:#6b7280">Resultado anterior: valor do período imediatamente anterior ao selecionado. No relatório trimestral, cada mês é comparado ao mês correspondente do trimestre anterior (ex.: julho com abril, agosto com maio e setembro com junho). Nos demais intervalos maiores, soma os resultados do intervalo anterior. Sem filtro, segue o período registrado em cada linha. “—” indica ausência de dados completos para a comparação.</p>
+<p style="margin-top:6px;font-size:9.5px;color:#6b7280">Resultado anterior: valor do período imediatamente anterior ao selecionado. No relatório trimestral, cada indicador aparece uma vez: o realizado é a média aritmética dos valores mensais registrados, comparada à média do trimestre anterior. Meses sem dados são desconsiderados; zeros válidos entram na média. A meta também corresponde à média das metas desses meses. Nos demais intervalos maiores, soma os resultados do intervalo anterior. Sem filtro, segue o período registrado em cada linha. “—” indica ausência de dados para a comparação.</p>
 <div class="legend">
   <span><span style="background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:10px;font-weight:700">⭐ Destaque</span> ≥ 130% da meta</span>
   <span><span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:10px;font-weight:700">✓ Meta atingida</span> ≥ 100%</span>
