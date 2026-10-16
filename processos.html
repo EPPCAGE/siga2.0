@@ -1390,7 +1390,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 #page-faq .knowledge-filter[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
 #page-faq .knowledge-card{border:1px solid var(--bdr);border-radius:12px;padding:18px;margin-top:12px;background:var(--surf);color:var(--ink)}
 #page-faq .knowledge-card-title{font-size:14px;font-weight:600;display:flex;gap:10px;align-items:baseline}
-#page-riscos [role="tab"][aria-selected="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
 #page-faq .knowledge-detail{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6;color:var(--ink3);margin:12px 0}
 #page-faq .knowledge-footer{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 #page-faq .knowledge-tag{border-radius:16px;background:var(--bg2);padding:3px 10px;font-size:12px}
@@ -1399,9 +1398,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 </style>
 <link rel="stylesheet" href="src/processos/riscos-formularios.css?v=20261013-2">
 <div id="page-riscos" class="page"><div style="padding:2rem">
-  <div role="tablist" aria-label="Tipo de risco" onkeydown="riscosAbasTeclado(event)" class="btn-row" style="margin-bottom:20px">
-    <button type="button" class="btn" role="tab" id="riscos-tab-processos" aria-controls="riscos-panel-processos" aria-selected="true" onclick="riscosSelecionarAba('processos')">Riscos de processos</button>
-    <button type="button" class="btn" role="tab" id="riscos-tab-projetos" tabindex="-1" aria-controls="riscos-panel-projetos" aria-selected="false" onclick="riscosSelecionarAba('projetos')">Riscos de projetos</button>
+  <div role="tablist" aria-label="Tipo de risco" onkeydown="riscosAbasTeclado(event)" class="tabs">
+    <button type="button" class="tab on" role="tab" id="riscos-tab-processos" aria-controls="riscos-panel-processos" aria-selected="true" onclick="riscosSelecionarAba('processos')">Riscos de processos</button>
+    <button type="button" class="tab" role="tab" id="riscos-tab-projetos" tabindex="-1" aria-controls="riscos-panel-projetos" aria-selected="false" onclick="riscosSelecionarAba('projetos')">Riscos de projetos</button>
   </div>
   <div id="riscos-panel-processos" role="tabpanel" aria-labelledby="riscos-tab-processos">
   <div class="ph"><div><div class="ph-t">Riscos</div><div class="ph-s">Exposição dos processos e acompanhamento dos tratamentos</div></div><div class="risk-page-actions"><button type="button" class="btn btn-p" id="riscos-new" hidden onclick="riscosCreate()">+ Novo risco</button><button type="button" class="btn" onclick="riscosExportPdf()">Gerar relatório PDF</button></div></div>
