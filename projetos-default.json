@@ -269,24 +269,31 @@
         "riscos": [
           {
             "id": 1,
-            "descricao": "Dependência de partes externas para integração",
-            "probabilidade": 4,
-            "impacto": 4,
+            "descricao": "Dependência de partes externas para integração do sistema",
+            "probabilidade": "Alta",
+            "impacto": "Alto",
             "urgencia": "alta"
           },
           {
             "id": 2,
-            "descricao": "Atrasos no Profisco III",
-            "probabilidade": 3,
-            "impacto": 3,
+            "descricao": "Atrasos no andamento do Profisco III",
+            "probabilidade": "Media",
+            "impacto": "Medio",
             "urgencia": "media"
           },
           {
             "id": 3,
             "descricao": "Resistência dos usuários",
-            "probabilidade": 2,
-            "impacto": 2,
+            "probabilidade": "Baixa",
+            "impacto": "Baixo",
             "urgencia": "baixa"
+          },
+          {
+            "id": 4,
+            "descricao": "Risco de impactos negativos na qualidade e risco de imagem",
+            "probabilidade": "Media",
+            "impacto": "Alto",
+            "urgencia": "media"
           }
         ],
         "planner_link": "",
