@@ -13,12 +13,13 @@ function riscosAbasTeclado(event){
 function riscosSelecionarAba(aba){
   riscosAba=aba==='projetos'?'projetos':'processos';
   for(const value of ['processos','projetos']){
+    document.getElementById('riscos-tab-'+value).classList.toggle('on',value===riscosAba);
     document.getElementById('riscos-tab-'+value).setAttribute('aria-selected',String(value===riscosAba));
     document.getElementById('riscos-tab-'+value).tabIndex=value===riscosAba?0:-1;
     document.getElementById('riscos-panel-'+value).hidden=value!==riscosAba;
   }
   if(riscosAba==='projetos'){
-    if(!riscosProjetosCarregado)riscosProjetosCarregar();else rRiscosProjetos();
+    if(!riscosProjetosCarregado)void riscosProjetosCarregar();else rRiscosProjetos();
   }else rRiscos();
 }
 async function riscosProjetosCarregar(){
