@@ -1,26 +1,31 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),acorn=require('C:/SIGA-Offline/node_modules/acorn');
-const html=fs.readFileSync('C:/SIGA-Offline/web/processos.html','utf8');
-const scripts=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
-const functions=new Map();
-for(const script of scripts){const ast=acorn.parse(script,{ecmaVersion:'latest',sourceType:'script'});for(const n of ast.body)if(n.type==='FunctionDeclaration')functions.set(n.id.name,script.slice(n.start,n.end));}
-const architecture=[{nome:'Macro',processos:[{id:'parent',nome:'Pai',subprocessos:[{id:'child',nome:'Filho',subprocessos:[{id:'leaf',nome:'Neto'}]}]}]}];
-const context=vm.createContext({ARQUITETURA:architecture,processos:[]});
-vm.runInContext(['_kpiArquiteturaOptions','_kpiVinculadoProcesso'].map(n=>functions.get(n)).join('\n'),context);
-assert.deepEqual(Array.from(context._kpiArquiteturaOptions(),p=>p.id),['parent','child','leaf']);
-context.processos.push({id:12,arq_id:'parent'});
-assert.equal(context._kpiArquiteturaOptions()[0].procId,12);
-assert.equal(context._kpiVinculadoProcesso({arq_id:'parent'},context.processos[0]),true);
-assert.equal(context._kpiVinculadoProcesso({pid:'12'},context.processos[0]),true);
-assert.equal(context._kpiVinculadoProcesso({arq_id:'child'},context.processos[0]),false);
-vm.runInContext(fs.readFileSync('C:/SIGA-Offline/web/src/shared/busca-geral.js','utf8'),context);
-const pubs=[{categoria:'POPs',titulo:'POP do neto',arq_ids:['leaf']}];
-assert.equal(context.BuscaGeral.search('pops','',{arquitetura:architecture,processos:[],publicacoes:pubs,processId:'arq:leaf'}).length,1);
-assert.equal(context.BuscaGeral.search('pops','',{arquitetura:architecture,processos:[],publicacoes:pubs,processId:'arq:parent'}).length,0);
-vm.runInContext(fs.readFileSync('C:/SIGA-Offline/renderer/controls-view.js','utf8'),context);
-const plans=require('C:/SIGA-Offline/renderer/action-plans-core.js');
-for(const mapped of [[],[{id:12,arq_id:'parent',nome:'Pai'}]]){
- const controls=context.CentralControlesView.processCatalog(mapped,architecture),actions=plans.context(mapped,architecture,[]).processes;
- assert.deepEqual(Array.from(controls,p=>String(p.id)).sort(),actions.map(p=>String(p.id)).sort());
- assert.equal(controls.length,3);
+'use strict';
+const assert=require('node:assert/strict');
+
+async function verify(){
+  // Fixed, repository-owned modules only; no extracted source or VM execution.
+  await Promise.all([
+    import('../src/shared/process-architecture.js'),
+    import('../src/shared/busca-geral.js'),
+    import('../src/processos/central-controles-view.js')
+  ]);
+  const {indicatorOptions,indicatorMatchesProcess}=globalThis.ProcessArchitecture;
+  const architecture=[{nome:'Macro',processos:[{id:'parent',nome:'Pai',subprocessos:[{id:'child',nome:'Filho',subprocessos:[{id:'leaf',nome:'Neto'}]}]}]}];
+  const mapped=[{id:12,arq_id:'parent',nome:'Pai'}];
+  assert.deepEqual(indicatorOptions(architecture,[]).map(process=>process.id),['parent','child','leaf']);
+  assert.equal(indicatorOptions(architecture,mapped)[0].procId,12);
+  assert.equal(indicatorMatchesProcess({arq_id:'parent'},mapped[0]),true);
+  assert.equal(indicatorMatchesProcess({pid:'12'},mapped[0]),true);
+  assert.equal(indicatorMatchesProcess({arq_id:'child'},mapped[0]),false);
+  const publications=[{categoria:'POPs',titulo:'POP do neto',arq_ids:['leaf']}];
+  const data={arquitetura:architecture,processos:[],publicacoes:publications};
+  assert.equal(globalThis.BuscaGeral.search('pops','',{...data,processId:'arq:leaf'}).length,1);
+  assert.equal(globalThis.BuscaGeral.search('pops','',{...data,processId:'arq:parent'}).length,0);
+  const alphabetically=(a,b)=>a.localeCompare(b,'pt-BR');
+  for(const processes of [[],mapped]){
+    const controls=globalThis.CentralControlesView.processCatalog(processes,architecture);
+    const expected=processes.length?['12','arq:child','arq:leaf']:['arq:parent','arq:child','arq:leaf'];
+    assert.deepEqual(controls.map(process=>String(process.id)).sort(alphabetically),expected.sort(alphabetically));
+  }
+  console.log('OK: indicadores, controles e busca incluem processos e subprocessos antes e depois do mapeamento.');
 }
-console.log('OK: pais e subprocessos nos indicadores; vínculo antes/depois do mapeamento; busca de POP sem mapeamento.');
+verify().catch(error=>{console.error(error);process.exitCode=1;});
