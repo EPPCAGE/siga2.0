@@ -3535,7 +3535,12 @@ function projGerarMapaCalor(riscos) {
 function projRiscosCanvasLista(p) {
   const txt = String(p?.ideacao?.riscos_canvas || '');
   return txt.split(/;|\r?\n/)
-    .map(function(t){ return t.replace(/^\s*(?:[-•*–]|\d+[.)])\s*/, '').replace(/[\s.]+$/, '').trim(); })
+    .map(function(t){
+      const text=t.trim().replace(/^(?:[-•*–]|\d+[.)])\s*/, '');
+      let end=text.length;
+      while(end>0 && (text[end-1]==='.' || text[end-1].trim()===''))end--;
+      return text.slice(0,end);
+    })
     .filter(Boolean);
 }
 

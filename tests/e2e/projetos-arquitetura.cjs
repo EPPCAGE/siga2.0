@@ -24,6 +24,13 @@ const {readFileSync} = require('node:fs');
     await page.addScriptTag({path:path.resolve(__dirname, '../../src/shared/areas-arquitetura.js')});
     await page.addScriptTag({path:path.resolve(__dirname, '../../src/shared/indicadores-impactados.js')});
     await page.addScriptTag({path:path.resolve(__dirname, '../../projetos-logic.js')});
+    const riskItems=await page.evaluate(()=>projRiscosCanvasLista({ideacao:{riscos_canvas:'  - Atraso... ; • Falha.\r\n2) Custo ;3. Prazo.\n– Retrabalho;* Equipe; sem marcador.. ; ... ;'}}));
+    assert.deepEqual(riskItems,['Atraso','Falha','Custo','Prazo','Retrabalho','Equipe','sem marcador']);
+    const longRisk=await page.evaluate(()=>{
+      const value='.'.repeat(100000)+'X';
+      return projRiscosCanvasLista({ideacao:{riscos_canvas:value+'; Risco'+'. '.repeat(50000)}}).map(item=>({length:item.length,last:item.at(-1)}));
+    });
+    assert.deepEqual(longRisk,[{length:100001,last:'X'},{length:5,last:'o'}]);
     await page.evaluate(() => {
       projSetHtml = (el, html) => { el.innerHTML = html; };
       projToast = () => {};

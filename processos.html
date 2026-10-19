@@ -40,6 +40,7 @@
 <script src="src/shared/indicadores-impactados.js?v=20261010-2"></script>
 <script src="src/shared/glossario-processos.js?v=20261011-1"></script>
 <script src="src/shared/busca-geral.js?v=20261011-3"></script>
+<script src="src/shared/process-architecture.js?v=20261019-1"></script>
 <script src="src/shared/maturidade-gestao.js?v=20261011-1"></script>
 <script src="src/processos/maturidade-gestao-module.js?v=20261011-4"></script>
 <script src="src/shared/riscos.js?v=20261013-1"></script>
@@ -15523,22 +15524,10 @@ async function _kpiPopulateProjectSelector(k){
   }
 }
 function _kpiVinculadoProcesso(k,p){
-  return !!p && ((k.pid!=null && p.id!=null && String(k.pid)===String(p.id)) ||
-    (k.arq_id!=null && p.arq_id!=null && String(k.arq_id)===String(p.arq_id)));
+  return ProcessArchitecture.indicatorMatchesProcess(k,p);
 }
 function _kpiArquiteturaOptions(){
-  const opts = [];
-  ARQUITETURA.forEach(m=>{
-    (m.processos||[]).forEach(p=>{
-      const add=(item,tipo)=>{
-        const mapped=processos.find(proc=>proc.arq_id!=null && String(proc.arq_id)===String(item.id));
-        opts.push({id:item.id, procId:mapped?.id ?? item.proc_id ?? null, macro:m.nome, nome:item.nome, area:item.area||item.gerente||'', tipo});
-        (item.subprocessos||[]).forEach(child=>add(child,'Subprocesso'));
-      };
-      add(p,'Processo');
-    });
-  });
-  return opts;
+  return ProcessArchitecture.indicatorOptions(ARQUITETURA,processos);
 }
 function _kpiOptionValue(opt){
   return _kpiHasProcId(opt) ? 'proc:'+opt.procId : 'arq:'+opt.id;

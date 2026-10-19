@@ -30,7 +30,8 @@ function setup() {
   const names = ['projArquiteturaAtual', 'projMacroKey', 'projResolveMacro', 'projSyncArquitetura',
     'projApplyArquitetura', 'projLoadArquitetura', 'projProcessosArquitetura', 'projStrategyBaseName',
     'projFixDefaults', 'projEsc', 'projAddMacro', 'projRemoverMacro', 'projPopulateProcessosImpactados',
-    'projAddProcessoImpactado', 'projRemoverProcessoImpactado'];
+    'projAddProcessoImpactado', 'projRemoverProcessoImpactado', 'projPlanejamentoSincronizarCanvas',
+    'projPlanejamentoMigrar', 'projRiscoMigrar'];
   vm.runInContext(readFileSync(new URL('../../src/shared/objetivos-estrategicos.js', import.meta.url), 'utf8'), context);
   vm.runInContext(readFileSync(new URL('../../src/shared/areas-arquitetura.js', import.meta.url), 'utf8'), context);
   vm.runInContext(names.map(functionSource).join('\n'), context);
