@@ -1185,7 +1185,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     Riscos
   </button>
   <button type="button" class="nav-btn" id="nb-controles" onclick="go('controles',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.5l5.5 2v4c0 3-2.2 5.4-5.5 7-3.3-1.6-5.5-4-5.5-7v-4z"/><path d="M5.5 8l1.7 1.7 3.3-3.4"/></svg>Catálogo de controles</button>
-  <button type="button" class="nav-btn" hidden style="display:none" onclick="go('licencaslite',this)" id="nb-licencaslite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 9h6M5 12h3"/></svg>Central de Licenças SIGA Lite</button>
+  <button type="button" class="nav-btn" hidden style="display:none" onclick="go('licencaslite',this)" id="nb-licencaslite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 9h6M5 12h3"/></svg>Central de Licenças SIGA Conecta</button>
   <button type="button" class="nav-btn" onclick="go('maturidadegestao',this)" id="nb-maturidadegestao">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 14h14M3 12V9h3v3M7 12V6h3v6M11 12V2h3v10"/></svg>Maturidade da gestão
   </button>
@@ -1426,7 +1426,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="faq-c"></div>
 </div></div>
 
-<div id="page-licencaslite" class="page"><div class="ph"><div><div class="ph-t">Central de Licenças SIGA Lite</div><div class="ph-s">Emissão de licenças e acompanhamento das instalações autorizadas</div></div></div><div id="siga-lite-licenses-content"></div></div>
+<div id="page-licencaslite" class="page"><div class="ph"><div><div class="ph-t">Central de Licenças SIGA Conecta</div><div class="ph-s">Emissão de licenças e acompanhamento das instalações autorizadas</div></div></div><div id="siga-lite-licenses-content"></div></div>
 <div id="page-maturidadegestao" class="page"><div class="mg-page">
   <div class="ph"><div><div class="ph-t">Maturidade da gestão de processos</div><div class="ph-s">Diagnóstico institucional · 26 perguntas · 6 dimensões</div></div></div>
   <div id="maturidade-gestao-content"></div>
@@ -2617,7 +2617,7 @@ function go(page,btn){
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
   const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de conhecimento',riscos:'Riscos',indicadores:'Indicadores',plano:'Plano de Trabalho',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',controles:'Catálogo de controles',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
-  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão',licencaslite:'Central de Licenças SIGA Lite'})[page]||'SIGA 2.0';
+  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão',licencaslite:'Central de Licenças SIGA Conecta'})[page]||'SIGA 2.0';
 }
 function _invokeGlobalHandler(handlerName){
   const handler = globalThis[handlerName];
@@ -7688,7 +7688,7 @@ function rIndProcList(inds){
 }
 function rKpisVinculados(procId){
   if(!procId) return '';
-  const vinculados=(kpis||[]).filter(k=>k.pid===procId);
+  const vinculados=(kpis||[]).filter(k=>!k.mapeamento_indicador_id&&_kpiVinculadoProcesso(k,processos.find(p=>String(p.id)===String(procId))));
   if(!vinculados.length) return '';
   // Deduplicate by codigo or nome (one row per indicator, not per period)
   const seen=new Set();
@@ -7731,7 +7731,7 @@ function toggleIndProcPop(i){
 }
 function toggleKpiVinculadoPop(idx){
   const p=curProc; if(!p) return;
-  const vinculados=(kpis||[]).filter(k=>k.pid===p.id);
+  const vinculados=(kpis||[]).filter(k=>!k.mapeamento_indicador_id&&_kpiVinculadoProcesso(k,p));
   const seen=new Set();
   const unicos=vinculados.filter(k=>{const key=k.codigo||k.nome||'';if(seen.has(key)){return false;}seen.add(key);return true;});
   const k=unicos[idx];
@@ -7758,6 +7758,7 @@ function addIndProc(){
   if(!p.form) p.form={};
   if(!p.form.indicadores_proc) p.form.indicadores_proc=[];
   p.form.indicadores_proc.push({
+    id:crypto.randomUUID(),
     nome,
     meta:(document.getElementById('ind-meta')?.value||'').trim(),
     unidade:(document.getElementById('ind-unid')?.value||'').trim(),
@@ -13304,6 +13305,27 @@ function _populateProjetoFilters(){
   });
 }
 
+function _arqFilteredItems(f){
+  const results = [];
+  ARQUITETURA.forEach(m=>{
+    if(f.macro && m.nome !== f.macro) return;
+    m.processos.forEach(p=>{
+      const hasSubs = p.subprocessos && p.subprocessos.length > 0;
+      if(hasSubs){
+        p.subprocessos.forEach(s=>{
+          if(itemMatchesFilters(s, m.nome, f)){
+            results.push({item:s, macroNome:m.nome, procNome:p.nome, macroId:m.id, procId:p.id, isSub:true});
+          }
+        });
+      } else if(itemMatchesFilters(p, m.nome, f)){
+          results.push({item:p, macroNome:m.nome, procNome:null, macroId:m.id, procId:p.id, isSub:false});
+        }
+    });
+  });
+
+  return results;
+}
+
 function rArqPopulateFilters(){
   _populateProjetoFilters();
   AreasArquitetura.migrate(ARQUITETURA);
@@ -13344,12 +13366,11 @@ function rArqPopulateFilters(){
   }
   const dSel = document.getElementById('arq-f-dono');
   if(dSel){
-    // Reconstrói donos a partir do ARQUITETURA atual — quem não tem processo some
-    const donos = new Set();
-    ARQUITETURA.forEach(m=>m.processos.forEach(p=>{
-      if(p.gerente) donos.add(p.gerente);
-      (p.subprocessos||[]).forEach(s=>{ if(s.gerente) donos.add(s.gerente); });
-    }));
+    // Offer only owners whose items can appear under the other active filters.
+    const filters = {...getArqFilters(),dono:''};
+    const donos = new Set(_arqFilteredItems(filters)
+      .map(({item})=>item.gerente)
+      .filter(dono=>typeof dono==='string' && dono.trim()));
     const cur = dSel.value;
     dSel.innerHTML = '<option value="">Todos</option>' +
       [...donos].sort().map(d=>`<option ${cur===d?'selected':''}>${esc(d)}</option>`).join('');
@@ -13556,8 +13577,10 @@ function rFaq(){
   const macroSelect=document.getElementById('busca-macro'),processSelect=document.getElementById('busca-processo');
   const macro=macroSelect?.value || '',processId=processSelect?.value || '';
   const architecture=typeof ARQUITETURA==='undefined'?[]:ARQUITETURA;
-  const units=architecture.flatMap(m=>(m.processos || []).flatMap(p=>[{...p,macro:m.nome},...(p.subprocessos || []).map(s=>({...s,macro:m.nome}))]));
+  const flatten=(items,macro)=>(items||[]).flatMap(p=>[{...p,macro},...flatten(p.subprocessos,macro)]);
+  const units=architecture.flatMap(m=>flatten(m.processos,m.nome));
   const items=processos.map(p=>({...p,macro:units.find(item=>String(item.id)===String(p.arq_id))?.macro || p.macro}));
+  for(const unit of units)if(!processos.some(p=>String(p.arq_id)===String(unit.id)))items.push({...unit,id:'arq:'+unit.id});
   if(macroSelect)macroSelect.innerHTML='<option value="">Todos os macroprocessos</option>'+[...new Set([...architecture.map(m=>m.nome),...items.map(p=>p.macro)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(name=>`<option value="${esc(name)}" ${name===macro?'selected':''}>${esc(name)}</option>`).join('');
   if(processSelect)processSelect.innerHTML='<option value="">Todos os processos</option>'+items.filter(p=>!macro || p.macro===macro).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(p=>`<option value="${esc(String(p.id))}" ${String(p.id)===processId?'selected':''}>${esc(p.nome)}</option>`).join('');
   rBuscaGeral(globalThis._buscaTipo || 'todos');
@@ -13741,22 +13764,7 @@ function rArq(){
   }
 
   // Filter mode — flat list of matching items
-  const results = [];
-  ARQUITETURA.forEach(m=>{
-    if(f.macro && m.nome !== f.macro) return;
-    m.processos.forEach(p=>{
-      const hasSubs = p.subprocessos && p.subprocessos.length > 0;
-      if(hasSubs){
-        p.subprocessos.forEach(s=>{
-          if(itemMatchesFilters(s, m.nome, f)){
-            results.push({item:s, macroNome:m.nome, procNome:p.nome, macroId:m.id, procId:p.id, isSub:true});
-          }
-        });
-      } else if(itemMatchesFilters(p, m.nome, f)){
-          results.push({item:p, macroNome:m.nome, procNome:null, macroId:m.id, procId:p.id, isSub:false});
-        }
-    });
-  });
+  const results = _arqFilteredItems(f);
 
   const cnt = document.getElementById('arq-result-cnt');
   if(cnt) cnt.textContent = results.length + ' resultado' + (results.length===1?'':'s') + ' encontrado' + (results.length===1?'':'s');
@@ -14023,7 +14031,7 @@ function _planoAtividadeConcluida(at){
 
 function _procIntelSnapshot(proc){
   const riscos = proc.ent?.riscos || [];
-  const indicadores = kpis.filter(k => k.pid === proc.id);
+  const indicadores = kpis.filter(k => _kpiVinculadoProcesso(k,proc));
   const pubs = _procPublicacoesVinculadas(proc);
   const atividadesPlano = _procPlanoVinculado(proc);
   const analise = proc.ent?.analise || {};
@@ -15224,7 +15232,7 @@ function kpiGrupoCardHTML(key, items){
           ${trendHtml}${consecAlert?'&ensp;'+consecAlert:''}
         </div>
       </div>
-      <div style="display:flex;gap:5px;flex-shrink:0">${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${items[0].id})">✎ Editar</button><button type="button" class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${items[0].id})" aria-label="Excluir indicador">×</button>`:''}</div>
+      <div style="display:flex;gap:5px;flex-shrink:0">${isEP()?`<button type="button" class="btn" style="font-size:10px;padding:2px 8px" onclick="editKpi(${items[0].id})">${items[0].mapeamento_indicador_id?'Editar no mapeamento':'✎ Editar'}</button>${items[0].mapeamento_indicador_id?'':`<button type="button" class="btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red-b)" onclick="deletarKpi(${items[0].id})" aria-label="Excluir indicador">×</button>`}`:''}</div>
     </div>
     <div style="position:relative;height:${isCumCard?260:200}px"><canvas id="chart-kpi-${key.replaceAll(/\W/g,'_')}"></canvas></div>
     ${cumSummaryHtml}
@@ -15498,16 +15506,20 @@ async function _kpiPopulateProjectSelector(k){
     if(select._loadToken===token){select.disabled=false;select.dataset.loading='0';}
   }
 }
+function _kpiVinculadoProcesso(k,p){
+  return !!p && ((k.pid!=null && p.id!=null && String(k.pid)===String(p.id)) ||
+    (k.arq_id!=null && p.arq_id!=null && String(k.arq_id)===String(p.arq_id)));
+}
 function _kpiArquiteturaOptions(){
   const opts = [];
   ARQUITETURA.forEach(m=>{
     (m.processos||[]).forEach(p=>{
-      if(!(p.subprocessos||[]).length){
-        opts.push({id:p.id, procId:p.proc_id ?? null, macro:m.nome, nome:p.nome, area:p.area||p.gerente||'', tipo:'Processo'});
-      }
-      (p.subprocessos||[]).forEach(s=>{
-        opts.push({id:s.id, procId:s.proc_id ?? null, macro:m.nome, nome:s.nome, area:s.area||s.gerente||'', tipo:'Subprocesso'});
-      });
+      const add=(item,tipo)=>{
+        const mapped=processos.find(proc=>proc.arq_id!=null && String(proc.arq_id)===String(item.id));
+        opts.push({id:item.id, procId:mapped?.id ?? item.proc_id ?? null, macro:m.nome, nome:item.nome, area:item.area||item.gerente||'', tipo});
+        (item.subprocessos||[]).forEach(child=>add(child,'Subprocesso'));
+      };
+      add(p,'Processo');
     });
   });
   return opts;
@@ -15694,6 +15706,7 @@ function calcPctReal(){
 function editKpi(id){
   const k = kpis.find(x=>x.id===id);
   if(!k) return;
+  if(k.mapeamento_indicador_id){const p=processos.find(p=>String(p.id)===String(k.pid));if(p)abrirProc(p.id);else toast('O mapeamento de origem não está mais disponível. O histórico foi preservado.','var(--amber)');return;}
   const modal = document.getElementById('novo-kpi-modal');
   document.getElementById('kpi-modal-titulo').textContent = 'Editar indicador';
   document.getElementById('nkpi-edit-idx').value = id;
@@ -15814,6 +15827,7 @@ function _kpiSaveSingleEdit(editId, area, nome){
   kpis[idx] = _kpiReadSinglePayload(area, nome, origem, editIdNum);
 }
 function _kpiCreateNew(area, nome){
+  _kpiIdC=Math.max(_kpiIdC,Math.max(0,...kpis.map(k=>Number(k.id)||0))+1);
   kpis.push({
     id: _kpiIdC++,
     ..._kpiReadSinglePayload(area, nome, 'manual'),
@@ -15844,6 +15858,7 @@ function deletarKpi(id){
   if(!delId) return;
   const indicator=kpis.find(k=>String(k.id)===String(delId));
   if(!indicator) return;
+  if(indicator.mapeamento_indicador_id){toast('Edite ou remova a definição deste indicador no mapeamento de origem.','var(--amber)');return;}
   const key=_kpiDiscontinuedKey(indicator);
   confirmar('Descontinuar este indicador? Todos os seus períodos serão removidos da lista e não voltarão nas importações ou sincronizações.', async () => {
     try {

@@ -1,4 +1,4 @@
-# EP·CAGE — Sistema Integrado de Gestão Estratégica e Alinhamento
+# EP·CAGE — Sistema Integrado de Gestão e Acompanhamento
 
 Sistema web para mapeamento, auditoria e gestão estratégica de processos e projetos institucionais da CAGE/Sefaz-RS, com integração de IA (Azure OpenAI via Firebase Cloud Functions) e persistência em Firestore.
 

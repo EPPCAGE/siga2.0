@@ -13,12 +13,14 @@
     const add=(title,detail,target,extra='')=>rows.push({title:title || 'Sem título',
       detail:Object.entries(detail).filter(([,value])=>text(value).trim()).map(([label,value])=>`${label}: ${text(value)}`).join('\n'),
       target,category:type,search:text([title,detail,extra])});
-    const units=(data.arquitetura || []).flatMap(m=>(m.processos || []).flatMap(p=>[{...p,macro:m.nome},...(p.subprocessos || []).map(s=>({...s,macro:m.nome}))]));
+    const flatten=(items,macro)=>(items||[]).flatMap(p=>[{...p,macro},...flatten(p.subprocessos,macro)]);
+    const units=(data.arquitetura || []).flatMap(m=>flatten(m.processos,m.nome));
     const processes=(data.processos || []).map(p=>{
       const unit=units.find(item=>String(item.id)===String(p.arq_id));
       return unit?{...p,macro:unit.macro}:p;
     }).filter(p=>(!data.processId || String(p.id)===String(data.processId)) && (!data.macro || p.macro===data.macro));
-    const allowedIds=new Set([...processes.map(p=>String(p.arq_id)),...(!data.processId?units.filter(item=>!data.macro || item.macro===data.macro).map(item=>String(item.id)):[])]);
+    const selectedArchitecture=String(data.processId||'').startsWith('arq:')?String(data.processId).slice(4):null;
+    const allowedIds=new Set([...processes.map(p=>String(p.arq_id)),...units.filter(item=>(!data.macro || item.macro===data.macro) && (!data.processId || String(item.id)===selectedArchitecture)).map(item=>String(item.id))]);
     if(type==='glossario') (data.glossario || globalScope.GlossarioProcessos?.entries || []).forEach(item=>
       add(item.term,{'Definição':item.definition},{kind:'glossario',id:item.id},item.synonyms));
     if(type==='faq') processes.forEach(p=>{

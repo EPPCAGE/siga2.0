@@ -1,10 +1,12 @@
-# Central de Licenças SIGA Lite — configuração e operação
+# Central de Licenças SIGA Conecta — configuração e operação
+
+> O licenciamento online desta Central foi retomado na versão 1.0.37. Veja [o modelo atual com dados locais e arquivos de rede](siga-conecta-local-licenca-online.md). A licença por arquivo da 1.0.36 é uma solução histórica, substituída nesta edição.
 
 ## Funcionamento
 
-O instalador apresenta o novo termo integral, exige o aceite “Li e aceito os Termos de Licença de Uso” e solicita o código distribuído pela CAGE. O código é obrigatório para prosseguir; sua validade é conferida pela internet na primeira abertura. Um código com formato correto, mas não emitido pela CAGE, não libera o aplicativo.
+Desde a versão 1.0.29, o instalador apresenta o termo integral e exige apenas o aceite “Li e aceito os Termos de Licença de Uso”. O código distribuído pela CAGE é solicitado e validado pela internet na primeira abertura do aplicativo. Instalações já ativadas preservam sua autorização. Um código não emitido pela CAGE não libera o aplicativo.
 
-Cada licença identifica um órgão e autoriza uma única instalação. O cadastro exige o nome oficial e o CNPJ; a sigla e as observações são opcionais. A primeira ativação reserva o código e muda sua situação de Emitida para Ativada. Outra instalação não pode usar o mesmo código, mesmo depois de revogar e reativar a licença. O órgão vem preenchido da licença e fica fixo. Importar uma base de outro órgão é bloqueado. A CAGE administra os códigos pelo módulo Central de Licenças SIGA Lite, no menu do SIGA original.
+Cada licença identifica um órgão e autoriza uma única instalação. O cadastro exige o nome oficial e o CNPJ; a sigla e as observações são opcionais. A primeira ativação reserva o código e muda sua situação de Emitida para Ativada. Outra instalação não pode usar o mesmo código, mesmo depois de revogar e reativar a licença. O órgão vem preenchido da licença e fica fixo. Importar uma base de outro órgão é bloqueado. A CAGE administra os códigos pelo módulo Central de Licenças SIGA Conecta, no menu do SIGA original.
 
 O aplicativo consulta o serviço na abertura e a cada cinco minutos durante o uso. Uma autorização válida permite até sete dias sem internet, contados desde a última validação bem-sucedida. Falhas de rede não reiniciam esse prazo.
 
@@ -35,7 +37,7 @@ Projeto Firebase: gesproc2. Site: sigaepp. Diretório: C:\gesproc-functions.
 - src/admin/licencas-lite.js: painel que utiliza a sessão Firebase do SIGA original.
 - processos.html: carregamento do painel ao fim do documento.
 
-O módulo “Central de Licenças SIGA Lite” aparece no menu somente para uma conta autorizada pelo servidor. Manipular um botão no navegador não concede permissão.
+O módulo “Central de Licenças SIGA Conecta” aparece no menu somente para uma conta autorizada pelo servidor. Manipular um botão no navegador não concede permissão.
 
 ## Publicação ainda necessária
 
