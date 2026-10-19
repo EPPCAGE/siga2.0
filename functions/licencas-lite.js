@@ -1,6 +1,7 @@
 const {onRequest}=require('firebase-functions/v2/https');
 const {defineSecret}=require('firebase-functions/params');
 const {LicenseService,hash}=require('./license-core.cjs');
+const {LicensePresence}=require('./license-presence.cjs');
 const signing=defineSecret('SIGA_LITE_LICENSE_SIGNING_KEY'),managers=defineSecret('SIGA_LITE_LICENSE_ADMINS');
 const origins=new Set(['https://sigaepp.web.app','https://sigaepp.firebaseapp.com','https://eppcage.com.br','https://www.eppcage.com.br','https://eppcage.github.io']);
 async function rateLimit(db,key,limit){const ref=db.doc('siga_lite_license_limits/'+hash(key)),now=Date.now();return db.runTransaction(async tx=>{const snap=await tx.get(ref),record=snap.data();if(!snap.exists||record.until<=now){tx.set(ref,{count:1,until:now+900000});return true;}if(record.count>=limit)return false;tx.update(ref,{count:record.count+1});return true;});}
@@ -12,7 +13,8 @@ function registrar(admin){
       if(req.method!=='POST')return res.status(405).json({error:'method-not-allowed'});
       if(!req.is('application/json')||Buffer.byteLength(JSON.stringify(req.body||{}))>5000)return res.status(400).json({error:'invalid-input'});
       try{
-        const db=admin.firestore(),isCheck=req.body.action==='check';if(!await rateLimit(db,(isCheck?'check:':'activate:')+req.ip,isCheck?5000:100))return res.status(429).json({error:'rate-limit'});
+        const db=admin.firestore(),isCheck=['check','presence'].includes(req.body.action);if(!await rateLimit(db,(isCheck?'check:':'activate:')+req.ip,isCheck?5000:100))return res.status(429).json({error:'rate-limit'});
+        if(req.body.action==='presence')return res.json(await new LicensePresence({db}).heartbeat(req.body));
         const result=await new LicenseService({db,privateKey:signing.value()}).client(req.body);return res.json(result);
       }catch(error){const status={'invalid-input':400,'invalid-license':401,'invalid-activation':401,'wrong-organization':403,'installation-limit':403}[error.message];if(!status)console.error('SIGA Lite: falha interna na validação de licença.');return res.status(status||503).json({error:status?error.message:'service-unavailable'});}
     }),
