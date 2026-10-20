@@ -152,7 +152,27 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
    const result={warnings:imported.warnings.map(w=>w.message),logicalReturn,targetId:back.targetId,gatewayId:gateway.id,steps:curProc.mod.etapas_proc.length,ends:registry.getAll().filter(el=>el.type==='bpmn:EndEvent').length};viewer.destroy();return result;
   });
   assert.deepEqual(loopResult.warnings,[]);assert.equal(loopResult.logicalReturn,true);assert.equal(loopResult.targetId,loopResult.gatewayId);assert.equal(loopResult.steps,5);assert.equal(loopResult.ends,1);
+  // A closed loop cannot replace an existing AS IS, even when the handler is invoked directly.
+  await page.evaluate(()=>{
+   const task={id:'prep',type:'task',nome:'Preparar',executor:'Equipe'},back=id=>({id,type:'return',nome:'Voltar',targetId:'check'});
+   const decision={id:'check',type:'decision',nome:'Conferência sem saída',branches:[{id:'a',nome:'Repetir A',cards:[back('ra')]},{id:'b',nome:'Repetir B',cards:[back('rb')]}]};
+   curProc={id:5,nome:'Fluxo em validação',mod:{bpmnAsIs:originalXML,etapas_proc:[{id:'old',nome:'Original',desc:'Preservar'}],asIsCards:{version:3,cards:[task,decision]}}};processos=[curProc];
+   window.beforeInvalid=JSON.stringify(curProc.mod);window.validationSaves=0;const save=fbSaveAll;fbSaveAll=async()=>{window.validationSaves++;return save();};
+  });
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  const validation=dialog.locator('#asis-cards-validation');assert.equal(await validation.getAttribute('data-state'),'error');
+  assert.match(await validation.innerText(),/Ciclo sem saída/);assert.match(await validation.innerText(),/Conferência sem saída/);
+  await dialog.locator('#asis-cards-confirm').check();assert.equal(await dialog.locator('#asis-cards-apply').isDisabled(),true);
+  await dialog.getByRole('button',{name:'Verificar fluxo',exact:true}).click();
+  await page.evaluate(async()=>{await document.getElementById('asis-cards-apply').onclick();});
+  assert.equal(await page.evaluate(()=>validationSaves),0);assert.equal(await page.evaluate(()=>JSON.stringify(curProc.mod)),await page.evaluate(()=>beforeInvalid));
+  const retryPaths=dialog.locator('.asis-branches > section');await retryPaths.nth(1).locator('[data-action="remove"]').click();
+  await addCard(retryPaths.nth(1),'end','Concluir conferência','Equipe');
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  assert.equal(await validation.getAttribute('data-state'),'warning');assert.match(await validation.innerText(),/Existe saída para um final/);
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(()=>validationSaves),1);assert.ok(await page.evaluate(()=>curProc.mod.bpmnAsIs.includes('Concluir conferência')));
   await page.evaluate(async()=>{role='dono';await abrirEsbocoCards();});assert.equal(await page.locator('#asis-cards-dialog').count(),0);
-  assert.deepEqual(errors,[]);console.log('AS IS por cards: BPMN real com raias/decisões, prévia, confirmação, histórico, gravação/rollback, recarga, cancelamento, conflitos, permissões e mobile validados.');
+  assert.deepEqual(errors,[]);console.log('AS IS por cards: BPMN real, gateways, retornos, validação/bloqueio de ciclos sem saída, alertas, persistência/rollback, histórico, permissões e mobile validados.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

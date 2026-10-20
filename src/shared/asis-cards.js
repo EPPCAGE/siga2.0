@@ -75,6 +75,145 @@
     }
     return null;
   }
+  function validateGraph(nodes, flows, options = {}) {
+    const errors = [], warnings = [], byId = new Map(), edgeIds = new Set();
+    const issue = (list, code, message, nodeIds = []) => {
+      if (!list.some(item => item.code === code && item.nodeIds.join('|') === nodeIds.join('|'))) list.push({code, message, nodeIds});
+    };
+    const names = ids => ids.map(id => {const node=byId.get(id);return '“' + (node?.label || (node?.ownerFrom?'Reencontro de '+byId.get(node.ownerFrom)?.label:id)) + '”';}).join(', ');
+    const result = analysis => ({valid: errors.length === 0, errors, warnings, analysis});
+    for (const node of nodes) {
+      if (!node.id || byId.has(node.id)) issue(errors, 'NODE_ID', 'Há um elemento sem identidade ou com identidade duplicada.', [node.id]);
+      byId.set(node.id, node);
+    }
+    const edges = [];
+    for (const flow of flows) {
+      if (!flow.id || edgeIds.has(flow.id)) issue(errors, 'FLOW_ID', 'Há uma ligação sem identidade ou com identidade duplicada.');
+      edgeIds.add(flow.id);
+      if (!byId.has(flow.source) || !byId.has(flow.target)) issue(errors, 'BROKEN_FLOW', 'Há uma seta com origem ou destino inexistente.', [flow.source, flow.target]);
+      else edges.push({...flow});
+    }
+    // Link events are a continuation of the same execution, rather than separate starts/ends.
+    for (const node of nodes.filter(item => item.linkName || item.linkTarget || item.linkSource)) {
+      const pair = byId.get(node.linkTarget || node.linkSource);
+      const throwing = node.type === 'intermediateThrowEvent';
+      if (!pair || !node.linkName || pair.linkName !== node.linkName || (throwing ? pair.type !== 'intermediateCatchEvent' || pair.linkSource !== node.id : pair.type !== 'intermediateThrowEvent' || pair.linkTarget !== node.id)) {
+        issue(errors, 'BROKEN_LINK', 'O link ' + names([node.id]) + ' não tem um par correspondente válido.', [node.id]);
+      } else if (throwing) edges.push({id: 'Virtual_' + node.id, source: node.id, target: pair.id});
+    }
+    if (errors.length) return result({complete: false, states: 0});
+    const incoming = new Map(nodes.map(node => [node.id, []])), outgoing = new Map(nodes.map(node => [node.id, []]));
+    edges.forEach((edge, index) => {incoming.get(edge.target).push(index); outgoing.get(edge.source).push(index);});
+    const starts = nodes.filter(node => node.type === 'startEvent'), ends = nodes.filter(node => node.type === 'endEvent');
+    if (starts.length !== 1) issue(errors, 'START_COUNT', 'O processo deve ter exatamente um início.', starts.map(node => node.id));
+    if (!ends.length) issue(errors, 'NO_END', 'O processo não tem encerramento. Inclua uma saída que chegue a um final.');
+    for (const node of nodes) {
+      const ins = incoming.get(node.id).length, outs = outgoing.get(node.id).length;
+      if (node.type === 'startEvent' && ins) issue(errors, 'START_INCOMING', 'O início não pode receber setas de retorno.', [node.id]);
+      if (node.type === 'endEvent' && outs) issue(errors, 'END_OUTGOING', 'O encerramento ' + names([node.id]) + ' não pode ter saída.', [node.id]);
+      if (node.type !== 'startEvent' && !ins) issue(errors, 'LOOSE_INPUT', names([node.id]) + ' está sem ligação de entrada.', [node.id]);
+      if (node.type !== 'endEvent' && !outs) issue(errors, 'LOOSE_OUTPUT', names([node.id]) + ' está sem ligação de saída.', [node.id]);
+    }
+    function reach(seeds, reverse = false, excluded = null) {
+      const visited = new Set(seeds.filter(id => id !== excluded)), queue = [...visited];
+      for (let index = 0; index < queue.length; index++) {
+        for (const edgeIndex of (reverse ? incoming : outgoing).get(queue[index]) || []) {
+          const next = edges[edgeIndex][reverse ? 'source' : 'target'];
+          if (next !== excluded && !visited.has(next)) {visited.add(next); queue.push(next);}
+        }
+      }
+      return visited;
+    }
+    const reachable = reach(starts.map(node => node.id)), canFinish = reach(ends.map(node => node.id), true);
+    const unreachable = nodes.filter(node => !reachable.has(node.id)).map(node => node.id);
+    if (unreachable.length) issue(errors, 'UNREACHABLE', 'Há etapas que não podem ser alcançadas a partir do início: ' + names(unreachable) + '.', unreachable);
+    // Strongly connected components distinguish a permitted repeat from a closed loop.
+    let serial = 0;
+    const indices = new Map(), low = new Map(), stack = [], onStack = new Set(), closed = new Set();
+    function visit(id) {
+      indices.set(id, serial); low.set(id, serial++); stack.push(id); onStack.add(id);
+      for (const index of outgoing.get(id)) {
+        const next = edges[index].target;
+        if (!indices.has(next)) {visit(next); low.set(id, Math.min(low.get(id), low.get(next)));}
+        else if (onStack.has(next)) low.set(id, Math.min(low.get(id), indices.get(next)));
+      }
+      if (low.get(id) !== indices.get(id)) return;
+      const component = []; let next;
+      do {next = stack.pop(); onStack.delete(next); component.push(next);} while (next !== id);
+      if (!reachable.has(id) || (component.length === 1 && !outgoing.get(id).some(index => edges[index].target === id))) return;
+      if (!component.some(member => canFinish.has(member))) {
+        component.forEach(member => closed.add(member));
+        issue(errors, 'CLOSED_LOOP', 'Ciclo sem saída em ' + names(component) + '. Inclua um caminho que permita chegar a um encerramento.', component);
+      } else {
+        issue(warnings, 'LOOP_WITH_EXIT', 'Há repetição em ' + names(component) + '. Existe saída para um final; revise as condições para que ela possa ser escolhida.', component);
+        const members = new Set(component);
+        for (const member of component) {
+          const node = byId.get(member);
+          if (['parallelGateway', 'inclusiveGateway'].includes(node.type) && outgoing.get(member).length > 1 && outgoing.get(member).some(index => !members.has(edges[index].target))) {
+            issue(errors, 'FORK_REENTRY', 'Um retorno reabre ' + names([member]) + ' antes de concluir seus caminhos. Isso pode acumular execuções ou travar a junção. Faça o retorno depois do reencontro ou dentro de um único caminho.', [member]);
+          }
+        }
+      }
+    }
+    nodes.forEach(node => {if (!indices.has(node.id)) visit(node.id);});
+    const stranded = nodes.filter(node => reachable.has(node.id) && !canFinish.has(node.id) && !closed.has(node.id)).map(node => node.id);
+    if (stranded.length) issue(errors, 'NO_PATH_TO_END', 'Estas etapas não têm caminho até um encerramento: ' + names(stranded) + '.', stranded);
+    if (errors.length) return result({complete: false, states: 0});
+    // Explore possible token markings, including XOR choices and non-empty OR subsets.
+    const maxStates = Math.max(1, options.maxStates || 3000), maxTransitions = Math.max(1, options.maxTransitions || 20000), maxTokens = Math.max(1, options.maxTokens || 48);
+    let complete = true, transitions = 0;
+    const limited = () => {complete = false; issue(warnings, 'ANALYSIS_LIMIT', 'A análise de execuções atingiu o limite de complexidade. A estrutura foi verificada, mas os cenários de sincronização precisam de revisão.');};
+    const choices = new Map();
+    for (const node of nodes) {
+      const outs = outgoing.get(node.id);
+      if (node.type === 'exclusiveGateway') choices.set(node.id, outs.map(index => [index]));
+      else if (node.type === 'inclusiveGateway' && outs.length > 1) {
+        if (outs.length <= 6) {
+          const subsets = [];
+          for (let mask = 1; mask < 2 ** outs.length; mask++) subsets.push(outs.filter((_, index) => mask & (1 << index)));
+          choices.set(node.id, subsets);
+        } else {choices.set(node.id, [...outs.map(index => [index]), outs]); limited();}
+      } else choices.set(node.id, [outs]);
+    }
+    const joinReach = new Map();
+    for (const node of nodes.filter(item => item.type === 'inclusiveGateway' && incoming.get(item.id).length > 1)) {
+      joinReach.set(node.id, new Map(incoming.get(node.id).map(index => [index, reach([edges[index].source], true, node.id)])));
+    }
+    const initial = Array(edges.length).fill(0); outgoing.get(starts[0].id).forEach(index => initial[index]++);
+    const key = state => state.join(','), queue = [initial], seen = new Set([key(initial)]);
+    for (let cursor = 0; cursor < queue.length && transitions < maxTransitions; cursor++) {
+      const state = queue[cursor]; if (!state.some(Boolean)) continue;
+      let enabled = false;
+      for (const node of nodes) {
+        if (node.type === 'startEvent') continue;
+        const ins = incoming.get(node.id), marked = ins.filter(index => state[index] > 0);
+        if (!marked.length) continue;
+        let consumptions;
+        if (node.type === 'parallelGateway') {if (marked.length !== ins.length) continue; consumptions = [ins];}
+        else if (node.type === 'inclusiveGateway' && ins.length > 1) {
+          const waiting = ins.filter(index => !state[index]).some(missing => edges.some((edge, index) => state[index] && edge.target !== node.id && joinReach.get(node.id).get(missing).has(edge.target)));
+          if (waiting) continue; consumptions = [marked];
+        } else consumptions = marked.map(index => [index]);
+        enabled = true;
+        for (const consume of consumptions) for (const produce of choices.get(node.id)) {
+          if (++transitions > maxTransitions) {limited(); break;}
+          const next = [...state]; consume.forEach(index => next[index]--); produce.forEach(index => next[index]++);
+          if (next.reduce((sum, count) => sum + count, 0) > maxTokens) {limited(); continue;}
+          const nextKey = key(next); if (seen.has(nextKey)) continue;
+          if (seen.size >= maxStates) {limited(); continue;}
+          seen.add(nextKey); queue.push(next);
+        }
+      }
+      if (!enabled) {
+        const blocked = [...new Set(edges.filter((_, index) => state[index]).map(edge => edge.target))];
+        complete = false;
+        issue(errors, 'DEADLOCK', 'Há uma execução que fica parada em ' + names(blocked) + '. Confira se todos os caminhos esperados pela junção podem chegar até ela.', blocked);
+        break;
+      }
+    }
+    if (transitions >= maxTransitions) limited();
+    return result({complete, states: seen.size});
+  }
   function compile(cards,name='Esboço AS IS',startInfo={}){
     const nodes=[],flows=[],steps=[],ids=new Set(),unassigned='Responsável não informado';let serial=0,count=0;
     const add=(id,type,label,column,owner='')=>{const node={id,type,label,column,owner,width:type.endsWith('Task')?150:type.endsWith('Gateway')?50:36,height:type.endsWith('Task')?80:type.endsWith('Gateway')?50:36};nodes.push(node);return node;};
@@ -124,6 +263,8 @@
     }
     const start=add('Cards_start','startEvent',startInfo.nome||'Início',0,startInfo.executor?.trim() || '');
     const last=walk(cards,start,1);if(last.previous){const end=add('Cards_end','endEvent','Fim',last.column);link(last.previous,end);}
+    let validation=validateGraph(nodes,flows);
+    if(!validation.valid){const error=Error(validation.errors[0].message);error.validation=validation;throw error;}
     // Keep branch order consistent across columns instead of reusing a different row per column.
     const byId=new Map(nodes.map(node=>[node.id,node])),spans=new Map();
     // Events and gateways share the participants' lanes; there is no technical control lane.
@@ -195,12 +336,17 @@
       }
       if(!connected)throw Error('Não foi possível conectar os caminhos sem cruzamentos. Reorganize os cards ou os responsáveis.');
     }
+    if(nodes.some(node=>node.linkName)){
+      const linkedValidation=validateGraph(nodes,flows);
+      if(!linkedValidation.valid){const error=Error(linkedValidation.errors[0].message);error.validation=linkedValidation;throw error;}
+      validation={...linkedValidation,warnings:[...validation.warnings,...linkedValidation.warnings.filter(issue=>issue.code==='ANALYSIS_LIMIT'&&!validation.warnings.some(previous=>previous.code===issue.code))]};
+    }
     const xmlNodes=nodes.map(n=>`<bpmn:${n.type} id="${n.id}" name="${escape(n.label)}">${flows.filter(f=>f.target===n.id).map(f=>`<bpmn:incoming>${f.id}</bpmn:incoming>`).join('')}${flows.filter(f=>f.source===n.id).map(f=>`<bpmn:outgoing>${f.id}</bpmn:outgoing>`).join('')}${n.duration?`<bpmn:timerEventDefinition><bpmn:timeDuration>${escape(n.duration)}</bpmn:timeDuration></bpmn:timerEventDefinition>`:''}${n.linkName?`<bpmn:linkEventDefinition id="Def_${n.id}" name="${n.linkName}">${n.linkTarget?`<bpmn:target>Def_${n.linkTarget}</bpmn:target>`:`<bpmn:source>Def_${n.linkSource}</bpmn:source>`}</bpmn:linkEventDefinition>`:''}</bpmn:${n.type}>`).join('');
     const xmlFlows=flows.map(f=>`<bpmn:sequenceFlow id="${f.id}" sourceRef="${f.source}" targetRef="${f.target}"${f.label?` name="${escape(f.label)}"`:''}/>`).join('');
     const shape=(id,x,y,w,h,extra='')=>`<bpmndi:BPMNShape id="DI_${id}" bpmnElement="${id}" ${extra}><dc:Bounds x="${x}" y="${y}" width="${w}" height="${h}"/></bpmndi:BPMNShape>`;
     const di=shape('Cards_pool',60,100,width,height,'isHorizontal="true"')+lanes.map(l=>shape(l.id,90,l.y,width-30,l.height,'isHorizontal="true"')).join('')+nodes.map(n=>shape(n.id,n.x,n.y,n.width,n.height)).join('')+flows.map(f=>{const a=nodes.find(n=>n.id===f.source),b=nodes.find(n=>n.id===f.target),x1=a.x+a.width,y1=a.y+a.height/2,x2=b.x,y2=b.y+b.height/2;const points=f.points||[{x:x1,y:y1},{x:x2,y:y2}];const labelSegments=points.slice(1).map((point,index)=>({a:points[index],b:point,length:Math.abs(point.x-points[index].x)+Math.abs(point.y-points[index].y)}));const labelSegment=labelSegments.reduce((longest,segment)=>segment.length>longest.length?segment:longest);const labelX=(labelSegment.a.x+labelSegment.b.x)/2-50,labelY=(labelSegment.a.y+labelSegment.b.y)/2-24;return `<bpmndi:BPMNEdge id="DI_${f.id}" bpmnElement="${f.id}">${points.map(point=>`<di:waypoint x="${point.x}" y="${point.y}"/>`).join('')}${f.label?`<bpmndi:BPMNLabel><dc:Bounds x="${labelX}" y="${labelY}" width="100" height="20"/></bpmndi:BPMNLabel>`:''}</bpmndi:BPMNEdge>`;}).join('');
     const xml=`<?xml version="1.0" encoding="UTF-8"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Cards_definitions" targetNamespace="https://siga.app/asis-cards"><bpmn:collaboration id="Cards_collaboration"><bpmn:participant id="Cards_pool" name="${escape(name)}" processRef="Cards_process"/></bpmn:collaboration><bpmn:process id="Cards_process" isExecutable="false"><bpmn:laneSet id="Cards_lanes">${lanes.map(l=>`<bpmn:lane id="${l.id}" name="${escape(l.owner)}">${nodes.filter(n=>n.owner===l.owner).map(n=>`<bpmn:flowNodeRef>${n.id}</bpmn:flowNodeRef>`).join('')}</bpmn:lane>`).join('')}</bpmn:laneSet>${xmlNodes}${xmlFlows}</bpmn:process><bpmndi:BPMNDiagram id="Cards_diagram"><bpmndi:BPMNPlane id="Cards_plane" bpmnElement="Cards_collaboration">${di}</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>`;
-    return {xml,steps,nodes,flows};
+    return {xml,steps,nodes,flows,validation};
   }
-  scope.AsIsCards={compile,branchesOf};
+  scope.AsIsCards={compile,branchesOf,validateGraph};
 })(globalThis);

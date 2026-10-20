@@ -38,3 +38,5 @@
 .asis-paths-editor{border:1px solid var(--bdr);border-radius:10px;margin:18px 0;padding:12px}.asis-paths-editor legend{font-size:12px;font-weight:600}.asis-path-row{display:flex;align-items:end;gap:8px;margin-bottom:10px}.asis-path-row label{flex:1;min-width:0;font-size:11px}.asis-path-row input{display:block;margin-top:5px}.asis-path-row .btn{flex-shrink:0}
 
 .asis-kind-return{border-color:#bccfe1;background:#f5f9ff}.asis-kind-return .asis-type-icon{background:#e7effa;color:#376897}.asis-kind-return::after{content:""}
+
+.asis-validation{padding:14px 16px;border:1px solid #b9d9cb;border-radius:10px;background:#edf7f1;color:#205d46;font-size:12px;line-height:1.6;margin-bottom:16px;overflow-wrap:anywhere}.asis-validation[data-state="error"]{border-color:#e8b9b9;background:#fff1f1;color:#923c3c}.asis-validation[data-state="warning"]{border-color:#e5d1a2;background:#fff9eb;color:#795c21}.asis-validation ul{margin:8px 0 0;padding-left:20px}.asis-validation li+li{margin-top:6px}.asis-validation[hidden]{display:none}

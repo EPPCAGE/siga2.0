@@ -19,6 +19,20 @@ Na etapa **Esboço AS IS**, use **Experimentar esboço por cards**. O editor BPM
 
 O caminho de correção volta à decisão; ele não segue indevidamente para a junção. Quando a resposta for positiva, o processo segue pela aprovação e continua. O retorno representa uma seta BPMN e não cria uma atividade artificial. Os destinos são etapas anteriores do mesmo caminho ou gateways que o contêm; etapas de outro caminho e o evento de início não são destinos de retorno.
 
+## Validação do fluxo
+
+A validação roda ao gerar a prévia, pelo botão **Verificar fluxo** e novamente antes de aplicar. Erros bloqueiam **Aplicar e salvar AS IS**, sem alterar o desenho atual:
+
+- Identidades duplicadas, setas quebradas, links sem par, início/finais inválidos e pontas soltas.
+- Elementos inalcançáveis a partir do início e caminhos que não podem chegar a nenhum encerramento.
+- Ciclos sem saída, mesmo que outro caminho do processo consiga terminar.
+- Possíveis travamentos nas junções, por exemplo uma escolha XOR que alimenta uma junção paralela que espera todas as entradas.
+- Retornos que reabrem um paralelo/inclusivo antes da conclusão dos caminhos, podendo acumular execuções.
+
+Ciclos com saída são permitidos e geram alerta para revisão das condições de saída. Finais independentes e ciclos locais em um caminho paralelo são aceitos quando não impedem a conclusão.
+
+A verificação explora execuções possíveis com escolhas XOR, todos os subconjuntos OR de até seis saídas e sincronização dos caminhos ativos nas junções inclusivas. Eventos de link mantêm a continuidade do fluxo. Por padrão, a análise é limitada a 3.000 estados, 20.000 transições e 48 execuções simultâneas; ao atingir o limite ou amostrar inclusivos maiores, exibe **análise parcial**, sem afirmar que todos os cenários foram verificados. As condições dos caminhos são textos livres: sua viabilidade e o atendimento das regras de negócio precisam de revisão humana. A verificação cobre o modelo gerado pelos cards, não alterações posteriores no editor livre.
+
 ## Limites desta versão
 
 Até 60 cards e cinco níveis de ramificações, com 2 a 60 caminhos nomeados por gateway. Esperas usam temporizador com duração ISO 8601, como PT30M, PT1H ou P1D. Retornos a etapas anteriores são feitos com o card **Retornar à etapa**. Saltos entre caminhos independentes, subprocessos e outros tipos de eventos permanecem no editor livre. Não há sincronização de alterações livres de volta aos cards, nem uso de IA.
@@ -28,7 +42,7 @@ A estrutura salva usa `mod.asIsCards.version = 3`, com `start` e `cards`. Cada g
 ## Validação
 
 ```bash
-npx vitest run tests/unit/asis-cards.test.js
+npx vitest run tests/unit/asis-cards.test.js tests/unit/asis-cards-validation.test.js
 node tests/e2e/asis-cards.cjs
 ```
 
