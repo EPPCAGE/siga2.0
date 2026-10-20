@@ -30,14 +30,14 @@ async function abrirEsbocoCards(){
     const content=items.map((card,index)=>`<article class="card asis-step" data-card="${esc(card.id)}"><div class="asis-step-head"><strong>${card.type==='task'?'Atividade':'Decisão'}</strong><div><button type="button" class="btn" data-action="up" data-id="${esc(card.id)}" ${index===0?'disabled':''} aria-label="Mover card para cima">↑</button><button type="button" class="btn" data-action="down" data-id="${esc(card.id)}" ${index===items.length-1?'disabled':''} aria-label="Mover card para baixo">↓</button><button type="button" class="btn btn-r" data-action="remove" data-id="${esc(card.id)}">Remover</button></div></div>${field(card,'nome',card.type==='task'?'Nome da atividade':'Pergunta da decisão')}${card.type==='task'?field(card,'executor','Responsável (raia)')+`<label class="fg"><span class="fl">Modo de execução</span><select class="fi" data-id="${esc(card.id)}" data-field="modo">${[['Manual','Manual'],['Semi-automatica','Semiautomática'],['Automatica','Automática']].map(([value,label])=>`<option value="${value}" ${card.modo===value?'selected':''}>${label}</option>`).join('')}</select></label>`:''}${field(card,'descricao','Observações','textarea')}${card.type==='decision'?`<div class="asis-branches">${['yes','no'].map(branch=>`<section><h3>${branch==='yes'?'Sim':'Não'}</h3>${render(card[branch] || [],card.id+':'+branch)}</section>`).join('')}</div><p class="ph-s">Os caminhos se reencontram antes da próxima atividade.</p>`:''}</article>`).join('');
     return content+`<div class="asis-cards-add"><button type="button" class="btn" data-action="add-task" data-path="${esc(path)}">+ Atividade</button><button type="button" class="btn" data-action="add-decision" data-path="${esc(path)}">+ Decisão</button></div>`;
   }
-  function refresh(){list.innerHTML=render();preview();}
+  function refresh(){list.innerHTML=render();void preview();}
   dialog.addEventListener('input',event=>{
     if(saving)return;
     const input=event.target;if(input.id==='asis-cards-confirm'){enabled();return;}
     if(!input.dataset.field)return;const found=find(input.dataset.id);if(!found)return;
-    found.card[input.dataset.field]=input.value;previewValid=false;enabled();clearTimeout(timer);timer=setTimeout(preview,250);
+    found.card[input.dataset.field]=input.value;previewValid=false;enabled();clearTimeout(timer);timer=setTimeout(()=>{void preview();},250);
   });
-  dialog.addEventListener('change',event=>{if(event.target.matches('select[data-field]')){const found=find(event.target.dataset.id);if(found){found.card[event.target.dataset.field]=event.target.value;preview();}}});
+  dialog.addEventListener('change',event=>{if(event.target.matches('select[data-field]')){const found=find(event.target.dataset.id);if(found){found.card[event.target.dataset.field]=event.target.value;void preview();}}});
   dialog.addEventListener('click',event=>{
     const button=event.target.closest('button[data-action]');if(!button || saving)return;
     const action=button.dataset.action;if(action==='close'){dialog.close();return;}if(action==='fit'){viewer.get('canvas').zoom('fit-viewport');return;}if(action==='zoom-in' || action==='zoom-out'){const canvas=viewer.get('canvas');canvas.zoom(canvas.zoom()*(action==='zoom-in'?1.2:1/1.2));return;}
