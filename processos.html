@@ -10,6 +10,9 @@
 <title>SIGA - EPP</title>
 <link rel="icon" type="image/png" href="assets/siga-epp-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="src/processos/asis-cards.css?v=20261020-1">
+<script src="src/shared/asis-cards.js?v=20261020-1"></script>
+<script src="src/processos/asis-cards.js?v=20261020-1"></script>
 <link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261016-2">
 <script src="src/shared/indicadores-manuais.js?v=20261015-1"></script>
 <script src="src/processos/indicadores-manuais.js?v=20261015-1"></script>
@@ -6143,6 +6146,7 @@ const ACOES = {
     <div class="fg"><label class="fl">Descrição AS IS</label>
       ${!p.mod.asIs && p.ent.atividades_principais ? `<div class="ib" style="margin-bottom:.4rem;font-size:12px">Pré-preenchido com as atividades da reunião de entendimento.</div>` : ''}
       <textarea class="fi" id="e-asis" style="min-height:120px" placeholder="Como o processo funciona hoje...">${p.mod.asIs || p.ent.atividades_principais || ''}</textarea></div>
+    <div style="margin-bottom:1rem"><button type="button" class="btn btn-p" onclick="abrirEsbocoCards()">Experimentar esboço por cards</button><p class="ph-s">Atividades e decisões em cards com prévia BPMN automática. O desenho atual só muda ao aplicar.</p></div>
     ${bpmnEditorHTML('asis', p.mod.bpmnAsIs)}
     <div style="margin:.8rem 0 .4rem;font-weight:600;font-size:13px">Etapas extraídas do BPMN</div>
     <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Extraia as etapas do BPMN para registrar o fluxo do processo.</div>
@@ -7027,8 +7031,8 @@ const _RESET_MAP={
   questionario:  p=>{ if(p.ent){p.ent.quest_resp={};p.ent.quest_nota='';p.ent.mat=null;} },
   analise:       p=>{ if(p.ent){p.ent.analise={gargalos:[],retrabalhos:[],gaps:[],oportunidades:[]};} },
   esboco_asis:   p=>{ if(p.mod){
-    if(p.mod.bpmnAsIs||p.mod.asIs||(p.mod.etapas_proc||[]).length) _arquivarVersaoAnterior(p,'asis',{asIs:p.mod.asIs||'',bpmnAsIs:p.mod.bpmnAsIs||null,etapas_proc:p.mod.etapas_proc||[]});
-    p.mod.asIs='';p.mod.bpmnAsIs=null;p.mod.etapas_proc=[];
+    if(p.mod.bpmnAsIs||p.mod.asIs||(p.mod.etapas_proc||[]).length) _arquivarVersaoAnterior(p,'asis',{asIs:p.mod.asIs||'',bpmnAsIs:p.mod.bpmnAsIs||null,etapas_proc:p.mod.etapas_proc||[],asIsCards:p.mod.asIsCards||null});
+    p.mod.asIs='';p.mod.bpmnAsIs=null;p.mod.etapas_proc=[];delete p.mod.asIsCards;delete p.mod.bpmnAsIsSvg;
   } },
 
   melhorias:     p=>{ if(p.ent?.analise){ p.ent.analise.feedback_dono={}; p.ent.analise.solucao_definitiva={}; } },
