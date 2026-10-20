@@ -3,10 +3,10 @@
 Na etapa **Esboço AS IS**, use **Experimentar esboço por cards**. O editor BPMN existente continua disponível.
 
 - Os cards são compactos: clique no título ou em **Editar** para abrir o pop-up. Criar e cancelar um card não altera o fluxo.
-- Edite o início e adicione atividades, decisões exclusivas, paralelos, inclusivos, esperas temporizadas, encerramentos e retornos a etapas anteriores. Informe responsáveis e modos de execução nas atividades.
+- Edite o início e adicione atividades, decisões exclusivas, paralelos, inclusivos, esperas temporizadas, encerramentos e retornos a etapas anteriores. Informe o responsável/raia também no início, gateways, esperas e encerramentos; o modo de execução é configurado nas atividades.
 - Reordene os cards pelas setas. Os caminhos têm nomes livres; no pop-up do gateway, adicione ou remova saídas e nomeie cada uma (por exemplo, Aprovar, Revisar e Arquivar). No pop-up, escolha reencontrá-los ou mantê-los independentes, com finais separados. Cards após um encerramento são impedidos para evitar atividades inalcançáveis.
 - As conexões são roteadas em corredores livres. O roteador procura trajetos ortogonais livres em diferentes lados dos elementos, inclusive nas divisões e junções dos gateways. Apenas quando essa busca não encontra uma rota sem cruzamento usa pares de eventos de link BPMN com o mesmo identificador (L1, L2...), mantendo a continuidade sem cruzar linhas.
-- A prévia à direita é BPMN real, com raias por responsável. Os botões permitem ampliar, reduzir e ajustar o desenho.
+- A prévia à direita é BPMN real, com raias por responsável. Eventos e gateways ficam nessas mesmas raias, sem raia técnica separada. Quando o responsável de um evento ou gateway estiver vazio, ele herda o da etapa anterior do caminho; se não houver, usa o da próxima etapa. A junção acompanha o responsável do gateway. Se nenhum responsável estiver disponível, usa uma única raia “Responsável não informado”. Os botões permitem ampliar, reduzir e ajustar o desenho.
 - A prévia só modifica o processo ao confirmar a substituição e usar **Aplicar e salvar AS IS**. Fechar descarta as alterações do teste.
 - A aplicação salva os cards em `mod.asIsCards`, o XML/SVG AS IS e `mod.etapas_proc` no mesmo processo. Uma versão anterior do desenho e das etapas é arquivada.
 - Reabrir recupera os cards anteriormente aplicados. Um BPMN desenhado livremente ou importado não é convertido automaticamente em cards. Reaplicar os cards substitui ajustes do editor livre, após confirmação.
