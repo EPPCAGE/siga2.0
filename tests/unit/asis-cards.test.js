@@ -20,6 +20,43 @@ describe('esboço AS IS experimental por cards',()=>{
   expect(result.steps[1].vinculo_gw).toEqual({gw_ep_id:'ep-card-d',label:'Sim'});
   const a=result.nodes.find(n=>n.id==='Card_a'),b=result.nodes.find(n=>n.id==='Card_b');expect(a.y).not.toBe(b.y);
  });
+ it('nomeia três ou mais saídas XOR e conecta o gateway com setas, sem links',()=>{
+  for(const empty of [false,true]){
+   const branches=['Aprovar','Devolver para ajustes','Arquivar','Encaminhar'].map((nome,index)=>({id:'b'+index,nome,cards:empty?[]:[task('branch'+index)]}));
+   const result=compile([{id:'xor',type:'decision',nome:'Qual encaminhamento?',branches},task('next')]);
+   expect(result.nodes.filter(n=>n.linkName)).toHaveLength(0);
+   expect(result.flows.filter(f=>f.source==='Card_xor').map(f=>f.label)).toEqual(branches.map(b=>b.nome));
+   expect(result.flows.filter(f=>f.target==='Join_xor')).toHaveLength(4);
+   if(!empty)expect(result.steps.filter(step=>step.vinculo_gw).map(step=>step.vinculo_gw.label)).toEqual(branches.map(b=>b.nome));
+  }
+ });
+ it('preserva ramos antigos e nomes livres em ramificações aninhadas com finais separados',()=>{
+  const legacy={id:'old',type:'decision',nome:'Antiga',yes:[task('a')],no:[task('b')]},before=JSON.stringify(legacy);
+  const result=compile([{id:'multi',type:'decision',nome:'Tipo?',join:false,branches:[{id:'p',nome:'Preferencial',cards:[legacy]},{id:'n',nome:'Normal',cards:[task('c')]},{id:'u',nome:'Urgente & especial',cards:[]}]}]);
+  expect(JSON.stringify(legacy)).toBe(before);expect(result.nodes.filter(n=>n.type==='endEvent')).toHaveLength(3);
+  expect(result.xml).toContain('Urgente &amp; especial');expect(result.nodes.some(n=>n.id==='Join_multi')).toBe(false);
+ });
+ it('repete a correção até o XOR ser positivo e só então continua o processo',()=>{
+  const cards=[task('prepare'),{id:'check',type:'decision',nome:'Documentação completa?',branches:[{id:'ok',nome:'Completa',cards:[task('approve')]},{id:'fix',nome:'Precisa corrigir',cards:[task('fix'),{id:'retry',type:'return',nome:'Reavaliar',targetId:'check'}]}]},task('archive')];
+  const result=compile(cards),flows=logicalFlows(result);
+  expect(flows).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_fix',target:'Card_check'}),expect.objectContaining({source:'Card_approve',target:'Join_check'}),expect.objectContaining({source:'Join_check',target:'Card_archive'})]));
+  expect(flows.some(flow=>flow.source==='Card_fix'&&flow.target==='Join_check')).toBe(false);
+  expect(result.steps.some(step=>step.bpmn_id==='Card_retry')).toBe(false);
+  expect(result.nodes.filter(node=>node.type==='endEvent')).toHaveLength(1);
+ });
+ it('permite retorno direto à decisão ou à preparação anterior e rejeita saltos para outro caminho',()=>{
+  for(const targetId of ['check','prepare']){
+   const result=compile([task('prepare'),{id:'check',type:'decision',nome:'Aprovar?',branches:[{id:'ok',nome:'Aprovado',cards:[]},{id:'redo',nome:'Refazer',cards:[{id:'retry',type:'return',nome:'Voltar',targetId}]}]}]);
+   expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_check',target:'Card_'+targetId,label:'Refazer'})]));
+  }
+  expect(()=>compile([{id:'d',type:'decision',nome:'Escolher',yes:[task('a')],no:[{id:'r',type:'return',nome:'Voltar',targetId:'a'}]}])).toThrow(/etapa anterior/);
+ });
+ it('valida rótulos, quantidade e identidade dos caminhos',()=>{
+  const compileBranches=branches=>compile([{id:'d',type:'decision',nome:'Escolher',branches}]);
+  expect(()=>compileBranches([{id:'a',nome:'A',cards:[]}])).toThrow(/2 a 60/);
+  expect(()=>compileBranches([{id:'a',nome:' ',cards:[]},{id:'b',nome:'B',cards:[]}])).toThrow(/nome/);
+  expect(()=>compileBranches([{id:'a',nome:'A',cards:[]},{id:'a',nome:'B',cards:[]}])).toThrow(/duplicada/);
+ });
  it('preserva IDs ao reordenar e não altera os cards de entrada',()=>{
   const cards=[task('a'),task('b')],before=JSON.stringify(cards);
   const first=compile(cards),second=compile([...cards].reverse());
@@ -57,7 +94,7 @@ describe('esboço AS IS experimental por cards',()=>{
   }
   for(const s of segments)for(const n of result.nodes){
    if(n.id===s.f.source||n.id===s.f.target)continue;
-   // Every route is confined to the empty corridor between neighboring columns.
+   // Sample all routed segments to detect lines passing through unrelated BPMN elements.
    for(let t=0;t<=1;t+=0.025){const x=s.a.x+(s.b.x-s.a.x)*t,y=s.a.y+(s.b.y-s.a.y)*t;expect(x>n.x&&x<n.x+n.width&&y>n.y&&y<n.y+n.height,`${s.f.id} atravessa ${n.id}`).toBe(false);}
   }
  });
