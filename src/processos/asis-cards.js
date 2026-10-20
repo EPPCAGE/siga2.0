@@ -12,19 +12,32 @@ async function abrirEsbocoCards(){
   migrate(cards);
   const startInfo=clone(originalMod.asIsCards?.start || {nome:'Início do processo'});
   const dialog=document.createElement('dialog');dialog.id='asis-cards-dialog';dialog.className='asis-cards-dialog';dialog.setAttribute('aria-labelledby','asis-cards-title');
-  dialog.innerHTML=`<header class="asis-cards-head"><div><h2 id="asis-cards-title">Esboço AS IS por cards <span class="badge ba">Experimental</span></h2><p class="ph-s">${esc(process.nome)} · Os cards geram a prévia automaticamente.</p></div><button type="button" class="btn" data-action="close">Fechar</button></header><p class="ib ibb">Construa o processo com cards. Clique para editar; escolha se os caminhos se reencontram ou terminam separadamente. Nomeie os caminhos dos gateways livremente e adicione novas saídas. Links BPMN são usados apenas se o roteamento por setas não encontrar um caminho sem cruzamentos.</p><div class="asis-cards-layout"><section aria-label="Cards do processo"><div class="asis-cards-list"></div></section><section class="asis-cards-preview" aria-label="Prévia BPMN"><div class="asis-cards-preview-head"><strong>Prévia BPMN</strong><div class="asis-preview-tools"><button type="button" class="btn" data-action="zoom-in" aria-label="Ampliar prévia">+</button><button type="button" class="btn" data-action="zoom-out" aria-label="Reduzir prévia">−</button><button type="button" class="btn" data-action="fit">Ajustar</button></div></div><div id="asis-cards-canvas"></div></section></div><footer><p role="alert" id="asis-cards-error"></p><p class="ph-s">A prévia não altera o desenho atual. Ao aplicar, os cards, o BPMN e as etapas são salvos juntos. Reaplicar os cards substitui os ajustes feitos no editor livre.</p><label class="asis-cards-consent"><input type="checkbox" id="asis-cards-confirm"> Aplicar este esboço no lugar do desenho e das etapas AS IS atuais, guardando uma versão anterior.</label><button type="button" class="btn btn-p" id="asis-cards-apply" disabled>Aplicar e salvar AS IS</button></footer>`;
+  dialog.innerHTML=`<header class="asis-cards-head"><div><h2 id="asis-cards-title">Esboço AS IS por cards <span class="badge ba">Experimental</span></h2><p class="ph-s">${esc(process.nome)} · Os cards geram a prévia automaticamente.</p></div><button type="button" class="btn" data-action="close">Fechar</button></header><p class="ib ibb">Construa o processo com cards. Clique para editar; escolha se os caminhos se reencontram ou terminam separadamente. Nomeie os caminhos dos gateways livremente e adicione novas saídas. Links BPMN são usados apenas se o roteamento por setas não encontrar um caminho sem cruzamentos.</p><div class="asis-cards-layout"><section aria-label="Cards do processo"><div class="asis-cards-list"></div></section><section class="asis-cards-preview" aria-label="Prévia BPMN"><div class="asis-cards-preview-head"><strong>Prévia BPMN</strong><div class="asis-preview-tools"><button type="button" class="btn" data-action="validate">Verificar fluxo</button><button type="button" class="btn" data-action="zoom-in" aria-label="Ampliar prévia">+</button><button type="button" class="btn" data-action="zoom-out" aria-label="Reduzir prévia">−</button><button type="button" class="btn" data-action="fit">Ajustar</button></div></div><div id="asis-cards-canvas"></div></section></div><footer><section id="asis-cards-validation" class="asis-validation" aria-live="polite" aria-label="Validação do fluxo" hidden></section><p role="alert" id="asis-cards-error"></p><p class="ph-s">A prévia não altera o desenho atual. Ao aplicar, os cards, o BPMN e as etapas são salvos juntos. Reaplicar os cards substitui os ajustes feitos no editor livre.</p><label class="asis-cards-consent"><input type="checkbox" id="asis-cards-confirm"> Aplicar este esboço no lugar do desenho e das etapas AS IS atuais, guardando uma versão anterior.</label><button type="button" class="btn btn-p" id="asis-cards-apply" disabled>Aplicar e salvar AS IS</button></footer>`;
   document.body.append(dialog);dialog.showModal();
   let viewer,saving=false,closed=false,revision=0,timer=null,queue=Promise.resolve(),built=null,previewValid=false;
   const error=dialog.querySelector('#asis-cards-error'),apply=dialog.querySelector('#asis-cards-apply'),list=dialog.querySelector('.asis-cards-list');
   try{viewer=new BpmnJS({...bpmnModelerOptions(dialog.querySelector('#asis-cards-canvas')),keyboard:{bindTo:null}});}catch(e){dialog.remove();toast('Não foi possível iniciar a prévia BPMN.','var(--red)');return;}
   function enabled(){apply.disabled=saving || !previewValid || !cards.length || !dialog.querySelector('#asis-cards-confirm').checked;}
+  function showValidation(validation){
+    const panel=dialog.querySelector('#asis-cards-validation');panel.hidden=!validation;if(!validation)return;
+    const errors=validation.errors || [],warnings=validation.warnings || [];
+    panel.dataset.state=errors.length?'error':warnings.length?'warning':'success';
+    const title=errors.length?'Corrija o fluxo antes de salvar':warnings.length?'Fluxo verificado com alertas':'Verificação do fluxo: nenhum problema encontrado';
+    panel.innerHTML=`<strong>${title}</strong>${errors.length?`<ul>${errors.map(issue=>`<li>${esc(issue.message)}</li>`).join('')}</ul>`:''}${warnings.length?`<ul>${warnings.map(issue=>`<li>${esc(issue.message)}</li>`).join('')}</ul>`:''}`;
+  }
   function preview(){
-    clearTimeout(timer);const rev=++revision;previewValid=false;enabled();
-    let compiled;try{compiled=AsIsCards.compile(cards,process.nome,startInfo);}catch(e){error.textContent=e.message;return queue;}
+    clearTimeout(timer);const rev=++revision;previewValid=false;enabled();showValidation(null);
+    let compiled;try{compiled=AsIsCards.compile(cards,process.nome,startInfo);}catch(e){error.textContent=e.validation?'':e.message;showValidation(e.validation);return queue;}
     queue=queue.catch(()=>{}).then(async()=>{
       if(closed || rev!==revision)return;
-      try{await viewer.importXML(compiled.xml);if(closed || rev!==revision)return;viewer.get('canvas').zoom('fit-viewport');built=compiled;previewValid=true;error.textContent='';enabled();}
-      catch(e){if(rev===revision){error.textContent='Não foi possível gerar o BPMN: '+e.message;previewValid=false;enabled();}}
+      try{
+        const imported=await viewer.importXML(compiled.xml);if(closed || rev!==revision)return;
+        const registry=viewer.get('elementRegistry'),missing=[...compiled.nodes,...compiled.flows].filter(item=>!registry.get(item.id));
+        if(missing.length)throw Error('O editor não conseguiu representar todos os elementos. Revise o fluxo antes de salvar.');
+        const validation={...compiled.validation,warnings:[...compiled.validation.warnings,...(imported.warnings || []).map(warning=>({code:'BPMN_IMPORT_WARNING',message:'O editor sinalizou: '+warning.message,nodeIds:[]}))]};
+        viewer.get('canvas').zoom('fit-viewport');built=compiled;previewValid=validation.valid;error.textContent='';showValidation(validation);enabled();
+      }catch(e){if(rev===revision){error.textContent='Não foi possível gerar o BPMN: '+e.message;previewValid=false;showValidation(null);enabled();}}
+
     });return queue;
   }
   function find(id,items=cards){for(let index=0;index<items.length;index++){const card=items[index];if(card.id===id)return {card,items,index};for(const branch of card.branches || []){const found=find(id,branch.cards);if(found)return found;}}return null;}
@@ -69,7 +82,7 @@ async function abrirEsbocoCards(){
   dialog.addEventListener('input',event=>{if(event.target.id==='asis-cards-confirm')enabled();});
   dialog.addEventListener('click',event=>{
     const button=event.target.closest('button[data-action]');if(!button || saving)return;
-    const action=button.dataset.action;if(action==='close'){dialog.close();return;}if(action==='fit'){viewer.get('canvas').zoom('fit-viewport');return;}if(action==='zoom-in' || action==='zoom-out'){const canvas=viewer.get('canvas');canvas.zoom(canvas.zoom()*(action==='zoom-in'?1.2:1/1.2));return;}
+    const action=button.dataset.action;if(action==='close'){dialog.close();return;}if(action==='validate'){void preview();return;}if(action==='fit'){viewer.get('canvas').zoom('fit-viewport');return;}if(action==='zoom-in' || action==='zoom-out'){const canvas=viewer.get('canvas');canvas.zoom(canvas.zoom()*(action==='zoom-in'?1.2:1/1.2));return;}
     if(action==='edit-start'){editCard({...startInfo,type:'start'},data=>Object.assign(startInfo,data));return;}
     if(action.startsWith('add-')){
       const path=button.dataset.path;let target=cards;
