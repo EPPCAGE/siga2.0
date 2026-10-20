@@ -96,7 +96,56 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
    const result={warnings:imported.warnings.map(w=>w.message),ends:ends.length,noOutgoing:ends.every(el=>(el.businessObject.outgoing || []).length===0),xml:(await viewer.saveXML()).xml};viewer.destroy();return result;
   });
   assert.deepEqual(expanded.warnings,[]);assert.equal(expanded.ends,3);assert.equal(expanded.noOutgoing,true);
-  for(const text of ['parallelGateway','inclusiveGateway','timerEventDefinition','linkEventDefinition','PT30M','Pedido recebido'])assert.ok(expanded.xml.includes(text),text);
+  for(const text of ['parallelGateway','inclusiveGateway','timerEventDefinition','PT30M','Pedido recebido'])assert.ok(expanded.xml.includes(text),text);
+  // XOR paths have free labels, more than two exits, and no automatic link events.
+  await page.evaluate(()=>{curProc={id:3,nome:'XOR com três saídas',mod:{}};processos=[curProc];});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  await dialog.locator('[data-action="add-decision"]').first().click();
+  let editor=page.locator('#asis-card-editor');await editor.locator('[name="nome"]').fill('Encaminhar solicitação');
+  await editor.locator('[name="branch-0"]').fill('Aprovar');await editor.locator('[name="branch-1"]').fill('Revisar');
+  await editor.locator('[data-add-branch]').click();await editor.locator('[name="branch-2"]').fill('Arquivar');
+  await editor.getByRole('button',{name:'Salvar card'}).click();
+  const exits=dialog.locator('.asis-branches > section');assert.equal(await exits.count(),3);
+  for(let index=0;index<3;index++)await addCard(exits.nth(index),'task','Executar '+index,'Equipe');
+  await dialog.locator('[data-card]').first().locator('[data-action="edit"]').first().click();editor=page.locator('#asis-card-editor');
+  await editor.locator('[name="branch-0"]').fill('Descartar alteração');await editor.getByRole('button',{name:'Cancelar',exact:true}).click();
+  assert.equal(await exits.first().locator('h3').first().innerText(),'Aprovar');
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  const multi=await page.evaluate(async()=>{
+   const viewer=new BpmnJS(bpmnModelerOptions('#original-canvas'));const imported=await viewer.importXML(curProc.mod.bpmnAsIs);
+   const outgoing=viewer.get('elementRegistry').get('Card_'+curProc.mod.asIsCards.cards[0].id).businessObject.outgoing.map(flow=>flow.name);
+   const result={warnings:imported.warnings.map(w=>w.message),outgoing,xml:curProc.mod.bpmnAsIs,branches:curProc.mod.asIsCards.cards[0].branches};viewer.destroy();return result;
+  });
+  assert.deepEqual(multi.warnings,[]);assert.deepEqual(multi.outgoing,['Aprovar','Revisar','Arquivar']);assert.ok(!multi.xml.includes('linkEventDefinition'));assert.equal(multi.branches.length,3);
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  assert.equal(await dialog.locator('.asis-branches > section').count(),3);assert.equal(await dialog.locator('[data-card]').count(),4);
+  await dialog.locator('[data-card]').first().locator('[data-action="edit"]').first().click();editor=page.locator('#asis-card-editor');
+  page.once('dialog',prompt=>{void prompt.dismiss();});await editor.locator('[data-remove-branch="2"]').click();assert.equal(await editor.locator('[data-branch-index]').count(),3);
+  page.once('dialog',prompt=>{void prompt.accept();});await editor.locator('[data-remove-branch="2"]').click();assert.equal(await editor.locator('[data-branch-index]').count(),2);
+  await editor.getByRole('button',{name:'Cancelar',exact:true}).click();assert.equal(await dialog.locator('.asis-branches > section').count(),3);
+  await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
+  // Correction loop returns to the XOR, while its positive branch continues to a final event.
+  await page.evaluate(()=>{curProc={id:4,nome:'Revisar até aprovar',mod:{}};processos=[curProc];});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  await addCard(dialog,'task','Preparar documentos','Equipe');await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'decision','Documentação completa?');
+  const loopPaths=dialog.locator('.asis-branches > section');
+  await addCard(loopPaths.nth(0),'task','Aprovar documentos','Equipe');await addCard(loopPaths.nth(1),'task','Corrigir documentos','Equipe');
+  await loopPaths.nth(1).locator('[data-action="add-return"]').click();editor=page.locator('#asis-card-editor');
+  const targetId=await editor.locator('[name="targetId"] option').filter({hasText:'Documentação completa?'}).getAttribute('value');
+  await editor.locator('[name="targetId"]').selectOption(targetId);await editor.getByRole('button',{name:'Salvar card'}).click();
+  assert.equal(await loopPaths.nth(1).locator('.asis-cards-add').count(),0);
+  await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'task','Arquivar processo','Equipe');
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  const loopResult=await page.evaluate(async()=>{
+   const viewer=new BpmnJS(bpmnModelerOptions('#original-canvas')),imported=await viewer.importXML(curProc.mod.bpmnAsIs),registry=viewer.get('elementRegistry');
+   const cards=curProc.mod.asIsCards.cards,gateway=cards[1],fix=gateway.branches[1].cards[0],back=gateway.branches[1].cards[1];
+   const edges=registry.getAll().filter(el=>el.type==='bpmn:SequenceFlow');
+   const logicalReturn=edges.some(edge=>{const bo=edge.businessObject;if(bo.sourceRef.id!=='Card_'+fix.id)return false;if(bo.targetRef.id==='Card_'+gateway.id)return true;const link=bo.targetRef.eventDefinitions?.find(def=>def.$type==='bpmn:LinkEventDefinition');return link?.target?.get('$parent')?.outgoing?.some(next=>next.targetRef.id==='Card_'+gateway.id);});
+   const result={warnings:imported.warnings.map(w=>w.message),logicalReturn,targetId:back.targetId,gatewayId:gateway.id,steps:curProc.mod.etapas_proc.length,ends:registry.getAll().filter(el=>el.type==='bpmn:EndEvent').length};viewer.destroy();return result;
+  });
+  assert.deepEqual(loopResult.warnings,[]);assert.equal(loopResult.logicalReturn,true);assert.equal(loopResult.targetId,loopResult.gatewayId);assert.equal(loopResult.steps,5);assert.equal(loopResult.ends,1);
   await page.evaluate(async()=>{role='dono';await abrirEsbocoCards();});assert.equal(await page.locator('#asis-cards-dialog').count(),0);
   assert.deepEqual(errors,[]);console.log('AS IS por cards: BPMN real com raias/decisões, prévia, confirmação, histórico, gravação/rollback, recarga, cancelamento, conflitos, permissões e mobile validados.');
  }finally{await browser.close();}
