@@ -1,5 +1,7 @@
-const {chromium}=require('playwright'),{readFileSync}=require('node:fs'),assert=require('node:assert/strict');
+const {chromium}=require('playwright'),{readFileSync,mkdtempSync}=require('node:fs'),assert=require('node:assert/strict');
+const {tmpdir}=require('node:os'),{join}=require('node:path');
 (async()=>{
+ const artifacts=mkdtempSync(join(tmpdir(),'siga-asis-cards-'));
  const html=readFileSync('processos.html','utf8'),browser=await chromium.launch({headless:true});
  try{
   const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -18,7 +20,7 @@ const {chromium}=require('playwright'),{readFileSync}=require('node:fs'),assert=
    window.curProc={id:1,nome:'Processo de teste',mod:{asIs:'Descrição preservada',bpmnAsIs:old.xml,etapas_proc:[{id:'legacy',nome:'Etapa antiga',desc:'Detalhamento preservado'}]}};window.processos=[curProc];window.usuarioLogado={nome:'EP'};window.role='ep';window.isEP=()=>role==='ep';
    const m=new BpmnJS(bpmnModelerOptions('#original-canvas'));await m.importXML(old.xml);
    window.bpmnModelers={asis:m};window.bpmnProcIds={asis:1};window.bpmnDirty={asis:false};window.originalXML=old.xml;
-   window.fbReady=()=>true;window._fbLoadedAt=1;window.saveFails=false;window.saved=null;window.fbSaveAll=async()=>{if(saveFails)return false;saved=JSON.parse(JSON.stringify(curProc));return true;};window.toast=()=>{};window.now=()=> '20/10/2026';window.initBpmnMod=()=>{};window._refreshEtapasList=()=>{};
+   window.fbReady=()=>true;window._fbLoadedAt=1;window.saveFails=false;window.savedProcess=null;window.fbSaveAll=async()=>{if(saveFails)return false;window.savedProcess=JSON.parse(JSON.stringify(curProc));return true;};window.toast=()=>{};window.now=()=> '20/10/2026';window.initBpmnMod=()=>{};window._refreshEtapasList=()=>{};
   });
   await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();
   let dialog=page.locator('#asis-cards-dialog');await dialog.waitFor();
@@ -35,19 +37,19 @@ const {chromium}=require('playwright'),{readFileSync}=require('node:fs'),assert=
   await branches.nth(1).locator('[data-field="nome"]').fill('Solicitar correção');await branches.nth(1).locator('[data-field="executor"]').fill('Protocolo');
   await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
   assert.equal(await dialog.locator('.djs-element.djs-shape:not(.djs-label)[data-element-id^="Card_"]:not([data-element-id$="_label"])').count(),4);
-  await page.screenshot({path:'/tmp/siga-asis-cards-desktop.png',fullPage:true});
+  await page.screenshot({path:join(artifacts,'desktop.png'),fullPage:true});
   await page.evaluate(()=>saveFails=true);await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();
   await page.waitForFunction(()=>document.getElementById('asis-cards-error').textContent.includes('gravação'));
   assert.equal(await page.evaluate(()=>curProc.mod.bpmnAsIs),await page.evaluate(()=>originalXML));assert.equal(await page.evaluate(()=>curProc.mod.asIsCards),undefined);
   await page.evaluate(()=>saveFails=false);await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
-  const saved=await page.evaluate(()=>saved);
-  assert.equal(saved.mod.asIs,'Descrição preservada');assert.equal(saved.mod.asIsCards.cards.length,2);assert.equal(saved.mod.etapas_proc.length,4);
-  assert.match(saved.mod.bpmnAsIs,/Aprovar pedido/);assert.match(saved.mod.bpmnAsIsSvg,/Receber/);assert.equal(saved.mod.versoes_anteriores.length,1);assert.equal(saved.mod.versoes_anteriores[0].etapas_proc[0].desc,'Detalhamento preservado');
+  const snapshot=await page.evaluate(()=>window.savedProcess);
+  assert.equal(snapshot.mod.asIs,'Descrição preservada');assert.equal(snapshot.mod.asIsCards.cards.length,2);assert.equal(snapshot.mod.etapas_proc.length,4);
+  assert.match(snapshot.mod.bpmnAsIs,/Aprovar pedido/);assert.match(snapshot.mod.bpmnAsIsSvg,/Receber/);assert.equal(snapshot.mod.versoes_anteriores.length,1);assert.equal(snapshot.mod.versoes_anteriores[0].etapas_proc[0].desc,'Detalhamento preservado');
   assert.equal(await page.evaluate(()=>bpmnModelers.asis),null);
   const verified=await page.evaluate(async()=>{
     const viewer=new BpmnJS(bpmnModelerOptions('#original-canvas'));
-    const imported=await viewer.importXML(saved.mod.bpmnAsIs);
-    const allStepsExist=saved.mod.etapas_proc.every(step=>viewer.get('elementRegistry').get(step.bpmn_id));
+    const imported=await viewer.importXML(window.savedProcess.mod.bpmnAsIs);
+    const allStepsExist=window.savedProcess.mod.etapas_proc.every(step=>viewer.get('elementRegistry').get(step.bpmn_id));
     const types=viewer.get('elementRegistry').getAll().map(el=>el.type);
     const xml=(await viewer.saveXML()).xml;viewer.destroy();
     return {warnings:(imported.warnings || []).map(w=>w.message),allStepsExist,types,xml};
@@ -55,17 +57,17 @@ const {chromium}=require('playwright'),{readFileSync}=require('node:fs'),assert=
   assert.deepEqual(verified.warnings,[]);assert.equal(verified.allStepsExist,true);assert.ok(verified.types.includes('bpmn:ExclusiveGateway'));assert.match(verified.xml,/bpmndi:BPMNDiagram/);
 
   // Reload saved cards, then cancel without overwriting the saved process.
-  await page.evaluate(()=>{curProc=JSON.parse(JSON.stringify(saved));processos=[curProc];});
+  await page.evaluate(()=>{curProc=JSON.parse(JSON.stringify(window.savedProcess));processos=[curProc];});
   await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');await dialog.waitFor();
   assert.equal(await dialog.locator('[data-field="nome"]').count(),4);
-  await page.setViewportSize({width:390,height:844});assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth));await page.screenshot({path:'/tmp/siga-asis-cards-mobile.png',fullPage:true});
-  await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});assert.equal(await page.evaluate(()=>curProc.mod.bpmnAsIs),saved.mod.bpmnAsIs);
+  await page.setViewportSize({width:390,height:844});assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth));await page.screenshot({path:join(artifacts,'mobile.png'),fullPage:true});
+  await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});assert.equal(await page.evaluate(()=>curProc.mod.bpmnAsIs),snapshot.mod.bpmnAsIs);
   // A changed diagram cannot be silently replaced by a stale cards dialog.
   await page.setViewportSize({width:1500,height:1000});await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
   await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
   await page.evaluate(()=>curProc.mod.bpmnAsIs+=' ');await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();
   assert.match(await dialog.locator('#asis-cards-error').innerText(),/atualizado/);await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
-  await page.evaluate(()=>{role='dono';abrirEsbocoCards();});assert.equal(await page.locator('#asis-cards-dialog').count(),0);
+  await page.evaluate(async()=>{role='dono';await abrirEsbocoCards();});assert.equal(await page.locator('#asis-cards-dialog').count(),0);
   assert.deepEqual(errors,[]);console.log('AS IS por cards: BPMN real com raias/decisões, prévia, confirmação, histórico, gravação/rollback, recarga, cancelamento, conflitos, permissões e mobile validados.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
