@@ -76,8 +76,8 @@
     return null;
   }
   function compile(cards,name='Esboço AS IS',startInfo={}){
-    const nodes=[],flows=[],steps=[],ids=new Set(),control='Fluxo e decisões';let serial=0,count=0;
-    const add=(id,type,label,column,owner=control)=>{const node={id,type,label,column,owner,width:type.endsWith('Task')?150:type.endsWith('Gateway')?50:36,height:type.endsWith('Task')?80:type.endsWith('Gateway')?50:36};nodes.push(node);return node;};
+    const nodes=[],flows=[],steps=[],ids=new Set(),unassigned='Responsável não informado';let serial=0,count=0;
+    const add=(id,type,label,column,owner='')=>{const node={id,type,label,column,owner,width:type.endsWith('Task')?150:type.endsWith('Gateway')?50:36,height:type.endsWith('Task')?80:type.endsWith('Gateway')?50:36};nodes.push(node);return node;};
     const link=(source,target,label='')=>flows.push({id:'Flow_cards_'+(++serial),source:source.id,target:target.id,label});
     function walk(list,previous,column,context=null,depth=0,available=[]){
       available=[...available];
@@ -95,7 +95,7 @@
         }
         available.push(card.id);
         const type=gateway?({decision:'exclusiveGateway',parallel:'parallelGateway',inclusive:'inclusiveGateway'})[card.type]:card.type==='end'?'endEvent':card.type==='wait'?'intermediateCatchEvent':mode==='Automatica'?'serviceTask':mode==='Semi-automatica'?'userTask':'manualTask';
-        const node=add('Card_'+card.id,type,card.nome.trim(),column,card.type==='task'?(card.executor?.trim() || 'Responsável não informado'):control);
+        const node=add('Card_'+card.id,type,card.nome.trim(),column,card.executor?.trim() || (card.type==='task'?unassigned:''));
         link(previous,node,context?.entryLabel || '');
         if(card.type==='wait'){node.duration=card.duration||'PT1H';if(!/^P(?=\d|T\d)(?:\d+D)?(?:T(?=\d)(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$/.test(node.duration))throw Error('Informe uma duração ISO 8601 válida, como PT1H ou P1D.');}
         const step={id:'ep-card-'+card.id,bpmn_id:node.id,nome:node.label,tipo:gateway?'Decisao':card.type==='task'?'Atividade':'Evento',natureza:'Execucao',modo:mode,executor:card.executor?.trim() || '',desc:card.descricao || '',seq:steps.length+1,vinculo_gw:context?{gw_ep_id:context.gateway,label:context.label}:null};steps.push(step);
@@ -115,17 +115,35 @@
           }else{
             if(card.type!=='decision'&&paths.some(path=>!path.previous))throw Error('Para encerrar caminhos de um paralelo ou inclusivo separadamente, desative o reencontro.');
             const live=paths.filter(branch=>branch.previous);
-            if(live.length){const join=add('Join_'+card.id,type,'',column);paths.forEach((branch,index)=>{if(branch.previous)link(branch.previous,join,branch.previous===node?labels[index]:'');});previous=join;column++;}else previous=null;
+            if(live.length){const join=add('Join_'+card.id,type,'',column,node.owner);join.ownerFrom=node.id;paths.forEach((branch,index)=>{if(branch.previous)link(branch.previous,join,branch.previous===node?labels[index]:'');});previous=join;column++;}else previous=null;
           }
         }else{previous=card.type==='end'?null:node;column++;}
         if(context)context={...context,entryLabel:''};
       }
       return {previous,column};
     }
-    const start=add('Cards_start','startEvent',startInfo.nome||'Início',0);
+    const start=add('Cards_start','startEvent',startInfo.nome||'Início',0,startInfo.executor?.trim() || '');
     const last=walk(cards,start,1);if(last.previous){const end=add('Cards_end','endEvent','Fim',last.column);link(last.previous,end);}
     // Keep branch order consistent across columns instead of reusing a different row per column.
     const byId=new Map(nodes.map(node=>[node.id,node])),spans=new Map();
+    // Events and gateways share the participants' lanes; there is no technical control lane.
+    function followingOwner(node){
+      const queue=[node.id],visited=new Set(queue);
+      for(let index=0;index<queue.length;index++){
+        const current=byId.get(queue[index]);if(current.owner)return current.owner;
+        for(const flow of flows.filter(edge=>edge.source===current.id)){
+          const next=byId.get(flow.target);if(next.column<=current.column||visited.has(next.id))continue;
+          visited.add(next.id);queue.push(next.id);
+        }
+      }
+      return '';
+    }
+    for(const node of [...nodes].sort((a,b)=>a.column-b.column)){
+      if(node.owner)continue;
+      const previous=flows.filter(flow=>flow.target===node.id).map(flow=>byId.get(flow.source)).find(parent=>parent.column<node.column&&parent.owner);
+      node.owner=byId.get(node.ownerFrom)?.owner || previous?.owner || followingOwner(node) || unassigned;
+    }
+    steps.forEach(step=>{const owner=byId.get(step.bpmn_id).owner;step.executor=owner===unassigned?'':owner;});
     function span(items){if(spans.has(items))return spans.get(items);const value=Math.max(1,...items.filter(card=>['decision','parallel','inclusive'].includes(card.type)).map(card=>branchesOf(card).reduce((sum,branch)=>sum+span(branch.cards),0)));spans.set(items,value);return value;}
     function position(items,base){
       const size=span(items),center=base+(size-1)/2;

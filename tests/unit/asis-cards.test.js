@@ -14,6 +14,26 @@ describe('esboço AS IS experimental por cards',()=>{
   expect(result.steps.map(s=>s.bpmn_id)).toEqual(['Card_a','Card_b','Card_c']);
   expect(logicalFlows(result).map(f=>[f.source,f.target])).toEqual([['Cards_start','Card_a'],['Card_a','Card_b'],['Card_b','Card_c'],['Card_c','Cards_end']]);
  });
+ it('integra início, decisões, junções e finais às raias existentes em cards antigos',()=>{
+  const cards=[task('a'),{id:'d',type:'decision',nome:'Aprovar?',yes:[task('b')],no:[task('c')]}],before=JSON.stringify(cards),result=compile(cards);
+  expect([...new Set(result.nodes.map(node=>node.owner))]).toEqual(['Equipe']);
+  for(const id of ['Cards_start','Card_d','Join_d','Cards_end'])expect(result.nodes.find(node=>node.id===id).owner).toBe('Equipe');
+  expect(result.xml).not.toContain('Fluxo e decisões');expect(result.steps.find(step=>step.bpmn_id==='Card_d').executor).toBe('Equipe');
+  expect(JSON.stringify(cards)).toBe(before);
+ });
+ it('respeita responsáveis explícitos dos eventos e gateways e mantém a junção na raia escolhida',()=>{
+  const result=compile([task('a','Protocolo'),{id:'d',type:'decision',nome:'Aprovar?',executor:'Gestão',yes:[{id:'w',type:'wait',nome:'Aguardar',executor:'Protocolo'}],no:[task('b','Protocolo')]},{id:'e',type:'end',nome:'Encerrar',executor:'Gestão'}],'Teste',{nome:'Iniciar',executor:'Gestão'});
+  const owners=Object.fromEntries(result.nodes.map(node=>[node.id,node.owner]));
+  expect(owners).toMatchObject({Cards_start:'Gestão',Card_a:'Protocolo',Card_d:'Gestão',Join_d:'Gestão',Card_w:'Protocolo',Card_e:'Gestão'});
+  expect([...new Set(Object.values(owners))].sort()).toEqual(['Gestão','Protocolo']);
+  expect(result.steps.find(step=>step.bpmn_id==='Card_w').executor).toBe('Protocolo');
+ });
+ it('herda responsáveis na sequência e usa uma única raia se nenhum foi informado',()=>{
+  const result=compile([task('a','Protocolo'),{id:'w',type:'wait',nome:'Aguardar'},task('b','Gestão')]);
+  const owner=id=>result.nodes.find(node=>node.id===id).owner;
+  expect(owner('Cards_start')).toBe('Protocolo');expect(owner('Card_w')).toBe('Protocolo');expect(owner('Cards_end')).toBe('Gestão');
+  expect([...new Set(compile([]).nodes.map(node=>node.owner))]).toEqual(['Responsável não informado']);
+ });
  it('liga os dois caminhos de uma decisão antes de seguir o fluxo principal',()=>{
   const result=compile([{id:'d',type:'decision',nome:'Aprovar?',yes:[task('a')],no:[task('b')]},task('c')]);
   expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_d',target:'Card_a',label:'Sim'}),expect.objectContaining({source:'Card_d',target:'Card_b',label:'Não'}),expect.objectContaining({source:'Card_a',target:'Join_d'}),expect.objectContaining({source:'Card_b',target:'Join_d'}),expect.objectContaining({source:'Join_d',target:'Card_c'})]));
