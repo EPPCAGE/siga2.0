@@ -3256,15 +3256,36 @@ function _htmlIndicadoresCriticos(cobertura){
     <div style="font-size:10px;color:var(--ink3);margin-top:.75rem">Considera os vínculos do módulo Indicadores, independentemente do preenchimento de resultados. Com meta: pelo menos um indicador vinculado possui meta definida em um período cadastrado.</div>
   </section>`;
 }
+function _carteiraPainelGestor(){
+  const final=new Set(['publicacao','acompanha','auditoria']);
+  const units=[];
+  for(const macro of ARQUITETURA){
+    for(const parent of macro.processos || []){
+      for(const item of [parent,...(parent.subprocessos || [])]){
+        const candidates=processos.filter(p=>
+          (p.arq_id!=null && String(p.arq_id)===String(item.id)) ||
+          (p.arq_id==null && item.proc_id!=null && String(p.id)===String(item.proc_id)));
+        // Um novo ciclo em andamento tem prioridade sobre mapeamentos concluídos.
+        const active=candidates.filter(p=>!final.has(p.etapa));
+        const choose=list=>list.find(p=>item.proc_id!=null && String(p.id)===String(item.proc_id)) || list[list.length-1];
+        const proc=choose(active) || choose(candidates) || null;
+        // Pais com subprocessos continuam na carteira se têm mapeamento próprio.
+        if(item===parent && parent.subprocessos?.length && !proc)continue;
+        units.push({arq_id:item.id,nome:item.nome,label:macro.nome+' › '+(item===parent?'':parent.nome+' › ')+item.nome,
+          gerente:item.gerente || parent.gerente,area:item.area || parent.area,macro:macro.nome,proc,isSub:item!==parent,parentNome:item===parent?null:parent.nome});
+      }
+    }
+  }
+  const emAnd=units.filter(u=>u.proc && !final.has(u.proc.etapa));
+  const mapeados=units.filter(u=>!emAnd.includes(u) && ((u.proc && final.has(u.proc.etapa)) || isMapeado(u.arq_id)));
+  const naoMapeadas=units.filter(u=>!emAnd.includes(u) && !mapeados.includes(u));
+  return {todas:units,emAnd,mapeados,naoMapeadas};
+}
 function rPainelGestor(){
   const el=document.getElementById('painel-gestor-content');
   if(!el)return;
   const subEl=document.getElementById('painel-gestor-sub');
-  const todas=getUnidadesMapeaveis();
-  const _etFinal=new Set(['publicacao','acompanha','auditoria']);
-  const mapeados=todas.filter(u=>(u.proc&&_etFinal.has(u.proc.etapa))||isMapeado(u.arq_id));
-  const emAnd=todas.filter(u=>u.proc&&!_etFinal.has(u.proc.etapa)&&!isMapeado(u.arq_id));
-  const naoMapeadas=todas.filter(u=>!u.proc&&!isMapeado(u.arq_id));
+  const {todas,mapeados,emAnd,naoMapeadas}=_carteiraPainelGestor();
   if(subEl) subEl.textContent=`${todas.length} processos/subprocessos · Atualizado em ${new Date().toLocaleDateString('pt-BR')}`;
 
   // Stats row
