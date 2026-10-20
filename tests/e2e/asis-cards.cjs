@@ -24,17 +24,21 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   });
   await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();
   let dialog=page.locator('#asis-cards-dialog');await dialog.waitFor();
-  await dialog.getByRole('button',{name:'+ Atividade',exact:true}).click();
-  await dialog.locator('[data-field="nome"]').fill('Receber solicitação');await dialog.locator('[data-field="executor"]').fill('Protocolo');
+  async function addCard(container,type,name,owner,settings={}){
+   await container.locator(`[data-action="add-${type}"]`).first().click();
+   const editor=page.locator('#asis-card-editor');await editor.locator('[name="nome"]').fill(name);
+   if(owner)await editor.locator('[name="executor"]').fill(owner);
+   for(const [key,value] of Object.entries(settings)){const input=editor.locator(`[name="${key}"]`);if(await input.evaluate(el=>el.tagName==='SELECT'))await input.selectOption(value);else await input.fill(value);}
+   await editor.getByRole('button',{name:'Salvar card',exact:true}).click();await editor.waitFor({state:'detached'});
+  }
+  await addCard(dialog,'task','Receber solicitação','Protocolo');
+  assert.equal(await dialog.locator('.asis-cards-list input,.asis-cards-list textarea').count(),0);
   assert.equal(await page.evaluate(()=>curProc.mod.bpmnAsIs),await page.evaluate(()=>originalXML));
   assert.equal(await dialog.locator('#asis-cards-apply').isDisabled(),true);
-  await dialog.locator('.asis-cards-list > .asis-cards-add').getByRole('button',{name:'+ Decisão',exact:true}).click();
-  await dialog.locator('[data-field="nome"]').nth(1).fill('Documentação completa?');
+  await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'decision','Documentação completa?');
   const branches=dialog.locator('.asis-branches > section');
-  await branches.nth(0).getByRole('button',{name:'+ Atividade',exact:true}).click();
-  await branches.nth(0).locator('[data-field="nome"]').fill('Aprovar pedido');await branches.nth(0).locator('[data-field="executor"]').fill('Gestão');
-  await branches.nth(1).getByRole('button',{name:'+ Atividade',exact:true}).click();
-  await branches.nth(1).locator('[data-field="nome"]').fill('Solicitar correção');await branches.nth(1).locator('[data-field="executor"]').fill('Protocolo');
+  await addCard(branches.nth(0),'task','Aprovar pedido','Gestão');
+  await addCard(branches.nth(1),'task','Solicitar correção','Protocolo');
   await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
   assert.equal(await dialog.locator('.djs-element.djs-shape:not(.djs-label)[data-element-id^="Card_"]:not([data-element-id$="_label"])').count(),4);
   await page.screenshot({path:join(artifacts,'desktop.png'),fullPage:true});
@@ -59,7 +63,7 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   // Reload saved cards, then cancel without overwriting the saved process.
   await page.evaluate(()=>{curProc=JSON.parse(JSON.stringify(window.savedProcess));processos=[curProc];});
   await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');await dialog.waitFor();
-  assert.equal(await dialog.locator('[data-field="nome"]').count(),4);
+  assert.equal(await dialog.locator('[data-card]').count(),4);
   await page.setViewportSize({width:390,height:844});assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth));await page.screenshot({path:join(artifacts,'mobile.png'),fullPage:true});
   await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});assert.equal(await page.evaluate(()=>curProc.mod.bpmnAsIs),snapshot.mod.bpmnAsIs);
   // A changed diagram cannot be silently replaced by a stale cards dialog.
@@ -67,6 +71,32 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
   await page.evaluate(()=>curProc.mod.bpmnAsIs+=' ');await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();
   assert.match(await dialog.locator('#asis-cards-error').innerText(),/atualizado/);await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
+  // New node types and independent endings, using the actual popup UI and BPMN importer.
+  await page.evaluate(()=>{curProc={id:2,nome:'Finais independentes',mod:{}};processos=[curProc];});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  await dialog.locator('[data-action="edit-start"]').click();
+  await page.locator('#asis-card-editor [name="nome"]').fill('Pedido recebido');
+  await page.locator('#asis-card-editor').getByRole('button',{name:'Salvar card'}).click();
+  await dialog.locator('[data-action="add-task"]').first().click();
+  await page.locator('#asis-card-editor').getByRole('button',{name:'Cancelar',exact:true}).click();assert.equal(await dialog.locator('[data-card]').count(),0);
+  await addCard(dialog,'parallel','Executar em paralelo',null,{join:'false'});
+  const paths=dialog.locator('.asis-branches > section');
+  await addCard(paths.nth(0),'wait','Aguardar retorno',null,{duration:'PT30M'});
+  await addCard(paths.nth(0),'end','Final da espera');
+  await addCard(paths.nth(1),'inclusive','Selecionar caminhos',null,{join:'false'});
+  const nested=dialog.locator('.asis-kind-inclusive .asis-branches > section');
+  await addCard(nested.nth(0),'task','Executar alternativa','Equipe');
+  await addCard(nested.nth(0),'end','Final alternativo');
+  await addCard(nested.nth(1),'end','Final imediato');
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  const expanded=await page.evaluate(async()=>{
+   const viewer=new BpmnJS(bpmnModelerOptions('#original-canvas')),imported=await viewer.importXML(curProc.mod.bpmnAsIs);
+   const elements=viewer.get('elementRegistry').getAll(),ends=elements.filter(el=>el.type==='bpmn:EndEvent');
+   const result={warnings:imported.warnings.map(w=>w.message),ends:ends.length,noOutgoing:ends.every(el=>(el.businessObject.outgoing || []).length===0),xml:(await viewer.saveXML()).xml};viewer.destroy();return result;
+  });
+  assert.deepEqual(expanded.warnings,[]);assert.equal(expanded.ends,3);assert.equal(expanded.noOutgoing,true);
+  for(const text of ['parallelGateway','inclusiveGateway','timerEventDefinition','linkEventDefinition','PT30M','Pedido recebido'])assert.ok(expanded.xml.includes(text),text);
   await page.evaluate(async()=>{role='dono';await abrirEsbocoCards();});assert.equal(await page.locator('#asis-cards-dialog').count(),0);
   assert.deepEqual(errors,[]);console.log('AS IS por cards: BPMN real com raias/decisões, prévia, confirmação, histórico, gravação/rollback, recarga, cancelamento, conflitos, permissões e mobile validados.');
  }finally{await browser.close();}

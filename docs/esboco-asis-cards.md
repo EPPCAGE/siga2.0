@@ -2,8 +2,10 @@
 
 Na etapa **Esboço AS IS**, use **Experimentar esboço por cards**. O editor BPMN existente continua disponível.
 
-- Adicione atividades e decisões, informe nomes e responsáveis e escolha o modo de execução.
-- Reordene os cards pelas setas. Cada caminho Sim/Não tem seus próprios cards e volta a se encontrar antes da próxima atividade.
+- Os cards são compactos: clique no título ou em **Editar** para abrir o pop-up. Criar e cancelar um card não altera o fluxo.
+- Edite o início e adicione atividades, decisões exclusivas, paralelos, inclusivos, esperas temporizadas e encerramentos. Informe responsáveis e modos de execução nas atividades.
+- Reordene os cards pelas setas. Cada ramificação tem dois caminhos. No pop-up, escolha reencontrá-los ou mantê-los independentes, com finais separados. Cards após um encerramento são impedidos para evitar atividades inalcançáveis.
+- As conexões são roteadas em corredores livres. Ramificações e conexões que conflitam usam pares de eventos de link BPMN com o mesmo identificador (L1, L2...), mantendo a continuidade sem cruzar linhas.
 - A prévia à direita é BPMN real, com raias por responsável. Os botões permitem ampliar, reduzir e ajustar o desenho.
 - A prévia só modifica o processo ao confirmar a substituição e usar **Aplicar e salvar AS IS**. Fechar descarta as alterações do teste.
 - A aplicação salva os cards em `mod.asIsCards`, o XML/SVG AS IS e `mod.etapas_proc` no mesmo processo. Uma versão anterior do desenho e das etapas é arquivada.
@@ -11,7 +13,9 @@ Na etapa **Esboço AS IS**, use **Experimentar esboço por cards**. O editor BPM
 
 ## Limites desta versão
 
-Até 60 cards e cinco níveis de decisões. Atividades manuais, semiautomáticas e automáticas; decisões exclusivas Sim/Não com junção. Paralelismos, ciclos, subprocessos e eventos específicos permanecem no editor livre. Não há sincronização de alterações livres de volta aos cards, nem uso de IA.
+Até 60 cards e cinco níveis de ramificações, com dois caminhos por gateway. Esperas usam temporizador com duração ISO 8601, como PT30M, PT1H ou P1D. Ciclos, subprocessos e outros tipos de eventos permanecem no editor livre. Não há sincronização de alterações livres de volta aos cards, nem uso de IA.
+
+A estrutura salva usa `mod.asIsCards.version = 2`, com `start` e `cards`. Cards da versão 1 são lidos sem conversão destrutiva e mantêm o reencontro por padrão.
 
 ## Validação
 
