@@ -21,6 +21,11 @@ describe('mapeamentos colaborativos',()=>{
   expect(domain.canEdit({status:'enviado',autor_uid:'a'},'b',true)).toBe(true);
   expect(domain.canEdit({status:'publicado',autor_uid:'a'},'b',true)).toBe(false);
  });
+ it('permite excluir somente rascunhos do próprio autor',()=>{
+  expect(domain.canDelete({status:'rascunho',autor_uid:'a'},'a')).toBe(true);
+  expect(domain.canDelete({status:'rascunho',autor_uid:'a'},'b')).toBe(false);
+  for(const status of ['enviado','publicado'])expect(domain.canDelete({status,autor_uid:'a'},'a')).toBe(false);
+ });
  it('impede o autor de publicar e o EPP de modificar uma publicação encerrada',()=>{
   expect(()=>domain.assertTransition({status:'rascunho',autor_uid:'a'},'publicado','a',false)).toThrow();
   expect(()=>domain.assertTransition({status:'enviado',autor_uid:'a'},'publicado','a',false)).toThrow();

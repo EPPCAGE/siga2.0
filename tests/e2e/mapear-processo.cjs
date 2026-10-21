@@ -8,7 +8,7 @@ const assert=require('node:assert/strict');
  const browser=await chromium.launch({headless:true});
  try{
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
-  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',dialog=>dialog.accept());
+  let acceptConfirmation=true;page.on('pageerror',e=>errors.push(e.message));page.on('dialog',dialog=>acceptConfirmation?dialog.accept():dialog.dismiss());
   await page.setContent('<div id="page-mapearprocesso" class="page on"></div><div id="page-fila"></div><div id="fila-content"></div><div id="novo-preview"></div><select id="novo-macro"></select><select id="novo-proc-sel"></select><input id="novo-objetivo"><input id="novo-dono-nome"><input id="novo-dono-email">');
   await page.addStyleTag({content:html.slice(html.indexOf('<style>')+7,html.indexOf('</style>'))});
   await page.addStyleTag({path:'src/processos/mapear-processo.css'});await page.addStyleTag({path:'src/processos/asis-cards.css'});
@@ -23,13 +23,13 @@ const assert=require('node:assert/strict');
    let serial=0;crypto.randomUUID=()=> 'mapping-test-'+(++serial);
    window.esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
    window.usuarioLogado={perfil:'dono',nome:'Autora',email:'autora@example.test'};window.authUser={uid:'author',email:usuarioLogado.email};
-   window.isEP=()=>usuarioLogado.perfil==='ep';window.hasPerfil=p=>usuarioLogado.perfil===p;window.fbReady=()=>true;window._fbLoadedAt=1;window.now=()=> '21/10/2026';window.toast=()=>{};window.inferNatureza=()=> 'Execucao';window.etapasIdC=1;
+   window.isEP=()=>usuarioLogado.perfil==='ep';window.hasPerfil=p=>usuarioLogado.perfil===p;window.fbReady=()=>true;window._fbLoadedAt=1;window.now=()=> '21/10/2026';window.toast=message=>{window.lastToast=message;};window.inferNatureza=()=> 'Execucao';window.etapasIdC=1;
    window.ARQUITETURA=[{id:'m1',nome:'Gestão',processos:[{id:'p1',nome:'Receber pedido',subprocessos:[]}]}];window.publicacoes=[];window.processos=[];window._fbConfigCache=new Map();window.configRepository={ref:id=>'config/'+id};
    const clone=v=>JSON.parse(JSON.stringify(v));window.store={'config/arquitetura':{data:JSON.stringify(ARQUITETURA)}};const listeners=[];
    const snapshot=path=>({exists:()=>store[path]!==undefined,data:()=>clone(store[path])});
    const notify=()=>listeners.forEach(({query,callback})=>callback({docs:Object.entries(store).filter(([path,data])=>path.startsWith(query.path+'/')&&(!query.field||(query.op==='in'?query.value.includes(data[query.field]):data[query.field]===query.value))).map(([path,data])=>({id:path.split('/').at(-1),data:()=>clone(data)}))}));
    window.fbDocRef=(db,col,id)=>col+'/'+id;window.fbColRef=(db,path)=>({path});
-   window.fb=()=>({db:{},auth:{currentUser:authUser},query:(col,filter)=>({...col,...filter}),where:(field,op,value)=>({field,op,value}),onSnapshot:(query,callback)=>{const item={query,callback};listeners.push(item);notify();return ()=>listeners.splice(listeners.indexOf(item),1);},getDoc:async path=>snapshot(path),setDoc:async(path,data)=>{store[path]=clone(data);notify();},updateDoc:async(path,data)=>{store[path]={...store[path],...clone(data)};notify();},runTransaction:async(db,action)=>{if(window.failSave)throw Error('Falha simulada de gravação');const ops=[];const result=await action({get:async path=>snapshot(path),update:(path,data)=>ops.push(()=>{store[path]={...store[path],...clone(data)};}),set:(path,data)=>ops.push(()=>{store[path]=clone(data);})});ops.forEach(op=>op());notify();return result;}});
+   window.fb=()=>({db:{},auth:{currentUser:authUser},query:(col,filter)=>({...col,...filter}),where:(field,op,value)=>({field,op,value}),onSnapshot:(query,callback)=>{const item={query,callback};listeners.push(item);notify();return ()=>listeners.splice(listeners.indexOf(item),1);},getDoc:async path=>snapshot(path),setDoc:async(path,data)=>{store[path]=clone(data);notify();},updateDoc:async(path,data)=>{store[path]={...store[path],...clone(data)};notify();},runTransaction:async(db,action)=>{if(window.failSave)throw Error('Falha simulada de gravação');const ops=[];const result=await action({get:async path=>snapshot(path),delete:path=>ops.push(()=>{delete store[path];}),update:(path,data)=>ops.push(()=>{store[path]={...store[path],...clone(data)};}),set:(path,data)=>ops.push(()=>{store[path]=clone(data);})});ops.forEach(op=>op());notify();return result;}});
    window.updCounts=()=>{};window.rFila=()=>{document.getElementById('fila-content').innerHTML=MapearProcesso.notices();};
    window.fbSaveAll=async()=>!window.failSave;window.bpmnModelers={};window.bpmnProcIds={};window.bpmnDirty={};window.abrirProc=id=>{window.openedProcess=id;};
    window.abrirNovoProc=()=>{MapearProcesso.clearImport();document.getElementById('novo-macro').innerHTML='<option value="m1">Gestão</option>';};window.filtrarProcArq=()=>{document.getElementById('novo-proc-sel').innerHTML='<option value="p1">Receber pedido</option>';};window.previewProcArq=()=>{};
@@ -123,6 +123,17 @@ const assert=require('node:assert/strict');
   await page.setViewportSize({width:390,height:844});assert.equal(await workspace.evaluate(element=>element.scrollWidth<=element.clientWidth+1),true);
   await page.screenshot({path:join(artifacts,'mobile.png'),fullPage:true});
   await workspace.getByRole('button',{name:'Voltar aos mapeamentos',exact:true}).click();
+  // Draft deletion requires confirmation, preserves data on failure and removes only the draft.
+  await page.evaluate(async id=>{
+   const original=store['mapeamentos_colaborativos/'+id];await fb().setDoc('mapeamentos_colaborativos/delete-test',{...original,nome:'Rascunho para excluir',status:'rascunho',revisao:1});
+  },managerId);
+  const deleteButton=page.getByRole('button',{name:'Excluir rascunho: Rascunho para excluir',exact:true});await deleteButton.waitFor();
+  acceptConfirmation=false;await deleteButton.click();assert.equal(await page.evaluate(()=>!!store['mapeamentos_colaborativos/delete-test']),true);
+  acceptConfirmation=true;await page.evaluate(()=>failSave=true);await deleteButton.click();await page.waitForFunction(()=>lastToast==='Falha simulada de gravação');
+  assert.equal(await page.evaluate(()=>!!store['mapeamentos_colaborativos/delete-test']),true);
+  await page.evaluate(()=>failSave=false);await deleteButton.click();await deleteButton.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(()=>store['mapeamentos_colaborativos/delete-test']),undefined);
+  assert.equal(await page.evaluate(()=>Object.keys(store).some(path=>path.startsWith('publicacoes/'))),true);
   assert.deepEqual(errors,[]);console.log('Mapear processo: autor/gestor, cards e desenho livre, detalhes, falha de gravação, envio, revisão, arquitetura, publicação, aviso e recuperação para POP validados. Artefatos: '+artifacts);
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

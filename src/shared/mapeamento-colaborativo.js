@@ -6,6 +6,7 @@
   ]));
   const matches=(architecture,macroId,name)=>units(architecture).filter(unit=>String(unit.macro_id)===String(macroId)&&key(unit.nome)===key(name));
   function canEdit(record,uid,ep){return record.status==='rascunho'?record.autor_uid===uid:record.status==='enviado'&&ep;}
+  const canDelete=(record,uid)=>record.status==='rascunho'&&record.autor_uid===uid;
   function assertTransition(record,next,uid,ep){
     if(!canEdit(record,uid,ep))throw Error('Este mapeamento não está disponível para edição.');
     const allowed=record.status==='rascunho'?['rascunho','enviado']:['enviado','publicado'];
@@ -21,5 +22,5 @@
     const currentIds=new Set(steps.map(step=>step.bpmn_id)),current=new Map(steps.map(step=>[step.bpmn_id,step]));
     return _bpmnMergeExtractedEtapas(cloneSteps(previous).filter(step=>currentIds.has(step.bpmn_id)),steps).etapas.map(step=>({...step,nome:current.get(step.bpmn_id).nome,tipo:current.get(step.bpmn_id).tipo}));
   }
-  scope.MapeamentoColaborativo={key,units,matches,canEdit,assertTransition,extract};
+  scope.MapeamentoColaborativo={key,units,matches,canEdit,canDelete,assertTransition,extract};
 })(globalThis);

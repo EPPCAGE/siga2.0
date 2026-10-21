@@ -32,7 +32,14 @@ async function abrirEsbocoCards(which='asis',workspace=null){
   const setBusy=value=>{canvasElement.style.pointerEvents=value?'none':'';};
   // The cards own the process structure; the canvas edits its presentation.
   viewer.get('directEditing').activate=()=>false;
-  for(const action of ['shape.create','connection.create','shape.delete','connection.delete','elements.delete','shape.replace','connection.reconnect','connection.reconnectStart','connection.reconnectEnd'])eventBus.on('commandStack.'+action+'.canExecute',2000,()=>false);
+  for(const action of ['shape.create','connection.create','shape.delete','connection.delete','elements.delete','shape.replace'])eventBus.on('commandStack.'+action+'.canExecute',2000,()=>false);
+  for(const action of ['connection.reconnect','connection.reconnectStart','connection.reconnectEnd'])eventBus.on('commandStack.'+action+'.canExecute',2000,event=>{
+    const context=event.context || {},connection=context.connection;
+    if(!connection)return false;
+    const source=context.newSource || context.source || connection.source,target=context.newTarget || context.target || connection.target;
+    if(source!==connection.source||target!==connection.target)return false;
+    // Keep the native BPMN rule result, including the connection type used by the preview.
+  });
   for(const action of ['shape.move','elements.move'])eventBus.on('commandStack.'+action+'.canExecute',2000,event=>{
     const context=event.context || {},target=context.newParent || context.target,shapes=context.shapes || (context.shape?[context.shape]:[]);
     if(shapes.some(shape=>shape.businessObject?.get('siga:milestone')))return false;

@@ -243,6 +243,36 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   const reopened=await page.evaluate(()=>AsIsCards.captureLayout(cardsModeler));
   assert.deepEqual(reopened.shapes['node:'+firstId],expected.shapes['node:'+firstId]);assert.deepEqual(reopened.connections,afterAddition.connections);assert.deepEqual(reopened.shapes['lane:equipe'],afterAddition.shapes['lane:equipe']);
   await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
+  // Endpoint handles may move on the same shape without changing graph semantics.
+  await page.evaluate(()=>{curProc={id:11,nome:'Pontos de conexão',mod:{}};processos=[curProc];});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  await addCard(dialog,'task','Preparar edital','Equipe');await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'task','Executar licitação','Equipe');
+  await page.waitForFunction(()=>document.querySelector('#asis-cards-validation')?.dataset.state==='success');
+  const connectionInfo=await page.evaluate(()=>{
+    const registry=cardsModeler.get('elementRegistry'),source=registry.getAll().find(el=>el.businessObject.name==='Preparar edital'&&!el.labelTarget),target=registry.getAll().find(el=>el.businessObject.name==='Executar licitação'&&!el.labelTarget),edge=source.outgoing.find(item=>item.target===target),rules=cardsModeler.get('rules');
+    for(const action of ['connection.reconnect','connection.reconnectStart','connection.reconnectEnd']){
+      if(action==='connection.reconnect'&&rules.allowed(action,{connection:edge,source,target})===false)throw Error('Ajuste na mesma forma deve ser permitido: '+action);
+      if(rules.allowed(action,{connection:edge,newTarget:source})!==false)throw Error('Alterar o destino deve ser bloqueado.');
+      if(rules.allowed(action,{connection:edge,newSource:target})!==false)throw Error('Alterar a origem deve ser bloqueado.');
+    }
+    cardsModeler.get('selection').select(edge);
+    const matrix=document.querySelector('#asis-cards-canvas .viewport').getScreenCTM(),screen=point=>({x:matrix.a*point.x+matrix.e,y:matrix.d*point.y+matrix.f});
+    return {id:edge.id,source:source.id,target:target.id,before:edge.waypoints.map(point=>({x:point.x,y:point.y})),from:screen(edge.waypoints.at(-1)),to:screen({x:target.x+target.width/2,y:target.y})};
+  });
+  await page.mouse.move(connectionInfo.from.x,connectionInfo.from.y);await page.mouse.down();await page.mouse.move(connectionInfo.to.x,connectionInfo.to.y,{steps:16});await page.mouse.up();
+  const startHandle=await page.evaluate(id=>{
+    const edge=cardsModeler.get('elementRegistry').get(id),matrix=document.querySelector('#asis-cards-canvas .viewport').getScreenCTM(),screen=point=>({x:matrix.a*point.x+matrix.e,y:matrix.d*point.y+matrix.f});
+    return {points:edge.waypoints.map(point=>({x:point.x,y:point.y})),from:screen(edge.waypoints[0]),to:screen({x:edge.source.x+edge.source.width/2,y:edge.source.y+edge.source.height})};
+  },connectionInfo.id);
+  assert.notDeepEqual(startHandle.points,connectionInfo.before);
+  await page.mouse.move(startHandle.from.x,startHandle.from.y);await page.mouse.down();await page.mouse.move(startHandle.to.x,startHandle.to.y,{steps:16});await page.mouse.up();
+  const changedEndpoint=await page.evaluate(id=>{const edge=cardsModeler.get('elementRegistry').get(id);return {source:edge.source.id,target:edge.target.id,points:edge.waypoints.map(point=>({x:point.x,y:point.y}))};},connectionInfo.id);
+  assert.equal(changedEndpoint.source,connectionInfo.source);assert.equal(changedEndpoint.target,connectionInfo.target);assert.notDeepEqual(changedEndpoint.points,connectionInfo.before);assert.notDeepEqual(changedEndpoint.points[0],startHandle.points[0]);
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');await page.waitForFunction(()=>document.querySelector('#asis-cards-validation')?.dataset.state==='success');
+  assert.deepEqual(await page.evaluate(({source,target})=>{const edge=cardsModeler.get('elementRegistry').get(source).outgoing.find(item=>item.target.id===target);return edge.waypoints.map(point=>({x:point.x,y:point.y}));},connectionInfo),changedEndpoint.points);
+  await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
   // A generated connection never runs through more than three lane bands; distant tasks use link events.
   await page.evaluate(()=>{curProc={id:8,nome:'Quatro raias',mod:{}};processos=[curProc];});
   await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
