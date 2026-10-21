@@ -15,6 +15,10 @@
     const clean = String(value || '').trim();
     return aliases.get(key(clean)) || clean;
   }
+  function same(left, right) {
+    const area = key(canonical(left));
+    return !!area && area === key(canonical(right));
+  }
   function entries(architecture) {
     return (architecture || []).flatMap(m => (m.processos || []).flatMap(p => [p, ...(p.subprocessos || [])]));
   }
@@ -52,5 +56,5 @@
   function valid(value, previous, architecture) {
     return !value || list(architecture).includes(value) || value === resolve(previous, architecture);
   }
-  globalScope.AreasArquitetura = {canonical, list, resolve, migrate, migrateRecords, options, valid};
+  globalScope.AreasArquitetura = {canonical, same, list, resolve, migrate, migrateRecords, options, valid};
 })(globalThis);
