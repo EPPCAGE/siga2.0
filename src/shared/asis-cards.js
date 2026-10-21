@@ -1,5 +1,11 @@
 (function(scope){
   const escape=value=>String(value??'').replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+  // Official XML namespace identifiers, not network URLs. HTTPS would define different namespaces.
+  const diagramNamespaces={
+    di:'http://www.omg.org/spec/DD/20100524/DI', // NOSONAR: namespace XML oficial do DI; não há requisição HTTP.
+    bpmndi:'http://www.omg.org/spec/BPMN/20100524/DI', // NOSONAR: namespace XML oficial do BPMN DI; não há requisição HTTP.
+    dc:'http://www.omg.org/spec/DD/20100524/DC', // NOSONAR: namespace XML oficial do DC; não há requisição HTTP.
+  };
   function branchesOf(card){
     return card.branches || [{id:'yes',nome:card.type==='decision'?'Sim':'Caminho A',cards:card.yes||[]},{id:'no',nome:card.type==='decision'?'Não':'Caminho B',cards:card.no||[]}];
   }
@@ -320,7 +326,7 @@
       const saved=(!manualConnections||manualConnections.has(base+':'+ordinal))?layout.connections?.[base+':'+ordinal]:null,points=[...edge.getElementsByTagNameNS('*','waypoint')];
       const dx=source&&saved?.source?source.x-saved.source.x:0,dy=source&&saved?.source?source.y-saved.source.y:0;
       if(saved&&same(source,saved.source)&&same(target,saved.target)&&target.x-saved.target.x===dx&&target.y-saved.target.y===dy&&saved.points?.length>=2&&saved.points.every(point=>Number.isFinite(point.x)&&Number.isFinite(point.y))){
-        points.forEach(point=>point.remove());for(const point of saved.points){const waypoint=doc.createElementNS('http://www.omg.org/spec/DD/20100524/DI','di:waypoint');write(waypoint,{x:point.x+dx,y:point.y+dy});edge.append(waypoint);}
+        points.forEach(point=>point.remove());for(const point of saved.points){const waypoint=doc.createElementNS(diagramNamespaces.di,'di:waypoint');write(waypoint,{x:point.x+dx,y:point.y+dy});edge.append(waypoint);}
       }else if(JSON.stringify(source)!==JSON.stringify(original.get(sourceId))||JSON.stringify(target)!==JSON.stringify(original.get(targetId)))reroute.push(id);
     }
     // External labels have their own bounds and should follow the restored element/lane.
@@ -334,8 +340,8 @@
         if(reroute.includes(id))continue;
         const targetId=model.getAttribute('targetRef'),current=rectFor(targetId),previous=layout.shapes['node:'+targetId];if(current&&valid(previous)){dx=current.x-previous.x;dy=current.y-previous.y;}
       }
-      let label=[...container.getElementsByTagNameNS('*','BPMNLabel')][0];if(!label){label=doc.createElementNS('http://www.omg.org/spec/BPMN/20100524/DI','bpmndi:BPMNLabel');container.append(label);}
-      let rect=bounds(label);if(!rect){rect=doc.createElementNS('http://www.omg.org/spec/DD/20100524/DC','dc:Bounds');label.append(rect);}
+      let label=[...container.getElementsByTagNameNS('*','BPMNLabel')][0];if(!label){label=doc.createElementNS(diagramNamespaces.bpmndi,'bpmndi:BPMNLabel');container.append(label);}
+      let rect=bounds(label);if(!rect){rect=doc.createElementNS(diagramNamespaces.dc,'dc:Bounds');label.append(rect);}
       write(rect,{x:saved.x+dx,y:saved.y+dy,width:saved.width,height:saved.height});
     }
     return {xml:new XMLSerializer().serializeToString(doc),reroute};
