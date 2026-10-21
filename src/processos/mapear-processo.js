@@ -5,9 +5,11 @@
   const clone=value=>JSON.parse(JSON.stringify(value));
   const h=value=>esc(String(value ?? ''));
   const uid=()=>fbReady()?fb().auth?.currentUser?.uid:'';
-  const allowed=()=>isEP()||hasPerfil('dono')||hasPerfil('gestor');
+  const authorProfile=()=>['dono','gestor'].includes(usuarioLogado?.perfil)||hasPerfil('dono')||hasPerfil('gestor');
+  const reviewer=()=>!['dono','gestor'].includes(usuarioLogado?.perfil)&&isEP();
+  const allowed=()=>reviewer()||authorProfile();
   const ref=id=>fbDocRef(fb().db,collection,id);
-  const editable=record=>domain.canEdit(record,uid(),isEP());
+  const editable=record=>domain.canEdit(record,uid(),reviewer());
   const fail=error=>toast(error.message || 'Não foi possível concluir a operação.','var(--red)');
   const run=action=>{void Promise.resolve().then(action).catch(fail);};
   const keys=type=>type==='tobe'?{xml:'bpmnToBe',cards:'toBeCards',steps:'etapas_proc_tobe'}:{xml:'bpmnAsIs',cards:'asIsCards',steps:'etapas_proc'};
@@ -22,9 +24,9 @@
     a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   function subscribe(){
-    const next=uid()&&allowed()?uid()+':'+isEP():'';if(next===subscription)return;
+    const next=uid()&&allowed()?uid()+':'+reviewer():'';if(next===subscription)return;
     unsubscribe?.();subscription=next;records=[];if(!next)return;
-    const api=fb(),query=isEP()?api.query(fbColRef(api.db,collection),api.where('status','in',['enviado','publicado'])):api.query(fbColRef(api.db,collection),api.where('autor_uid','==',uid()));
+    const api=fb(),query=reviewer()?api.query(fbColRef(api.db,collection),api.where('status','in',['enviado','publicado'])):api.query(fbColRef(api.db,collection),api.where('autor_uid','==',uid()));
     unsubscribe=api.onSnapshot(query,snapshot=>{
       if(subscription!==next)return;
       records=snapshot.docs.map(doc=>({id:doc.id,...doc.data()}));
@@ -32,18 +34,18 @@
       if(document.getElementById('page-mapearprocesso')?.classList.contains('on'))render();
     },error=>{if(subscription===next)fail(Error('Não foi possível carregar os mapeamentos. '+error.message));});
   }
-  function count(){return records.filter(record=>isEP()?record.status==='enviado':record.status==='publicado'&&!record.aviso_lido).length;}
+  function count(){return records.filter(record=>reviewer()?record.status==='enviado':record.status==='publicado'&&!record.aviso_lido).length;}
   function notices(){
-    return records.filter(record=>isEP()?record.status==='enviado':record.status==='publicado'&&!record.aviso_lido).map(record=>`<div class="card" style="margin-top:12px"><strong>${isEP()?'Mapeamento aguardando revisão':'Seu fluxo foi publicado'}</strong><p>${h(record.nome)} · ${record.tipo==='asis'?'AS IS':'TO BE'}${isEP()?' · Enviado por '+h(record.autor_nome):''}</p><button type="button" class="btn btn-p" data-mapping-open="${h(record.id)}">${isEP()?'Revisar mapeamento':'Ver fluxo publicado'}</button>${!isEP()?` <button type="button" class="btn" data-mapping-read="${h(record.id)}">Marcar aviso como lido</button>`:''}</div>`).join('');
+    return records.filter(record=>reviewer()?record.status==='enviado':record.status==='publicado'&&!record.aviso_lido).map(record=>`<div class="card" style="margin-top:12px"><strong>${reviewer()?'Mapeamento aguardando revisão':'Seu fluxo foi publicado'}</strong><p>${h(record.nome)} · ${record.tipo==='asis'?'AS IS':'TO BE'}${reviewer()?' · Enviado por '+h(record.autor_nome):''}</p><button type="button" class="btn btn-p" data-mapping-open="${h(record.id)}">${reviewer()?'Revisar mapeamento':'Ver fluxo publicado'}</button>${!reviewer()?` <button type="button" class="btn" data-mapping-read="${h(record.id)}">Marcar aviso como lido</button>`:''}</div>`).join('');
   }
   function render(){
     subscribe();const page=document.getElementById('page-mapearprocesso');if(!page)return;
     if(!allowed()){page.innerHTML='<div class="ib iba">Seu perfil não tem acesso a esta tela.</div>';return;}
     const list=[...records].sort((a,b)=>(b.atualizado_em || '').localeCompare(a.atualizado_em || ''));
-    page.innerHTML=`<div class="mapping-shell"><div class="mapping-header"><div><h1 class="ph-t">${isEP()?'Mapeamentos enviados':'Mapear processo'}</h1><p class="ph-s">${isEP()?'Revise os desenhos enviados e publique os fluxos na arquitetura.':'Desenhe um processo, detalhe suas atividades e encaminhe ao EPP.'}</p></div>${!isEP()?'<button type="button" class="btn btn-p" data-mapping-new>Novo mapeamento</button>':''}</div><div class="mapping-grid">${list.map(record=>`<article class="mapping-card"><span class="badge ba">${h(labels[record.status])}</span><h3 style="margin:.8rem 0">${h(record.nome)}</h3><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS':'TO BE'}</p>${isEP()?`<p class="ph-s">${h(record.autor_nome)}</p>`:''}<p>${h(record.objetivo)}</p><button type="button" class="btn" data-mapping-open="${h(record.id)}">${editable(record)?'Abrir e editar':'Consultar'}</button></article>`).join('')||'<div class="mapping-empty">Nenhum mapeamento por aqui ainda.</div>'}</div></div>`;
+    page.innerHTML=`<div class="mapping-shell"><div class="mapping-header"><div><h1 class="ph-t">${reviewer()?'Mapeamentos enviados':'Mapear processo'}</h1><p class="ph-s">${reviewer()?'Revise os desenhos enviados e publique os fluxos na arquitetura.':'Desenhe um processo, detalhe suas atividades e encaminhe ao EPP.'}</p></div>${!reviewer()?'<button type="button" class="btn btn-p" data-mapping-new>Novo mapeamento</button>':''}</div><div class="mapping-grid">${list.map(record=>`<article class="mapping-card"><span class="badge ba">${h(labels[record.status])}</span><h3 style="margin:.8rem 0">${h(record.nome)}</h3><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS':'TO BE'}</p>${reviewer()?`<p class="ph-s">${h(record.autor_nome)}</p>`:''}<p>${h(record.objetivo)}</p><button type="button" class="btn" data-mapping-open="${h(record.id)}">${editable(record)?'Abrir e editar':'Consultar'}</button></article>`).join('')||'<div class="mapping-empty">Nenhum mapeamento por aqui ainda.</div>'}</div></div>`;
   }
   function create(){
-    if(!allowed()||isEP())return;
+    if(!allowed()||reviewer())return;
     const dialog=modal('Mapear processo');dialog.id='mapping-new-dialog';
     dialog.innerHTML+=`<form><label class="fg"><span class="fl">Macroprocesso</span><select class="fi" name="macro" required><option value="">Selecione</option>${ARQUITETURA.map(m=>`<option value="${h(m.id)}">${h(m.nome)}</option>`).join('')}</select></label><label class="fg"><span class="fl">Nome do processo</span><input class="fi" name="nome" maxlength="240" required list="mapping-names"><datalist id="mapping-names"></datalist></label><p data-match class="ib ibb">Selecione o macroprocesso e informe o nome do processo.</p><label class="fg" data-disambiguate hidden><span class="fl">Processos com esse nome: escolha o vínculo</span><select class="fi" name="vinculo"></select></label><fieldset class="fg"><legend class="fl">Qual fluxo você quer desenhar?</legend><label class="mapping-type"><input type="radio" name="tipo" value="asis" checked><span><strong>AS IS · Como é hoje</strong><small>Registre como o processo funciona atualmente, com suas atividades, decisões e responsáveis reais.</small></span></label><label class="mapping-type"><input type="radio" name="tipo" value="tobe"><span><strong>TO BE · Como deverá ser</strong><small>Desenhe o funcionamento futuro proposto, com as melhorias e mudanças que você deseja implementar.</small></span></label></fieldset><label class="fg"><span class="fl">Objetivo do mapeamento</span><textarea class="fi" name="objetivo" rows="3" maxlength="3000" required placeholder="O que você quer esclarecer, documentar ou melhorar neste processo?"></textarea></label><p class="mapping-error" role="alert"></p><div class="btn-row"><button type="button" class="btn" data-cancel>Cancelar</button><button type="submit" class="btn btn-p">Iniciar</button></div></form>`;
     const form=dialog.querySelector('form');let matches=[];
@@ -73,12 +75,12 @@
   }
   async function update(state,nextStatus=state.record.status){
     const api=fb(),expected=state.record.revisao,data=clone(state.process.mod);
-    domain.assertTransition(state.record,nextStatus,uid(),isEP());
+    domain.assertTransition(state.record,nextStatus,uid(),reviewer());
     const content=JSON.stringify({mod:data});if(new Blob([content]).size>700000)throw Error('O desenho excedeu o tamanho permitido. Reduza o conteúdo antes de salvar.');
     const result=await api.runTransaction(api.db,async tx=>{
       const doc=await tx.get(ref(state.record.id));if(!doc.exists())throw Error('Mapeamento não encontrado.');
       const current=doc.data();if(current.revisao!==expected)throw Error('Este mapeamento foi alterado em outra sessão. Feche e reabra para carregar a versão mais recente.');
-      domain.assertTransition(current,nextStatus,uid(),isEP());
+      domain.assertTransition(current,nextStatus,uid(),reviewer());
       const changed={conteudo:content,status:nextStatus,revisao:expected+1,atualizado_em:new Date().toISOString()};
       tx.update(ref(state.record.id),changed);return {...state.record,...changed};
     });state.record=result;state.dirty=false;setStatus(state,'Salvo no servidor.');return true;
@@ -96,14 +98,14 @@
   async function open(id){
     if(!allowed())return;if(active){toast('Feche o desenho atual antes de abrir outro.','var(--amber)');return;}
     const doc=await fb().getDoc(ref(id));if(!doc.exists())throw Error('Mapeamento não encontrado.');
-    const record={id,...doc.data()};if(!isEP()&&record.autor_uid!==uid())throw Error('Este mapeamento pertence a outro usuário.');
+    const record={id,...doc.data()};if(!reviewer()&&record.autor_uid!==uid())throw Error('Este mapeamento pertence a outro usuário.');
     await workspace(record,payload(record).mod || {});
   }
   async function workspace(record,mod,published=false){
     const dialog=modal(record.nome);dialog.id='mapping-workspace';dialog.style.width='96vw';
     const state={record,dialog,process:{id:'colab-'+record.id,nome:record.nome,mod:clone(mod)},modeler:null,dirty:false,loading:true,published};active=state;
     const edit=!published&&editable(record);
-    dialog.innerHTML=`<div class="mapping-header"><div><h2>${h(record.nome)}</h2><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS · Processo atual':'TO BE · Processo futuro'} · ${h(labels[record.status])}</p><p>${h(record.objetivo)}</p></div><button type="button" class="btn" data-close>Fechar</button></div><p class="ib ibb">${edit?'Desenhe com as ferramentas BPMN ou crie o fluxo por cards. Depois, extraia e detalhe as atividades para orientar um novo executor.':'Fluxo disponível para consulta e exportação.'}</p><div class="mapping-toolbar">${edit?'<button type="button" class="btn btn-p" data-cards>Criar por cards</button><button type="button" class="btn" data-save>Salvar rascunho</button><button type="button" class="btn btn-t" data-extract>Extrair atividades</button><button type="button" class="btn" data-undo>Desfazer</button><button type="button" class="btn" data-redo>Refazer</button><button type="button" class="btn" data-phase>+ Fase (milestone)</button><button type="button" class="btn" data-import>Importar BPMN</button><input type="file" data-import-file accept=".bpmn,.xml" hidden>':''}<button type="button" class="btn" data-fit>Ajustar</button><button type="button" class="btn" data-zoom="1.2" aria-label="Ampliar desenho">+</button><button type="button" class="btn" data-zoom="0.8" aria-label="Reduzir desenho">−</button><button type="button" class="btn" data-export="png">Baixar imagem PNG</button><button type="button" class="btn" data-export="xml">Baixar BPMN</button><button type="button" class="btn" data-export="xlsx">Exportar planilha</button></div><p class="mapping-status" data-status role="status">Carregando desenho…</p><div class="mapping-canvas" data-canvas></div><section class="card" style="margin-top:1rem"><h3>Detalhamento das atividades</h3><p class="ph-s">Descreva como realizar cada etapa, os recursos necessários e o resultado esperado.</p><div data-details></div></section><p class="mapping-error" role="alert"></p><div class="btn-row">${edit&&record.status==='rascunho'?'<button type="button" class="btn btn-p" data-submit>Encaminhar ao EPP</button>':''}${edit&&record.status==='enviado'&&isEP()?'<button type="button" class="btn btn-p" data-publish>Vincular à arquitetura e publicar</button>':''}${isEP()?'<button type="button" class="btn" data-recover>Aproveitar em mapeamento completo / POP</button>':''}</div>`;
+    dialog.innerHTML=`<div class="mapping-header"><div><h2>${h(record.nome)}</h2><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS · Processo atual':'TO BE · Processo futuro'} · ${h(labels[record.status])}</p><p>${h(record.objetivo)}</p></div><button type="button" class="btn" data-close>Fechar</button></div><p class="ib ibb">${edit?'Desenhe com as ferramentas BPMN ou crie o fluxo por cards. Depois, extraia e detalhe as atividades para orientar um novo executor.':'Fluxo disponível para consulta e exportação.'}</p><div class="mapping-toolbar">${edit?'<button type="button" class="btn btn-p" data-cards>Criar por cards</button><button type="button" class="btn" data-save>Salvar rascunho</button><button type="button" class="btn btn-t" data-extract>Extrair atividades</button><button type="button" class="btn" data-undo>Desfazer</button><button type="button" class="btn" data-redo>Refazer</button><button type="button" class="btn" data-phase>+ Fase (milestone)</button><button type="button" class="btn" data-import>Importar BPMN</button><input type="file" data-import-file accept=".bpmn,.xml" hidden>':''}<button type="button" class="btn" data-fit>Ajustar</button><button type="button" class="btn" data-zoom="1.2" aria-label="Ampliar desenho">+</button><button type="button" class="btn" data-zoom="0.8" aria-label="Reduzir desenho">−</button><button type="button" class="btn" data-export="png">Baixar imagem PNG</button><button type="button" class="btn" data-export="xml">Baixar BPMN</button><button type="button" class="btn" data-export="xlsx">Exportar planilha</button></div><p class="mapping-status" data-status role="status">Carregando desenho…</p><div class="mapping-canvas" data-canvas></div><section class="card" style="margin-top:1rem"><h3>Detalhamento das atividades</h3><p class="ph-s">Descreva como realizar cada etapa, os recursos necessários e o resultado esperado.</p><div data-details></div></section><p class="mapping-error" role="alert"></p><div class="btn-row">${edit&&record.status==='rascunho'?'<button type="button" class="btn btn-p" data-submit>Encaminhar ao EPP</button>':''}${edit&&record.status==='enviado'&&reviewer()?'<button type="button" class="btn btn-p" data-publish>Vincular à arquitetura e publicar</button>':''}${reviewer()?'<button type="button" class="btn" data-recover>Aproveitar em mapeamento completo / POP</button>':''}</div>`;
     dialog.showModal();
     const close=()=>{
       if(state.busy){toast('Aguarde a gravação.','var(--amber)');return;}
@@ -179,7 +181,7 @@
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('Não foi possível gerar a imagem.');download(blob,'image/png',name+'.png');
   }
   function review(state){
-    if(!isEP()||state.record.status!=='enviado')return;
+    if(!reviewer()||state.record.status!=='enviado')return;
     const dialog=modal('Revisar vínculo e publicar fluxo');dialog.id='mapping-review-dialog';
     const units=domain.units(ARQUITETURA);
     dialog.innerHTML+=`<p class="ph-s">Selecione um processo da arquitetura ou cadastre um processo/subprocesso. A publicação guardará uma cópia do desenho e dos detalhamentos revisados.</p><form><label class="fg"><span class="fl">Vincular a processo existente</span><select class="fi" name="existing"><option value="">Cadastrar novo processo ou subprocesso</option>${units.map(unit=>`<option value="${h(unit.id)}" ${String(unit.id)===state.record.arq_id?'selected':''}>${h(unit.macro+' › '+unit.label)}</option>`).join('')}</select></label><fieldset data-create><legend class="fl">Novo item na arquitetura</legend><label class="fg"><span class="fl">Macroprocesso</span><select class="fi" name="macro">${ARQUITETURA.map(m=>`<option value="${h(m.id)}" ${String(m.id)===state.record.macro_id?'selected':''}>${h(m.nome)}</option>`).join('')}</select></label><label class="fg"><span class="fl">Tipo</span><select class="fi" name="kind"><option value="processo">Processo</option><option value="subprocesso">Subprocesso</option></select></label><label class="fg" data-parent><span class="fl">Processo pai</span><select class="fi" name="parent"></select></label><label class="fg"><span class="fl">Nome</span><input class="fi" name="nome" maxlength="240" value="${h(state.record.nome)}"></label></fieldset><label class="fg"><span class="fl">Observações da revisão</span><textarea class="fi" name="review" maxlength="3000" placeholder="Registre os ajustes e orientações da revisão."></textarea></label><p class="mapping-error" role="alert"></p><div class="btn-row"><button type="button" class="btn" data-cancel>Cancelar</button><button type="submit" class="btn btn-p">Publicar fluxo e avisar autor</button></div></form>`;
@@ -192,7 +194,7 @@
     form.onsubmit=event=>{event.preventDefault();run(async()=>{
       if(state.busy)return;state.busy=true;form.querySelectorAll('button').forEach(button=>button.disabled=true);
       try{
-        if(!isEP()||!editable(state.record))throw Error('Apenas o EPP pode publicar um mapeamento enviado.');
+        if(!reviewer()||!editable(state.record))throw Error('Apenas o EPP pode publicar um mapeamento enviado.');
         if(!hasActivity(state))throw Error('O fluxo precisa conter pelo menos uma atividade.');
         await capture(state);const k=keys(state.record.tipo);
         state.process.mod[k.steps]=domain.extract(state.process.mod[k.xml],state.process.mod[k.steps] || []);
@@ -201,7 +203,7 @@
         const result=await api.runTransaction(api.db,async tx=>{
           const recordDoc=await tx.get(ref(state.record.id)),architectureDoc=await tx.get(configRepository.ref('arquitetura'));
           const current=recordDoc.data();if(!current||current.revisao!==state.record.revisao)throw Error('O mapeamento foi alterado em outra sessão. Reabra antes de publicar.');
-          domain.assertTransition(current,'publicado',uid(),isEP());
+          domain.assertTransition(current,'publicado',uid(),reviewer());
           const architecture=JSON.parse(architectureDoc.data()?.data || '[]');let unit;
           if(selection.existing){unit=domain.units(architecture).find(item=>String(item.id)===selection.existing);if(!unit)throw Error('O processo selecionado não existe mais na arquitetura.');}
           else{
@@ -240,7 +242,7 @@
     await workspace(record,JSON.parse(flow.conteudo).mod,true);
   }
   function recover(state){
-    if(!isEP())return;if(!state.record.arq_id){toast('Vincule o desenho à arquitetura durante a revisão antes de aproveitá-lo no mapeamento completo.','var(--amber)');return;}
+    if(!reviewer())return;if(!state.record.arq_id){toast('Vincule o desenho à arquitetura durante a revisão antes de aproveitá-lo no mapeamento completo.','var(--amber)');return;}
     const existing=processos.filter(p=>String(p.arq_id)===state.record.arq_id&&p.status_ciclo!=='cancelado');
     const dialog=modal('Aproveitar desenho e atividades no mapeamento completo');
     dialog.innerHTML+=`<p>O fluxo ${state.record.tipo==='asis'?'AS IS':'TO BE'} e seus detalhamentos serão copiados para um mapeamento do sistema. O fluxo publicado continuará disponível.</p>${existing.length?`<label class="fg"><span class="fl">Mapeamento de destino</span><select class="fi" name="target">${existing.map(p=>`<option value="${h(p.id)}">${h(p.nome)} · ${h(p.etapa)}</option>`).join('')}</select></label><p class="ib iba">Ao continuar, o desenho e as etapas dessa versão serão substituídos. Uma cópia anterior será guardada no histórico.</p>`:'<p class="ib ibb">Vamos abrir o cadastro do mapeamento com o processo, o objetivo e o autor preenchidos. Complete os demais dados para criar e continuar até o POP.</p>'}<p class="mapping-error" role="alert"></p><div class="btn-row"><button type="button" class="btn" data-cancel>Cancelar</button><button type="button" class="btn btn-p" data-continue>Continuar</button></div>`;
@@ -248,7 +250,7 @@
     dialog.querySelector('[data-continue]').onclick=()=>run(async()=>{
       const button=dialog.querySelector('[data-continue]');button.disabled=true;
       try{
-        if(!isEP())throw Error('Ação restrita ao EPP.');
+        if(!reviewer())throw Error('Ação restrita ao EPP.');
         const source={record:clone(state.record),mod:clone(state.process.mod)};
         if(existing.length){
           const target=processos.find(p=>String(p.id)===dialog.querySelector('[name=target]').value);if(!target)throw Error('Mapeamento de destino não encontrado.');
@@ -281,11 +283,11 @@
     delete target.mod[k.xml+'Svg'];target.mod.origem_colaborativa={id:source.record.id,autor:source.record.autor_nome,tipo:source.record.tipo};
   }
   function validateImport(arqId){
-    if(pendingImport&&(!isEP()||String(arqId)!==pendingImport.record.arq_id))throw Error('O processo de destino precisa corresponder ao fluxo selecionado.');
+    if(pendingImport&&(!reviewer()||String(arqId)!==pendingImport.record.arq_id))throw Error('O processo de destino precisa corresponder ao fluxo selecionado.');
   }
   function applyImport(target){
     if(!pendingImport)return;
-    if(!isEP()||String(target.arq_id)!==pendingImport.record.arq_id)throw Error('O processo de destino precisa corresponder ao fluxo selecionado.');
+    if(!reviewer()||String(target.arq_id)!==pendingImport.record.arq_id)throw Error('O processo de destino precisa corresponder ao fluxo selecionado.');
     copyTo(target,pendingImport);clearImport();
   }
   function clearImport(){pendingImport=null;document.getElementById('mapping-import-banner')?.remove();}
@@ -296,5 +298,5 @@
     if(event.target.closest('[data-mapping-new]'))create();
   });
   scope.addEventListener('beforeunload',event=>{if(active?.dirty){event.preventDefault();event.returnValue='';}});
-  scope.MapearProcesso={render,subscribe,count,notices,open,openPublished,abrirPublicado:id=>run(()=>openPublished(id)),applyImport,clearImport,validarImport:validateImport};
+  scope.MapearProcesso={canStart:()=>authorProfile()&&!reviewer(),render,subscribe,count,notices,open,openPublished,abrirPublicado:id=>run(()=>openPublished(id)),applyImport,clearImport,validarImport:validateImport};
 })(globalThis);

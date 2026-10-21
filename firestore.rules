@@ -149,7 +149,7 @@ service cloud.firestore {
     // Rascunhos de fluxos enviados por donos e gestores; revisão e publicação pelo EPP.
     match /mapeamentos_colaborativos/{id} {
       function eligibleAuthor() {
-        return isAuth() && (request.auth.token.get('perfil', '') in ['dono', 'gestor']
+        return isAuth() && (isEP() || request.auth.token.get('perfil', '') in ['dono', 'gestor']
           || request.auth.token.get('perfis', []).hasAny(['dono', 'gestor']));
       }
       function validFlow() {
