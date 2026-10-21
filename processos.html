@@ -42,7 +42,7 @@
 <script src="src/shared/firestore-repositories.js"></script>
 <script src="src/shared/cadeia-valor.js?v=20261011-2"></script>
 <script src="src/processos/cadeia-valor-module.js?v=20261011-3"></script>
-<script src="src/shared/areas-arquitetura.js?v=20261009-1"></script>
+<script src="src/shared/areas-arquitetura.js?v=20261021-1"></script>
 <script src="src/shared/indicadores-impactados.js?v=20261010-2"></script>
 <script src="src/shared/glossario-processos.js?v=20261011-1"></script>
 <script src="src/shared/busca-geral.js?v=20261011-3"></script>
@@ -1271,13 +1271,13 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div class="ph">
     <div>
       <div class="ph-t">Meus Processos</div>
-      <div class="ph-s" id="meus-proc-sub">Acesso rápido aos processos e subprocessos vinculados ao seu macroprocesso</div>
+      <div class="ph-s" id="meus-proc-sub">Acesso rápido aos processos e subprocessos da sua área</div>
     </div>
     <button type="button" class="btn btn-p" onclick="abrirRegistroProcesso()">Solicitações, ideias e sugestões</button>
   </div>
   <div id="meus-proc-summary" style="margin-bottom:1rem"></div>
   <div class="g3" id="meus-proc-list"></div>
-  <div id="meus-proc-empty" class="ib ibb" style="display:none">Nenhum macroprocesso foi vinculado ao seu usuário. Peça ao EPP para ajustar seu cadastro.</div>
+  <div id="meus-proc-empty" class="ib ibb" style="display:none">Nenhum processo da sua área foi encontrado na arquitetura.</div>
 </div></div>
 
 <div id="page-processos" class="page"><div style="padding:2rem">
@@ -3693,8 +3693,7 @@ function rMeusProc(){
   if(isGestorUser && _meusProc_macroFiltro){
     minhas = minhas.filter(u=>u.macroId===_meusProc_macroFiltro||u.macro===_meusProc_macroFiltro);
   }
-  const macroIds = getMacroprocessosVinculadosUsuario(usuarioLogado);
-  const macroNomes = macroIds.map(_macroNomePorId).filter(Boolean);
+  const areaUsuario=AreasArquitetura.resolve(usuarioLogado.area,ARQUITETURA);
   if(subEl){
     if(isGestorUser){
       const todosMacros = [...new Set(getMinhasUnidades().map(u=>u.macro).filter(Boolean))].sort();
@@ -3707,12 +3706,13 @@ function rMeusProc(){
         </select>
       </div>`;
     } else {
-      subEl.textContent = macroNomes.length
-        ? 'Macroprocesso vinculado: '+macroNomes.join(', ')
-        : 'Acesso rápido aos processos e subprocessos vinculados ao seu macroprocesso';
+      subEl.textContent=areaUsuario?'Área do usuário: '+areaUsuario:'Seu cadastro não possui uma área definida. Solicite ao EPP a atualização do cadastro.';
     }
   }
-  if(emptyEl) emptyEl.style.display = minhas.length ? 'none' : 'block';
+  if(emptyEl){
+    emptyEl.style.display=minhas.length?'none':'block';
+    emptyEl.textContent=!isGestorUser&&!areaUsuario?'Seu cadastro não possui uma área definida. Solicite ao EPP a atualização do cadastro.':isGestorUser?'Nenhum processo encontrado para o filtro selecionado.':'Nenhum processo da sua área foi encontrado na arquitetura.';
+  }
   if(summaryEl){
     const mapeados = minhas.filter(u=>isMapeado(u.arq_id)).length;
     const naoMapeados = minhas.length - mapeados;
@@ -3721,7 +3721,7 @@ function rMeusProc(){
     const pluralNaoMapeados = naoMapeados===1 ? '' : 's';
     const lblTotal = isGestorUser
       ? `${minhas.length} processo${pluralProcessos} na arquitetura institucional`
-      : `${minhas.length} processo${pluralProcessos} no(s) macroprocesso(s) vinculado(s) ao seu usuário`;
+      : `${minhas.length} processo${pluralProcessos} na sua área`;
     summaryEl.innerHTML = minhas.length
       ? `<div class="card" style="border-left:4px solid var(--teal);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div>
@@ -14743,6 +14743,7 @@ function usuarioTemAcessoArqId(user, arqId){
 function getMinhasUnidades(user=usuarioLogado){
   if(!user) return [];
   if(user.perfil==='ep'||user.perfil==='gestor') return getUnidadesMapeaveis();
+  if(user.perfil==='dono')return getUnidadesMapeaveis().filter(unit=>AreasArquitetura.same(user.area,unit.area));
   return getUnidadesMapeaveis().filter(u=>usuarioTemAcessoArqId(user,u.arq_id));
 }
 
