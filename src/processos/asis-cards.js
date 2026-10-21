@@ -1,20 +1,22 @@
-async function abrirEsbocoCards(){
+async function abrirEsbocoCards(which='asis'){
+  if(!['asis','tobe'].includes(which))return;
+  const isTobe=which==='tobe',label=isTobe?'TO BE':'AS IS',textKey=isTobe?'toBe':'asIs',xmlKey=isTobe?'bpmnToBe':'bpmnAsIs',svgKey=xmlKey+'Svg',cardsKey=isTobe?'toBeCards':'asIsCards',stepsKey=isTobe?'etapas_proc_tobe':'etapas_proc';
   if(!isEP() || !curProc)return;
   if(document.getElementById('asis-cards-dialog'))return;
   if(typeof BpmnJS==='undefined'){toast('Aguarde o carregamento do editor BPMN.','var(--amber)');return;}
   const process=curProc,originalMod=process.mod || {},clone=value=>JSON.parse(JSON.stringify(value));
-  const active=bpmnProcIds.asis===process.id?bpmnModelers.asis:null;
-  let initialXml=originalMod.bpmnAsIs || '';
+  const active=bpmnProcIds[which]===process.id?bpmnModelers[which]:null;
+  let initialXml=originalMod[xmlKey] || '';
   try{if(active)initialXml=(await active.saveXML({format:true})).xml;}catch{toast('Não foi possível ler o desenho atual.','var(--red)');return;}
   if(curProc!==process || !isEP() || document.getElementById('asis-cards-dialog'))return;
-  const originalSaved=originalMod.bpmnAsIs || '',cards=clone(originalMod.asIsCards?.cards || []);
+  const originalSaved=originalMod[xmlKey] || '',cards=clone(originalMod[cardsKey]?.cards || []);
   function migrate(items){for(const card of items){if(['decision','parallel','inclusive'].includes(card.type)){card.branches=clone(AsIsCards.branchesOf(card));delete card.yes;delete card.no;card.branches.forEach(branch=>migrate(branch.cards));}}}
   migrate(cards);
-  const startInfo=clone(originalMod.asIsCards?.start || {nome:'Início do processo'});
+  const startInfo=clone(originalMod[cardsKey]?.start || {nome:'Início do processo'});
   const dialog=document.createElement('dialog');dialog.id='asis-cards-dialog';dialog.className='asis-cards-dialog';dialog.setAttribute('aria-labelledby','asis-cards-title');
-  dialog.innerHTML=`<header class="asis-cards-head"><div><h2 id="asis-cards-title">Esboço AS IS por cards <span class="badge ba">Experimental</span></h2><p class="ph-s">${esc(process.nome)} · Os cards geram a prévia automaticamente.</p></div><button type="button" class="btn" data-action="close">Fechar</button></header><p class="ib ibb">Construa o processo com cards. Clique para editar; escolha se os caminhos se reencontram ou terminam separadamente. Nomeie os caminhos dos gateways livremente e adicione novas saídas. Links BPMN são usados apenas se o roteamento por setas não encontrar um caminho sem cruzamentos.</p><div class="asis-cards-layout"><section aria-label="Cards do processo"><div class="asis-cards-list"></div></section><section class="asis-cards-preview" aria-label="Prévia BPMN"><div class="asis-cards-preview-head"><strong>Desenho BPMN</strong><div class="asis-preview-tools"><button type="button" class="btn" data-action="validate">Verificar fluxo</button><button type="button" class="btn" data-action="zoom-in" aria-label="Ampliar prévia">+</button><button type="button" class="btn" data-action="zoom-out" aria-label="Reduzir prévia">−</button><button type="button" class="btn" data-action="fit">Ajustar</button></div></div><p id="asis-cards-layout-status" class="ph-s" role="status">Arraste os elementos e ajuste os caminhos. O layout será salvo ao aplicar.</p><div id="asis-cards-canvas"></div></section></div><footer><section id="asis-cards-validation" class="asis-validation" aria-live="polite" aria-label="Validação do fluxo" hidden></section><p role="alert" id="asis-cards-error"></p><p class="ph-s">A prévia não altera o desenho atual. Ao aplicar, os cards, o BPMN e as etapas são salvos juntos. Os ajustes de posição, tamanho, rótulos e traçados do desenho também são salvos. Altere os nomes, responsáveis e caminhos pelos cards.</p><label class="asis-cards-consent"><input type="checkbox" id="asis-cards-confirm"> Aplicar este esboço no lugar do desenho e das etapas AS IS atuais, guardando uma versão anterior.</label><button type="button" class="btn btn-p" id="asis-cards-apply" disabled>Aplicar e salvar AS IS</button></footer>`;
+  dialog.innerHTML=`<header class="asis-cards-head"><div><h2 id="asis-cards-title">Esboço ${label} por cards <span class="badge ba">Experimental</span></h2><p class="ph-s">${esc(process.nome)} · Os cards geram a prévia automaticamente.</p></div><button type="button" class="btn" data-action="close">Fechar</button></header><p class="ib ibb">Construa o processo com cards. Clique para editar; escolha se os caminhos se reencontram ou terminam separadamente. Nomeie os caminhos dos gateways livremente e adicione novas saídas. Links BPMN são usados apenas se o roteamento por setas não encontrar um caminho sem cruzamentos.</p><div class="asis-cards-layout"><section aria-label="Cards do processo"><div class="asis-cards-list"></div></section><section class="asis-cards-preview" aria-label="Prévia BPMN"><div class="asis-cards-preview-head"><strong>Desenho BPMN</strong><div class="asis-preview-tools"><button type="button" class="btn" data-action="validate">Verificar fluxo</button><button type="button" class="btn" data-action="zoom-in" aria-label="Ampliar prévia">+</button><button type="button" class="btn" data-action="zoom-out" aria-label="Reduzir prévia">−</button><button type="button" class="btn" data-action="fit">Ajustar</button></div></div><p id="asis-cards-layout-status" class="ph-s" role="status">Arraste os elementos e ajuste os caminhos. O layout será salvo ao aplicar.</p><div id="asis-cards-canvas"></div></section></div><footer><section id="asis-cards-validation" class="asis-validation" aria-live="polite" aria-label="Validação do fluxo" hidden></section><p role="alert" id="asis-cards-error"></p><p class="ph-s">A prévia não altera o desenho atual. Ao aplicar, os cards, o BPMN e as etapas são salvos juntos. Os ajustes de posição, tamanho, rótulos e traçados do desenho também são salvos. Altere os nomes, responsáveis e caminhos pelos cards.</p><label class="asis-cards-consent"><input type="checkbox" id="asis-cards-confirm"> Aplicar este esboço no lugar do desenho e das etapas ${label} atuais, guardando uma versão anterior.</label><button type="button" class="btn btn-p" id="asis-cards-apply" disabled>Aplicar e salvar ${label}</button></footer>`;
   document.body.append(dialog);dialog.showModal();
-  let viewer,saving=false,closed=false,revision=0,timer=null,queue=Promise.resolve(),built=null,previewValid=false,rendering=false,renderedSignature=null,layout=clone(originalMod.asIsCards?.layout || null),initialLayout=cards.length?initialXml:null;
+  let viewer,saving=false,closed=false,revision=0,timer=null,queue=Promise.resolve(),built=null,previewValid=false,rendering=false,renderedSignature=null,layout=clone(originalMod[cardsKey]?.layout || null),initialLayout=cards.length?initialXml:null;
   const error=dialog.querySelector('#asis-cards-error'),apply=dialog.querySelector('#asis-cards-apply'),list=dialog.querySelector('.asis-cards-list');
   try{viewer=new BpmnJS({...bpmnModelerOptions(dialog.querySelector('#asis-cards-canvas')),keyboard:{bindTo:null}});}catch(e){dialog.remove();toast('Não foi possível iniciar a prévia BPMN.','var(--red)');return;}
   const eventBus=viewer.get('eventBus'),canvasElement=dialog.querySelector('#asis-cards-canvas');
@@ -57,7 +59,7 @@ async function abrirEsbocoCards(){
     if(rendering||saving||closed||!built)return;
     captureDraft(true);dialog.querySelector('#asis-cards-confirm').checked=false;
     try{checkDiagram(built);previewValid=true;error.textContent='';}catch(e){previewValid=false;error.textContent=e.message;}
-    dialog.querySelector('#asis-cards-layout-status').textContent='Ajustes visuais pendentes. Use Aplicar e salvar AS IS para gravá-los.';enabled();
+    dialog.querySelector('#asis-cards-layout-status').textContent=`Ajustes visuais pendentes. Use Aplicar e salvar ${label} para gravá-los.`;enabled();
   });
   function enabled(){apply.disabled=saving || !previewValid || !cards.length || !dialog.querySelector('#asis-cards-confirm').checked;}
   function showValidation(validation){
@@ -78,7 +80,7 @@ async function abrirEsbocoCards(){
           rendering=true;setBusy(true);
           if(built)captureDraft();
           else if(initialLayout){
-            if(originalMod.asIsCards?.layout){try{await viewer.importXML(initialLayout);captureDraft(true);}catch{ /* Keep the saved layout if the older diagram cannot be read. */ }}
+            if(originalMod[cardsKey]?.layout){try{await viewer.importXML(initialLayout);captureDraft(true);}catch{ /* Keep the saved layout if the older diagram cannot be read. */ }}
             initialLayout=null;if(closed||rev!==revision)return;
           }
           const merged=AsIsCards.mergeLayout(compiled.xml,layout);imported=await viewer.importXML(merged.xml);if(closed || rev!==revision)return;
@@ -156,37 +158,37 @@ async function abrirEsbocoCards(){
   apply.onclick=async()=>{
     if(saving || !isEP())return;
     await preview();if(!isEP() || !previewValid || !cards.length || !dialog.querySelector('#asis-cards-confirm').checked)return;
-    if(curProc!==process || processos.find(p=>String(p.id)===String(process.id))!==process || globalThis._fbConflictedProcIds?.has(process.id) || process.mod!==originalMod || (process.mod.bpmnAsIs || '')!==originalSaved){error.textContent='O processo foi atualizado. Feche o teste e recarregue os dados antes de aplicar.';return;}
+    if(curProc!==process || processos.find(p=>String(p.id)===String(process.id))!==process || globalThis._fbConflictedProcIds?.has(process.id) || process.mod!==originalMod || (process.mod[xmlKey] || '')!==originalSaved){error.textContent='O processo foi atualizado. Feche o teste e recarregue os dados antes de aplicar.';return;}
     if(!fbReady() || !globalThis._fbLoadedAt){error.textContent='Conecte-se e aguarde o carregamento dos dados antes de aplicar.';return;}
     saving=true;setBusy(true);enabled();dialog.querySelectorAll('button,input,select,textarea').forEach(input=>input.disabled=true);
-    const current=bpmnProcIds.asis===process.id?bpmnModelers.asis:null;let candidateMod=null;
+    const current=bpmnProcIds[which]===process.id?bpmnModelers[which]:null;let candidateMod=null;
     try{
-      const currentXml=current?(await current.saveXML({format:true})).xml:(process.mod.bpmnAsIs || '');
+      const currentXml=current?(await current.saveXML({format:true})).xml:(process.mod[xmlKey] || '');
       if(currentXml!==initialXml)throw Error('O desenho foi alterado no editor livre. Feche o teste e reabra antes de aplicar.');
       checkDiagram(built);const {xml}=await viewer.saveXML({format:true}),savedLayout=captureDraft();
       const {svg}=await bpmnExportSvg(viewer);
       const next=clone(originalMod);candidateMod=next;process.mod=next;
-      if(initialXml || next.etapas_proc?.length)_arquivarVersaoAnterior(process,'asis',{asIs:next.asIs || '',bpmnAsIs:initialXml || null,etapas_proc:clone(next.etapas_proc || []),asIsCards:clone(next.asIsCards || null)});
-      next.asIs=document.getElementById('e-asis')?.value ?? next.asIs ?? '';
-      next.bpmnAsIs=xml;next.bpmnAsIsSvg=svg;next.asIsCards={version:4,start:clone(startInfo),cards:clone(cards),layout:savedLayout};
+      if(initialXml || next[stepsKey]?.length)_arquivarVersaoAnterior(process,which,{[textKey]:next[textKey] || '',[xmlKey]:initialXml || null,[stepsKey]:clone(next[stepsKey] || []),[cardsKey]:clone(next[cardsKey] || null),...(isTobe?{tobe_relatorio:clone(next.tobe_relatorio || null)}:{})});
+      next[textKey]=document.getElementById('e-'+which)?.value ?? next[textKey] ?? '';
+      next[xmlKey]=xml;next[svgKey]=svg;next[cardsKey]={version:4,start:clone(startInfo),cards:clone(cards),layout:savedLayout};
       // Preserve detailed metadata for cards that were already applied before.
-      next.etapas_proc=built.steps.map(step=>{
-        const previous=(originalMod.etapas_proc || []).find(item=>item.bpmn_id===step.bpmn_id);
+      next[stepsKey]=built.steps.map(step=>{
+        const previous=(originalMod[stepsKey] || []).find(item=>item.bpmn_id===step.bpmn_id);
         return previous?{...previous,...step,id:previous.id,natureza:previous.natureza || step.natureza}:step;
       });
-      const stepIds=new Map(built.steps.map((step,index)=>[step.id,next.etapas_proc[index].id]));
-      next.etapas_proc.forEach(step=>{if(step.vinculo_gw)step.vinculo_gw={...step.vinculo_gw,gw_ep_id:stepIds.get(step.vinculo_gw.gw_ep_id) || step.vinculo_gw.gw_ep_id};});
+      const stepIds=new Map(built.steps.map((step,index)=>[step.id,next[stepsKey][index].id]));
+      next[stepsKey].forEach(step=>{if(step.vinculo_gw)step.vinculo_gw={...step.vinculo_gw,gw_ep_id:stepIds.get(step.vinculo_gw.gw_ep_id) || step.vinculo_gw.gw_ep_id};});
       try{if(await fbSaveAll()!==true)throw Error('Não foi possível confirmar a gravação.');}catch(e){process.mod=originalMod;throw e;}
     }catch(e){
       if(candidateMod && process.mod===candidateMod)process.mod=originalMod;
       error.textContent=e.message;saving=false;setBusy(false);dialog.querySelectorAll('button,input,select,textarea').forEach(input=>input.disabled=false);enabled();return;
     }
     // The saved XML is authoritative; detach the old editor so re-entry loads it.
-    if(current){try{current.destroy();}catch{}bpmnModelers.asis=null;bpmnProcIds.asis=null;}
-    bpmnDirty.asis=false;
-    dialog.close();initBpmnMod('asis',process);
+    if(current){try{current.destroy();}catch{}bpmnModelers[which]=null;bpmnProcIds[which]=null;}
+    bpmnDirty[which]=false;
+    dialog.close();initBpmnMod(which,process);
     if(typeof _refreshEtapasList==='function')_refreshEtapasList();
-    toast('Esboço por cards salvo no AS IS.','var(--teal)');
+    toast('Esboço por cards salvo no '+label+'.','var(--teal)');
   };
   refresh();
 }

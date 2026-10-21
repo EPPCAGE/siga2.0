@@ -243,10 +243,10 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   const reopened=await page.evaluate(()=>AsIsCards.captureLayout(cardsModeler));
   assert.deepEqual(reopened.shapes['node:'+firstId],expected.shapes['node:'+firstId]);assert.deepEqual(reopened.connections,afterAddition.connections);assert.deepEqual(reopened.shapes['lane:equipe'],afterAddition.shapes['lane:equipe']);
   await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
-  // A generated connection never runs through three lane bands; distant tasks use link events.
-  await page.evaluate(()=>{curProc={id:8,nome:'Três raias',mod:{}};processos=[curProc];});
+  // A generated connection never runs through more than three lane bands; distant tasks use link events.
+  await page.evaluate(()=>{curProc={id:8,nome:'Quatro raias',mod:{}};processos=[curProc];});
   await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
-  for(const [name,owner] of [['Etapa A','A'],['Etapa B','B'],['Etapa C','C'],['Retorno A','A']])await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'task',name,owner);
+  for(const [name,owner] of [['Etapa A','A'],['Etapa B','B'],['Etapa C','C'],['Etapa D','D'],['Retorno A','A']])await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'task',name,owner);
   await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
   const laneRoutes=await page.evaluate(()=>{
    const all=cardsModeler.get('elementRegistry').getAll(),lanes=all.filter(el=>el.type==='bpmn:Lane'),connections=all.filter(el=>el.type==='bpmn:SequenceFlow');
@@ -254,7 +254,7 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
    const links=all.filter(el=>el.businessObject.eventDefinitions?.some(def=>def.$type==='bpmn:LinkEventDefinition')).length;
    return {crossed,links};
   });
-  assert.ok(laneRoutes.links>=2);assert.ok(laneRoutes.crossed.every(count=>count<=2));
+  assert.ok(laneRoutes.links>=2);assert.ok(laneRoutes.crossed.every(count=>count<=3));
   await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
   assert.equal(await page.evaluate(()=>{const walk=value=>value!==undefined&&(value===null||typeof value!=='object'||Object.values(value).every(walk));return walk(curProc.mod.asIsCards.layout);}),true);
   // Milestones are shared suggestions and real phase bands in the XML/SVG and saved diagram.
@@ -306,6 +306,32 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   await editor.getByRole('button',{name:'Cancelar',exact:true}).click();
 
   await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
+  // TO BE uses the same editor while keeping AS IS and its history isolated.
+  const asIsBefore=await page.evaluate(()=>JSON.stringify({xml:curProc.mod.bpmnAsIs,cards:curProc.mod.asIsCards,steps:curProc.mod.etapas_proc}));
+  await page.evaluate(()=>{curProc.mod.toBe='Descrição futura';curProc.mod.bpmnToBe=originalXML;curProc.mod.etapas_proc_tobe=[{id:'future-old',desc:'Detalhe futuro anterior'}];});
+  await page.evaluate(()=>abrirEsbocoCards('tobe'));dialog=page.locator('#asis-cards-dialog');
+  assert.match(await dialog.locator('h2').innerText(),/TO BE/);assert.equal(await dialog.locator('[data-card]').count(),0);
+  await addCard(dialog,'task','Executar fluxo futuro','Equipe futura',{milestone:'Fase futura'});
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await page.evaluate(()=>saveFails=true);await dialog.getByRole('button',{name:'Aplicar e salvar TO BE',exact:true}).click();
+  await page.waitForFunction(()=>document.getElementById('asis-cards-error').textContent.includes('gravação'));
+  assert.equal(await page.evaluate(()=>curProc.mod.bpmnToBe),await page.evaluate(()=>originalXML));assert.equal(await page.evaluate(()=>curProc.mod.toBeCards),undefined);
+  await page.evaluate(()=>saveFails=false);await dialog.getByRole('button',{name:'Aplicar e salvar TO BE',exact:true}).click();await dialog.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(()=>JSON.stringify({xml:curProc.mod.bpmnAsIs,cards:curProc.mod.asIsCards,steps:curProc.mod.etapas_proc})),asIsBefore);
+  assert.equal(await page.evaluate(()=>curProc.mod.toBe),'Descrição futura');
+  assert.match(await page.evaluate(()=>curProc.mod.bpmnToBe),/Executar fluxo futuro/);assert.match(await page.evaluate(()=>curProc.mod.bpmnToBeSvg),/Fase futura/);
+  assert.equal(await page.evaluate(()=>curProc.mod.versoes_anteriores.at(-1).tipo),'tobe');
+  assert.equal(await page.evaluate(()=>curProc.mod.versoes_anteriores.at(-1).etapas_proc_tobe[0].desc),'Detalhe futuro anterior');
+  await page.evaluate(()=>{curProc.mod.etapas_proc_tobe[0].id='future-stable';curProc.mod.etapas_proc_tobe[0].documentos='Documento futuro';});
+  await page.evaluate(()=>abrirEsbocoCards('tobe'));dialog=page.locator('#asis-cards-dialog');
+  await page.waitForFunction(()=>document.querySelector('#asis-cards-validation')?.dataset.state==='success');
+  assert.equal(await dialog.locator('[data-card]').count(),1);
+  await dialog.locator('[data-action="edit"]').first().click();editor=page.locator('#asis-card-editor');
+  assert.equal(await editor.locator('[name="milestone"]').inputValue(),'Fase futura');await editor.locator('[name="nome"]').fill('Fluxo futuro revisado');await editor.getByRole('button',{name:'Salvar card'}).click();
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await dialog.getByRole('button',{name:'Aplicar e salvar TO BE',exact:true}).click();await dialog.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(()=>curProc.mod.etapas_proc_tobe[0].id),'future-stable');assert.equal(await page.evaluate(()=>curProc.mod.etapas_proc_tobe[0].documentos),'Documento futuro');
+  assert.equal(await page.evaluate(()=>JSON.stringify({xml:curProc.mod.bpmnAsIs,cards:curProc.mod.asIsCards,steps:curProc.mod.etapas_proc})),asIsBefore);
   await page.evaluate(async()=>{role='dono';await abrirEsbocoCards();});assert.equal(await page.locator('#asis-cards-dialog').count(),0);
   assert.deepEqual(errors,[]);console.log('AS IS por cards: BPMN real, gateways, retornos, validação/bloqueio de ciclos sem saída, alertas, persistência/rollback, histórico, permissões e mobile validados.');
  }finally{await browser.close();}

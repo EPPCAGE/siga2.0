@@ -60,3 +60,7 @@ node tests/e2e/asis-cards.cjs
 ```
 
 O teste funcional usa Chromium e o modeler BPMN real, com persistência simulada. Aceita `BPMN_MODELER_PATH` para um bundle local do bpmn-js 17 e `BPMN_DIAGRAM_CSS` para sua folha de estilos local; sem esses parâmetros, carrega os arquivos do CDN usado pela aplicação.
+
+## Esboço TO BE
+
+O botão **Experimentar esboço por cards** também está disponível na etapa Esboço TO BE, com os mesmos recursos de edição, marcos, raias, validação e ajustes visuais. Ao aplicar, salva apenas o desenho, os cards e as etapas TO BE, preservando os detalhes das atividades existentes e arquivando uma versão anterior do fluxo futuro. Os dados AS IS permanecem independentes.
