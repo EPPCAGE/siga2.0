@@ -16,6 +16,11 @@
     function walk(items){for(const card of items){if(card.type!=='return')add(card.executor);if(['decision','parallel','inclusive'].includes(card.type))branchesOf(card).forEach(branch=>walk(branch.cards));}}
     add(startInfo.executor);walk(cards);return [...owners.values()];
   }
+  function milestonesOf(cards){
+    const names=new Map();
+    function walk(items){for(const card of items){const name=String(card.milestone || '').trim().normalize('NFC');if(card.type==='task'&&name&&!names.has(ownerKey(name)))names.set(ownerKey(name),name);if(['decision','parallel','inclusive'].includes(card.type))branchesOf(card).forEach(branch=>walk(branch.cards));}}
+    walk(cards);return [...names.values()];
+  }
   // Orthogonal visibility grid: search free corridors before considering a BPMN link.
   function routeArrow(source,target,nodes,routed,flow,lanes=[]){
     const vectors={right:[1,0],left:[-1,0],top:[0,-1],bottom:[0,1]},dock=(node,side)=>({x:node.x+node.width/2+vectors[side][0]*node.width/2,y:node.y+node.height/2+vectors[side][1]*node.height/2});
@@ -257,16 +262,19 @@
     return result({complete, states: seen.size});
   }
   function captureLayout(modeler){
-    const elements=modeler.get('elementRegistry').getAll(),owners=new Map(),lanes=new Map(),shapes={},connections={},counts=new Map();
+    const elements=modeler.get('elementRegistry').getAll(),owners=new Map(),lanes=new Map(),phases=new Map(),shapes={},connections={},counts=new Map();
     const bounds=element=>({x:element.x,y:element.y,width:element.width,height:element.height});
     for(const lane of elements.filter(element=>element.type==='bpmn:Lane')){
       const owner=ownerKey(lane.businessObject.name);lanes.set(owner,bounds(lane));
       (lane.businessObject.flowNodeRef||[]).forEach(node=>owners.set(node.id,owner));
     }
+    for(const element of elements.filter(item=>item.businessObject?.get('siga:milestone')))phases.set(ownerKey(element.businessObject.text),bounds(element));
+    const pool=elements.find(element=>element.type==='bpmn:Participant'),bands=[...phases.values()].sort((a,b)=>a.x-b.x),gaps=[];
+    if(pool&&bands.length){let x=pool.x+66;for(const band of bands){if(band.x>x)gaps.push({x,width:band.x-x});x=band.x+band.width;}if(pool.x+pool.width-24>x)gaps.push({x,width:pool.x+pool.width-24-x});}
     for(const element of elements.filter(item=>!item.waypoints)){
       if(!['x','y','width','height'].every(key=>Number.isFinite(element[key]))||element.width<=0||element.height<=0)continue;
       const target=element.labelTarget || element,owner=owners.get(target.id)||'',key=element.labelTarget?'label:'+target.id:element.type==='bpmn:Lane'?'lane:'+ownerKey(element.businessObject.name):'node:'+element.id;
-      shapes[key]={...bounds(element),type:element.type,owner,lane:lanes.get(owner)||null,...(element.labelTarget?.waypoints?{labelFor:JSON.stringify([target.source.id,target.target.id,target.businessObject.name || ''])}:{})};
+      shapes[key]={...bounds(element),type:element.type,owner,lane:lanes.get(owner)||null,milestone:ownerKey(target.businessObject?.get('siga:milestoneName')),region:phases.get(ownerKey(target.businessObject?.get('siga:milestoneName')))||gaps.find(gap=>target.x>=gap.x&&target.x+target.width<=gap.x+gap.width)||null,...(element.labelTarget?.waypoints?{labelFor:JSON.stringify([target.source.id,target.target.id,target.businessObject.name || ''])}:{})};
     }
     for(const edge of elements.filter(element=>element.waypoints&&element.type==='bpmn:SequenceFlow')){
       const base=JSON.stringify([edge.source.id,edge.target.id,edge.businessObject.name||'']),ordinal=counts.get(base)||0;counts.set(base,ordinal+1);
@@ -295,13 +303,22 @@
     const pool=shapes.find(shape=>byId.get(shape.getAttribute('bpmnElement'))?.localName==='participant'),poolId=pool?.getAttribute('bpmnElement'),poolOriginal=original.get(poolId),poolSaved=(!manualShapes||manualShapes.has('node:'+poolId))?layout.shapes['node:'+poolId]:null;
     const poolRect=poolOriginal?{...(valid(poolSaved)?poolSaved:poolOriginal)}:null;
     if(poolRect)for(const key of Object.keys(poolRect))if(!['x','y','width','height'].includes(key))delete poolRect[key];
+    const phaseItems=all('textAnnotation').filter(item=>item.getAttributeNS('https://siga.app/schema/bpmn','milestone')==='true').map(item=>{
+      const id=item.getAttribute('id'),shape=shapes.find(candidate=>candidate.getAttribute('bpmnElement')===id),name=[...item.getElementsByTagNameNS('*','text')][0]?.textContent || '';
+      return {id,name,key:ownerKey(name),shape,old:original.get(id)};
+    }).filter(item=>item.shape);
+    for(const phase of phaseItems)phase.rect={...phase.old,x:phase.old.x+(poolRect?poolRect.x-poolOriginal.x:0)};
+    const gaps=[];
+    if(poolOriginal&&phaseItems.length){let x=poolOriginal.x+66;for(const phase of [...phaseItems].sort((a,b)=>a.old.x-b.old.x)){if(phase.old.x>x)gaps.push({x,width:phase.old.x-x});x=phase.old.x+phase.old.width;}if(poolOriginal.x+poolOriginal.width-24>x)gaps.push({x,width:poolOriginal.x+poolOriginal.width-24-x});}
     const positions=new Map();
     for(const shape of shapes){
-      const id=shape.getAttribute('bpmnElement'),model=byId.get(id);if(!model||['participant','lane'].includes(model.localName))continue;
+      const id=shape.getAttribute('bpmnElement'),model=byId.get(id);if(!model||['participant','lane'].includes(model.localName)||phaseItems.some(phase=>phase.id===id))continue;
       const source=original.get(id),owner=owners.get(id)||'',lane=laneItems.find(item=>item.owner===owner),saved=layout.shapes['node:'+id],type='bpmn:'+model.localName[0].toUpperCase()+model.localName.slice(1);
-      const restored=(!manualShapes||manualShapes.has('node:'+id))&&valid(saved)&&saved.type===type&&saved.owner===owner;
-      const rect=restored?saved:source,base=restored&&saved.lane?saved.lane:lane?.old;
-      positions.set(id,{shape,owner,rect:{x:rect.x-(base?.x||0),y:rect.y-(base?.y||0),width:rect.width,height:rect.height},relative:!!base});
+      const milestone=ownerKey(model.getAttributeNS('https://siga.app/schema/bpmn','milestoneName')),phase=phaseItems.find(item=>item.key===milestone);
+      const restored=ownerKey(saved?.milestone)===milestone&&(!manualShapes||manualShapes.has('node:'+id))&&valid(saved)&&saved.type===type&&saved.owner===owner;
+      const loose=!milestone?gaps.find(gap=>source.x>=gap.x&&source.x+source.width<=gap.x+gap.width):null;
+      const area=phase?.old || loose,rect=restored?saved:source,base=restored&&saved.lane?saved.lane:lane?.old;
+      positions.set(id,{shape,owner,phase,loose,task:model.localName.endsWith('Task'),rect:{x:restored&&area&&saved.region?area.x+saved.x-saved.region.x-(base?.x||0):rect.x-(base?.x||0),y:rect.y-(base?.y||0),width:rect.width,height:rect.height},relative:!!base});
     }
     let nextY=poolRect?.y||0;
     for(const lane of laneItems){
@@ -312,11 +329,17 @@
     }
     for(const [id,item] of positions){
       const lane=laneItems.find(candidate=>candidate.owner===item.owner),offset=item.relative?lane?.rect:null;
-      const rect={...item.rect,x:item.rect.x+(offset?.x||0),y:item.rect.y+(offset?.y||0)};write(bounds(item.shape),rect);item.absolute=rect;
+      const rect={...item.rect,x:item.rect.x+(offset?.x||0),y:item.rect.y+(offset?.y||0)};
+      if(item.phase&&item.task){
+        if(rect.width>item.phase.rect.width-16)throw Error('A atividade não cabe no marco “'+item.phase.name+'”. Reduza seu tamanho ou ajuste os cards.');
+        rect.x=Math.max(item.phase.rect.x+8,Math.min(rect.x,item.phase.rect.x+item.phase.rect.width-rect.width-8));
+      }else if(item.task&&item.loose){const left=item.loose.x+(poolRect?poolRect.x-poolOriginal.x:0),right=left+item.loose.width;rect.x=Math.max(left,Math.min(rect.x,right-rect.width));}
+      write(bounds(item.shape),rect);item.absolute=rect;
       if(poolRect){poolRect.width=Math.max(poolRect.width,rect.x+rect.width-poolRect.x+24);poolRect.height=Math.max(poolRect.height,rect.y+rect.height-poolRect.y+24);}
     }
     if(poolRect){poolRect.height=Math.max(poolRect.height,nextY-poolRect.y);write(bounds(pool),poolRect);}
     for(const lane of laneItems){if(poolRect)lane.rect.width=poolRect.width-(lane.rect.x-poolRect.x);write(bounds(lane.shape),lane.rect);}
+    for(const phase of phaseItems){if(poolRect){phase.rect.y=poolRect.y-64;phase.rect.height=poolRect.height+64;}write(bounds(phase.shape),phase.rect);}
     const rectFor=id=>positions.get(id)?.absolute||original.get(id),same=(a,b)=>a&&b&&a.width===b.width&&a.height===b.height;
     const reroute=[],counts=new Map();
     for(const edge of all('BPMNEdge')){
@@ -380,9 +403,10 @@
         available.push(card.id);
         const type=gateway?({decision:'exclusiveGateway',parallel:'parallelGateway',inclusive:'inclusiveGateway'})[card.type]:card.type==='end'?'endEvent':card.type==='wait'?'intermediateCatchEvent':mode==='Automatica'?'serviceTask':mode==='Semi-automatica'?'userTask':'manualTask';
         const node=add('Card_'+card.id,type,card.nome.trim(),column,card.executor?.trim() || (card.type==='task'?unassigned:''));
+        if(card.type==='task')node.milestone=String(card.milestone || '').trim().normalize('NFC');
         link(previous,node,pendingLabel);pendingLabel='';
         if(card.type==='wait'){node.duration=card.duration||'PT1H';if(!/^P(?=\d|T\d)(?:\d+D)?(?:T(?=\d)(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$/.test(node.duration))throw Error('Informe uma duração ISO 8601 válida, como PT1H ou P1D.');}
-        const step={id:'ep-card-'+card.id,bpmn_id:node.id,nome:node.label,tipo:gateway?'Decisao':card.type==='task'?'Atividade':'Evento',natureza:'Execucao',modo:mode,executor:card.executor?.trim() || '',desc:card.descricao || '',seq:steps.length+1,vinculo_gw:context?{gw_ep_id:context.gateway,label:context.label}:null};steps.push(step);
+        const step={id:'ep-card-'+card.id,bpmn_id:node.id,nome:node.label,tipo:gateway?'Decisao':card.type==='task'?'Atividade':'Evento',natureza:'Execucao',modo:mode,executor:card.executor?.trim() || '',desc:card.descricao || '',milestone:card.type==='task'?node.milestone:'',seq:steps.length+1,vinculo_gw:context?{gw_ep_id:context.gateway,label:context.label}:null};steps.push(step);
         if(gateway){
           const branches=branchesOf(card),branchIds=new Set();
           if(!Array.isArray(branches)||branches.length<2||branches.length>60)throw Error('Informe de 2 a 60 caminhos por gateway.');
@@ -448,8 +472,44 @@
     position(cards,0);start.track=(span(cards)-1)/2;if(byId.has('Cards_end'))byId.get('Cards_end').track=start.track;
     const owners=[...new Set(nodes.map(n=>n.owner))];let y=100;
     const lanes=owners.map((owner,index)=>{const tracks=[...new Set(nodes.filter(n=>n.owner===owner).map(n=>n.track))].sort((a,b)=>a-b);const lane={id:'Cards_lane_'+index,owner,y,height:Math.max(220,tracks.length*180),tracks};y+=lane.height;return lane;});
-    const width=Math.max(650,(last.column+1)*320+180),height=y-100;
+    let width=Math.max(650,(last.column+1)*320+180);const height=y-100;
     nodes.forEach(n=>{const lane=lanes.find(l=>l.owner===n.owner);n.x=150+n.column*320;n.y=lane.y+85-n.height/2+lane.tracks.indexOf(n.track)*180;});
+    const milestoneNames=milestonesOf(cards),milestones=[];
+    if(milestoneNames.length){
+      const names=new Map(milestoneNames.map(name=>[ownerKey(name),name]));
+      nodes.filter(node=>node.milestone!==undefined).forEach(node=>{node.milestone=names.get(ownerKey(node.milestone)) || '';});
+      function followingMilestone(node){
+        const queue=[node.id],seen=new Set(queue);
+        for(let index=0;index<queue.length;index++){const current=byId.get(queue[index]);if(current.milestone!==undefined)return current.milestone;
+          for(const flow of flows.filter(edge=>edge.source===current.id)){const next=byId.get(flow.target);if(next.column>current.column&&!seen.has(next.id)){seen.add(next.id);queue.push(next.id);}}
+        }return '';
+      }
+      for(const node of [...nodes].sort((a,b)=>a.column-b.column)){
+        if(node.milestone!==undefined)continue;
+        const source=byId.get(node.ownerFrom)||flows.filter(flow=>flow.target===node.id).map(flow=>byId.get(flow.source)).find(parent=>parent.column<node.column&&parent.milestone!==undefined);
+        node.milestone=source?.milestone ?? followingMilestone(node);
+      }
+      let left=126;
+      const looseBuckets=new Map();
+      for(const node of nodes.filter(item=>!item.milestone)){
+        const preceding=nodes.filter(item=>item.milestone&&item.column<node.column).sort((a,b)=>b.column-a.column)[0];
+        const bucket=preceding?milestoneNames.indexOf(preceding.milestone)+1:0;
+        if(!looseBuckets.has(bucket))looseBuckets.set(bucket,[]);looseBuckets.get(bucket).push(node);
+      }
+      function place(members,name=''){
+        if(!members.length)return;
+        const columns=[...new Set(members.map(node=>node.column))].sort((a,b)=>a-b),size=columns.length*320;
+        members.forEach(node=>{node.x=left+64+columns.indexOf(node.column)*320;node.region={x:left,width:size};});
+        if(name)milestones.push({id:'Cards_milestone_'+[...ownerKey(name)].map(char=>char.codePointAt(0).toString(16)).join('_'),name,x:left,y:36,width:size,height:height+64});
+        left+=size;
+      }
+      for(let index=0;index<=milestoneNames.length;index++){
+        place(looseBuckets.get(index)||[]);
+        if(index<milestoneNames.length)place(nodes.filter(node=>node.milestone===milestoneNames[index]),milestoneNames[index]);
+      }
+      width=Math.max(650,left-60+24);
+      steps.forEach(step=>{if(byId.get(step.bpmn_id).type.endsWith('Task'))step.milestone=byId.get(step.bpmn_id).milestone;});
+    }
     const originalFlows=[...flows],routed=[];
     const routeOrder=[...originalFlows].sort((a,b)=>{
       const distance=flow=>{const source=nodes.find(node=>node.id===flow.source),target=nodes.find(node=>node.id===flow.target);return Math.abs(source.y+source.height/2-target.y-target.height/2);};return distance(a)-distance(b);
@@ -469,7 +529,7 @@
           positions.push({x:throwing?anchor.x+anchor.width+24:anchor.x-60,y:centerY+offset},{x:centerX+offset,y:anchor.y+anchor.height+24},{x:centerX+offset,y:anchor.y-60},{x:throwing?anchor.x-60:anchor.x+anchor.width+24,y:centerY+offset});
         }
         const lane=lanes.find(item=>item.owner===anchor.owner);
-        return positions.map(position=>({id:(throwing?'Throw_':'Catch_')+flow.id,type:throwing?'intermediateThrowEvent':'intermediateCatchEvent',label,owner:anchor.owner,column:anchor.column,width:36,height:36,...position,linkName:label})).filter(node=>node.x>=120&&node.x+36<=60+width&&node.y>=lane.y&&node.y+36<=lane.y+lane.height&&!overlaps(node)&&!coversRoute(node));
+        return positions.map(position=>({id:(throwing?'Throw_':'Catch_')+flow.id,type:throwing?'intermediateThrowEvent':'intermediateCatchEvent',label,owner:anchor.owner,column:anchor.column,width:36,height:36,...position,linkName:label,milestone:anchor.milestone || '',...(anchor.region?{region:anchor.region}:{})})).filter(node=>node.x>=120&&node.x+36<=60+width&&node.y>=lane.y&&node.y+36<=lane.y+lane.height&&(!anchor.region||node.x>=anchor.region.x+8&&node.x+36<=anchor.region.x+anchor.region.width-8)&&!overlaps(node)&&!coversRoute(node));
       }
       let connected=false;
       for(const throwing of candidates(source,true)){
@@ -491,12 +551,13 @@
       if(!linkedValidation.valid){const error=Error(linkedValidation.errors[0].message);error.validation=linkedValidation;throw error;}
       validation={...linkedValidation,warnings:[...validation.warnings,...linkedValidation.warnings.filter(issue=>issue.code==='ANALYSIS_LIMIT'&&!validation.warnings.some(previous=>previous.code===issue.code))]};
     }
-    const xmlNodes=nodes.map(n=>`<bpmn:${n.type} id="${n.id}" name="${escape(n.label)}">${flows.filter(f=>f.target===n.id).map(f=>`<bpmn:incoming>${f.id}</bpmn:incoming>`).join('')}${flows.filter(f=>f.source===n.id).map(f=>`<bpmn:outgoing>${f.id}</bpmn:outgoing>`).join('')}${n.duration?`<bpmn:timerEventDefinition><bpmn:timeDuration>${escape(n.duration)}</bpmn:timeDuration></bpmn:timerEventDefinition>`:''}${n.linkName?`<bpmn:linkEventDefinition id="Def_${n.id}" name="${n.linkName}">${n.linkTarget?`<bpmn:target>Def_${n.linkTarget}</bpmn:target>`:`<bpmn:source>Def_${n.linkSource}</bpmn:source>`}</bpmn:linkEventDefinition>`:''}</bpmn:${n.type}>`).join('');
+    const xmlNodes=nodes.map(n=>`<bpmn:${n.type} id="${n.id}" name="${escape(n.label)}"${n.milestone?` siga:milestoneName="${escape(n.milestone)}"`:''}>${flows.filter(f=>f.target===n.id).map(f=>`<bpmn:incoming>${f.id}</bpmn:incoming>`).join('')}${flows.filter(f=>f.source===n.id).map(f=>`<bpmn:outgoing>${f.id}</bpmn:outgoing>`).join('')}${n.duration?`<bpmn:timerEventDefinition><bpmn:timeDuration>${escape(n.duration)}</bpmn:timeDuration></bpmn:timerEventDefinition>`:''}${n.linkName?`<bpmn:linkEventDefinition id="Def_${n.id}" name="${n.linkName}">${n.linkTarget?`<bpmn:target>Def_${n.linkTarget}</bpmn:target>`:`<bpmn:source>Def_${n.linkSource}</bpmn:source>`}</bpmn:linkEventDefinition>`:''}</bpmn:${n.type}>`).join('');
+    const xmlMilestones=milestones.map(phase=>`<bpmn:textAnnotation id="${phase.id}" siga:milestone="true"><bpmn:text>${escape(phase.name)}</bpmn:text></bpmn:textAnnotation>`).join('');
     const xmlFlows=flows.map(f=>`<bpmn:sequenceFlow id="${f.id}" sourceRef="${f.source}" targetRef="${f.target}"${f.label?` name="${escape(f.label)}"`:''}/>`).join('');
     const shape=(id,x,y,w,h,extra='')=>`<bpmndi:BPMNShape id="DI_${id}" bpmnElement="${id}" ${extra}><dc:Bounds x="${x}" y="${y}" width="${w}" height="${h}"/></bpmndi:BPMNShape>`;
-    const di=shape('Cards_pool',60,100,width,height,'isHorizontal="true"')+lanes.map(l=>shape(l.id,90,l.y,width-30,l.height,'isHorizontal="true"')).join('')+nodes.map(n=>shape(n.id,n.x,n.y,n.width,n.height)).join('')+flows.map(f=>{const a=nodes.find(n=>n.id===f.source),b=nodes.find(n=>n.id===f.target),x1=a.x+a.width,y1=a.y+a.height/2,x2=b.x,y2=b.y+b.height/2;const points=f.points||[{x:x1,y:y1},{x:x2,y:y2}];const labelSegments=points.slice(1).map((point,index)=>({a:points[index],b:point,length:Math.abs(point.x-points[index].x)+Math.abs(point.y-points[index].y)}));const labelSegment=labelSegments.reduce((longest,segment)=>segment.length>longest.length?segment:longest);const labelX=(labelSegment.a.x+labelSegment.b.x)/2-50,labelY=(labelSegment.a.y+labelSegment.b.y)/2-24;return `<bpmndi:BPMNEdge id="DI_${f.id}" bpmnElement="${f.id}">${points.map(point=>`<di:waypoint x="${point.x}" y="${point.y}"/>`).join('')}${f.label?`<bpmndi:BPMNLabel><dc:Bounds x="${labelX}" y="${labelY}" width="100" height="20"/></bpmndi:BPMNLabel>`:''}</bpmndi:BPMNEdge>`;}).join('');
-    const xml=`<?xml version="1.0" encoding="UTF-8"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Cards_definitions" targetNamespace="https://siga.app/asis-cards"><bpmn:collaboration id="Cards_collaboration"><bpmn:participant id="Cards_pool" name="${escape(name)}" processRef="Cards_process"/></bpmn:collaboration><bpmn:process id="Cards_process" isExecutable="false"><bpmn:laneSet id="Cards_lanes">${lanes.map(l=>`<bpmn:lane id="${l.id}" name="${escape(l.owner)}">${nodes.filter(n=>n.owner===l.owner).map(n=>`<bpmn:flowNodeRef>${n.id}</bpmn:flowNodeRef>`).join('')}</bpmn:lane>`).join('')}</bpmn:laneSet>${xmlNodes}${xmlFlows}</bpmn:process><bpmndi:BPMNDiagram id="Cards_diagram"><bpmndi:BPMNPlane id="Cards_plane" bpmnElement="Cards_collaboration">${di}</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>`;
-    return {xml,steps,nodes,flows,validation};
+    const di=shape('Cards_pool',60,100,width,height,'isHorizontal="true"')+lanes.map(l=>shape(l.id,90,l.y,width-30,l.height,'isHorizontal="true"')).join('')+milestones.map(phase=>shape(phase.id,phase.x,phase.y,phase.width,phase.height)).join('')+nodes.map(n=>shape(n.id,n.x,n.y,n.width,n.height)).join('')+flows.map(f=>{const a=nodes.find(n=>n.id===f.source),b=nodes.find(n=>n.id===f.target),x1=a.x+a.width,y1=a.y+a.height/2,x2=b.x,y2=b.y+b.height/2;const points=f.points||[{x:x1,y:y1},{x:x2,y:y2}];const labelSegments=points.slice(1).map((point,index)=>({a:points[index],b:point,length:Math.abs(point.x-points[index].x)+Math.abs(point.y-points[index].y)}));const labelSegment=labelSegments.reduce((longest,segment)=>segment.length>longest.length?segment:longest);const labelX=(labelSegment.a.x+labelSegment.b.x)/2-50,labelY=(labelSegment.a.y+labelSegment.b.y)/2-24;return `<bpmndi:BPMNEdge id="DI_${f.id}" bpmnElement="${f.id}">${points.map(point=>`<di:waypoint x="${point.x}" y="${point.y}"/>`).join('')}${f.label?`<bpmndi:BPMNLabel><dc:Bounds x="${labelX}" y="${labelY}" width="100" height="20"/></bpmndi:BPMNLabel>`:''}</bpmndi:BPMNEdge>`;}).join('');
+    const xml=`<?xml version="1.0" encoding="UTF-8"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" ${milestones.length?'xmlns:siga="https://siga.app/schema/bpmn"':''} id="Cards_definitions" targetNamespace="https://siga.app/asis-cards"><bpmn:collaboration id="Cards_collaboration"><bpmn:participant id="Cards_pool" name="${escape(name)}" processRef="Cards_process"/></bpmn:collaboration><bpmn:process id="Cards_process" isExecutable="false"><bpmn:laneSet id="Cards_lanes">${lanes.map(l=>`<bpmn:lane id="${l.id}" name="${escape(l.owner)}">${nodes.filter(n=>n.owner===l.owner).map(n=>`<bpmn:flowNodeRef>${n.id}</bpmn:flowNodeRef>`).join('')}</bpmn:lane>`).join('')}</bpmn:laneSet>${xmlNodes}${xmlFlows}${xmlMilestones}</bpmn:process><bpmndi:BPMNDiagram id="Cards_diagram"><bpmndi:BPMNPlane id="Cards_plane" bpmnElement="Cards_collaboration">${di}</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>`;
+    return {xml,steps,nodes,flows,validation,milestones};
   }
-  scope.AsIsCards={compile,branchesOf,validateGraph,ownersOf,ownerKey,captureLayout,mergeLayout,routeLayout};
+  scope.AsIsCards={compile,branchesOf,validateGraph,ownersOf,ownerKey,milestonesOf,captureLayout,mergeLayout,routeLayout};
 })(globalThis);

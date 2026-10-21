@@ -12,6 +12,12 @@ Na etapa **Esboço AS IS**, use **Experimentar esboço por cards**. O editor BPM
 - A aplicação salva os cards em `mod.asIsCards`, o XML/SVG AS IS e `mod.etapas_proc` no mesmo processo. Uma versão anterior do desenho e das etapas é arquivada.
 - Reabrir recupera os cards anteriormente aplicados. Um BPMN desenhado livremente ou importado não é convertido automaticamente em cards. Ajustes visuais são preservados ao reaplicar os cards. Mudanças da estrutura feitas no editor livre continuam sendo substituídas pelo fluxo dos cards, após confirmação.
 
+## Marcos (milestones)
+
+Nos cards de atividade, preencha **Marco (milestone)** escolhendo uma sugestão do próprio processo ou digitando um novo nome. Os nomes são reutilizados sem distinguir maiúsculas/minúsculas. Deixar o campo vazio mantém a atividade sem marco, fora das faixas nomeadas.
+
+O desenho cria divisões verticais por marco, atravessando todas as raias, e coloca cada atividade na faixa correspondente. A ordem das faixas segue a primeira utilização dos nomes nos cards; retornos a marcos anteriores continuam possíveis. Início, decisões, esperas e finais acompanham o contexto das atividades próximas. Mudar o marco de uma atividade a reposiciona na faixa correta; ajustes manuais compatíveis são preservados. Os marcos são salvos no BPMN e no SVG usado pelo POP/PDF, com o mesmo formato de fases já utilizado no editor livre.
+
 ## Ajustar o desenho manualmente
 
 No desenho à direita, arraste os elementos e os rótulos, ajuste seus tamanhos e os pontos das conexões. **Aplicar e salvar AS IS** grava o XML e o SVG do desenho que está na tela, junto dos cards e das etapas. Verificar o fluxo não regenera o desenho quando os cards não mudaram.
