@@ -39,7 +39,7 @@
     return records.filter(record=>reviewer()?record.status==='enviado':record.status==='publicado'&&!record.aviso_lido).map(record=>`<div class="card" style="margin-top:12px"><strong>${reviewer()?'Mapeamento aguardando revisão':'Seu fluxo foi publicado'}</strong><p>${h(record.nome)} · ${record.tipo==='asis'?'AS IS':'TO BE'}${reviewer()?' · Enviado por '+h(record.autor_nome):''}</p><button type="button" class="btn btn-p" data-mapping-open="${h(record.id)}">${reviewer()?'Revisar mapeamento':'Ver fluxo publicado'}</button>${!reviewer()?` <button type="button" class="btn" data-mapping-read="${h(record.id)}">Marcar aviso como lido</button>`:''}</div>`).join('');
   }
   function render(){
-    subscribe();const page=document.getElementById('page-mapearprocesso');if(!page)return;
+    subscribe();const page=document.getElementById('page-mapearprocesso');if(!page||active)return;
     if(!allowed()){page.innerHTML='<div class="ib iba">Seu perfil não tem acesso a esta tela.</div>';return;}
     const list=[...records].sort((a,b)=>(b.atualizado_em || '').localeCompare(a.atualizado_em || ''));
     page.innerHTML=`<div class="mapping-shell"><div class="mapping-header"><div><h1 class="ph-t">${reviewer()?'Mapeamentos enviados':'Mapear processo'}</h1><p class="ph-s">${reviewer()?'Revise os desenhos enviados e publique os fluxos na arquitetura.':'Desenhe um processo, detalhe suas atividades e encaminhe ao EPP.'}</p></div>${!reviewer()?'<button type="button" class="btn btn-p" data-mapping-new>Novo mapeamento</button>':''}</div><div class="mapping-grid">${list.map(record=>`<article class="mapping-card"><span class="badge ba">${h(labels[record.status])}</span><h3 style="margin:.8rem 0">${h(record.nome)}</h3><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS':'TO BE'}</p>${reviewer()?`<p class="ph-s">${h(record.autor_nome)}</p>`:''}<p>${h(record.objetivo)}</p><button type="button" class="btn" data-mapping-open="${h(record.id)}">${editable(record)?'Abrir e editar':'Consultar'}</button></article>`).join('')||'<div class="mapping-empty">Nenhum mapeamento por aqui ainda.</div>'}</div></div>`;
@@ -47,7 +47,7 @@
   function create(){
     if(!allowed()||reviewer())return;
     const dialog=modal('Mapear processo');dialog.id='mapping-new-dialog';
-    dialog.innerHTML+=`<form><label class="fg"><span class="fl">Macroprocesso</span><select class="fi" name="macro" required><option value="">Selecione</option>${ARQUITETURA.map(m=>`<option value="${h(m.id)}">${h(m.nome)}</option>`).join('')}</select></label><label class="fg"><span class="fl">Nome do processo</span><input class="fi" name="nome" maxlength="240" required list="mapping-names"><datalist id="mapping-names"></datalist></label><p data-match class="ib ibb">Selecione o macroprocesso e informe o nome do processo.</p><label class="fg" data-disambiguate hidden><span class="fl">Processos com esse nome: escolha o vínculo</span><select class="fi" name="vinculo"></select></label><fieldset class="fg"><legend class="fl">Qual fluxo você quer desenhar?</legend><label class="mapping-type"><input type="radio" name="tipo" value="asis" checked><span><strong>AS IS · Como é hoje</strong><small>Registre como o processo funciona atualmente, com suas atividades, decisões e responsáveis reais.</small></span></label><label class="mapping-type"><input type="radio" name="tipo" value="tobe"><span><strong>TO BE · Como deverá ser</strong><small>Desenhe o funcionamento futuro proposto, com as melhorias e mudanças que você deseja implementar.</small></span></label></fieldset><label class="fg"><span class="fl">Objetivo do mapeamento</span><textarea class="fi" name="objetivo" rows="3" maxlength="3000" required placeholder="O que você quer esclarecer, documentar ou melhorar neste processo?"></textarea></label><p class="mapping-error" role="alert"></p><div class="btn-row"><button type="button" class="btn" data-cancel>Cancelar</button><button type="submit" class="btn btn-p">Iniciar</button></div></form>`;
+    dialog.innerHTML+=`<form><div class="mapping-form-body"><label class="fg"><span class="fl">Macroprocesso</span><select class="fi" name="macro" required><option value="">Selecione</option>${ARQUITETURA.map(m=>`<option value="${h(m.id)}">${h(m.nome)}</option>`).join('')}</select></label><label class="fg"><span class="fl">Nome do processo</span><input class="fi" name="nome" maxlength="240" required list="mapping-names"><datalist id="mapping-names"></datalist></label><p data-match class="ib ibb">Selecione o macroprocesso e informe o nome do processo.</p><label class="fg" data-disambiguate hidden><span class="fl">Processos com esse nome: escolha o vínculo</span><select class="fi" name="vinculo"></select></label><fieldset class="fg"><legend class="fl">Qual fluxo você quer desenhar?</legend><div class="mapping-types"><label class="mapping-type"><input type="radio" name="tipo" value="asis" checked><span><strong>AS IS · Como é hoje</strong><small>Registre como o processo funciona atualmente, com suas atividades, decisões e responsáveis reais.</small></span></label><label class="mapping-type"><input type="radio" name="tipo" value="tobe"><span><strong>TO BE · Como deverá ser</strong><small>Desenhe o funcionamento futuro proposto, com as melhorias e mudanças que você deseja implementar.</small></span></label></div></fieldset><label class="fg"><span class="fl">Objetivo do mapeamento</span><textarea class="fi" name="objetivo" rows="3" maxlength="3000" required placeholder="O que você quer esclarecer, documentar ou melhorar neste processo?"></textarea></label><p class="mapping-error" role="alert"></p></div><div class="btn-row"><button type="button" class="btn" data-cancel>Cancelar</button><button type="submit" class="btn btn-p">Iniciar</button></div></form>`;
     const form=dialog.querySelector('form');let matches=[];
     function match(){
       matches=domain.matches(ARQUITETURA,form.elements.macro.value,form.elements.nome.value);
@@ -89,7 +89,10 @@
   function markDirty(state){if(state.loading)return;state.dirty=true;setStatus(state,'Alterações pendentes. Salve antes de sair.');}
   async function capture(state){
     if(!state.modeler)return;
-    const {xml}=await state.modeler.saveXML({format:true}),k=keys(state.record.tipo);state.process.mod[k.xml]=xml;
+    if(state.builder){
+      state.process.mod=await state.builder.snapshot();state.process.mod.editor_modo='simplificado';
+      state.loading=true;try{await state.modeler.importXML(state.process.mod[keys(state.record.tipo).xml]);}finally{state.loading=false;}
+    }else{const {xml}=await state.modeler.saveXML({format:true});state.process.mod[keys(state.record.tipo).xml]=xml;if(!state.published)state.process.mod.editor_modo='avancado';}
   }
   function drawDetails(state){
     const k=keys(state.record.tipo),steps=state.process.mod[k.steps] || [],disabled=editable(state.record)?'':'disabled';
@@ -102,18 +105,18 @@
     await workspace(record,payload(record).mod || {});
   }
   async function workspace(record,mod,published=false){
-    const dialog=modal(record.nome);dialog.id='mapping-workspace';dialog.style.width='96vw';
-    const state={record,dialog,process:{id:'colab-'+record.id,nome:record.nome,mod:clone(mod)},modeler:null,dirty:false,loading:true,published};active=state;
+    const page=document.getElementById('page-mapearprocesso'),dialog=document.createElement('section');dialog.id='mapping-workspace';dialog.className='mapping-workspace';
+    const state={record,dialog,process:{id:'colab-'+record.id,nome:record.nome,mod:clone(mod)},modeler:null,builder:null,dirty:false,loading:true,published,mode:'simplificado',advancedChanged:false};active=state;
     const edit=!published&&editable(record);
-    dialog.innerHTML=`<div class="mapping-header"><div><h2>${h(record.nome)}</h2><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS · Processo atual':'TO BE · Processo futuro'} · ${h(labels[record.status])}</p><p>${h(record.objetivo)}</p></div><button type="button" class="btn" data-close>Fechar</button></div><p class="ib ibb">${edit?'Desenhe com as ferramentas BPMN ou crie o fluxo por cards. Depois, extraia e detalhe as atividades para orientar um novo executor.':'Fluxo disponível para consulta e exportação.'}</p><div class="mapping-toolbar">${edit?'<button type="button" class="btn btn-p" data-cards>Criar por cards</button><button type="button" class="btn" data-save>Salvar rascunho</button><button type="button" class="btn btn-t" data-extract>Extrair atividades</button><button type="button" class="btn" data-undo>Desfazer</button><button type="button" class="btn" data-redo>Refazer</button><button type="button" class="btn" data-phase>+ Fase (milestone)</button><button type="button" class="btn" data-import>Importar BPMN</button><input type="file" data-import-file accept=".bpmn,.xml" hidden>':''}<button type="button" class="btn" data-fit>Ajustar</button><button type="button" class="btn" data-zoom="1.2" aria-label="Ampliar desenho">+</button><button type="button" class="btn" data-zoom="0.8" aria-label="Reduzir desenho">−</button><button type="button" class="btn" data-export="png">Baixar imagem PNG</button><button type="button" class="btn" data-export="xml">Baixar BPMN</button><button type="button" class="btn" data-export="xlsx">Exportar planilha</button></div><p class="mapping-status" data-status role="status">Carregando desenho…</p><div class="mapping-canvas" data-canvas></div><section class="card" style="margin-top:1rem"><h3>Detalhamento das atividades</h3><p class="ph-s">Descreva como realizar cada etapa, os recursos necessários e o resultado esperado.</p><div data-details></div></section><p class="mapping-error" role="alert"></p><div class="btn-row">${edit&&record.status==='rascunho'?'<button type="button" class="btn btn-p" data-submit>Encaminhar ao EPP</button>':''}${edit&&record.status==='enviado'&&reviewer()?'<button type="button" class="btn btn-p" data-publish>Vincular à arquitetura e publicar</button>':''}${reviewer()?'<button type="button" class="btn" data-recover>Aproveitar em mapeamento completo / POP</button>':''}</div>`;
-    dialog.showModal();
-    const close=()=>{
+    state.close=()=>{state.builder?.destroy();state.modeler?.destroy();dialog.remove();if(active===state)active=null;render();};
+    if(typeof go==='function')go('mapearprocesso',document.getElementById('nb-mapearprocesso'));
+    page.replaceChildren(dialog);
+    dialog.innerHTML=`<div class="mapping-header"><div><h1 class="ph-t">${h(record.nome)}</h1><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS · Processo atual':'TO BE · Processo futuro'} · ${h(labels[record.status])}</p><p>${h(record.objetivo)}</p></div><button type="button" class="btn" data-close>Voltar aos mapeamentos</button></div>${edit?'<div class="mapping-modes" role="group" aria-label="Modo de criação"><button type="button" class="btn" data-mode="simplificado" aria-pressed="true">Modo Simplificado</button><button type="button" class="btn" data-mode="avancado" aria-pressed="false">Modo Avançado</button></div><p class="ph-s" data-mode-help>No Modo Simplificado, adicione e organize os cards. O desenho BPMN é gerado automaticamente.</p>':'<p class="ib ibb">Fluxo disponível para consulta e exportação.</p>'}<div class="mapping-toolbar">${edit?'<button type="button" class="btn btn-p" data-save>Salvar rascunho</button><button type="button" class="btn btn-t" data-extract>Extrair atividades</button>':''}<div class="mapping-advanced-tools" data-advanced-tools ${edit?'hidden':''}>${edit?'<button type="button" class="btn" data-undo>Desfazer</button><button type="button" class="btn" data-redo>Refazer</button><button type="button" class="btn" data-phase>+ Fase (milestone)</button><button type="button" class="btn" data-import>Importar BPMN</button><input type="file" data-import-file accept=".bpmn,.xml" hidden>':''}<button type="button" class="btn" data-fit>Ajustar</button><button type="button" class="btn" data-zoom="1.2" aria-label="Ampliar desenho">+</button><button type="button" class="btn" data-zoom="0.8" aria-label="Reduzir desenho">−</button></div><div class="mapping-export-tools"><button type="button" class="btn" data-export="png">Baixar imagem PNG</button><button type="button" class="btn" data-export="xml">Baixar BPMN</button><button type="button" class="btn" data-export="xlsx">Exportar planilha</button></div></div><p class="mapping-status" data-status role="status">Carregando desenho…</p><div data-simplified></div><div class="mapping-canvas" data-canvas ${edit?'hidden':''}></div><section class="card mapping-details"><h3>Detalhamento das atividades</h3><p class="ph-s">Depois de desenhar, extraia as atividades e descreva o passo a passo para orientar um novo executor.</p><div data-details></div></section><p class="mapping-error" data-workspace-error role="alert"></p><div class="btn-row">${edit&&record.status==='rascunho'?'<button type="button" class="btn btn-p" data-submit>Encaminhar ao EPP</button>':''}${edit&&record.status==='enviado'&&reviewer()?'<button type="button" class="btn btn-p" data-publish>Vincular à arquitetura e publicar</button>':''}${reviewer()?'<button type="button" class="btn" data-recover>Aproveitar em mapeamento completo / POP</button>':''}</div>`;
+    dialog.querySelector('[data-close]').onclick=()=>{
       if(state.busy){toast('Aguarde a gravação.','var(--amber)');return;}
-      if(state.dirty&&!confirm('Há alterações não salvas. Deseja fechar e descartá-las?'))return;
-      dialog.close();
+      if(state.dirty&&!confirm('Há alterações não salvas. Deseja voltar e descartá-las?'))return;
+      state.close();
     };
-    dialog.querySelector('[data-close]').onclick=close;dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-    dialog.addEventListener('close',()=>{state.modeler?.destroy();if(active===state)active=null;});
     dialog.querySelector('[data-details]').oninput=event=>{
       const target=event.target;if(target.dataset.step===undefined||!edit)return;
       state.process.mod[keys(record.tipo).steps][Number(target.dataset.step)][target.dataset.field]=target.value;markDirty(state);
@@ -121,21 +124,35 @@
     async function act(action){
       if(state.busy||state.loading)return;state.busy=true;
       const controls=[...dialog.querySelectorAll('button,input,select,textarea')].map(element=>({element,disabled:element.disabled}));
-      controls.forEach(({element})=>element.disabled=true);dialog.querySelector('[data-canvas]').style.pointerEvents='none';
-      try{await action();dialog.querySelector('[role=alert]').textContent='';}catch(e){dialog.querySelector('[role=alert]').textContent=e.message;}
-      finally{state.busy=false;controls.forEach(({element,disabled})=>element.disabled=disabled);dialog.querySelector('[data-canvas]').style.pointerEvents='';}
+      controls.forEach(({element})=>element.disabled=true);dialog.querySelector('[data-canvas]').style.pointerEvents='none';dialog.querySelector('[data-simplified]').style.pointerEvents='none';
+      try{await action();dialog.querySelector('[data-workspace-error]').textContent='';}catch(e){dialog.querySelector('[data-workspace-error]').textContent=e.message;}
+      finally{state.busy=false;controls.forEach(({element,disabled})=>element.disabled=disabled);dialog.querySelector('[data-canvas]').style.pointerEvents='';dialog.querySelector('[data-simplified]').style.pointerEvents='';}
     }
     const on=(selector,action)=>{const button=dialog.querySelector(selector);if(button)button.onclick=()=>{void act(action);};};
-    on('[data-save]',async()=>{await capture(state);await update(state);});
-    on('[data-extract]',async()=>{await capture(state);const k=keys(record.tipo);state.process.mod[k.steps]=domain.extract(state.process.mod[k.xml],state.process.mod[k.steps] || []);drawDetails(state);markDirty(state);dialog.querySelector('[data-details]').scrollIntoView({behavior:'smooth'});});
-    on('[data-cards]',async()=>{
+    async function simplified(){
+      state.builder=await abrirEsbocoCards(record.tipo,{container:dialog.querySelector('[data-simplified]'),process:state.process,modeler:state.modeler,canEdit:()=>editable(state.record)&&!state.published,onChange:()=>markDirty(state)});
+      if(!state.builder)throw Error('Não foi possível iniciar o Modo Simplificado.');
+    }
+    async function mode(next){
+      if(next===state.mode)return;
+      if(next==='simplificado'&&state.advancedChanged&&!confirm('Os cards não são criados a partir do desenho livre. Ao voltar ao Modo Simplificado, o fluxo será reconstruído a partir dos cards anteriores. Deseja continuar?'))return;
       await capture(state);
-      await abrirEsbocoCards(record.tipo,{process:state.process,modeler:state.modeler,canEdit:()=>editable(state.record)&&!state.published,save:()=>update(state),onSaved:async()=>{state.loading=true;await state.modeler.importXML(state.process.mod[keys(record.tipo).xml]);state.loading=false;state.modeler.get('canvas').zoom('fit-viewport');drawDetails(state);}});
-    });
+      if(state.builder){state.builder.destroy();state.builder=null;}
+      state.mode=next;state.process.mod.editor_modo=next;
+      dialog.querySelector('[data-simplified]').hidden=next!=='simplificado';dialog.querySelector('[data-canvas]').hidden=next!=='avancado';dialog.querySelector('[data-advanced-tools]').hidden=next!=='avancado';
+      dialog.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode===next)));
+      dialog.querySelector('[data-mode-help]').textContent=next==='simplificado'?'No Modo Simplificado, adicione e organize os cards. O desenho BPMN é gerado automaticamente.':'No Modo Avançado, use as ferramentas BPMN para criar e editar o desenho livremente. As alterações livres não são convertidas automaticamente em cards.';
+      if(next==='simplificado'){state.loading=true;try{await simplified();}finally{state.loading=false;}}
+      else{state.modeler.get('canvas').resized();state.modeler.get('canvas').zoom('fit-viewport');}
+      markDirty(state);
+    }
+    dialog.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>{void act(()=>mode(button.dataset.mode));});
+    on('[data-save]',async()=>{await capture(state);await update(state);drawDetails(state);});
+    on('[data-extract]',async()=>{await capture(state);const k=keys(record.tipo);state.process.mod[k.steps]=domain.extract(state.process.mod[k.xml],state.process.mod[k.steps] || []);drawDetails(state);markDirty(state);dialog.querySelector('[data-details]').scrollIntoView({behavior:'smooth'});});
     on('[data-submit]',async()=>{
       await capture(state);if(!hasActivity(state))throw Error('Inclua pelo menos uma atividade no desenho antes de encaminhar.');
       if(!confirm('Encaminhar este desenho ao EPP? Após o envio, ele ficará disponível apenas para consulta enquanto aguarda revisão. O detalhamento das atividades é recomendado, mas não é obrigatório.'))return;
-      await update(state,'enviado');dialog.close();toast('Mapeamento encaminhado ao EPP.');
+      await update(state,'enviado');state.close();toast('Mapeamento encaminhado ao EPP.');
     });
     on('[data-publish]',async()=>{await capture(state);await update(state);review(state);});
     on('[data-recover]',async()=>{if(state.dirty){await capture(state);await update(state);}recover(state);});
@@ -150,23 +167,33 @@
       if(!confirm('Importar este arquivo no lugar do desenho atual? Os detalhamentos existentes serão preservados até você extrair as atividades novamente.'))return;
       const previous=(await state.modeler.saveXML()).xml;
       try{await state.modeler.importXML(await file.text());}catch{await state.modeler.importXML(previous);throw Error('O arquivo BPMN não pôde ser importado. O desenho anterior foi mantido.');}
-      state.modeler.get('canvas').zoom('fit-viewport');markDirty(state);fileInput.value='';
+      state.advancedChanged=true;state.modeler.get('canvas').zoom('fit-viewport');markDirty(state);fileInput.value='';
     });};
     dialog.querySelectorAll('[data-zoom]').forEach(button=>button.onclick=()=>{const canvas=state.modeler.get('canvas');canvas.zoom(canvas.zoom()*Number(button.dataset.zoom));});
     dialog.querySelectorAll('[data-export]').forEach(button=>button.onclick=()=>{void act(()=>exportFile(state,button.dataset.export));});
     try{
-      if(typeof BpmnJS==='undefined')throw Error('O editor BPMN ainda não carregou. Feche e tente novamente.');
+      if(typeof BpmnJS==='undefined')throw Error('O editor BPMN ainda não carregou. Volte e tente novamente.');
       state.modeler=new BpmnJS({...bpmnModelerOptions(dialog.querySelector('[data-canvas]')),keyboard:{bindTo:null}});
       if(edit&&typeof _bpmnInitActivityTextSizing==='function')_bpmnInitActivityTextSizing(state.modeler);
       if(!edit){const bus=state.modeler.get('eventBus');bus.on('commandStack.canExecute',10000,()=>false);dialog.querySelector('[data-canvas]').classList.add('mapping-readonly');}
-      await state.modeler.importXML(mod[keys(record.tipo).xml] || BPMN_DEFAULT);state.loading=false;
-      state.modeler.get('canvas').zoom('fit-viewport');
-      state.modeler.on('commandStack.changed',()=>{if(edit)markDirty(state);});
+      await state.modeler.importXML(mod[keys(record.tipo).xml] || BPMN_DEFAULT);
+      const advanced=edit&&(mod.editor_modo==='avancado'||(mod[keys(record.tipo).xml]&&!mod[keys(record.tipo).cards]&&hasActivity(state)));
+      if(edit&& !advanced)await simplified();
+      else{
+        state.mode='avancado';dialog.querySelector('[data-simplified]').hidden=true;dialog.querySelector('[data-canvas]').hidden=false;dialog.querySelector('[data-advanced-tools]').hidden=false;
+        dialog.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mode==='avancado')));
+        if(edit)dialog.querySelector('[data-mode-help]').textContent='Este fluxo foi criado no Modo Avançado. Continue editando com as ferramentas BPMN ou reconstrua-o no Modo Simplificado.';
+        state.advancedChanged=edit&&!mod[keys(record.tipo).cards];state.modeler.get('canvas').resized();state.modeler.get('canvas').zoom('fit-viewport');
+      }
+      state.loading=false;
+      state.modeler.on('commandStack.changed',()=>{if(edit&&!state.loading&&state.mode==='avancado'){state.advancedChanged=true;markDirty(state);}});
       drawDetails(state);setStatus(state,edit?'Rascunho salvo. Alterações no desenho e no detalhamento devem ser salvas.':'Somente consulta.');
-    }catch(e){dialog.querySelector('[role=alert]').textContent=e.message;}
+      dialog.scrollIntoView({block:'start'});
+    }catch(e){state.loading=false;dialog.querySelector('[data-workspace-error]').textContent=e.message;}
   }
   function hasActivity(state){return state.modeler.get('elementRegistry').getAll().some(item=>item.type.endsWith('Task')||['bpmn:SubProcess','bpmn:CallActivity'].includes(item.type));}
   async function exportFile(state,type){
+    await capture(state);
     const name=(state.record.nome || 'processo').replaceAll(/[^\p{L}\p{N}_-]/gu,'_')+'_'+state.record.tipo;
     if(type==='xml'){const {xml}=await state.modeler.saveXML({format:true});download(xml,'application/xml',name+'.bpmn');return;}
     if(type==='xlsx'){
@@ -224,7 +251,7 @@
         });
         ARQUITETURA=result.architecture;_fbConfigCache.set('arquitetura',JSON.stringify(ARQUITETURA));
         if(!publicacoes.some(item=>item.id===result.publication.id))publicacoes.push(result.publication);
-        state.record={...state.record,...result.changed};state.dirty=false;dialog.close();state.dialog.close();render();
+        state.record={...state.record,...result.changed};state.dirty=false;dialog.close();state.close();render();
         toast('Fluxo publicado em Publicações › Fluxos. O autor receberá o aviso em Minhas tarefas.');
       }catch(e){dialog.querySelector('[role=alert]').textContent=e.message;}finally{state.busy=false;form.querySelectorAll('button').forEach(button=>button.disabled=false);}
     });};dialog.showModal();
@@ -259,9 +286,9 @@
           copyTo(target,source);
           try{if(await fbSaveAll()!==true)throw Error('Não foi possível confirmar a gravação.');}catch(e){target.mod=original;throw e;}
           for(const which of ['asis','tobe']){if(bpmnProcIds[which]===target.id){bpmnModelers[which]?.destroy();bpmnModelers[which]=null;bpmnProcIds[which]=null;bpmnDirty[which]=false;}}
-          dialog.close();state.dialog.close();abrirProc(target.id);
+          dialog.close();state.close();abrirProc(target.id);
         }else{
-          dialog.close();state.dialog.close();abrirNovoProc();
+          dialog.close();state.close();abrirNovoProc();
           document.getElementById('novo-macro').value=source.record.macro_id;filtrarProcArq();
           const selector=document.getElementById('novo-proc-sel');
           if(![...selector.options].some(option=>option.value===source.record.arq_id)){

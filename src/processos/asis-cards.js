@@ -1,6 +1,7 @@
 async function abrirEsbocoCards(which='asis',workspace=null){
   if(!['asis','tobe'].includes(which))return;
   const isTobe=which==='tobe',label=isTobe?'TO BE':'AS IS',textKey=isTobe?'toBe':'asIs',xmlKey=isTobe?'bpmnToBe':'bpmnAsIs',svgKey=xmlKey+'Svg',cardsKey=isTobe?'toBeCards':'asIsCards',stepsKey=isTobe?'etapas_proc_tobe':'etapas_proc';
+  const inline=!!workspace?.container;
   const canEdit=()=>workspace?workspace.canEdit():isEP();
   if(!canEdit() || !(workspace?.process || curProc))return;
   if(document.getElementById('asis-cards-dialog'))return;
@@ -14,9 +15,16 @@ async function abrirEsbocoCards(which='asis',workspace=null){
   function migrate(items){for(const card of items){if(['decision','parallel','inclusive'].includes(card.type)){card.branches=clone(AsIsCards.branchesOf(card));delete card.yes;delete card.no;card.branches.forEach(branch=>migrate(branch.cards));}}}
   migrate(cards);
   const startInfo=clone(originalMod[cardsKey]?.start || {nome:'Início do processo'});
-  const dialog=document.createElement('dialog');dialog.id='asis-cards-dialog';dialog.className='asis-cards-dialog';dialog.setAttribute('aria-labelledby','asis-cards-title');
+  const dialog=document.createElement(inline?'section':'dialog');dialog.id='asis-cards-dialog';dialog.className=inline?'asis-cards-inline':'asis-cards-dialog';dialog.setAttribute('aria-labelledby','asis-cards-title');
   dialog.innerHTML=`<header class="asis-cards-head"><div><h2 id="asis-cards-title">Esboço ${label} por cards <span class="badge ba">Experimental</span></h2><p class="ph-s">${esc(process.nome)} · Os cards geram a prévia automaticamente.</p></div><button type="button" class="btn" data-action="close">Fechar</button></header><p class="ib ibb">Construa o processo com cards. Clique para editar; escolha se os caminhos se reencontram ou terminam separadamente. Nomeie os caminhos dos gateways livremente e adicione novas saídas. Links BPMN são usados apenas se o roteamento por setas não encontrar um caminho sem cruzamentos.</p><div class="asis-cards-layout"><section aria-label="Cards do processo"><div class="asis-cards-list"></div></section><section class="asis-cards-preview" aria-label="Prévia BPMN"><div class="asis-cards-preview-head"><strong>Desenho BPMN</strong><div class="asis-preview-tools"><button type="button" class="btn" data-action="validate">Verificar fluxo</button><button type="button" class="btn" data-action="zoom-in" aria-label="Ampliar prévia">+</button><button type="button" class="btn" data-action="zoom-out" aria-label="Reduzir prévia">−</button><button type="button" class="btn" data-action="fit">Ajustar</button></div></div><p id="asis-cards-layout-status" class="ph-s" role="status">Arraste os elementos e ajuste os caminhos. O layout será salvo ao aplicar.</p><div id="asis-cards-canvas"></div></section></div><footer><section id="asis-cards-validation" class="asis-validation" aria-live="polite" aria-label="Validação do fluxo" hidden></section><p role="alert" id="asis-cards-error"></p><p class="ph-s">A prévia não altera o desenho atual. Ao aplicar, os cards, o BPMN e as etapas são salvos juntos. Os ajustes de posição, tamanho, rótulos e traçados do desenho também são salvos. Altere os nomes, responsáveis e caminhos pelos cards.</p><label class="asis-cards-consent"><input type="checkbox" id="asis-cards-confirm"> Aplicar este esboço no lugar do desenho e das etapas ${label} atuais, guardando uma versão anterior.</label><button type="button" class="btn btn-p" id="asis-cards-apply" disabled>Aplicar e salvar ${label}</button></footer>`;
-  document.body.append(dialog);dialog.showModal();
+  if(inline){
+    workspace.container.append(dialog);
+    dialog.querySelector('.asis-cards-head').hidden=true;
+    dialog.querySelector('.ib').hidden=true;
+    dialog.querySelector('.asis-cards-consent').hidden=true;
+    dialog.querySelector('#asis-cards-apply').hidden=true;
+    dialog.querySelector('footer>.ph-s').hidden=true;
+  }else{document.body.append(dialog);dialog.showModal();}
   let viewer,saving=false,closed=false,revision=0,timer=null,queue=Promise.resolve(),built=null,previewValid=false,rendering=false,renderedSignature=null,layout=clone(originalMod[cardsKey]?.layout || null),initialLayout=cards.length?initialXml:null;
   const error=dialog.querySelector('#asis-cards-error'),apply=dialog.querySelector('#asis-cards-apply'),list=dialog.querySelector('.asis-cards-list');
   try{viewer=new BpmnJS({...bpmnModelerOptions(dialog.querySelector('#asis-cards-canvas')),keyboard:{bindTo:null}});}catch(e){dialog.remove();toast('Não foi possível iniciar a prévia BPMN.','var(--red)');return;}
@@ -63,9 +71,9 @@ async function abrirEsbocoCards(which='asis',workspace=null){
   }
   eventBus.on('commandStack.changed',()=>{
     if(rendering||saving||closed||!built)return;
-    captureDraft(true);dialog.querySelector('#asis-cards-confirm').checked=false;
+    captureDraft(true);workspace?.onChange?.();dialog.querySelector('#asis-cards-confirm').checked=false;
     try{checkDiagram(built);previewValid=true;error.textContent='';}catch(e){previewValid=false;error.textContent=e.message;}
-    dialog.querySelector('#asis-cards-layout-status').textContent=`Ajustes visuais pendentes. Use Aplicar e salvar ${label} para gravá-los.`;enabled();
+    dialog.querySelector('#asis-cards-layout-status').textContent=inline?'Ajustes visuais pendentes. Use Salvar rascunho para gravá-los.':`Ajustes visuais pendentes. Use Aplicar e salvar ${label} para gravá-los.`;enabled();
   });
   function enabled(){apply.disabled=saving || !previewValid || !cards.length || !dialog.querySelector('#asis-cards-confirm').checked;}
   function showValidation(validation){
@@ -95,7 +103,7 @@ async function abrirEsbocoCards(which='asis',workspace=null){
             // Restore a coherent diagram rather than keep half-routed connections.
             imported=await viewer.importXML(compiled.xml);reset=true;
           }
-          dialog.querySelector('#asis-cards-layout-status').textContent=reset?'O layout foi reorganizado automaticamente para evitar sobreposições e ligações incompatíveis com os novos cards.':'Arraste os elementos e ajuste os caminhos. O layout será salvo ao aplicar.';
+          dialog.querySelector('#asis-cards-layout-status').textContent=reset?'O layout foi reorganizado automaticamente para evitar sobreposições e ligações incompatíveis com os novos cards.':inline?'Arraste os elementos e ajuste os caminhos. Use Salvar rascunho para gravar o layout.':'Arraste os elementos e ajuste os caminhos. O layout será salvo ao aplicar.';
           try{checkDiagram(compiled);}catch{imported=await viewer.importXML(compiled.xml);reset=true;checkDiagram(compiled);}
           if(reset)layout=null;
           captureDraft();renderedSignature=signature;viewer.get('canvas').zoom('fit-viewport');
@@ -120,7 +128,7 @@ async function abrirEsbocoCards(which='asis',workspace=null){
     return items.map((card,index)=>`<article class="asis-step asis-kind-${card.type}" data-card="${esc(card.id)}"><div class="asis-step-head"><button class="asis-card-summary" type="button" data-action="edit" data-id="${esc(card.id)}"><span class="asis-type-icon">${types[card.type]?.[0] || '▣'}</span><span><strong>${esc(card.nome)}</strong><small>${esc(types[card.type]?.[1])}${card.executor?' · '+esc(card.executor):''}${card.type==='task'?' · '+esc(card.modo):''}${card.type==='task'&&card.milestone?' · Marco: '+esc(card.milestone):''}${card.type==='wait'?' · '+esc(card.duration || 'PT1H'):''}${card.type==='return'?' · '+esc(find(card.targetId)?.card.nome || 'Selecione a etapa de destino'):''}</small></span></button><div class="asis-card-tools"><button class="btn" type="button" data-action="up" data-id="${esc(card.id)}" ${index===0?'disabled':''} aria-label="Mover para cima">↑</button><button class="btn" type="button" data-action="down" data-id="${esc(card.id)}" ${index===items.length-1?'disabled':''} aria-label="Mover para baixo">↓</button><button class="btn" type="button" data-action="edit" data-id="${esc(card.id)}">Editar</button><button class="btn" type="button" data-action="remove" data-id="${esc(card.id)}" aria-label="Remover card">×</button></div></div>${gateway(card)?`<div class="asis-branches">${card.branches.map(branch=>`<section data-branch="${esc(branch.id)}"><h3>${esc(branch.nome)}</h3>${render(branch.cards,card.id+':'+branch.id)}</section>`).join('')}</div><p class="asis-join-note">${card.join===false?'⑂ Caminhos independentes · finais separados':'⑂ Os caminhos se reencontram'}</p>`:''}</article>`).join('')+((['end','return'].includes(items.at(-1)?.type)||(gateway(items.at(-1)||{})&&items.at(-1).join===false))?'':palette(path));
   }
   function refresh(){list.innerHTML=`<div class="asis-builder-title"><strong>Construa com cards</strong><span>Clique em um card para editar</span></div><button type="button" class="asis-start-card" data-action="edit-start"><span>◯</span><strong>${esc(startInfo.nome)}${startInfo.executor?` · ${esc(startInfo.executor)}`:''}</strong><span>Editar início</span></button>`+render();void preview();}
-  function changed(){dialog.querySelector('#asis-cards-confirm').checked=false;refresh();}
+  function changed(){workspace?.onChange?.();dialog.querySelector('#asis-cards-confirm').checked=false;refresh();}
   function targetsFor(targetItems,beforeIndex){
     function search(items,inherited=[]){
       const available=[...inherited];
@@ -174,6 +182,22 @@ async function abrirEsbocoCards(which='asis',workspace=null){
   });
   dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
   dialog.addEventListener('close',()=>{closed=true;clearTimeout(timer);try{viewer.destroy();}catch{}dialog.remove();});
+  function buildDraft(xml,svg,savedLayout,base){
+    const next=clone(base);
+      next[textKey]=(!workspace?document.getElementById('e-'+which)?.value:undefined) ?? next[textKey] ?? '';
+      next[xmlKey]=xml;next[svgKey]=svg;next[cardsKey]={version:4,start:clone(startInfo),cards:clone(cards),layout:savedLayout};
+      const originalDescriptions=new Map();
+      function collectDescriptions(items){for(const card of items){originalDescriptions.set('Card_'+card.id,card.descricao || '');if(['decision','parallel','inclusive'].includes(card.type))AsIsCards.branchesOf(card).forEach(branch=>collectDescriptions(branch.cards));}}
+      if(workspace)collectDescriptions(base[cardsKey]?.cards || []);
+      // Preserve detailed metadata for cards that were already applied before.
+      next[stepsKey]=built.steps.map(step=>{
+        const previous=(base[stepsKey] || []).find(item=>item.bpmn_id===step.bpmn_id);
+        return previous?{...previous,...step,...(workspace&&originalDescriptions.get(step.bpmn_id)===step.desc?{desc:previous.desc || step.desc}:{}),id:previous.id,natureza:previous.natureza || step.natureza}:step;
+      });
+      const stepIds=new Map(built.steps.map((step,index)=>[step.id,next[stepsKey][index].id]));
+      next[stepsKey].forEach(step=>{if(step.vinculo_gw)step.vinculo_gw={...step.vinculo_gw,gw_ep_id:stepIds.get(step.vinculo_gw.gw_ep_id) || step.vinculo_gw.gw_ep_id};});
+    return next;
+  }
   apply.onclick=async()=>{
     if(saving || !canEdit())return;
     await preview();if(!canEdit() || !previewValid || !cards.length || !dialog.querySelector('#asis-cards-confirm').checked)return;
@@ -186,20 +210,8 @@ async function abrirEsbocoCards(which='asis',workspace=null){
       if(currentXml!==initialXml)throw Error('O desenho foi alterado no editor livre. Feche o teste e reabra antes de aplicar.');
       checkDiagram(built);const {xml}=await viewer.saveXML({format:true}),savedLayout=captureDraft();
       const {svg}=await bpmnExportSvg(viewer);
-      const next=clone(originalMod);candidateMod=next;process.mod=next;
-      if(initialXml || next[stepsKey]?.length)_arquivarVersaoAnterior(process,which,{[textKey]:next[textKey] || '',[xmlKey]:initialXml || null,[stepsKey]:clone(next[stepsKey] || []),[cardsKey]:clone(next[cardsKey] || null),...(isTobe?{tobe_relatorio:clone(next.tobe_relatorio || null)}:{})});
-      next[textKey]=(!workspace?document.getElementById('e-'+which)?.value:undefined) ?? next[textKey] ?? '';
-      next[xmlKey]=xml;next[svgKey]=svg;next[cardsKey]={version:4,start:clone(startInfo),cards:clone(cards),layout:savedLayout};
-      const originalDescriptions=new Map();
-      function collectDescriptions(items){for(const card of items){originalDescriptions.set('Card_'+card.id,card.descricao || '');if(['decision','parallel','inclusive'].includes(card.type))AsIsCards.branchesOf(card).forEach(branch=>collectDescriptions(branch.cards));}}
-      if(workspace)collectDescriptions(originalMod[cardsKey]?.cards || []);
-      // Preserve detailed metadata for cards that were already applied before.
-      next[stepsKey]=built.steps.map(step=>{
-        const previous=(originalMod[stepsKey] || []).find(item=>item.bpmn_id===step.bpmn_id);
-        return previous?{...previous,...step,...(workspace&&originalDescriptions.get(step.bpmn_id)===step.desc?{desc:previous.desc || step.desc}:{}),id:previous.id,natureza:previous.natureza || step.natureza}:step;
-      });
-      const stepIds=new Map(built.steps.map((step,index)=>[step.id,next[stepsKey][index].id]));
-      next[stepsKey].forEach(step=>{if(step.vinculo_gw)step.vinculo_gw={...step.vinculo_gw,gw_ep_id:stepIds.get(step.vinculo_gw.gw_ep_id) || step.vinculo_gw.gw_ep_id};});
+      const next=buildDraft(xml,svg,savedLayout,originalMod);candidateMod=next;process.mod=next;
+      if(initialXml || originalMod[stepsKey]?.length)_arquivarVersaoAnterior(process,which,{[textKey]:originalMod[textKey] || '',[xmlKey]:initialXml || null,[stepsKey]:clone(originalMod[stepsKey] || []),[cardsKey]:clone(originalMod[cardsKey] || null),...(isTobe?{tobe_relatorio:clone(originalMod.tobe_relatorio || null)}:{})});
       try{if(await (workspace?workspace.save(next):fbSaveAll())!==true)throw Error('Não foi possível confirmar a gravação.');}catch(e){process.mod=originalMod;throw e;}
     }catch(e){
       if(candidateMod && process.mod===candidateMod)process.mod=originalMod;
@@ -214,4 +226,20 @@ async function abrirEsbocoCards(which='asis',workspace=null){
     toast('Esboço por cards salvo no '+label+'.','var(--teal)');
   };
   refresh();
+  if(inline){
+    await queue;
+    return {
+      modeler:viewer,
+      fit:()=>viewer.get('canvas').zoom('fit-viewport'),
+      destroy:()=>{closed=true;clearTimeout(timer);viewer.destroy();dialog.remove();},
+      snapshot:async()=>{
+        await preview();
+        if(closed||!canEdit())throw Error('Este desenho não está disponível para edição.');
+        if(!previewValid)throw Error(error.textContent || 'Corrija os alertas de erro do fluxo antes de continuar.');
+        checkDiagram(built);
+        const {xml}=await viewer.saveXML({format:true}),{svg}=await bpmnExportSvg(viewer);
+        return buildDraft(xml,svg,captureDraft(),process.mod);
+      }
+    };
+  }
 }
