@@ -54,3 +54,5 @@
 .asis-card-editor{margin:auto}
 @media(max-width:1100px){.asis-cards-inline .asis-cards-layout{grid-template-columns:minmax(0,1fr)}.asis-cards-inline .asis-cards-preview{position:static}.mapping-export-tools{margin-left:0}}
 @media(max-width:720px){.mapping-workspace{padding:1rem}.mapping-modes{display:flex}.mapping-modes .btn{flex:1}.mapping-workspace .mapping-canvas{height:48vh}.asis-cards-inline #asis-cards-canvas{height:42vh;min-height:280px}}
+
+.mapping-card .mapping-delete{color:var(--red)}

@@ -42,7 +42,23 @@
     subscribe();const page=document.getElementById('page-mapearprocesso');if(!page||active)return;
     if(!allowed()){page.innerHTML='<div class="ib iba">Seu perfil não tem acesso a esta tela.</div>';return;}
     const list=[...records].sort((a,b)=>(b.atualizado_em || '').localeCompare(a.atualizado_em || ''));
-    page.innerHTML=`<div class="mapping-shell"><div class="mapping-header"><div><h1 class="ph-t">${reviewer()?'Mapeamentos enviados':'Mapear processo'}</h1><p class="ph-s">${reviewer()?'Revise os desenhos enviados e publique os fluxos na arquitetura.':'Desenhe um processo, detalhe suas atividades e encaminhe ao EPP.'}</p></div>${!reviewer()?'<button type="button" class="btn btn-p" data-mapping-new>Novo mapeamento</button>':''}</div><div class="mapping-grid">${list.map(record=>`<article class="mapping-card"><span class="badge ba">${h(labels[record.status])}</span><h3 style="margin:.8rem 0">${h(record.nome)}</h3><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS':'TO BE'}</p>${reviewer()?`<p class="ph-s">${h(record.autor_nome)}</p>`:''}<p>${h(record.objetivo)}</p><button type="button" class="btn" data-mapping-open="${h(record.id)}">${editable(record)?'Abrir e editar':'Consultar'}</button></article>`).join('')||'<div class="mapping-empty">Nenhum mapeamento por aqui ainda.</div>'}</div></div>`;
+    page.innerHTML=`<div class="mapping-shell"><div class="mapping-header"><div><h1 class="ph-t">${reviewer()?'Mapeamentos enviados':'Mapear processo'}</h1><p class="ph-s">${reviewer()?'Revise os desenhos enviados e publique os fluxos na arquitetura.':'Desenhe um processo, detalhe suas atividades e encaminhe ao EPP.'}</p></div>${!reviewer()?'<button type="button" class="btn btn-p" data-mapping-new>Novo mapeamento</button>':''}</div><div class="mapping-grid">${list.map(record=>`<article class="mapping-card"><span class="badge ba">${h(labels[record.status])}</span><h3 style="margin:.8rem 0">${h(record.nome)}</h3><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS':'TO BE'}</p>${reviewer()?`<p class="ph-s">${h(record.autor_nome)}</p>`:''}<p>${h(record.objetivo)}</p><button type="button" class="btn" data-mapping-open="${h(record.id)}">${editable(record)?'Abrir e editar':'Consultar'}</button>${domain.canDelete(record,uid())?` <button type="button" class="btn mapping-delete" data-mapping-delete="${h(record.id)}" aria-label="Excluir rascunho: ${h(record.nome)}">Excluir</button>`:''}</article>`).join('')||'<div class="mapping-empty">Nenhum mapeamento por aqui ainda.</div>'}</div></div>`;
+  }
+  async function deleteDraft(id,button){
+    const record=records.find(item=>item.id===id);
+    if(!record||!domain.canDelete(record,uid()))throw Error('Você só pode excluir seus próprios rascunhos.');
+    if(!confirm('Excluir o rascunho “'+record.nome+'”? O desenho e os detalhamentos serão apagados. Esta ação não pode ser desfeita.'))return;
+    button.disabled=true;
+    try{
+      const api=fb();await api.runTransaction(api.db,async transaction=>{
+        const snapshot=await transaction.get(ref(id));if(!snapshot.exists())throw Error('Este rascunho já foi excluído.');
+        const current=snapshot.data();
+        if(!domain.canDelete(current,uid()))throw Error('Este mapeamento já foi encaminhado ou não pertence a você. Recarregue a lista.');
+        if(current.revisao!==record.revisao)throw Error('O rascunho foi alterado em outra sessão. Recarregue a lista antes de excluir.');
+        transaction.delete(ref(id));
+      });
+      toast('Rascunho excluído.');
+    }finally{button.disabled=false;}
   }
   function create(){
     if(!allowed()||reviewer())return;
@@ -322,6 +338,8 @@
     const openButton=event.target.closest('[data-mapping-open]'),readButton=event.target.closest('[data-mapping-read]');
     if(openButton)run(()=>open(openButton.dataset.mappingOpen));
     if(readButton)run(()=>markRead(readButton.dataset.mappingRead));
+    const deleteButton=event.target.closest('[data-mapping-delete]');
+    if(deleteButton&&!deleteButton.disabled)run(()=>deleteDraft(deleteButton.dataset.mappingDelete,deleteButton));
     if(event.target.closest('[data-mapping-new]'))create();
   });
   scope.addEventListener('beforeunload',event=>{if(active?.dirty){event.preventDefault();event.returnValue='';}});

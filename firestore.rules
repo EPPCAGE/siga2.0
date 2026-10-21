@@ -197,7 +197,8 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/publicacoes/$(string(request.resource.data.publicacao_id))).data.fluxo_colaborativo.conteudo == request.resource.data.conteudo)))
         || (resource.data.autor_uid == request.auth.uid && resource.data.status == 'publicado'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['aviso_lido']) && request.resource.data.aviso_lido == true));
-      allow delete: if false;
+      allow delete: if isAuth() && resource.data.autor_uid == request.auth.uid
+        && resource.data.status == 'rascunho';
     }
 
     // Sessões: cada usuário acessa apenas a própria.
