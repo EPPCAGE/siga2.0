@@ -49,6 +49,20 @@ describe('esboço AS IS experimental por cards',()=>{
   expect([...new Set(result.steps.map(step=>step.executor))]).toEqual(['Gestão']);
   expect((result.xml.match(/<bpmn:lane /g)||[])).toHaveLength(1);
  });
+ it('cria marcos reutilizáveis e posiciona cada atividade na faixa correspondente',()=>{
+  const cards=[{...task('a','Equipe'),milestone:' Planejamento '},{...task('b','Outra equipe'),milestone:'PLANEJAMENTO'},{...task('c'),milestone:'Execução'},task('livre')],before=JSON.stringify(cards);
+  expect(scope.AsIsCards.milestonesOf(cards)).toEqual(['Planejamento','Execução']);
+  const result=compile(cards);expect(result.milestones.map(phase=>phase.name)).toEqual(['Planejamento','Execução']);
+  expect(result.xml).toContain('siga:milestone="true"');expect(result.xml).toContain('siga:milestoneName="Planejamento"');
+  for(const id of ['a','b','c']){const node=result.nodes.find(item=>item.id==='Card_'+id),phase=result.milestones.find(item=>item.name===node.milestone);expect(node.x).toBeGreaterThan(phase.x);expect(node.x+node.width).toBeLessThan(phase.x+phase.width);}
+  const free=result.nodes.find(item=>item.id==='Card_livre');expect(free.milestone).toBe('');expect(result.milestones.some(phase=>free.x<phase.x+phase.width&&free.x+free.width>phase.x)).toBe(false);
+  expect(result.steps.find(item=>item.bpmn_id==='Card_b').milestone).toBe('Planejamento');expect(JSON.stringify(cards)).toBe(before);
+ });
+ it('recupera marcos de atividades aninhadas, escapa seus nomes e não cria marco para campo vazio',()=>{
+  const result=compile([{id:'d',type:'decision',nome:'Escolher',yes:[{...task('a'),milestone:'Análise <A&B>'}],no:[{...task('b'),milestone:'análise <a&b>'}]}]);
+  expect(result.milestones).toHaveLength(1);expect(result.xml).toContain('Análise &lt;A&amp;B&gt;');expect(result.validation.valid).toBe(true);
+  expect(compile([{...task('empty'),milestone:'   '}]).milestones).toEqual([]);
+ });
  it('liga os dois caminhos de uma decisão antes de seguir o fluxo principal',()=>{
   const result=compile([{id:'d',type:'decision',nome:'Aprovar?',yes:[task('a')],no:[task('b')]},task('c')]);
   expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_d',target:'Card_a',label:'Sim'}),expect.objectContaining({source:'Card_d',target:'Card_b',label:'Não'}),expect.objectContaining({source:'Card_a',target:'Join_d'}),expect.objectContaining({source:'Card_b',target:'Join_d'}),expect.objectContaining({source:'Join_d',target:'Card_c'})]));
@@ -81,14 +95,17 @@ describe('esboço AS IS experimental por cards',()=>{
    }
   }
  });
- it('usa links quando a ligação passaria por três raias e mantém setas entre duas',()=>{
-  const result=compile([task('a','A'),task('b','B'),task('c','C'),task('d','A')]);
-  const jump=result.flows.find(flow=>flow.source==='Card_c');
+ it('usa links acima de três raias e mantém setas entre até três',()=>{
+  const result=compile([task('a','A'),task('b','B'),task('c','C'),task('d','D'),task('e','A')]);
+  const jump=result.flows.find(flow=>flow.source==='Card_d');
   expect(result.nodes.find(node=>node.id===jump.target).type).toBe('intermediateThrowEvent');
-  expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_c',target:'Card_d'})]));
+  expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_d',target:'Card_e'})]));
   const owners=[...new Set(result.nodes.map(node=>node.owner))],byId=new Map(result.nodes.map(node=>[node.id,node]));
-  for(const flow of result.flows)expect(Math.abs(owners.indexOf(byId.get(flow.source).owner)-owners.indexOf(byId.get(flow.target).owner))).toBeLessThanOrEqual(1);
+  for(const flow of result.flows)expect(Math.abs(owners.indexOf(byId.get(flow.source).owner)-owners.indexOf(byId.get(flow.target).owner))).toBeLessThanOrEqual(2);
   const adjacent=compile([task('a','A'),task('b','B')]);expect(adjacent.nodes.filter(node=>node.linkName)).toHaveLength(0);
+  const three=compile([task('a','A'),task('b','B'),task('c','C'),task('d','A')]);
+  expect(three.flows).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_c',target:'Card_d'})]));
+  expect(three.nodes.filter(node=>node.linkName)).toHaveLength(0);
  });
  it('preserva ramos antigos e nomes livres em ramificações aninhadas com finais separados',()=>{
   const legacy={id:'old',type:'decision',nome:'Antiga',yes:[task('a')],no:[task('b')]},before=JSON.stringify(legacy);

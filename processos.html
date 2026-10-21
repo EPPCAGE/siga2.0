@@ -11,8 +11,8 @@
 <link rel="icon" type="image/png" href="assets/siga-epp-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="src/processos/asis-cards.css?v=20261021-2">
-<script src="src/shared/asis-cards.js?v=20261021-3"></script>
-<script src="src/processos/asis-cards.js?v=20261021-2"></script>
+<script src="src/shared/asis-cards.js?v=20261021-5"></script>
+<script src="src/processos/asis-cards.js?v=20261021-6"></script>
 <link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261016-2">
 <script src="src/shared/indicadores-manuais.js?v=20261015-1"></script>
 <script src="src/processos/indicadores-manuais.js?v=20261015-1"></script>
@@ -6162,6 +6162,7 @@ const ACOES = {
 
   esboco_tobe:{titulo:'Esboço TO BE',sub:'Descrever e desenhar o fluxo futuro proposto.',role:'EP',rk:'ep',
     form:p=>`<div class="ib ibp">Descreva o processo futuro e desenhe o fluxo TO BE no editor BPMN.</div>
+    <div style="margin-bottom:1rem"><button type="button" class="btn btn-p" onclick="abrirEsbocoCards('tobe')">Experimentar esboço por cards</button><p class="ph-s">Construa o fluxo futuro com cards e edição por pop-up, com prévia BPMN automática. O desenho TO BE atual só muda ao aplicar.</p></div>
     ${bpmnEditorHTML('tobe', p.mod.bpmnToBe)}
     <div style="margin:.8rem 0 .4rem;font-weight:600;font-size:13px">Etapas extraídas do BPMN TO BE</div>
     <div style="font-size:12px;color:var(--ink3);margin-bottom:.6rem">Extraia as etapas do BPMN para registrar o fluxo do processo.</div>
@@ -7037,8 +7038,8 @@ const _RESET_MAP={
 
   melhorias:     p=>{ if(p.ent?.analise){ p.ent.analise.feedback_dono={}; p.ent.analise.solucao_definitiva={}; } },
   esboco_tobe:   p=>{ if(p.mod){
-    if(p.mod.bpmnToBe||p.mod.toBe||(p.mod.etapas_proc_tobe||[]).length) _arquivarVersaoAnterior(p,'tobe',{toBe:p.mod.toBe||'',bpmnToBe:p.mod.bpmnToBe||null,etapas_proc_tobe:p.mod.etapas_proc_tobe||[],tobe_relatorio:p.mod.tobe_relatorio||null});
-    p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];p.mod.tobe_relatorio=null;
+    if(p.mod.bpmnToBe||p.mod.toBe||(p.mod.etapas_proc_tobe||[]).length) _arquivarVersaoAnterior(p,'tobe',{toBe:p.mod.toBe||'',bpmnToBe:p.mod.bpmnToBe||null,etapas_proc_tobe:p.mod.etapas_proc_tobe||[],tobe_relatorio:p.mod.tobe_relatorio||null,toBeCards:p.mod.toBeCards||null});
+    p.mod.toBe='';p.mod.bpmnToBe=null;p.mod.etapas_proc_tobe=[];p.mod.tobe_relatorio=null;delete p.mod.toBeCards;delete p.mod.bpmnToBeSvg;
   } },
   det_valid_tobe:p=>{ if(p.ent?.evidencias) p.ent.evidencias.det_valid_tobe=[]; },
   indicadores_proc: p=>{ if(p.form) p.form.indicadores_proc=[]; },
@@ -12330,6 +12331,8 @@ function bpmnModelerOptions(container){
       types:[{name:'Milestone',extends:['bpmn:TextAnnotation'],properties:[
         {name:'milestone',isAttr:true,type:'Boolean'},
         {name:'bizagiId',isAttr:true,type:'String'},
+      ]},{name:'MilestoneMembership',extends:['bpmn:FlowNode'],properties:[
+        {name:'milestoneName',isAttr:true,type:'String'},
       ]}],
     }},
     additionalModules:[{__init__:['milestoneRenderer'],milestoneRenderer:['type',BpmnMilestoneRenderer]}],
