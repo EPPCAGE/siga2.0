@@ -14,6 +14,7 @@ const {doc,setDoc,getDoc,updateDoc,writeBatch}=require(process.env.FIREBASE_TEST
   await assertFails(setDoc(doc(guest,path),data));
   await assertFails(setDoc(doc(stranger,path),data));
   await assertSucceeds(setDoc(doc(author,path),data));
+  await assertSucceeds(setDoc(doc(ep,'mapeamentos_colaborativos/ep-as-owner'),{...data,autor_uid:'ep',autor_email:'ep@example.test'}));
   await assertSucceeds(setDoc(doc(manager,'mapeamentos_colaborativos/manager-flow'),{...data,autor_uid:'manager',autor_email:'manager@example.test'}));
   await assertFails(getDoc(doc(ep,path)));
   await assertSucceeds(getDoc(doc(author,path)));await assertFails(getDoc(doc(stranger,path)));

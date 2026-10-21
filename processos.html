@@ -38,7 +38,7 @@
 <script src="src/processos/registros-processo.js"></script>
 <link rel="stylesheet" href="src/processos/mapear-processo.css?v=20261021-1">
 <script src="src/shared/mapeamento-colaborativo.js?v=20261021-1"></script>
-<script src="src/processos/mapear-processo.js?v=20261021-1"></script>
+<script src="src/processos/mapear-processo.js?v=20261021-2"></script>
 <script src="src/shared/firestore-repositories.js"></script>
 <script src="src/shared/cadeia-valor.js?v=20261011-2"></script>
 <script src="src/processos/cadeia-valor-module.js?v=20261011-3"></script>
@@ -4377,7 +4377,7 @@ function _aplicarPermissoesAdminBadge(){
 }
 function aplicarPermissoes(){
   const mapNav=document.getElementById('nb-mapearprocesso');
-  if(mapNav)mapNav.style.display=(hasPerfil('dono')||hasPerfil('gestor'))?'':'none';
+  if(mapNav)mapNav.style.display=MapearProcesso.canStart()?'':'none';
   MapearProcesso.subscribe();
   for(const [page,navId] of Object.entries(_ownerManagerModules)){
     const restricted=_ownerManagerModulesRestricted(),nav=document.getElementById(navId),element=document.getElementById('page-'+page);

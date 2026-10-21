@@ -37,6 +37,8 @@ const assert=require('node:assert/strict');
    const Original=BpmnJS;window.BpmnJS=function(options){const modeler=new Original(options);if(options.container?.hasAttribute('data-canvas'))window.workspaceModeler=modeler;return modeler;};BpmnJS.prototype=Original.prototype;
   });
   await page.addScriptTag({path:'src/shared/mapeamento-colaborativo.js'});await page.addScriptTag({path:'src/processos/asis-cards.js'});await page.addScriptTag({path:'src/processos/mapear-processo.js'});
+  await page.evaluate(()=>{usuarioLogado.perfis=['ep'];window.isEP=()=>usuarioLogado.perfil==='ep'||(usuarioLogado.perfis || []).includes('ep');window.hasPerfil=p=>(usuarioLogado.perfis || [usuarioLogado.perfil]).includes(p);});
+  assert.equal(await page.evaluate(()=>MapearProcesso.canStart()),true);
   await page.evaluate(()=>MapearProcesso.render());
   await page.getByRole('button',{name:'Novo mapeamento',exact:true}).click();
   let form=page.locator('#mapping-new-dialog form');await form.locator('[name=macro]').selectOption('m1');await form.locator('[name=nome]').fill('RECEBER PEDIDO');
