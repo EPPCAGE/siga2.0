@@ -1,14 +1,15 @@
-async function abrirEsbocoCards(which='asis'){
+async function abrirEsbocoCards(which='asis',workspace=null){
   if(!['asis','tobe'].includes(which))return;
   const isTobe=which==='tobe',label=isTobe?'TO BE':'AS IS',textKey=isTobe?'toBe':'asIs',xmlKey=isTobe?'bpmnToBe':'bpmnAsIs',svgKey=xmlKey+'Svg',cardsKey=isTobe?'toBeCards':'asIsCards',stepsKey=isTobe?'etapas_proc_tobe':'etapas_proc';
-  if(!isEP() || !curProc)return;
+  const canEdit=()=>workspace?workspace.canEdit():isEP();
+  if(!canEdit() || !(workspace?.process || curProc))return;
   if(document.getElementById('asis-cards-dialog'))return;
   if(typeof BpmnJS==='undefined'){toast('Aguarde o carregamento do editor BPMN.','var(--amber)');return;}
-  const process=curProc,originalMod=process.mod || {},clone=value=>JSON.parse(JSON.stringify(value));
-  const active=bpmnProcIds[which]===process.id?bpmnModelers[which]:null;
+  const process=workspace?.process || curProc,originalMod=process.mod || {},clone=value=>JSON.parse(JSON.stringify(value));
+  const active=workspace?workspace.modeler:(bpmnProcIds[which]===process.id?bpmnModelers[which]:null);
   let initialXml=originalMod[xmlKey] || '';
   try{if(active)initialXml=(await active.saveXML({format:true})).xml;}catch{toast('Não foi possível ler o desenho atual.','var(--red)');return;}
-  if(curProc!==process || !isEP() || document.getElementById('asis-cards-dialog'))return;
+  if((!workspace&&curProc!==process) || !canEdit() || document.getElementById('asis-cards-dialog'))return;
   const originalSaved=originalMod[xmlKey] || '',cards=clone(originalMod[cardsKey]?.cards || []);
   function migrate(items){for(const card of items){if(['decision','parallel','inclusive'].includes(card.type)){card.branches=clone(AsIsCards.branchesOf(card));delete card.yes;delete card.no;card.branches.forEach(branch=>migrate(branch.cards));}}}
   migrate(cards);
@@ -174,12 +175,12 @@ async function abrirEsbocoCards(which='asis'){
   dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
   dialog.addEventListener('close',()=>{closed=true;clearTimeout(timer);try{viewer.destroy();}catch{}dialog.remove();});
   apply.onclick=async()=>{
-    if(saving || !isEP())return;
-    await preview();if(!isEP() || !previewValid || !cards.length || !dialog.querySelector('#asis-cards-confirm').checked)return;
-    if(curProc!==process || processos.find(p=>String(p.id)===String(process.id))!==process || globalThis._fbConflictedProcIds?.has(process.id) || process.mod!==originalMod || (process.mod[xmlKey] || '')!==originalSaved){error.textContent='O processo foi atualizado. Feche o teste e recarregue os dados antes de aplicar.';return;}
+    if(saving || !canEdit())return;
+    await preview();if(!canEdit() || !previewValid || !cards.length || !dialog.querySelector('#asis-cards-confirm').checked)return;
+    if((!workspace&&(curProc!==process || processos.find(p=>String(p.id)===String(process.id))!==process || globalThis._fbConflictedProcIds?.has(process.id))) || process.mod!==originalMod || (process.mod[xmlKey] || '')!==originalSaved){error.textContent='O processo foi atualizado. Feche o teste e recarregue os dados antes de aplicar.';return;}
     if(!fbReady() || !globalThis._fbLoadedAt){error.textContent='Conecte-se e aguarde o carregamento dos dados antes de aplicar.';return;}
     saving=true;setBusy(true);enabled();dialog.querySelectorAll('button,input,select,textarea').forEach(input=>input.disabled=true);
-    const current=bpmnProcIds[which]===process.id?bpmnModelers[which]:null;let candidateMod=null;
+    const current=workspace?workspace.modeler:(bpmnProcIds[which]===process.id?bpmnModelers[which]:null);let candidateMod=null;
     try{
       const currentXml=current?(await current.saveXML({format:true})).xml:(process.mod[xmlKey] || '');
       if(currentXml!==initialXml)throw Error('O desenho foi alterado no editor livre. Feche o teste e reabra antes de aplicar.');
@@ -187,20 +188,24 @@ async function abrirEsbocoCards(which='asis'){
       const {svg}=await bpmnExportSvg(viewer);
       const next=clone(originalMod);candidateMod=next;process.mod=next;
       if(initialXml || next[stepsKey]?.length)_arquivarVersaoAnterior(process,which,{[textKey]:next[textKey] || '',[xmlKey]:initialXml || null,[stepsKey]:clone(next[stepsKey] || []),[cardsKey]:clone(next[cardsKey] || null),...(isTobe?{tobe_relatorio:clone(next.tobe_relatorio || null)}:{})});
-      next[textKey]=document.getElementById('e-'+which)?.value ?? next[textKey] ?? '';
+      next[textKey]=(!workspace?document.getElementById('e-'+which)?.value:undefined) ?? next[textKey] ?? '';
       next[xmlKey]=xml;next[svgKey]=svg;next[cardsKey]={version:4,start:clone(startInfo),cards:clone(cards),layout:savedLayout};
+      const originalDescriptions=new Map();
+      function collectDescriptions(items){for(const card of items){originalDescriptions.set('Card_'+card.id,card.descricao || '');if(['decision','parallel','inclusive'].includes(card.type))AsIsCards.branchesOf(card).forEach(branch=>collectDescriptions(branch.cards));}}
+      if(workspace)collectDescriptions(originalMod[cardsKey]?.cards || []);
       // Preserve detailed metadata for cards that were already applied before.
       next[stepsKey]=built.steps.map(step=>{
         const previous=(originalMod[stepsKey] || []).find(item=>item.bpmn_id===step.bpmn_id);
-        return previous?{...previous,...step,id:previous.id,natureza:previous.natureza || step.natureza}:step;
+        return previous?{...previous,...step,...(workspace&&originalDescriptions.get(step.bpmn_id)===step.desc?{desc:previous.desc || step.desc}:{}),id:previous.id,natureza:previous.natureza || step.natureza}:step;
       });
       const stepIds=new Map(built.steps.map((step,index)=>[step.id,next[stepsKey][index].id]));
       next[stepsKey].forEach(step=>{if(step.vinculo_gw)step.vinculo_gw={...step.vinculo_gw,gw_ep_id:stepIds.get(step.vinculo_gw.gw_ep_id) || step.vinculo_gw.gw_ep_id};});
-      try{if(await fbSaveAll()!==true)throw Error('Não foi possível confirmar a gravação.');}catch(e){process.mod=originalMod;throw e;}
+      try{if(await (workspace?workspace.save(next):fbSaveAll())!==true)throw Error('Não foi possível confirmar a gravação.');}catch(e){process.mod=originalMod;throw e;}
     }catch(e){
       if(candidateMod && process.mod===candidateMod)process.mod=originalMod;
       error.textContent=e.message;saving=false;setBusy(false);dialog.querySelectorAll('button,input,select,textarea').forEach(input=>input.disabled=false);enabled();return;
     }
+    if(workspace){dialog.close();await workspace.onSaved();toast('Esboço por cards salvo.','var(--teal)');return;}
     // The saved XML is authoritative; detach the old editor so re-entry loads it.
     if(current){try{current.destroy();}catch{}bpmnModelers[which]=null;bpmnProcIds[which]=null;}
     bpmnDirty[which]=false;
