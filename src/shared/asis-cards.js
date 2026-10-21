@@ -331,7 +331,8 @@
       const [source,target]=JSON.parse(key.slice(0,key.lastIndexOf(':')));
       if(!savedIncoming.has(target))savedIncoming.set(target,[]);savedIncoming.get(target).push(source);
     }
-    const sameSources=(a,b)=>JSON.stringify([...a].sort())===JSON.stringify([...b].sort()),reflowed=new Set();
+    const compareSourceIds=(a,b)=>a<b?-1:a>b?1:0;
+    const sameSources=(a,b)=>JSON.stringify([...a].sort(compareSourceIds))===JSON.stringify([...b].sort(compareSourceIds)),reflowed=new Set();
     for(const [id,item] of [...positions].sort((a,b)=>original.get(a[0]).x-original.get(b[0]).x)){
       const sources=incoming.get(id)||[];
       if(sameSources(sources,savedIncoming.get(id)||[])&&!sources.some(source=>reflowed.has(source)))continue;
