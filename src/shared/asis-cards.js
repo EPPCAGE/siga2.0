@@ -27,7 +27,7 @@
     const same=(a,b)=>a.x===b.x&&a.y===b.y;
     const used=(node,side,outputOnly=false,inputOnly=false)=>routed.some(other=>!inputOnly&&other.source===node.id&&same(other.points[0],dock(node,side))||!outputOnly&&other.target===node.id&&same(other.points.at(-1),dock(node,side)));
     const sourceLane=lanes.findIndex(lane=>lane.owner===source.owner),targetLane=lanes.findIndex(lane=>lane.owner===target.owner);
-    if(sourceLane>=0&&targetLane>=0&&Math.abs(sourceLane-targetLane)>1)return null;
+    if(sourceLane>=0&&targetLane>=0&&Math.abs(sourceLane-targetLane)>2)return null;
     let bands=[null];
     if(sourceLane>=0&&targetLane>=0){
       const low=Math.min(sourceLane,targetLane),high=Math.max(sourceLane,targetLane);bands=[[lanes[low].y,lanes[high].y+lanes[high].height]];

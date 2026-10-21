@@ -95,14 +95,17 @@ describe('esboço AS IS experimental por cards',()=>{
    }
   }
  });
- it('usa links quando a ligação passaria por três raias e mantém setas entre duas',()=>{
-  const result=compile([task('a','A'),task('b','B'),task('c','C'),task('d','A')]);
-  const jump=result.flows.find(flow=>flow.source==='Card_c');
+ it('usa links acima de três raias e mantém setas entre até três',()=>{
+  const result=compile([task('a','A'),task('b','B'),task('c','C'),task('d','D'),task('e','A')]);
+  const jump=result.flows.find(flow=>flow.source==='Card_d');
   expect(result.nodes.find(node=>node.id===jump.target).type).toBe('intermediateThrowEvent');
-  expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_c',target:'Card_d'})]));
+  expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_d',target:'Card_e'})]));
   const owners=[...new Set(result.nodes.map(node=>node.owner))],byId=new Map(result.nodes.map(node=>[node.id,node]));
-  for(const flow of result.flows)expect(Math.abs(owners.indexOf(byId.get(flow.source).owner)-owners.indexOf(byId.get(flow.target).owner))).toBeLessThanOrEqual(1);
+  for(const flow of result.flows)expect(Math.abs(owners.indexOf(byId.get(flow.source).owner)-owners.indexOf(byId.get(flow.target).owner))).toBeLessThanOrEqual(2);
   const adjacent=compile([task('a','A'),task('b','B')]);expect(adjacent.nodes.filter(node=>node.linkName)).toHaveLength(0);
+  const three=compile([task('a','A'),task('b','B'),task('c','C'),task('d','A')]);
+  expect(three.flows).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_c',target:'Card_d'})]));
+  expect(three.nodes.filter(node=>node.linkName)).toHaveLength(0);
  });
  it('preserva ramos antigos e nomes livres em ramificações aninhadas com finais separados',()=>{
   const legacy={id:'old',type:'decision',nome:'Antiga',yes:[task('a')],no:[task('b')]},before=JSON.stringify(legacy);
