@@ -193,7 +193,7 @@
         component.forEach(member => closed.add(member));
         issue(errors, 'CLOSED_LOOP', 'Ciclo sem saída em ' + names(component) + '. Inclua um caminho que permita chegar a um encerramento.', component);
       } else {
-        issue(warnings, 'LOOP_WITH_EXIT', 'Há repetição em ' + names(component) + '. Existe saída para um final; revise as condições para que ela possa ser escolhida.', component);
+        issue(warnings, 'LOOP_WITH_EXIT', 'Loop detectado envolvendo ' + names(component) + '. Há um caminho de saída, mas, se a condição de saída do gateway não for atendida, o processo poderá continuar repetindo esse trecho sem chegar ao final. Confira se essa repetição é esperada e se a condição de saída pode ser atendida.', component);
         const members = new Set(component);
         for (const member of component) {
           const node = byId.get(member);
@@ -331,7 +331,8 @@
       const [source,target]=JSON.parse(key.slice(0,key.lastIndexOf(':')));
       if(!savedIncoming.has(target))savedIncoming.set(target,[]);savedIncoming.get(target).push(source);
     }
-    const sameSources=(a,b)=>JSON.stringify([...a].sort())===JSON.stringify([...b].sort()),reflowed=new Set();
+    const compareSourceIds=(a,b)=>a<b?-1:a>b?1:0;
+    const sameSources=(a,b)=>JSON.stringify([...a].sort(compareSourceIds))===JSON.stringify([...b].sort(compareSourceIds)),reflowed=new Set();
     for(const [id,item] of [...positions].sort((a,b)=>original.get(a[0]).x-original.get(b[0]).x)){
       const sources=incoming.get(id)||[];
       if(sameSources(sources,savedIncoming.get(id)||[])&&!sources.some(source=>reflowed.has(source)))continue;

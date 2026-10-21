@@ -170,7 +170,7 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   const retryPaths=dialog.locator('.asis-branches > section');await retryPaths.nth(1).locator('[data-action="remove"]').click();
   await addCard(retryPaths.nth(1),'end','Concluir conferência','Equipe');
   await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
-  assert.equal(await validation.getAttribute('data-state'),'warning');assert.match(await validation.innerText(),/Existe saída para um final/);
+  assert.equal(await validation.getAttribute('data-state'),'warning');assert.match(await validation.innerText(),/Loop detectado envolvendo/);
   await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
   assert.equal(await page.evaluate(()=>validationSaves),1);assert.ok(await page.evaluate(()=>curProc.mod.bpmnAsIs.includes('Concluir conferência')));
   // Suggestions are local to the current process and spelling case never creates a new lane.
