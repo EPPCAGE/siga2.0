@@ -320,6 +320,29 @@
       const area=phase?.old || loose,rect=restored?saved:source,base=restored&&saved.lane?saved.lane:lane?.old;
       positions.set(id,{shape,owner,phase,loose,task:model.localName.endsWith('Task'),rect:{x:restored&&area&&saved.region?area.x+saved.x-saved.region.x-(base?.x||0):rect.x-(base?.x||0),y:rect.y-(base?.y||0),width:rect.width,height:rect.height},relative:!!base});
     }
+    // An inserted card changes its successor's incoming edge. Reflow that local
+    // sequence instead of pinning an old ending to the left of the new activity.
+    const incoming=new Map(),savedIncoming=new Map();
+    for(const flow of all('sequenceFlow')){
+      const target=flow.getAttribute('targetRef');if(!incoming.has(target))incoming.set(target,[]);incoming.get(target).push(flow.getAttribute('sourceRef'));
+    }
+    for(const key of Object.keys(layout.connections || {})){
+      const [source,target]=JSON.parse(key.slice(0,key.lastIndexOf(':')));
+      if(!savedIncoming.has(target))savedIncoming.set(target,[]);savedIncoming.get(target).push(source);
+    }
+    const sameSources=(a,b)=>JSON.stringify([...a].sort())===JSON.stringify([...b].sort()),reflowed=new Set();
+    for(const [id,item] of [...positions].sort((a,b)=>original.get(a[0]).x-original.get(b[0]).x)){
+      const sources=incoming.get(id)||[];
+      if(sameSources(sources,savedIncoming.get(id)||[])&&!sources.some(source=>reflowed.has(source)))continue;
+      const preceding=sources.map(source=>({id:source,item:positions.get(source)})).filter(source=>source.item&&original.get(source.id).x<original.get(id).x&&source.item.owner===item.owner&&source.item.phase===item.phase&&source.item.loose===item.loose);
+      if(!preceding.length)continue;
+      const right=Math.max(...preceding.map(source=>source.item.rect.x+source.item.rect.width+120));
+      if(item.rect.x<right)reflowed.add(id);
+      item.rect.x=Math.max(item.rect.x,right);
+      if(preceding.length===1&&byId.get(id).localName==='endEvent'){
+        const previous=preceding[0].item.rect;item.rect.y=previous.y+(previous.height-item.rect.height)/2;
+      }
+    }
     let nextY=poolRect?.y||0;
     for(const lane of laneItems){
       const saved=(!manualShapes||manualShapes.has('lane:'+lane.owner))?layout.shapes['lane:'+lane.owner]:null,height=valid(saved)?saved.height:lane.old.height;
@@ -352,13 +375,39 @@
         points.forEach(point=>point.remove());for(const point of saved.points){const waypoint=doc.createElementNS(diagramNamespaces.di,'di:waypoint');write(waypoint,{x:point.x+dx,y:point.y+dy});edge.append(waypoint);}
       }else if(JSON.stringify(source)!==JSON.stringify(original.get(sourceId))||JSON.stringify(target)!==JSON.stringify(original.get(targetId)))reroute.push(id);
     }
+    // Old manual positions can collide with newly inserted cards. In that case
+    // use the complete automatic layout, whose routes and link pairs agree.
+    const placed=[...positions.values()].map(item=>item.absolute);
+    if(placed.some((a,index)=>placed.slice(index+1).some(b=>a.x<b.x+b.width+12&&a.x+a.width+12>b.x&&a.y<b.y+b.height+12&&a.y+a.height+12>b.y)))return {xml,reroute:[],reset:true};
+    const segments=[];
+    const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+    for(const edge of all('BPMNEdge')){
+      const flow=byId.get(edge.getAttribute('bpmnElement'));if(flow?.localName!=='sequenceFlow')continue;
+      // Edges waiting for routing do not yet correspond to the restored shapes.
+      if(reroute.includes(flow.getAttribute('id')))continue;
+      const points=[...edge.getElementsByTagNameNS('*','waypoint')].map(point=>({x:Number(point.getAttribute('x')),y:Number(point.getAttribute('y'))}));
+      const ys=points.map(point=>point.y),low=Math.min(...ys),high=Math.max(...ys);
+      if(laneItems.filter(lane=>high>lane.rect.y&&low<lane.rect.y+lane.rect.height).length>3)return {xml,reroute:[],reset:true};
+      for(let index=1;index<points.length;index++){
+        const a=points[index-1],b=points[index];
+        for(const [id,item] of positions){
+          if(id===flow.getAttribute('sourceRef')||id===flow.getAttribute('targetRef'))continue;
+          const rect=item.absolute;
+          if(a.x===b.x&&a.x>rect.x&&a.x<rect.x+rect.width&&Math.max(a.y,b.y)>rect.y&&Math.min(a.y,b.y)<rect.y+rect.height||a.y===b.y&&a.y>rect.y&&a.y<rect.y+rect.height&&Math.max(a.x,b.x)>rect.x&&Math.min(a.x,b.x)<rect.x+rect.width)return {xml,reroute:[],reset:true};
+        }
+        if(segments.some(segment=>segment.flow!==flow&&cross(a,b,segment.a)*cross(a,b,segment.b)<0&&cross(segment.a,segment.b,a)*cross(segment.a,segment.b,b)<0))return {xml,reroute:[],reset:true};
+        segments.push({a,b,flow});
+      }
+    }
     // External labels have their own bounds and should follow the restored element/lane.
     for(const container of [...shapes,...all('BPMNEdge')]){
       const id=container.getAttribute('bpmnElement'),saved=layout.shapes['label:'+id];if((manualShapes&&!manualShapes.has('label:'+id))||!valid(saved))continue;
       const model=byId.get(id),owner=owners.get(id)||'',lane=laneItems.find(item=>item.owner===owner);if(saved.owner!==owner)continue;
       if(model?.localName==='sequenceFlow'&&saved.labelFor!==JSON.stringify([model.getAttribute('sourceRef'),model.getAttribute('targetRef'),model.getAttribute('name') || '']))continue;
       let dx=0,dy=0;
-      if(lane&&saved.lane){dx=lane.rect.x-saved.lane.x;dy=lane.rect.y-saved.lane.y;}
+      const currentNode=positions.get(id)?.absolute,previousNode=layout.shapes['node:'+id];
+      if(currentNode&&valid(previousNode)){dx=currentNode.x-previousNode.x;dy=currentNode.y-previousNode.y;}
+      else if(lane&&saved.lane){dx=lane.rect.x-saved.lane.x;dy=lane.rect.y-saved.lane.y;}
       else if(model?.localName==='sequenceFlow'){
         if(reroute.includes(id))continue;
         const targetId=model.getAttribute('targetRef'),current=rectFor(targetId),previous=layout.shapes['node:'+targetId];if(current&&valid(previous)){dx=current.x-previous.x;dy=current.y-previous.y;}

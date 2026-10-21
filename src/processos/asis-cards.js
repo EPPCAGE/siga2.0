@@ -34,6 +34,11 @@ async function abrirEsbocoCards(which='asis'){
     const registry=viewer.get('elementRegistry'),expected=new Set([...compiled.nodes,...compiled.flows,...compiled.milestones].map(item=>item.id));
     const actual=registry.getAll().filter(item=>!item.labelTarget&&!['bpmn:Lane','bpmn:Participant','bpmn:Collaboration','bpmn:Process'].includes(item.type));
     if(actual.some(item=>!expected.has(item.id))||[...expected].some(id=>!registry.get(id)))throw Error('A estrutura do desenho deve ser alterada pelos cards. Há elementos diferentes do fluxo gerado.');
+    const flowShapes=compiled.nodes.map(node=>registry.get(node.id));
+    for(let index=0;index<flowShapes.length;index++){
+      const a=flowShapes[index];
+      if(flowShapes.slice(index+1).some(b=>a.x<b.x+b.width+8&&a.x+a.width+8>b.x&&a.y<b.y+b.height+8&&a.y+a.height+8>b.y))throw Error('Há elementos sobrepostos no desenho. Clique em Verificar fluxo para reorganizar o layout automaticamente.');
+    }
     const owners=new Map();registry.getAll().filter(item=>item.type==='bpmn:Lane').forEach(lane=>(lane.businessObject.flowNodeRef || []).forEach(node=>owners.set(node.id,AsIsCards.ownerKey(lane.businessObject.name))));
     for(const node of compiled.nodes){const element=registry.get(node.id),type='bpmn:'+node.type[0].toUpperCase()+node.type.slice(1);if(element.type!==type||(element.businessObject.name || '')!==node.label||owners.get(node.id)!==AsIsCards.ownerKey(node.owner))throw Error('Altere nomes, tipos e responsáveis pelos cards para manter o desenho e as etapas sincronizados.');}
     for(const phase of compiled.milestones){const element=registry.get(phase.id);if(!element.businessObject.get('siga:milestone')||element.businessObject.text!==phase.name)throw Error('Altere os marcos pelos cards.');}
@@ -84,9 +89,22 @@ async function abrirEsbocoCards(which='asis'){
             initialLayout=null;if(closed||rev!==revision)return;
           }
           const merged=AsIsCards.mergeLayout(compiled.xml,layout);imported=await viewer.importXML(merged.xml);if(closed || rev!==revision)return;
-          AsIsCards.routeLayout(viewer,compiled,merged.reroute);
-          checkDiagram(compiled);captureDraft();renderedSignature=signature;viewer.get('canvas').zoom('fit-viewport');
-        }else checkDiagram(compiled);
+          let reset=merged.reset;
+          try{AsIsCards.routeLayout(viewer,compiled,merged.reroute);}catch{
+            // Restore a coherent diagram rather than keep half-routed connections.
+            imported=await viewer.importXML(compiled.xml);reset=true;
+          }
+          dialog.querySelector('#asis-cards-layout-status').textContent=reset?'O layout foi reorganizado automaticamente para evitar sobreposições e ligações incompatíveis com os novos cards.':'Arraste os elementos e ajuste os caminhos. O layout será salvo ao aplicar.';
+          try{checkDiagram(compiled);}catch{imported=await viewer.importXML(compiled.xml);reset=true;checkDiagram(compiled);}
+          if(reset)layout=null;
+          captureDraft();renderedSignature=signature;viewer.get('canvas').zoom('fit-viewport');
+        }else{
+          try{checkDiagram(compiled);}catch{
+            rendering=true;setBusy(true);imported=await viewer.importXML(compiled.xml);checkDiagram(compiled);layout=null;captureDraft();
+            dialog.querySelector('#asis-cards-layout-status').textContent='O layout foi reorganizado automaticamente para corrigir elementos sobrepostos ou incompatíveis com os cards.';
+            viewer.get('canvas').zoom('fit-viewport');
+          }
+        }
         const validation={...compiled.validation,warnings:[...compiled.validation.warnings,...(imported.warnings || []).map(warning=>({code:'BPMN_IMPORT_WARNING',message:'O editor sinalizou: '+warning.message,nodeIds:[]}))]};
         built=compiled;previewValid=validation.valid;error.textContent='';showValidation(validation);enabled();
       }catch(e){if(rev===revision){error.textContent='Não foi possível gerar o BPMN: '+e.message;previewValid=false;showValidation(null);enabled();}}finally{rendering=false;setBusy(saving);}

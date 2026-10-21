@@ -306,6 +306,44 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   await editor.getByRole('button',{name:'Cancelar',exact:true}).click();
 
   await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
+  // Insertion before a previously positioned ending keeps the sequence readable.
+  await page.evaluate(()=>{curProc={id:10,nome:'Inserção antes do fim',mod:{}};processos=[curProc];});
+  await page.evaluate(()=>abrirEsbocoCards());dialog=page.locator('#asis-cards-dialog');
+  await addCard(dialog,'task','Atividade anterior','Equipe');
+  await page.waitForFunction(()=>document.querySelector('#asis-cards-validation')?.dataset.state==='success');
+  await page.evaluate(()=>{
+   const registry=cardsModeler.get('elementRegistry'),modeling=cardsModeler.get('modeling');
+   const previous=registry.getAll().find(el=>el.businessObject.name==='Atividade anterior'&&!el.labelTarget);
+   modeling.moveShape(previous,{x:700,y:0});modeling.moveShape(registry.get('Cards_end'),{x:-200,y:80});
+  });
+  await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'task','Atividade inserida','Equipe');
+  await page.waitForFunction(()=>document.querySelector('#asis-cards-validation')?.dataset.state==='success');
+  assert.equal(await page.evaluate(()=>{
+   const registry=cardsModeler.get('elementRegistry'),find=name=>registry.getAll().find(el=>el.businessObject.name===name&&!el.labelTarget);
+   const previous=find('Atividade anterior'),inserted=find('Atividade inserida'),end=registry.get('Cards_end');
+   return previous.x+previous.width<inserted.x&&inserted.x+inserted.width<end.x&&end.y+end.height/2===inserted.y+inserted.height/2;
+  }),true);
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  // Conflicting saved positions fall back to a complete, coherent automatic layout.
+  assert.equal(await page.evaluate(()=>{
+   const cards=[{id:'collision_a',type:'task',nome:'Primeira',executor:'Equipe'},{id:'collision_b',type:'task',nome:'Segunda',executor:'Equipe'}];
+   const compiled=AsIsCards.compile(cards),a=compiled.nodes.find(node=>node.id==='Card_collision_a'),b=compiled.nodes.find(node=>node.id==='Card_collision_b');
+   const saved={shapes:{['node:'+a.id]:{...a,x:b.x,y:b.y,type:'bpmn:ManualTask',owner:'equipe',lane:{x:90,y:100,width:1000,height:220}}},connections:Object.fromEntries(compiled.flows.map(flow=>[JSON.stringify([flow.source,flow.target,flow.label])+':0',{}])),manualShapes:['node:'+a.id],manualConnections:[]};
+   const merged=AsIsCards.mergeLayout(compiled.xml,saved);return merged.reset===true&&merged.xml===compiled.xml;
+  }),true);
+  // A manual overlap blocks saving and Verify rebuilds a valid layout.
+  await page.evaluate(()=>abrirEsbocoCards());dialog=page.locator('#asis-cards-dialog');
+  await page.waitForFunction(()=>document.querySelector('#asis-cards-validation')?.dataset.state==='success');
+  await page.evaluate(()=>{
+   const registry=cardsModeler.get('elementRegistry'),task=registry.getAll().find(el=>el.type==='bpmn:ManualTask'),end=registry.get('Cards_end');
+   cardsModeler.get('modeling').moveShape(end,{x:task.x-end.x,y:task.y-end.y});
+  });
+  assert.match(await dialog.locator('#asis-cards-error').innerText(),/sobrepostos/);assert.equal(await dialog.locator('#asis-cards-apply').isDisabled(),true);
+  await dialog.getByRole('button',{name:'Verificar fluxo',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('#asis-cards-validation')?.dataset.state==='success'&&!document.getElementById('asis-cards-error').textContent);
+  assert.match(await dialog.locator('#asis-cards-layout-status').innerText(),/reorganizado/);
+  await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
   // TO BE uses the same editor while keeping AS IS and its history isolated.
   const asIsBefore=await page.evaluate(()=>JSON.stringify({xml:curProc.mod.bpmnAsIs,cards:curProc.mod.asIsCards,steps:curProc.mod.etapas_proc}));
   await page.evaluate(()=>{curProc.mod.toBe='Descrição futura';curProc.mod.bpmnToBe=originalXML;curProc.mod.etapas_proc_tobe=[{id:'future-old',desc:'Detalhe futuro anterior'}];});
