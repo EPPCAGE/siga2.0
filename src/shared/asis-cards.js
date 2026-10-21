@@ -6,6 +6,7 @@
     bpmndi:'http://www.omg.org/spec/BPMN/20100524/DI', // NOSONAR: namespace XML oficial do BPMN DI; não há requisição HTTP.
     dc:'http://www.omg.org/spec/DD/20100524/DC', // NOSONAR: namespace XML oficial do DC; não há requisição HTTP.
   };
+  const columnSpacing=240,sequenceGap=80;
   function branchesOf(card){
     return card.branches || [{id:'yes',nome:card.type==='decision'?'Sim':'Caminho A',cards:card.yes||[]},{id:'no',nome:card.type==='decision'?'Não':'Caminho B',cards:card.no||[]}];
   }
@@ -336,7 +337,7 @@
       if(sameSources(sources,savedIncoming.get(id)||[])&&!sources.some(source=>reflowed.has(source)))continue;
       const preceding=sources.map(source=>({id:source,item:positions.get(source)})).filter(source=>source.item&&original.get(source.id).x<original.get(id).x&&source.item.owner===item.owner&&source.item.phase===item.phase&&source.item.loose===item.loose);
       if(!preceding.length)continue;
-      const right=Math.max(...preceding.map(source=>source.item.rect.x+source.item.rect.width+120));
+      const right=Math.max(...preceding.map(source=>source.item.rect.x+source.item.rect.width+sequenceGap));
       if(item.rect.x<right)reflowed.add(id);
       item.rect.x=Math.max(item.rect.x,right);
       if(preceding.length===1&&byId.get(id).localName==='endEvent'){
@@ -521,8 +522,8 @@
     position(cards,0);start.track=(span(cards)-1)/2;if(byId.has('Cards_end'))byId.get('Cards_end').track=start.track;
     const owners=[...new Set(nodes.map(n=>n.owner))];let y=100;
     const lanes=owners.map((owner,index)=>{const tracks=[...new Set(nodes.filter(n=>n.owner===owner).map(n=>n.track))].sort((a,b)=>a-b);const lane={id:'Cards_lane_'+index,owner,y,height:Math.max(220,tracks.length*180),tracks};y+=lane.height;return lane;});
-    let width=Math.max(650,(last.column+1)*320+180);const height=y-100;
-    nodes.forEach(n=>{const lane=lanes.find(l=>l.owner===n.owner);n.x=150+n.column*320;n.y=lane.y+85-n.height/2+lane.tracks.indexOf(n.track)*180;});
+    let width=Math.max(650,(last.column+1)*columnSpacing+180);const height=y-100;
+    nodes.forEach(n=>{const lane=lanes.find(l=>l.owner===n.owner);n.x=150+n.column*columnSpacing;n.y=lane.y+85-n.height/2+lane.tracks.indexOf(n.track)*180;});
     const milestoneNames=milestonesOf(cards),milestones=[];
     if(milestoneNames.length){
       const names=new Map(milestoneNames.map(name=>[ownerKey(name),name]));
@@ -547,8 +548,8 @@
       }
       function place(members,name=''){
         if(!members.length)return;
-        const columns=[...new Set(members.map(node=>node.column))].sort((a,b)=>a-b),size=columns.length*320;
-        members.forEach(node=>{node.x=left+64+columns.indexOf(node.column)*320;node.region={x:left,width:size};});
+        const columns=[...new Set(members.map(node=>node.column))].sort((a,b)=>a-b),size=columns.length*columnSpacing;
+        members.forEach(node=>{node.x=left+64+columns.indexOf(node.column)*columnSpacing;node.region={x:left,width:size};});
         if(name)milestones.push({id:'Cards_milestone_'+[...ownerKey(name)].map(char=>char.codePointAt(0).toString(16)).join('_'),name,x:left,y:36,width:size,height:height+64});
         left+=size;
       }

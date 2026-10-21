@@ -7,6 +7,17 @@ const compile=scope.AsIsCards.compile;
 const logicalFlows=result=>result.flows.filter(f=>!f.source.startsWith('Catch_')).map(f=>{const throwing=result.nodes.find(n=>n.id===f.target&&n.linkTarget);return throwing?{...f,target:result.flows.find(next=>next.source===throwing.linkTarget).target}:f;});
 const task=(id,executor='Equipe',modo='Manual')=>({id,type:'task',nome:'Atividade '+id,executor,modo});
 describe('esboço AS IS experimental por cards',()=>{
+ it('mantém sequências e marcos compactos com espaço para setas',()=>{
+  for(const milestone of ['', 'Execução']){
+   const result=compile(['a','b','c','d'].map(id=>({...task(id),milestone})));
+   const activities=result.nodes.filter(node=>node.type.endsWith('Task'));
+   for(let index=1;index<activities.length;index++){
+    const gap=activities[index].x-activities[index-1].x-activities[index-1].width;
+    expect(gap).toBeGreaterThanOrEqual(60);expect(gap).toBeLessThanOrEqual(100);
+   }
+   expect(result.nodes.filter(node=>node.linkName)).toHaveLength(0);
+  }
+ });
  it('gera BPMN com posições, raias e modos de execução reais',()=>{
   const result=compile([task('a','Servidor'),task('b','Sistema','Automatica'),task('c','Servidor','Semi-automatica')],'Processo');
   expect(result.xml).toContain('<bpmndi:BPMNDiagram');expect(result.xml).toContain('<bpmn:lane ');
