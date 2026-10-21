@@ -22,6 +22,7 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
    window.bpmnModelers={asis:m};window.bpmnProcIds={asis:1};window.bpmnDirty={asis:false};window.originalXML=old.xml;
    window.fbReady=()=>true;window._fbLoadedAt=1;window.saveFails=false;window.savedProcess=null;window.fbSaveAll=async()=>{if(saveFails)return false;window.savedProcess=JSON.parse(JSON.stringify(curProc));return true;};window.toast=()=>{};window.now=()=> '20/10/2026';window.initBpmnMod=()=>{};window._refreshEtapasList=()=>{};
   });
+  await page.evaluate(()=>{const Original=BpmnJS;window.BpmnJS=function(options){const modeler=new Original(options);if(options.container?.id==='asis-cards-canvas')window.cardsModeler=modeler;return modeler;};BpmnJS.prototype=Original.prototype;});
   await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();
   let dialog=page.locator('#asis-cards-dialog');await dialog.waitFor();
   async function addCard(container,type,name,owner,settings={}){
@@ -149,9 +150,9 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
    const cards=curProc.mod.asIsCards.cards,gateway=cards[1],fix=gateway.branches[1].cards[0],back=gateway.branches[1].cards[1];
    const edges=registry.getAll().filter(el=>el.type==='bpmn:SequenceFlow');
    const logicalReturn=edges.some(edge=>{const bo=edge.businessObject;if(bo.sourceRef.id!=='Card_'+fix.id)return false;if(bo.targetRef.id==='Card_'+gateway.id)return true;const link=bo.targetRef.eventDefinitions?.find(def=>def.$type==='bpmn:LinkEventDefinition');return link?.target?.get('$parent')?.outgoing?.some(next=>next.targetRef.id==='Card_'+gateway.id);});
-   const result={warnings:imported.warnings.map(w=>w.message),logicalReturn,targetId:back.targetId,gatewayId:gateway.id,steps:curProc.mod.etapas_proc.length,ends:registry.getAll().filter(el=>el.type==='bpmn:EndEvent').length};viewer.destroy();return result;
+   const result={warnings:imported.warnings.map(w=>w.message),logicalReturn,targetId:back.targetId,gatewayId:gateway.id,steps:curProc.mod.etapas_proc.length,gateways:registry.getAll().filter(el=>el.type==='bpmn:ExclusiveGateway').length,ends:registry.getAll().filter(el=>el.type==='bpmn:EndEvent').length};viewer.destroy();return result;
   });
-  assert.deepEqual(loopResult.warnings,[]);assert.equal(loopResult.logicalReturn,true);assert.equal(loopResult.targetId,loopResult.gatewayId);assert.equal(loopResult.steps,5);assert.equal(loopResult.ends,1);
+  assert.deepEqual(loopResult.warnings,[]);assert.equal(loopResult.logicalReturn,true);assert.equal(loopResult.targetId,loopResult.gatewayId);assert.equal(loopResult.steps,5);assert.equal(loopResult.ends,1);assert.equal(loopResult.gateways,1);
   // A closed loop cannot replace an existing AS IS, even when the handler is invoked directly.
   await page.evaluate(()=>{
    const task={id:'prep',type:'task',nome:'Preparar',executor:'Equipe'},back=id=>({id,type:'return',nome:'Voltar',targetId:'check'});
@@ -172,6 +173,90 @@ const {tmpdir}=require('node:os'),{join}=require('node:path');
   assert.equal(await validation.getAttribute('data-state'),'warning');assert.match(await validation.innerText(),/Existe saída para um final/);
   await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
   assert.equal(await page.evaluate(()=>validationSaves),1);assert.ok(await page.evaluate(()=>curProc.mod.bpmnAsIs.includes('Concluir conferência')));
+  // Suggestions are local to the current process and spelling case never creates a new lane.
+  await page.evaluate(()=>{curProc={id:6,nome:'Responsáveis compartilhados',mod:{}};processos=[curProc];});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  await dialog.locator('[data-action="add-task"]').first().click();editor=page.locator('#asis-card-editor');
+  assert.equal(await editor.locator('#asis-card-owners option').count(),0);
+  await editor.locator('[name="nome"]').fill('Receber');await editor.locator('[name="executor"]').fill('Gestão');await editor.getByRole('button',{name:'Salvar card'}).click();
+  await dialog.locator('[data-action="add-decision"]').first().click();editor=page.locator('#asis-card-editor');
+  assert.deepEqual(await editor.locator('#asis-card-owners option').evaluateAll(options=>options.map(option=>option.value)),['Gestão']);
+  assert.equal(await editor.locator('[name="executor"]').getAttribute('list'),'asis-card-owners');
+  await editor.locator('[name="nome"]').fill('Aprovar?');await editor.locator('[name="executor"]').fill('GESTÃO');await editor.getByRole('button',{name:'Salvar card'}).click();
+  const ownerPaths=dialog.locator('.asis-branches > section');await addCard(ownerPaths.nth(0),'wait','Aguardar','gestão');
+  await dialog.locator('[data-action="edit-start"]').click();editor=page.locator('#asis-card-editor');
+  assert.deepEqual(await editor.locator('#asis-card-owners option').evaluateAll(options=>options.map(option=>option.value)),['Gestão']);
+  await editor.locator('[name="executor"]').fill('Gestão');await editor.getByRole('button',{name:'Salvar card'}).click();
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  const ownersSaved=await page.evaluate(async()=>{
+   const viewer=new BpmnJS(bpmnModelerOptions('#original-canvas'));const imported=await viewer.importXML(curProc.mod.bpmnAsIs);
+   const lanes=viewer.get('elementRegistry').getAll().filter(el=>el.type==='bpmn:Lane').map(el=>el.businessObject.name);
+   const cards=curProc.mod.asIsCards.cards,result={warnings:imported.warnings.map(w=>w.message),lanes,start:curProc.mod.asIsCards.start.executor,decision:cards[1].executor,wait:cards[1].branches[0].cards[0].executor};viewer.destroy();return result;
+  });
+  assert.deepEqual(ownersSaved,{warnings:[],lanes:['Gestão'],start:'Gestão',decision:'Gestão',wait:'Gestão'});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  await dialog.locator('[data-action="add-task"]').last().click();editor=page.locator('#asis-card-editor');
+  assert.deepEqual(await editor.locator('#asis-card-owners option').evaluateAll(options=>options.map(option=>option.value)),['Gestão']);
+  await editor.locator('[name="executor"]').fill('Nome cancelado');await editor.getByRole('button',{name:'Cancelar',exact:true}).click();
+  await dialog.locator('[data-action="edit-start"]').click();editor=page.locator('#asis-card-editor');
+  assert.deepEqual(await editor.locator('#asis-card-owners option').evaluateAll(options=>options.map(option=>option.value)),['Gestão']);
+  await editor.getByRole('button',{name:'Cancelar',exact:true}).click();await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
+  // Real canvas dragging, custom edge routes and labels survive verification, card edits and reload.
+  await page.evaluate(()=>{curProc={id:7,nome:'Layout manual',mod:{}};processos=[curProc];});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  await addCard(dialog,'task','Receber pedido','Equipe');await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'task','Analisar pedido','Equipe');
+  await page.waitForFunction(()=>!document.getElementById('asis-cards-error').textContent&&cardsModeler.get('elementRegistry').getAll().filter(el=>el.type==='bpmn:ManualTask').length===2);
+  const firstId=await page.evaluate(()=>cardsModeler.get('elementRegistry').getAll().find(el=>el.businessObject?.name==='Receber pedido').id);
+  const beforeMove=await page.evaluate(id=>{const shape=cardsModeler.get('elementRegistry').get(id);return {x:shape.x,y:shape.y};},firstId);
+  const visual=dialog.locator(`[data-element-id="${firstId}"] .djs-visual`).first(),box=await visual.boundingBox();
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+30,box.y+box.height/2+8,{steps:12});await page.mouse.up();
+  const afterMove=await page.evaluate(id=>{const shape=cardsModeler.get('elementRegistry').get(id);return {x:shape.x,y:shape.y};},firstId);assert.notDeepEqual(afterMove,beforeMove);
+  await page.evaluate(id=>{
+   const registry=cardsModeler.get('elementRegistry'),modeling=cardsModeler.get('modeling'),shape=registry.get(id);
+   modeling.resizeShape(shape,{x:shape.x,y:shape.y,width:shape.width+20,height:shape.height+10});
+   const connection=shape.outgoing[0],a=connection.waypoints[0],b=connection.waypoints.at(-1);
+   modeling.updateWaypoints(connection,[a,{x:a.x+40,y:a.y},{x:a.x+40,y:a.y+28},{x:b.x-40,y:a.y+28},{x:b.x-40,y:b.y},b]);
+   const label=registry.get('Cards_start_label');if(label)modeling.moveShape(label,{x:12,y:6});
+   const lane=registry.getAll().find(element=>element.type==='bpmn:Lane');modeling.resizeLane(lane,{x:lane.x,y:lane.y,width:lane.width,height:lane.height+40});
+   window.expectedLayout=AsIsCards.captureLayout(cardsModeler);
+  },firstId);
+  await dialog.getByRole('button',{name:'Verificar fluxo',exact:true}).click();
+  assert.deepEqual(await page.evaluate(()=>AsIsCards.captureLayout(cardsModeler)),await page.evaluate(()=>expectedLayout));
+  await dialog.locator(`[data-card="${firstId.slice(5)}"] [data-action="edit"]`).first().click();editor=page.locator('#asis-card-editor');
+  await editor.locator('[name="nome"]').fill('Receber pedido revisado');await editor.getByRole('button',{name:'Salvar card'}).click();
+  await page.waitForFunction(id=>cardsModeler.get('elementRegistry').get(id)?.businessObject.name==='Receber pedido revisado',firstId);
+  const afterCard=await page.evaluate(()=>AsIsCards.captureLayout(cardsModeler)),expected=await page.evaluate(()=>expectedLayout);
+  assert.deepEqual(afterCard.shapes['node:'+firstId],expected.shapes['node:'+firstId]);assert.deepEqual(afterCard.connections,expected.connections);
+  assert.deepEqual(afterCard.shapes['lane:equipe'],expected.shapes['lane:equipe']);
+  await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'task','Finalizar pedido','Equipe');
+  await page.waitForFunction(()=>cardsModeler.get('elementRegistry').getAll().filter(el=>el.type==='bpmn:ManualTask').length===3&&!document.getElementById('asis-cards-error').textContent);
+  const afterAddition=await page.evaluate(()=>AsIsCards.captureLayout(cardsModeler));
+  assert.deepEqual(afterAddition.shapes['node:'+firstId],expected.shapes['node:'+firstId]);
+  for(const [key,edge] of Object.entries(expected.connections))if(key.includes(firstId))assert.deepEqual(afterAddition.connections[key],edge);
+
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  assert.ok(await page.evaluate(()=>curProc.mod.asIsCards.layout));
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  await page.waitForFunction(()=>document.querySelector('#asis-cards-validation')?.dataset.state==='success');
+  const reopened=await page.evaluate(()=>AsIsCards.captureLayout(cardsModeler));
+  assert.deepEqual(reopened.shapes['node:'+firstId],expected.shapes['node:'+firstId]);assert.deepEqual(reopened.connections,afterAddition.connections);assert.deepEqual(reopened.shapes['lane:equipe'],afterAddition.shapes['lane:equipe']);
+  await dialog.getByRole('button',{name:'Fechar',exact:true}).click();await dialog.waitFor({state:'detached'});
+  // A generated connection never runs through three lane bands; distant tasks use link events.
+  await page.evaluate(()=>{curProc={id:8,nome:'Três raias',mod:{}};processos=[curProc];});
+  await page.getByRole('button',{name:'Experimentar esboço por cards'}).click();dialog=page.locator('#asis-cards-dialog');
+  for(const [name,owner] of [['Etapa A','A'],['Etapa B','B'],['Etapa C','C'],['Retorno A','A']])await addCard(dialog.locator('.asis-cards-list > .asis-cards-add'),'task',name,owner);
+  await dialog.locator('#asis-cards-confirm').check();await page.waitForFunction(()=>!document.getElementById('asis-cards-apply').disabled);
+  const laneRoutes=await page.evaluate(()=>{
+   const all=cardsModeler.get('elementRegistry').getAll(),lanes=all.filter(el=>el.type==='bpmn:Lane'),connections=all.filter(el=>el.type==='bpmn:SequenceFlow');
+   const crossed=connections.map(edge=>{const ys=edge.waypoints.map(point=>point.y),min=Math.min(...ys),max=Math.max(...ys);return lanes.filter(lane=>max>lane.y&&min<lane.y+lane.height).length;});
+   const links=all.filter(el=>el.businessObject.eventDefinitions?.some(def=>def.$type==='bpmn:LinkEventDefinition')).length;
+   return {crossed,links};
+  });
+  assert.ok(laneRoutes.links>=2);assert.ok(laneRoutes.crossed.every(count=>count<=2));
+  await dialog.getByRole('button',{name:'Aplicar e salvar AS IS',exact:true}).click();await dialog.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(()=>{const walk=value=>value!==undefined&&(value===null||typeof value!=='object'||Object.values(value).every(walk));return walk(curProc.mod.asIsCards.layout);}),true);
   await page.evaluate(async()=>{role='dono';await abrirEsbocoCards();});assert.equal(await page.locator('#asis-cards-dialog').count(),0);
   assert.deepEqual(errors,[]);console.log('AS IS por cards: BPMN real, gateways, retornos, validação/bloqueio de ciclos sem saída, alertas, persistência/rollback, histórico, permissões e mobile validados.');
  }finally{await browser.close();}

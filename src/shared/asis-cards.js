@@ -3,27 +3,56 @@
   function branchesOf(card){
     return card.branches || [{id:'yes',nome:card.type==='decision'?'Sim':'Caminho A',cards:card.yes||[]},{id:'no',nome:card.type==='decision'?'Não':'Caminho B',cards:card.no||[]}];
   }
-  // Orthogonal visibility grid: search free corridors before considering a BPMN link.
-  function routeArrow(source,target,nodes,routed,flow){
-    let best=null,bestCost=Infinity;
-    for(const [exit,entry] of [['right','left'],['right','top'],['right','bottom'],['bottom','left'],['top','left'],['bottom','top'],['top','bottom'],['bottom','bottom'],['top','top'],['left','left'],['right','right'],['left','top'],['left','bottom'],['bottom','right'],['top','right'],['left','right']]){
-      if(source===target&&exit===entry)continue;
-      const points=routeDock(source,target,nodes,routed,flow,exit,entry);if(!points)continue;
-      const length=points.slice(1).reduce((sum,point,index)=>sum+Math.abs(point.x-points[index].x)+Math.abs(point.y-points[index].y),0),cost=length+(points.length-2)*35;
-      if(cost<bestCost){best=points;bestCost=cost;}
-      if(exit==='right'&&entry==='left'&&length<=Math.abs(points[0].x-points.at(-1).x)+Math.abs(points[0].y-points.at(-1).y)+48)return points;
-    }
-    return best;
+  const ownerKey=value=>String(value || '').trim().normalize('NFC').toLocaleLowerCase('pt-BR');
+  function ownersOf(cards,startInfo={}){
+    const owners=new Map();
+    function add(value){const name=String(value || '').trim().normalize('NFC');if(name&&!owners.has(ownerKey(name)))owners.set(ownerKey(name),name);}
+    function walk(items){for(const card of items){if(card.type!=='return')add(card.executor);if(['decision','parallel','inclusive'].includes(card.type))branchesOf(card).forEach(branch=>walk(branch.cards));}}
+    add(startInfo.executor);walk(cards);return [...owners.values()];
   }
-  function routeDock(source,target,nodes,routed,flow,exit,entry){
+  // Orthogonal visibility grid: search free corridors before considering a BPMN link.
+  function routeArrow(source,target,nodes,routed,flow,lanes=[]){
+    const vectors={right:[1,0],left:[-1,0],top:[0,-1],bottom:[0,1]},dock=(node,side)=>({x:node.x+node.width/2+vectors[side][0]*node.width/2,y:node.y+node.height/2+vectors[side][1]*node.height/2});
+    const same=(a,b)=>a.x===b.x&&a.y===b.y;
+    const used=(node,side,outputOnly=false,inputOnly=false)=>routed.some(other=>!inputOnly&&other.source===node.id&&same(other.points[0],dock(node,side))||!outputOnly&&other.target===node.id&&same(other.points.at(-1),dock(node,side)));
+    const sourceLane=lanes.findIndex(lane=>lane.owner===source.owner),targetLane=lanes.findIndex(lane=>lane.owner===target.owner);
+    if(sourceLane>=0&&targetLane>=0&&Math.abs(sourceLane-targetLane)>1)return null;
+    let bands=[null];
+    if(sourceLane>=0&&targetLane>=0){
+      const low=Math.min(sourceLane,targetLane),high=Math.max(sourceLane,targetLane);bands=[[lanes[low].y,lanes[high].y+lanes[high].height]];
+      if(low===high){if(low>0)bands.push([lanes[low-1].y,lanes[high].y+lanes[high].height]);if(high+1<lanes.length)bands.push([lanes[low].y,lanes[high+1].y+lanes[high+1].height]);}
+    }
+    for(const reuse of [false,true]){
+      let best=null,bestCost=Infinity;
+      for(const [exit,entry] of [['right','left'],['right','top'],['right','bottom'],['bottom','left'],['top','left'],['bottom','top'],['top','bottom'],['bottom','bottom'],['top','top'],['left','left'],['right','right'],['left','top'],['left','bottom'],['bottom','right'],['top','right'],['left','right']]){
+        if(source===target&&exit===entry)continue;
+        if(!reuse&&(used(source,exit,true)||used(target,entry,false,true)))continue;
+        const exitOffsets=used(source,exit)?[-24,24,-48,48]:[0],entryOffsets=used(target,entry)?[-24,24,-48,48]:[0];
+        for(const exitOffset of exitOffsets)for(const entryOffset of entryOffsets)for(const band of bands){
+          const points=routeDock(source,target,nodes,routed,flow,exit,entry,exitOffset,entryOffset,band);if(!points)continue;
+          const length=points.slice(1).reduce((sum,point,index)=>sum+Math.abs(point.x-points[index].x)+Math.abs(point.y-points[index].y),0),cost=length+(points.length-2)*35;
+          if(cost<bestCost){best=points;bestCost=cost;}
+          if(!exitOffset&&!entryOffset&&exit==='right'&&entry==='left'&&length<=Math.abs(points[0].x-points.at(-1).x)+Math.abs(points[0].y-points.at(-1).y)+48)return points;
+        }
+      }
+      if(best)return best;
+    }
+    return null;
+  }
+  function routeDock(source,target,nodes,routed,flow,exit,entry,exitOffset=0,entryOffset=0,band=null){
     const vectors={right:[1,0],left:[-1,0],top:[0,-1],bottom:[0,1]};
     const dock=(node,side)=>({x:node.x+node.width/2+vectors[side][0]*node.width/2,y:node.y+node.height/2+vectors[side][1]*node.height/2});
-    const from=dock(source,exit),to=dock(target,entry);
+    const actualFrom=dock(source,exit),actualTo=dock(target,entry);
+    const tip=(point,side,offset)=>offset?{x:point.x+vectors[side][0]*24-vectors[side][1]*offset,y:point.y+vectors[side][1]*24+vectors[side][0]*offset}:point;
+    const from=tip(actualFrom,exit,exitOffset),to=tip(actualTo,entry,entryOffset);
+    if(band&&[actualFrom,actualTo,from,to].some(point=>point.y<band[0]||point.y>band[1]))return null;
     const xs=[...new Set([from.x,to.x,...nodes.flatMap(n=>[n.x-24,n.x+n.width+24])])].sort((a,b)=>a-b);
-    const ys=[...new Set([from.y,to.y,...nodes.flatMap(n=>[n.y-24,n.y+n.height+24,n.y+n.height/2])])].sort((a,b)=>a-b);
+    const ys=[...new Set([from.y,to.y,...nodes.flatMap(n=>[n.y-24,n.y+n.height+24,n.y+n.height/2])])].filter(y=>!band||y>=band[0]&&y<=band[1]).sort((a,b)=>a-b);
     const segments=points=>points.slice(1).map((p,i)=>[points[i],p]);
     function blocked(a,b){
       if(nodes.some(n=>{
+        if(n===source&&exitOffset&&a===actualFrom&&b===from)return false;
+        if(n===target&&entryOffset&&a===to&&b===actualTo)return false;
         const corridor=side=>{
           if(side==='right')return a.y===n.y+n.height/2&&b.y===a.y&&Math.min(a.x,b.x)>=n.x+n.width;
           if(side==='left')return a.y===n.y+n.height/2&&b.y===a.y&&Math.max(a.x,b.x)<=n.x;
@@ -32,22 +61,29 @@
         };
         if((n===source&&corridor(exit))||(n===target&&corridor(entry)))return false;
         const left=n.x-12,right=n.x+n.width+12,top=n.y-12,bottom=n.y+n.height+12;
-        return a.x===b.x?a.x>left&&a.x<right&&Math.max(a.y,b.y)>top&&Math.min(a.y,b.y)<bottom:a.y>top&&a.y<bottom&&Math.max(a.x,b.x)>left&&Math.min(a.x,b.x)<right;
+        let min=0,max=1;
+        for(const [origin,delta,lower,upper] of [[a.x,b.x-a.x,left,right],[a.y,b.y-a.y,top,bottom]]){
+          if(!delta){if(origin<=lower||origin>=upper)return false;continue;}
+          const first=(lower-origin)/delta,last=(upper-origin)/delta;min=Math.max(min,Math.min(first,last));max=Math.min(max,Math.max(first,last));if(max<=min)return false;
+        }
+        return max>min;
       }))return true;
       return routed.some(other=>segments(other.points).some(([c,d])=>{
-        const shared=other.source===flow.source||other.target===flow.target,samePair=other.source===flow.source&&other.target===flow.target;
+        const equal=(p,q)=>p.x===q.x&&p.y===q.y,cross=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
+        const on=(p,q,r)=>cross(p,q,r)===0&&r.x>=Math.min(p.x,q.x)&&r.x<=Math.max(p.x,q.x)&&r.y>=Math.min(p.y,q.y)&&r.y<=Math.max(p.y,q.y);
         const common=[];
-        if(other.source===flow.source)common.push(other.points[0]);if(other.target===flow.target)common.push(other.points.at(-1));
-        const nearCommon=point=>common.some(origin=>Math.abs(origin.x-point.x)+Math.abs(origin.y-point.y)<=24);
-        if(a.x===b.x&&c.x===d.x){const low=Math.max(Math.min(a.y,b.y),Math.min(c.y,d.y)),high=Math.min(Math.max(a.y,b.y),Math.max(c.y,d.y));return a.x===c.x&&low<=high&&!(shared&&!samePair)&&!(nearCommon({x:a.x,y:low})&&nearCommon({x:a.x,y:high}));}
-        if(a.y===b.y&&c.y===d.y){const low=Math.max(Math.min(a.x,b.x),Math.min(c.x,d.x)),high=Math.min(Math.max(a.x,b.x),Math.max(c.x,d.x));return a.y===c.y&&low<=high&&!(shared&&!samePair)&&!(nearCommon({x:low,y:a.y})&&nearCommon({x:high,y:a.y}));}
-        const v=a.x===b.x?[a,b]:[c,d],h=a.x===b.x?[c,d]:[a,b];
-        const meets=v[0].x>=Math.min(h[0].x,h[1].x)&&v[0].x<=Math.max(h[0].x,h[1].x)&&h[0].y>=Math.min(v[0].y,v[1].y)&&h[0].y<=Math.max(v[0].y,v[1].y);
-        if(!meets)return false;
-        const proper=v[0].x>Math.min(h[0].x,h[1].x)&&v[0].x<Math.max(h[0].x,h[1].x)&&h[0].y>Math.min(v[0].y,v[1].y)&&h[0].y<Math.max(v[0].y,v[1].y);
-        return proper||(!shared)||samePair&&!nearCommon({x:v[0].x,y:h[0].y});
+        if(other.source===flow.source||other.source===flow.target)common.push(other.points[0]);
+        if(other.target===flow.target||other.target===flow.source)common.push(other.points.at(-1));
+        const allowed=point=>common.some(origin=>equal(origin,point))&&(equal(point,actualFrom)||equal(point,actualTo));
+        if(cross(a,b,c)*cross(a,b,d)<0&&cross(c,d,a)*cross(c,d,b)<0)return true;
+        if(cross(a,b,c)===0&&cross(a,b,d)===0){
+          const axis=a.x===b.x?'y':'x',low=Math.max(Math.min(a[axis],b[axis]),Math.min(c[axis],d[axis])),high=Math.min(Math.max(a[axis],b[axis]),Math.max(c[axis],d[axis]));
+          if(high>low)return true;
+        }
+        return [c,d].some(point=>on(a,b,point)&&!allowed(point))||[a,b].some(point=>on(c,d,point)&&!allowed(point));
       }));
     }
+    if(exitOffset&&blocked(actualFrom,from)||entryOffset&&blocked(to,actualTo))return null;
     // A* with turn cost favors short, readable routes. Keep direction in the state.
     const heap=[];
     function push(item){heap.push(item);let i=heap.length-1;while(i){const parent=(i-1)>>1;if(heap[parent].score<=item.score)break;heap[i]=heap[parent];i=parent;}heap[i]=item;}
@@ -59,7 +95,7 @@
       const current=pop(),state=key(current.x,current.y,current.direction);
       if(costs.has(state)&&costs.get(state)<current.cost)continue;
       if(current.x===endX&&current.y===endY){
-        const points=[];for(let item=current;item;item=item.parent)points.push({x:xs[item.x],y:ys[item.y]});points.reverse();
+        const points=[];for(let item=current;item;item=item.parent)points.push({x:xs[item.x],y:ys[item.y]});points.reverse();if(exitOffset)points.unshift(actualFrom);if(entryOffset)points.push(actualTo);
         return points.filter((point,index)=>!index||index===points.length-1||!((points[index-1].x===point.x&&point.x===points[index+1].x)||(points[index-1].y===point.y&&point.y===points[index+1].y)));
       }
       for(const [dx,dy,direction] of [[1,0,1],[0,1,2],[0,-1,2],[-1,0,1]]){
@@ -214,12 +250,115 @@
     if (transitions >= maxTransitions) limited();
     return result({complete, states: seen.size});
   }
+  function captureLayout(modeler){
+    const elements=modeler.get('elementRegistry').getAll(),owners=new Map(),lanes=new Map(),shapes={},connections={},counts=new Map();
+    const bounds=element=>({x:element.x,y:element.y,width:element.width,height:element.height});
+    for(const lane of elements.filter(element=>element.type==='bpmn:Lane')){
+      const owner=ownerKey(lane.businessObject.name);lanes.set(owner,bounds(lane));
+      (lane.businessObject.flowNodeRef||[]).forEach(node=>owners.set(node.id,owner));
+    }
+    for(const element of elements.filter(item=>!item.waypoints)){
+      if(!['x','y','width','height'].every(key=>Number.isFinite(element[key]))||element.width<=0||element.height<=0)continue;
+      const target=element.labelTarget || element,owner=owners.get(target.id)||'',key=element.labelTarget?'label:'+target.id:element.type==='bpmn:Lane'?'lane:'+ownerKey(element.businessObject.name):'node:'+element.id;
+      shapes[key]={...bounds(element),type:element.type,owner,lane:lanes.get(owner)||null,...(element.labelTarget?.waypoints?{labelFor:JSON.stringify([target.source.id,target.target.id,target.businessObject.name || ''])}:{})};
+    }
+    for(const edge of elements.filter(element=>element.waypoints&&element.type==='bpmn:SequenceFlow')){
+      const base=JSON.stringify([edge.source.id,edge.target.id,edge.businessObject.name||'']),ordinal=counts.get(base)||0;counts.set(base,ordinal+1);
+      connections[base+':'+ordinal]={points:edge.waypoints.map(point=>({x:point.x,y:point.y})),source:bounds(edge.source),target:bounds(edge.target)};
+    }
+    return {version:1,shapes,connections};
+  }
+  function mergeLayout(xml,layout){
+    if(!layout?.shapes)return {xml,reroute:[]};
+    const doc=new DOMParser().parseFromString(xml,'application/xml');
+    if(doc.getElementsByTagName('parsererror').length)throw Error('Não foi possível recuperar o layout do desenho.');
+    const all=(name)=>[...doc.getElementsByTagNameNS('*',name)],byId=new Map([...doc.querySelectorAll('[id]')].map(element=>[element.id||element.getAttribute('id'),element]));
+    const bounds=element=>[...element.getElementsByTagNameNS('*','Bounds')][0];
+    const read=element=>Object.fromEntries(['x','y','width','height'].map(key=>[key,Number(element.getAttribute(key))]));
+    const valid=rect=>rect&&['x','y','width','height'].every(key=>Number.isFinite(rect[key]))&&rect.width>0&&rect.height>0;
+    const write=(element,rect)=>Object.entries(rect).forEach(([key,value])=>element.setAttribute(key,String(value)));
+    const manualShapes=layout.manualShapes?new Set(layout.manualShapes):null,manualConnections=layout.manualConnections?new Set(layout.manualConnections):null;
+    const shapes=all('BPMNShape'),owners=new Map(),laneItems=[];
+    const original=new Map(shapes.map(shape=>[shape.getAttribute('bpmnElement'),read(bounds(shape))]));
+    for(const lane of all('lane')){
+      const owner=ownerKey(lane.getAttribute('name'));for(const ref of lane.getElementsByTagNameNS('*','flowNodeRef'))owners.set(ref.textContent.trim(),owner);
+      const shape=shapes.find(item=>item.getAttribute('bpmnElement')===lane.getAttribute('id'));
+      if(shape)laneItems.push({owner,shape,old:original.get(lane.getAttribute('id'))});
+    }
+    laneItems.sort((a,b)=>a.old.y-b.old.y);
+    const pool=shapes.find(shape=>byId.get(shape.getAttribute('bpmnElement'))?.localName==='participant'),poolId=pool?.getAttribute('bpmnElement'),poolOriginal=original.get(poolId),poolSaved=(!manualShapes||manualShapes.has('node:'+poolId))?layout.shapes['node:'+poolId]:null;
+    const poolRect=poolOriginal?{...(valid(poolSaved)?poolSaved:poolOriginal)}:null;
+    if(poolRect)for(const key of Object.keys(poolRect))if(!['x','y','width','height'].includes(key))delete poolRect[key];
+    const positions=new Map();
+    for(const shape of shapes){
+      const id=shape.getAttribute('bpmnElement'),model=byId.get(id);if(!model||['participant','lane'].includes(model.localName))continue;
+      const source=original.get(id),owner=owners.get(id)||'',lane=laneItems.find(item=>item.owner===owner),saved=layout.shapes['node:'+id],type='bpmn:'+model.localName[0].toUpperCase()+model.localName.slice(1);
+      const restored=(!manualShapes||manualShapes.has('node:'+id))&&valid(saved)&&saved.type===type&&saved.owner===owner;
+      const rect=restored?saved:source,base=restored&&saved.lane?saved.lane:lane?.old;
+      positions.set(id,{shape,owner,rect:{x:rect.x-(base?.x||0),y:rect.y-(base?.y||0),width:rect.width,height:rect.height},relative:!!base});
+    }
+    let nextY=poolRect?.y||0;
+    for(const lane of laneItems){
+      const saved=(!manualShapes||manualShapes.has('lane:'+lane.owner))?layout.shapes['lane:'+lane.owner]:null,height=valid(saved)?saved.height:lane.old.height;
+      const children=[...positions.values()].filter(item=>item.owner===lane.owner);
+      lane.rect={x:poolRect?poolRect.x+(lane.old.x-poolOriginal.x):lane.old.x,y:poolRect?nextY:lane.old.y,width:lane.old.width,height:Math.max(height,...children.map(item=>item.rect.y+item.rect.height+24))};
+      nextY=lane.rect.y+lane.rect.height;
+    }
+    for(const [id,item] of positions){
+      const lane=laneItems.find(candidate=>candidate.owner===item.owner),offset=item.relative?lane?.rect:null;
+      const rect={...item.rect,x:item.rect.x+(offset?.x||0),y:item.rect.y+(offset?.y||0)};write(bounds(item.shape),rect);item.absolute=rect;
+      if(poolRect){poolRect.width=Math.max(poolRect.width,rect.x+rect.width-poolRect.x+24);poolRect.height=Math.max(poolRect.height,rect.y+rect.height-poolRect.y+24);}
+    }
+    if(poolRect){poolRect.height=Math.max(poolRect.height,nextY-poolRect.y);write(bounds(pool),poolRect);}
+    for(const lane of laneItems){if(poolRect)lane.rect.width=poolRect.width-(lane.rect.x-poolRect.x);write(bounds(lane.shape),lane.rect);}
+    const rectFor=id=>positions.get(id)?.absolute||original.get(id),same=(a,b)=>a&&b&&a.width===b.width&&a.height===b.height;
+    const reroute=[],counts=new Map();
+    for(const edge of all('BPMNEdge')){
+      const id=edge.getAttribute('bpmnElement'),flow=byId.get(id);if(!flow||flow.localName!=='sequenceFlow')continue;
+      const sourceId=flow.getAttribute('sourceRef'),targetId=flow.getAttribute('targetRef'),source=rectFor(sourceId),target=rectFor(targetId);
+      const base=JSON.stringify([sourceId,targetId,flow.getAttribute('name')||'']),ordinal=counts.get(base)||0;counts.set(base,ordinal+1);
+      const saved=(!manualConnections||manualConnections.has(base+':'+ordinal))?layout.connections?.[base+':'+ordinal]:null,points=[...edge.getElementsByTagNameNS('*','waypoint')];
+      const dx=source&&saved?.source?source.x-saved.source.x:0,dy=source&&saved?.source?source.y-saved.source.y:0;
+      if(saved&&same(source,saved.source)&&same(target,saved.target)&&target.x-saved.target.x===dx&&target.y-saved.target.y===dy&&saved.points?.length>=2&&saved.points.every(point=>Number.isFinite(point.x)&&Number.isFinite(point.y))){
+        points.forEach(point=>point.remove());for(const point of saved.points){const waypoint=doc.createElementNS('http://www.omg.org/spec/DD/20100524/DI','di:waypoint');write(waypoint,{x:point.x+dx,y:point.y+dy});edge.append(waypoint);}
+      }else if(JSON.stringify(source)!==JSON.stringify(original.get(sourceId))||JSON.stringify(target)!==JSON.stringify(original.get(targetId)))reroute.push(id);
+    }
+    // External labels have their own bounds and should follow the restored element/lane.
+    for(const container of [...shapes,...all('BPMNEdge')]){
+      const id=container.getAttribute('bpmnElement'),saved=layout.shapes['label:'+id];if((manualShapes&&!manualShapes.has('label:'+id))||!valid(saved))continue;
+      const model=byId.get(id),owner=owners.get(id)||'',lane=laneItems.find(item=>item.owner===owner);if(saved.owner!==owner)continue;
+      if(model?.localName==='sequenceFlow'&&saved.labelFor!==JSON.stringify([model.getAttribute('sourceRef'),model.getAttribute('targetRef'),model.getAttribute('name') || '']))continue;
+      let dx=0,dy=0;
+      if(lane&&saved.lane){dx=lane.rect.x-saved.lane.x;dy=lane.rect.y-saved.lane.y;}
+      else if(model?.localName==='sequenceFlow'){
+        if(reroute.includes(id))continue;
+        const targetId=model.getAttribute('targetRef'),current=rectFor(targetId),previous=layout.shapes['node:'+targetId];if(current&&valid(previous)){dx=current.x-previous.x;dy=current.y-previous.y;}
+      }
+      let label=[...container.getElementsByTagNameNS('*','BPMNLabel')][0];if(!label){label=doc.createElementNS('http://www.omg.org/spec/BPMN/20100524/DI','bpmndi:BPMNLabel');container.append(label);}
+      let rect=bounds(label);if(!rect){rect=doc.createElementNS('http://www.omg.org/spec/DD/20100524/DC','dc:Bounds');label.append(rect);}
+      write(rect,{x:saved.x+dx,y:saved.y+dy,width:saved.width,height:saved.height});
+    }
+    return {xml:new XMLSerializer().serializeToString(doc),reroute};
+  }
+  function routeLayout(modeler,compiled,ids){
+    const registry=modeler.get('elementRegistry'),requested=new Set(ids);
+    const nodes=compiled.nodes.map(node=>{const shape=registry.get(node.id);return {...node,x:shape.x,y:shape.y,width:shape.width,height:shape.height};});
+    const byId=new Map(nodes.map(node=>[node.id,node]));
+    const lanes=registry.getAll().filter(item=>item.type==='bpmn:Lane').map(lane=>({owner:lane.businessObject.name,y:lane.y,height:lane.height})).sort((a,b)=>a.y-b.y);
+    const routed=compiled.flows.filter(flow=>!requested.has(flow.id)).map(flow=>({...flow,points:registry.get(flow.id).waypoints.map(point=>({x:point.x,y:point.y}))}));
+    const flows=compiled.flows.filter(flow=>requested.has(flow.id)).sort((a,b)=>{const distance=flow=>{const s=byId.get(flow.source),t=byId.get(flow.target);return Math.abs(s.y+s.height/2-t.y-t.height/2);};return distance(a)-distance(b);});
+    for(const flow of flows){
+      const points=routeArrow(byId.get(flow.source),byId.get(flow.target),nodes,routed,flow,lanes);
+      if(!points)throw Error('Não foi possível traçar uma nova ligação sem sobreposição neste layout. Afaste os elementos ou ajuste os caminhos e verifique o fluxo novamente.');
+      modeler.get('modeling').updateWaypoints(registry.get(flow.id),points);routed.push({...flow,points});
+    }
+  }
   function compile(cards,name='Esboço AS IS',startInfo={}){
     const nodes=[],flows=[],steps=[],ids=new Set(),unassigned='Responsável não informado';let serial=0,count=0;
     const add=(id,type,label,column,owner='')=>{const node={id,type,label,column,owner,width:type.endsWith('Task')?150:type.endsWith('Gateway')?50:36,height:type.endsWith('Task')?80:type.endsWith('Gateway')?50:36};nodes.push(node);return node;};
     const link=(source,target,label='')=>flows.push({id:'Flow_cards_'+(++serial),source:source.id,target:target.id,label});
     function walk(list,previous,column,context=null,depth=0,available=[]){
-      available=[...available];
+      available=[...available];let pendingLabel=context?.entryLabel || '';
       if(!Array.isArray(list)||depth>5)throw Error('Use até cinco níveis de decisões.');
       for(const card of list){
         if(++count>60)throw Error('Este teste aceita até 60 cards.');
@@ -230,12 +369,12 @@
         if(!previous)throw Error('Não adicione cards após um encerramento ou caminhos independentes. Adicione-os dentro de cada caminho.');
         if(card.type==='return'){
           if(!available.includes(card.targetId))throw Error('O retorno deve apontar para uma etapa anterior deste caminho ou uma decisão que o contém.');
-          link(previous,nodes.find(node=>node.id==='Card_'+card.targetId),context?.entryLabel || card.nome);previous=null;continue;
+          link(previous,nodes.find(node=>node.id==='Card_'+card.targetId),pendingLabel || card.nome);previous=null;continue;
         }
         available.push(card.id);
         const type=gateway?({decision:'exclusiveGateway',parallel:'parallelGateway',inclusive:'inclusiveGateway'})[card.type]:card.type==='end'?'endEvent':card.type==='wait'?'intermediateCatchEvent':mode==='Automatica'?'serviceTask':mode==='Semi-automatica'?'userTask':'manualTask';
         const node=add('Card_'+card.id,type,card.nome.trim(),column,card.executor?.trim() || (card.type==='task'?unassigned:''));
-        link(previous,node,context?.entryLabel || '');
+        link(previous,node,pendingLabel);pendingLabel='';
         if(card.type==='wait'){node.duration=card.duration||'PT1H';if(!/^P(?=\d|T\d)(?:\d+D)?(?:T(?=\d)(?:\d+H)?(?:\d+M)?(?:\d+S)?)?$/.test(node.duration))throw Error('Informe uma duração ISO 8601 válida, como PT1H ou P1D.');}
         const step={id:'ep-card-'+card.id,bpmn_id:node.id,nome:node.label,tipo:gateway?'Decisao':card.type==='task'?'Atividade':'Evento',natureza:'Execucao',modo:mode,executor:card.executor?.trim() || '',desc:card.descricao || '',seq:steps.length+1,vinculo_gw:context?{gw_ep_id:context.gateway,label:context.label}:null};steps.push(step);
         if(gateway){
@@ -249,20 +388,20 @@
           });
           column=Math.max(...paths.map(path=>path.column));
           if(card.join===false){
-            paths.forEach((branch,index)=>{if(branch.previous){const end=add('End_'+card.id+'_'+index,'endEvent','Fim · '+labels[index],branch.column);link(branch.previous,end,branch.previous===node?labels[index]:'');}});
+            paths.forEach((branch,index)=>{if(branch.previous){const end=add('End_'+card.id+'_'+index,'endEvent','Fim · '+labels[index],branch.column);link(branch.previous,end,branch.entryLabel || (branch.previous===node?labels[index]:''));}});
             previous=null;
           }else{
             if(card.type!=='decision'&&paths.some(path=>!path.previous))throw Error('Para encerrar caminhos de um paralelo ou inclusivo separadamente, desative o reencontro.');
             const live=paths.filter(branch=>branch.previous);
-            if(live.length){const join=add('Join_'+card.id,type,'',column,node.owner);join.ownerFrom=node.id;paths.forEach((branch,index)=>{if(branch.previous)link(branch.previous,join,branch.previous===node?labels[index]:'');});previous=join;column++;}else previous=null;
+            if(live.length===1){previous=live[0].previous;pendingLabel=live[0].entryLabel || (previous===node?labels[paths.indexOf(live[0])]:'');}
+            else if(live.length>1){const join=add('Join_'+card.id,type,'',column,node.owner);join.ownerFrom=node.id;paths.forEach((branch,index)=>{if(branch.previous)link(branch.previous,join,branch.entryLabel || (branch.previous===node?labels[index]:''));});previous=join;column++;}else previous=null;
           }
         }else{previous=card.type==='end'?null:node;column++;}
-        if(context)context={...context,entryLabel:''};
       }
-      return {previous,column};
+      return {previous,column,entryLabel:pendingLabel};
     }
     const start=add('Cards_start','startEvent',startInfo.nome||'Início',0,startInfo.executor?.trim() || '');
-    const last=walk(cards,start,1);if(last.previous){const end=add('Cards_end','endEvent','Fim',last.column);link(last.previous,end);}
+    const last=walk(cards,start,1);if(last.previous){const end=add('Cards_end','endEvent','Fim',last.column);link(last.previous,end,last.entryLabel);}
     let validation=validateGraph(nodes,flows);
     if(!validation.valid){const error=Error(validation.errors[0].message);error.validation=validation;throw error;}
     // Keep branch order consistent across columns instead of reusing a different row per column.
@@ -284,6 +423,8 @@
       const previous=flows.filter(flow=>flow.target===node.id).map(flow=>byId.get(flow.source)).find(parent=>parent.column<node.column&&parent.owner);
       node.owner=byId.get(node.ownerFrom)?.owner || previous?.owner || followingOwner(node) || unassigned;
     }
+    const canonicalOwners=new Map(ownersOf(cards,startInfo).map(owner=>[ownerKey(owner),owner]));
+    nodes.forEach(node=>{node.owner=canonicalOwners.get(ownerKey(node.owner)) || node.owner;});
     steps.forEach(step=>{const owner=byId.get(step.bpmn_id).owner;step.executor=owner===unassigned?'':owner;});
     function span(items){if(spans.has(items))return spans.get(items);const value=Math.max(1,...items.filter(card=>['decision','parallel','inclusive'].includes(card.type)).map(card=>branchesOf(card).reduce((sum,branch)=>sum+span(branch.cards),0)));spans.set(items,value);return value;}
     function position(items,base){
@@ -304,9 +445,12 @@
     const width=Math.max(650,(last.column+1)*320+180),height=y-100;
     nodes.forEach(n=>{const lane=lanes.find(l=>l.owner===n.owner);n.x=150+n.column*320;n.y=lane.y+85-n.height/2+lane.tracks.indexOf(n.track)*180;});
     const originalFlows=[...flows],routed=[];
-    for(const flow of originalFlows){
+    const routeOrder=[...originalFlows].sort((a,b)=>{
+      const distance=flow=>{const source=nodes.find(node=>node.id===flow.source),target=nodes.find(node=>node.id===flow.target);return Math.abs(source.y+source.height/2-target.y-target.height/2);};return distance(a)-distance(b);
+    });
+    for(const flow of routeOrder){
       const source=nodes.find(n=>n.id===flow.source),target=nodes.find(n=>n.id===flow.target);
-      const points=routeArrow(source,target,nodes,routed,flow);
+      const points=routeArrow(source,target,nodes,routed,flow,lanes);
       if(points){flow.points=points;routed.push(flow);continue;}
       // No non-crossing route remains in this layout. Only now use a matching link pair.
       const label='L'+(originalFlows.indexOf(flow)+1);
@@ -326,9 +470,9 @@
         for(const catching of candidates(target,false)){
           if(throwing.x<catching.x+48&&throwing.x+48>catching.x&&throwing.y<catching.y+48&&throwing.y+48>catching.y)continue;
           const outgoing={source:source.id,target:throwing.id},incoming={source:catching.id,target:target.id};
-          const extended=[...nodes,throwing,catching],outPoints=routeArrow(source,throwing,extended,routed,outgoing);
+          const extended=[...nodes,throwing,catching],outPoints=routeArrow(source,throwing,extended,routed,outgoing,lanes);
           if(!outPoints)continue;outgoing.points=outPoints;
-          const inPoints=routeArrow(catching,target,extended,[...routed,outgoing],incoming);if(!inPoints)continue;
+          const inPoints=routeArrow(catching,target,extended,[...routed,outgoing],incoming,lanes);if(!inPoints)continue;
           throwing.linkTarget=catching.id;catching.linkSource=throwing.id;nodes.push(throwing,catching);
           flows.splice(flows.indexOf(flow),1);link(source,throwing,flow.label);flows.at(-1).points=outPoints;routed.push(flows.at(-1));link(catching,target);flows.at(-1).points=inPoints;routed.push(flows.at(-1));connected=true;break;
         }
@@ -348,5 +492,5 @@
     const xml=`<?xml version="1.0" encoding="UTF-8"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Cards_definitions" targetNamespace="https://siga.app/asis-cards"><bpmn:collaboration id="Cards_collaboration"><bpmn:participant id="Cards_pool" name="${escape(name)}" processRef="Cards_process"/></bpmn:collaboration><bpmn:process id="Cards_process" isExecutable="false"><bpmn:laneSet id="Cards_lanes">${lanes.map(l=>`<bpmn:lane id="${l.id}" name="${escape(l.owner)}">${nodes.filter(n=>n.owner===l.owner).map(n=>`<bpmn:flowNodeRef>${n.id}</bpmn:flowNodeRef>`).join('')}</bpmn:lane>`).join('')}</bpmn:laneSet>${xmlNodes}${xmlFlows}</bpmn:process><bpmndi:BPMNDiagram id="Cards_diagram"><bpmndi:BPMNPlane id="Cards_plane" bpmnElement="Cards_collaboration">${di}</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>`;
     return {xml,steps,nodes,flows,validation};
   }
-  scope.AsIsCards={compile,branchesOf,validateGraph};
+  scope.AsIsCards={compile,branchesOf,validateGraph,ownersOf,ownerKey,captureLayout,mergeLayout,routeLayout};
 })(globalThis);
