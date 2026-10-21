@@ -34,6 +34,21 @@ describe('esboço AS IS experimental por cards',()=>{
   expect(owner('Cards_start')).toBe('Protocolo');expect(owner('Card_w')).toBe('Protocolo');expect(owner('Cards_end')).toBe('Gestão');
   expect([...new Set(compile([]).nodes.map(node=>node.owner))]).toEqual(['Responsável não informado']);
  });
+ it('lista os responsáveis do próprio processo sem repetir diferenças de caixa',()=>{
+  const cards=[task('a','GESTÃO'),{id:'d',type:'decision',nome:'Escolher?',executor:'gestão',yes:[{id:'w',type:'wait',nome:'Espera',executor:'Apoio'}],no:[{id:'e',type:'end',nome:'Fim',executor:'APOIO'}]}];
+  const before=JSON.stringify(cards);
+  expect(scope.AsIsCards.ownersOf(cards,{executor:' Gestão '})).toEqual(['Gestão','Apoio']);
+  expect(scope.AsIsCards.ownersOf([task('other','Outra equipe')])).toEqual(['Outra equipe']);
+  expect(scope.AsIsCards.ownersOf([task('accent','Gestao'),task('accented','Gestão')])).toEqual(['Gestao','Gestão']);
+  expect(JSON.stringify(cards)).toBe(before);
+ });
+ it('gera uma única raia para nomes equivalentes e normaliza o responsável das etapas',()=>{
+  const cards=[task('a','GESTÃO'),{id:'d',type:'decision',nome:'Escolher?',executor:'gestão',yes:[{id:'w',type:'wait',nome:'Espera',executor:'gEsTãO'}],no:[task('b','Gestão')]}];
+  const result=compile(cards,'Teste',{executor:' Gestão '});
+  expect([...new Set(result.nodes.map(node=>node.owner))]).toEqual(['Gestão']);
+  expect([...new Set(result.steps.map(step=>step.executor))]).toEqual(['Gestão']);
+  expect((result.xml.match(/<bpmn:lane /g)||[])).toHaveLength(1);
+ });
  it('liga os dois caminhos de uma decisão antes de seguir o fluxo principal',()=>{
   const result=compile([{id:'d',type:'decision',nome:'Aprovar?',yes:[task('a')],no:[task('b')]},task('c')]);
   expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_d',target:'Card_a',label:'Sim'}),expect.objectContaining({source:'Card_d',target:'Card_b',label:'Não'}),expect.objectContaining({source:'Card_a',target:'Join_d'}),expect.objectContaining({source:'Card_b',target:'Join_d'}),expect.objectContaining({source:'Join_d',target:'Card_c'})]));
@@ -50,6 +65,31 @@ describe('esboço AS IS experimental por cards',()=>{
    if(!empty)expect(result.steps.filter(step=>step.vinculo_gw).map(step=>step.vinculo_gw.label)).toEqual(branches.map(b=>b.nome));
   }
  });
+ it('distribui saídas entre as pontas do gateway sem sobrepor trechos de setas',()=>{
+  for(const count of [2,3,4,6]){
+   const branches=Array.from({length:count},(_,index)=>({id:'b'+index,nome:'Caminho '+index,cards:[task('t'+index)]}));
+   const result=compile([{id:'g',type:'decision',nome:'Escolher',branches}]);
+   const outgoing=result.flows.filter(flow=>flow.source==='Card_g');
+   expect(new Set(outgoing.map(flow=>JSON.stringify(flow.points[0]))).size).toBe(Math.min(4,count));
+   const segments=result.flows.flatMap(flow=>flow.points.slice(1).map((point,index)=>[flow.points[index],point]));
+   const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+   for(let i=0;i<segments.length;i++)for(let j=i+1;j<segments.length;j++){
+    const [a,b]=segments[i],[c,d]=segments[j];
+    if(cross(a,b,c)!==0||cross(a,b,d)!==0)continue;
+    const axis=a.x===b.x?'y':'x',overlap=Math.min(Math.max(a[axis],b[axis]),Math.max(c[axis],d[axis]))-Math.max(Math.min(a[axis],b[axis]),Math.min(c[axis],d[axis]));
+    expect(overlap).toBeLessThanOrEqual(0);
+   }
+  }
+ });
+ it('usa links quando a ligação passaria por três raias e mantém setas entre duas',()=>{
+  const result=compile([task('a','A'),task('b','B'),task('c','C'),task('d','A')]);
+  const jump=result.flows.find(flow=>flow.source==='Card_c');
+  expect(result.nodes.find(node=>node.id===jump.target).type).toBe('intermediateThrowEvent');
+  expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_c',target:'Card_d'})]));
+  const owners=[...new Set(result.nodes.map(node=>node.owner))],byId=new Map(result.nodes.map(node=>[node.id,node]));
+  for(const flow of result.flows)expect(Math.abs(owners.indexOf(byId.get(flow.source).owner)-owners.indexOf(byId.get(flow.target).owner))).toBeLessThanOrEqual(1);
+  const adjacent=compile([task('a','A'),task('b','B')]);expect(adjacent.nodes.filter(node=>node.linkName)).toHaveLength(0);
+ });
  it('preserva ramos antigos e nomes livres em ramificações aninhadas com finais separados',()=>{
   const legacy={id:'old',type:'decision',nome:'Antiga',yes:[task('a')],no:[task('b')]},before=JSON.stringify(legacy);
   const result=compile([{id:'multi',type:'decision',nome:'Tipo?',join:false,branches:[{id:'p',nome:'Preferencial',cards:[legacy]},{id:'n',nome:'Normal',cards:[task('c')]},{id:'u',nome:'Urgente & especial',cards:[]}]}]);
@@ -59,10 +99,20 @@ describe('esboço AS IS experimental por cards',()=>{
  it('repete a correção até o XOR ser positivo e só então continua o processo',()=>{
   const cards=[task('prepare'),{id:'check',type:'decision',nome:'Documentação completa?',branches:[{id:'ok',nome:'Completa',cards:[task('approve')]},{id:'fix',nome:'Precisa corrigir',cards:[task('fix'),{id:'retry',type:'return',nome:'Reavaliar',targetId:'check'}]}]},task('archive')];
   const result=compile(cards),flows=logicalFlows(result);
-  expect(flows).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_fix',target:'Card_check'}),expect.objectContaining({source:'Card_approve',target:'Join_check'}),expect.objectContaining({source:'Join_check',target:'Card_archive'})]));
-  expect(flows.some(flow=>flow.source==='Card_fix'&&flow.target==='Join_check')).toBe(false);
+  expect(flows).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_fix',target:'Card_check'}),expect.objectContaining({source:'Card_approve',target:'Card_archive'})]));
+  expect(result.nodes.some(node=>node.id==='Join_check')).toBe(false);
   expect(result.steps.some(step=>step.bpmn_id==='Card_retry')).toBe(false);
   expect(result.nodes.filter(node=>node.type==='endEvent')).toHaveLength(1);
+ });
+ it('não cria uma junção para uma única saída e preserva seu rótulo',()=>{
+  for(const tail of [[],[task('next')]]){
+   const result=compile([task('before'),{id:'d',type:'decision',nome:'Prosseguir?',branches:[{id:'ok',nome:'Aprovado',cards:[]},{id:'retry',nome:'Revisar',cards:[{id:'r',type:'return',nome:'Voltar',targetId:'before'}]}]},...tail]);
+   expect(result.nodes.some(node=>node.id==='Join_d')).toBe(false);
+   expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_d',target:tail.length?'Card_next':'Cards_end',label:'Aprovado'})]));
+  }
+  const result=compile([{id:'d',type:'decision',nome:'Continuar?',yes:[{id:'e',type:'end',nome:'Final alternativo'}],no:[task('b')]},task('c')]);
+  expect(result.nodes.some(node=>node.id==='Join_d')).toBe(false);
+  expect(logicalFlows(result)).toEqual(expect.arrayContaining([expect.objectContaining({source:'Card_b',target:'Card_c'})]));
  });
  it('permite retorno direto à decisão ou à preparação anterior e rejeita saltos para outro caminho',()=>{
   for(const targetId of ['check','prepare']){
