@@ -193,7 +193,7 @@
         component.forEach(member => closed.add(member));
         issue(errors, 'CLOSED_LOOP', 'Ciclo sem saída em ' + names(component) + '. Inclua um caminho que permita chegar a um encerramento.', component);
       } else {
-        issue(warnings, 'LOOP_WITH_EXIT', 'Há repetição em ' + names(component) + '. Existe saída para um final; revise as condições para que ela possa ser escolhida.', component);
+        issue(warnings, 'LOOP_WITH_EXIT', 'Loop detectado envolvendo ' + names(component) + '. Há um caminho de saída, mas, se a condição de saída do gateway não for atendida, o processo poderá continuar repetindo esse trecho sem chegar ao final. Confira se essa repetição é esperada e se a condição de saída pode ser atendida.', component);
         const members = new Set(component);
         for (const member of component) {
           const node = byId.get(member);

@@ -11,7 +11,7 @@
 <link rel="icon" type="image/png" href="assets/siga-epp-icon.png">
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="src/processos/asis-cards.css?v=20261021-2">
-<script src="src/shared/asis-cards.js?v=20261021-9"></script>
+<script src="src/shared/asis-cards.js?v=20261021-10"></script>
 <script src="src/processos/asis-cards.js?v=20261021-8"></script>
 <link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261016-2">
 <script src="src/shared/indicadores-manuais.js?v=20261015-1"></script>
@@ -1268,7 +1268,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
       <div class="ph-t">Meus Processos</div>
       <div class="ph-s" id="meus-proc-sub">Acesso rápido aos processos e subprocessos vinculados ao seu macroprocesso</div>
     </div>
-    <button type="button" class="btn btn-p" onclick="abrirRegistroProcesso()">Registrar ocorrência</button>
+    <button type="button" class="btn btn-p" onclick="abrirRegistroProcesso()">Solicitações, ideias e sugestões</button>
   </div>
   <div id="meus-proc-summary" style="margin-bottom:1rem"></div>
   <div class="g3" id="meus-proc-list"></div>
@@ -2610,6 +2610,17 @@ function _blockMappingAccess(allowTask=false){
 function _epModuleAllowed(){
   return isEP() && !['dono','gestor'].includes(typeof usuarioLogado==='undefined'?'':usuarioLogado?.perfil);
 }
+const _ownerManagerModules={controles:'nb-controles',maturidadegestao:'nb-maturidadegestao'};
+function _ownerManagerModulesRestricted(){
+  return ['dono','gestor'].includes(usuarioLogado?.perfil) || (!isEP() && (hasPerfil('dono') || hasPerfil('gestor')));
+}
+function _blockOwnerManagerModule(page){
+  if(!_ownerManagerModules[page] || !_ownerManagerModulesRestricted())return false;
+  const element=document.getElementById('page-'+page),nav=document.getElementById(_ownerManagerModules[page]);
+  if(element){element.classList.remove('on');element.style.display='none';}
+  if(nav)nav.style.display='none';
+  go('meusprocessos',document.getElementById('nb-meusproc'));return true;
+}
 function _blockRestrictedModule(page){
   if(!['plano','auditoria'].includes(page) || _epModuleAllowed())return false;
   const element=document.getElementById('page-'+page);
@@ -2623,6 +2634,7 @@ function _blockRestrictedModule(page){
   return true;
 }
 function go(page,btn){
+  if(_blockOwnerManagerModule(page))return;
   if(_blockRestrictedModule(page))return;
   if(_mappingAccessRestricted() && ['processos','detalhe','novo'].includes(page)){
     if(page==='detalhe' && _mappingTaskAllowed()) return;
@@ -4357,6 +4369,11 @@ function _aplicarPermissoesAdminBadge(){
   nbAdmin.style.display = isEP() ? '' : 'none';
 }
 function aplicarPermissoes(){
+  for(const [page,navId] of Object.entries(_ownerManagerModules)){
+    const restricted=_ownerManagerModulesRestricted(),nav=document.getElementById(navId),element=document.getElementById('page-'+page);
+    if(nav)nav.style.display=restricted?'none':'';
+    if(element){element.style.display=restricted?'none':'';if(restricted&&element.classList.contains('on'))_blockOwnerManagerModule(page);}
+  }
   _aplicarPermissoesNavBtns();
   _aplicarPermissoesAdminBadge();
   // "Voltar para o hub" only visible when user has access to more than one module
