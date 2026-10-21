@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="src/processos/asis-cards.css?v=20261021-2">
 <script src="src/shared/asis-cards.js?v=20261021-10"></script>
-<script src="src/processos/asis-cards.js?v=20261021-8"></script>
+<script src="src/processos/asis-cards.js?v=20261021-11"></script>
 <link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261016-2">
 <script src="src/shared/indicadores-manuais.js?v=20261015-1"></script>
 <script src="src/processos/indicadores-manuais.js?v=20261015-1"></script>
@@ -36,6 +36,9 @@
 <script src="src/shared/firebase-helpers.js"></script>
 <script src="src/shared/bizagi-import.js"></script>
 <script src="src/processos/registros-processo.js"></script>
+<link rel="stylesheet" href="src/processos/mapear-processo.css?v=20261021-1">
+<script src="src/shared/mapeamento-colaborativo.js?v=20261021-1"></script>
+<script src="src/processos/mapear-processo.js?v=20261021-1"></script>
 <script src="src/shared/firestore-repositories.js"></script>
 <script src="src/shared/cadeia-valor.js?v=20261011-2"></script>
 <script src="src/processos/cadeia-valor-module.js?v=20261011-3"></script>
@@ -1158,6 +1161,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     <svg viewBox="0 0 16 16" fill="none"><path d="M2 3.5h5l1 1.5h6v7.5A1.5 1.5 0 0112.5 14h-9A1.5 1.5 0 012 12.5v-9z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
     Meus Processos <span class="nav-cnt" id="nb-meusproc-cnt">0</span>
   </button>
+  <button type="button" class="nav-btn" onclick="go('mapearprocesso',this)" id="nb-mapearprocesso" style="display:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1" y="2" width="5" height="4" rx="1"/><rect x="10" y="10" width="5" height="4" rx="1"/><path d="M6 4h6v6M10 8l2 2 2-2"/></svg>Mapear processo</button>
   <button type="button" class="nav-btn" onclick="go('fila',this)" id="nb-fila">
     <svg viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 7h8M2 11h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="11" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M13 10v1.5l1 1" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
     Minhas tarefas <span class="nav-cnt hot" id="nb-fila-cnt">0</span>
@@ -1262,6 +1266,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
 
 </div></div>
 
+<div id="page-mapearprocesso" class="page"></div>
 <div id="page-meusprocessos" class="page"><div style="padding:2rem">
   <div class="ph">
     <div>
@@ -2647,7 +2652,7 @@ function go(page,btn){
   _getPageRenderer(page)();
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
-  const ttl={fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de conhecimento',riscos:'Riscos',indicadores:'Indicadores',plano:'Plano de Trabalho',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',controles:'Catálogo de controles',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
+  const ttl={mapearprocesso:'Mapear processo',fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de conhecimento',riscos:'Riscos',indicadores:'Indicadores',plano:'Plano de Trabalho',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',controles:'Catálogo de controles',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
   const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão',licencaslite:'Central de Licenças SIGA Conecta'})[page]||'SIGA 2.0';
 }
 function _invokeGlobalHandler(handlerName){
@@ -2658,6 +2663,7 @@ function _invokeGlobalHandler(handlerName){
 function _getPageRenderer(page){
   const renderer = ({
     fila:rFila,
+    mapearprocesso:()=>MapearProcesso.render(),
     meusprocessos:rMeusProc,
     processos:renderProcs,
     arq:rArq,
@@ -2760,7 +2766,7 @@ function pbBadge(p){return '<span class="badge '+({Baixa:'bg',Media:'ba',Alta:'b
 function ibBadge(v){return '<span class="badge '+({Baixo:'bg',Medio:'ba',Alto:'br',Critico:'br'}[v]||'bgr')+'"'+(v==='Critico'?' style="background:var(--red);color:#fff"':'')+'>'+v+'</span>';}
 function updCounts(){
   document.getElementById('nb-total').textContent=processos.filter(isProcessoEmAndamento).length;
-  const _avisosCnt=_avisos.length+_getAvisosPAT().length+(isEP()?_registrosPendentes.length:0);
+  const _avisosCnt=MapearProcesso.count()+_avisos.length+_getAvisosPAT().length+(isEP()?_registrosPendentes.length:0);
   const _filaCnt=getTarefasUsr().length+(isEP()?0:processos.filter(p=>['vencida','pendente'].includes(_revStatus(p))&&['acompanha','auditoria'].includes(p.etapa)&&(p.dono===usuarioLogado?.nome||p.dono_email===usuarioLogado?.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id))).length)+_avisosCnt;
   document.getElementById('nb-fila-cnt').textContent=_filaCnt;
   const meusProcCnt=document.getElementById('nb-meusproc-cnt');
@@ -3025,7 +3031,7 @@ function _getAvisosPAT(){
 }
 
 function _htmlAvisos(){
-  const registrosHtml=htmlRegistrosPendentes();
+  const registrosHtml=htmlRegistrosPendentes()+MapearProcesso.notices();
   const avisosPAT = _getAvisosPAT();
   const total = _avisos.length + avisosPAT.length;
   if(!total) return registrosHtml;
@@ -3530,6 +3536,7 @@ function rPainelGestor(){
   },50);
 }
 function rFila(){
+  MapearProcesso.subscribe();
   registrosAtualizarAssinatura();
   if(!usuarioLogado)return;
   const tarefas=getTarefasUsr();
@@ -3541,12 +3548,12 @@ function rFila(){
     if(st!=='vencida'&&st!=='pendente') return false;
     return p.dono===usuarioLogado.nome||p.dono_email===usuarioLogado.email||usuarioTemAcessoArqId(usuarioLogado,p.arq_id);
   }) : [];
-  document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+((tarefas.length+(isEP()?_registrosPendentes.length:0))?(tarefas.length+(isEP()?_registrosPendentes.length:0))+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
+  document.getElementById('fila-sub').textContent=usuarioLogado.nome+' — '+((tarefas.length+MapearProcesso.count()+(isEP()?_registrosPendentes.length:0))?(tarefas.length+MapearProcesso.count()+(isEP()?_registrosPendentes.length:0))+' tarefa(s) pendente(s)':'nenhuma tarefa pendente');
   const ACT={abertura:'Abrir processo e vincular à arquitetura',questionario:'Responder questionário de maturidade',reuniao:'Conduzir reunião de entendimento',analise:'Elaborar análise inteligente do AS IS',esboco_asis:'Elaborar esboço AS IS com BPMN',riscos:'Identificar e avaliar riscos do processo',melhorias:'Revisar melhorias e mitigações identificadas',esboco_tobe:'Elaborar esboço TO BE com BPMN',det_valid_tobe:'Detalhar etapas e validar TO BE',pop:'Construir POP no padrão CAGE',apresentacao:'Apresentar ao gestor',publicacao:'Publicar no repositório oficial',acompanha:'Verificar conformidade na implementação',auditoria:'Conduzir análise de aderência do processo'};
   const el=document.getElementById('fila-content');
   if(!tarefas.length&&!_revPendDono.length){
     const avisosHtml=_htmlAvisos();
-    el.innerHTML=(isEP()&&_registrosPendentes.length?'':'<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>')+avisosHtml;
+    el.innerHTML=((isEP()&&_registrosPendentes.length)||MapearProcesso.count()?'':'<div style="text-align:center;padding:3rem"><div style="font-size:36px;margin-bottom:10px">✓</div><div style="font-size:15px;font-weight:600;color:var(--ink)">Você está em dia!</div><div style="font-size:12px;color:var(--ink3);margin-top:4px">Nenhuma tarefa pendente no momento.</div></div>')+avisosHtml;
     rMeusProc();return;
   }
   if(!tarefas.length&&_revPendDono.length){
@@ -4369,6 +4376,9 @@ function _aplicarPermissoesAdminBadge(){
   nbAdmin.style.display = isEP() ? '' : 'none';
 }
 function aplicarPermissoes(){
+  const mapNav=document.getElementById('nb-mapearprocesso');
+  if(mapNav)mapNav.style.display=(hasPerfil('dono')||hasPerfil('gestor'))?'':'none';
+  MapearProcesso.subscribe();
   for(const [page,navId] of Object.entries(_ownerManagerModules)){
     const restricted=_ownerManagerModulesRestricted(),nav=document.getElementById(navId),element=document.getElementById('page-'+page);
     if(nav)nav.style.display=restricted?'none':'';
@@ -5147,6 +5157,7 @@ function confirmarReabrir(){
 // NOVO PROCESSO (vinculado à arquitetura)
 // ═══════════════════════════════════════════
 function abrirNovoProc(){
+  MapearProcesso.clearImport();
   // Populate macroprocesso select
   const sel=document.getElementById('novo-macro');
   sel.innerHTML='<option value="">Selecione...</option>'+ARQUITETURA.map(m=>`<option value="${esc(m.id)}">${esc(m.nome)}</option>`).join('');
@@ -5277,6 +5288,7 @@ function criarProcesso(){
   const m=ARQUITETURA.find(x=>x.id===mid);
   const ap=findArqItem(mid,sid);
   if(!ap){toast('Processo não encontrado na arquitetura.','var(--amber)');return;}
+  try{MapearProcesso.validarImport(sid);}catch(error){toast(error.message,'var(--red)');return;}
   // Mark the item as linked
   ap.proc_id=nextProcId;
   const p={
@@ -5295,6 +5307,7 @@ function criarProcesso(){
   };
   syncDonoProcessoUsuario({ nome: p.dono, email: p.dono_email, arqId: p.arq_id });
   Riscos.adopt(p,ARQUITETURA);
+  try{MapearProcesso.applyImport(p);}catch(error){toast(error.message,'var(--red)');return;}
   processos.push(p);
   updCounts();
   renderAdmin();
@@ -12355,8 +12368,8 @@ function bpmnModelerOptions(container){
     additionalModules:[{__init__:['milestoneRenderer'],milestoneRenderer:['type',BpmnMilestoneRenderer]}],
   };
 }
-function bpmnAddMilestone(which,event){
-  const mod=bpmnModelers[which];
+function bpmnAddMilestone(which,event,workspaceModeler=null){
+  const mod=workspaceModeler || bpmnModelers[which];
   if(!mod) return;
   const registry=mod.get('elementRegistry');
   const shapes=registry.getAll().filter(el=>!el.waypoints && el.type!=='label' && !el.businessObject?.get('siga:milestone') && Number.isFinite(el.y));
@@ -16192,6 +16205,7 @@ function rPub(){
         <div class="pub-card-footer">
           <div class="pub-card-meta">${p.data?esc(p.data)+' · ':''}${esc(p.responsavel||'')}</div>
           <div class="pub-card-actions">
+            ${p.fluxo_colaborativo?`<button type="button" class="btn pub-action-btn" style="font-size:10px;padding:2px 8px" onclick="MapearProcesso.abrirPublicado(${Number(p.id)})">Abrir fluxo e atividades</button>`:''}
             ${safeUrl(p.url)?`<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener noreferrer" class="btn pub-action-btn pub-action-open" style="font-size:10px;padding:2px 8px">Abrir documento</a>`:''}
             ${p.categoria==='POPs'&&!p.url&&((p.proc_ids||[]).length||(p.arq_ids||[]).length)?`<button type="button" class="btn btn-a" style="font-size:10px;padding:2px 8px" onclick="_pubGerarPopPdfFromPub(${p.id})">⬇ PDF do POP</button>`:''}
             ${['POPs','Fluxos'].includes(p.categoria)?_pubGetBpmnUrls(p).map(({url,label})=>{const _h=safeUrl(url);const _lbl=label?esc(label):'BPMN';return _h?`<a href="${esc(_h)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:10px;padding:2px 8px">🔷 ${_lbl}</a>`:''}).join(''):''}
@@ -16315,7 +16329,7 @@ function salvarPub(){
   const editId = document.getElementById('pub-edit-id').value;
   if(editId){
     const idx = publicacoes.findIndex(p=>p.id===Number.parseInt(editId));
-    if(idx>=0){ obj.id=Number.parseInt(editId); publicacoes[idx]=obj; }
+    if(idx>=0){ obj.id=Number.parseInt(editId); if(publicacoes[idx].fluxo_colaborativo)obj.fluxo_colaborativo=publicacoes[idx].fluxo_colaborativo; publicacoes[idx]=obj; }
   } else {
     obj.id = _pubIdC++;
     publicacoes.push(obj);

@@ -146,6 +146,60 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Rascunhos de fluxos enviados por donos e gestores; revisão e publicação pelo EPP.
+    match /mapeamentos_colaborativos/{id} {
+      function eligibleAuthor() {
+        return isAuth() && (request.auth.token.get('perfil', '') in ['dono', 'gestor']
+          || request.auth.token.get('perfis', []).hasAny(['dono', 'gestor']));
+      }
+      function validFlow() {
+        let d = request.resource.data;
+        return d.keys().hasAll(['autor_uid','autor_email','autor_nome','nome','macro_id','macro_nome','arq_id','tipo','objetivo','status','revisao','conteudo','aviso_lido','atualizado_em'])
+          && d.keys().hasOnly(['autor_uid','autor_email','autor_nome','nome','macro_id','macro_nome','arq_id','tipo','objetivo','status','revisao','conteudo','aviso_lido','atualizado_em','publicacao_id','revisor_uid','observacoes_revisao'])
+          && d.autor_uid is string && d.autor_email is string
+          && d.autor_nome is string && d.autor_nome.size() > 0 && d.autor_nome.size() <= 200
+          && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 240
+          && d.macro_id is string && d.macro_id.size() > 0 && d.macro_id.size() <= 200
+          && d.macro_nome is string && d.macro_nome.size() <= 1000
+          && d.arq_id is string && d.arq_id.size() <= 200
+          && d.tipo in ['asis','tobe'] && d.status in ['rascunho','enviado','publicado']
+          && d.objetivo is string && d.objetivo.size() > 0 && d.objetivo.size() <= 3000
+          && d.revisao is int && d.revisao > 0 && d.aviso_lido is bool
+          && d.conteudo is string && d.conteudo.size() <= 700000
+          && d.atualizado_em is string && d.atualizado_em.size() <= 30;
+      }
+      function immutableAuthor() {
+        return request.resource.data.autor_uid == resource.data.autor_uid
+          && request.resource.data.autor_email == resource.data.autor_email
+          && request.resource.data.autor_nome == resource.data.autor_nome
+          && request.resource.data.tipo == resource.data.tipo;
+      }
+      allow read: if isAuth() && ((isEP() && resource.data.status in ['enviado','publicado']) || resource.data.autor_uid == request.auth.uid);
+      allow create: if eligibleAuthor() && validFlow()
+        && request.resource.data.autor_uid == request.auth.uid
+        && request.resource.data.autor_email == request.auth.token.email
+        && request.resource.data.status == 'rascunho' && request.resource.data.revisao == 1
+        && request.resource.data.aviso_lido == false
+        && !request.resource.data.keys().hasAny(['publicacao_id','revisor_uid','observacoes_revisao']);
+      allow update: if isAuth() && validFlow() && immutableAuthor() && (
+        (resource.data.autor_uid == request.auth.uid && eligibleAuthor()
+          && resource.data.status == 'rascunho' && request.resource.data.status in ['rascunho','enviado']
+          && request.resource.data.revisao == resource.data.revisao + 1
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['conteudo','status','revisao','atualizado_em']))
+        || (isEP() && resource.data.status == 'enviado'
+          && request.resource.data.status in ['enviado','publicado']
+          && request.resource.data.revisao == resource.data.revisao + 1
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['conteudo','status','revisao','atualizado_em','arq_id','macro_id','macro_nome','publicacao_id','aviso_lido','revisor_uid','observacoes_revisao'])
+          && (request.resource.data.status == 'enviado' || (
+            request.resource.data.arq_id.size() > 0 && request.resource.data.revisor_uid == request.auth.uid
+            && request.resource.data.aviso_lido == false
+            && getAfter(/databases/$(database)/documents/publicacoes/$(string(request.resource.data.publicacao_id))).data.fluxo_colaborativo.origem_id == id
+            && getAfter(/databases/$(database)/documents/publicacoes/$(string(request.resource.data.publicacao_id))).data.fluxo_colaborativo.conteudo == request.resource.data.conteudo)))
+        || (resource.data.autor_uid == request.auth.uid && resource.data.status == 'publicado'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['aviso_lido']) && request.resource.data.aviso_lido == true));
+      allow delete: if false;
+    }
+
     // Sessões: cada usuário acessa apenas a própria.
     match /sessions/{uid} {
       allow read, write: if isAuth() && request.auth.uid == uid;
