@@ -108,11 +108,7 @@
     if(state.builder){
       state.process.mod=await state.builder.snapshot();state.process.mod.editor_modo='simplificado';
       state.loading=true;try{await state.modeler.importXML(state.process.mod[keys(state.record.tipo).xml]);}finally{state.loading=false;}
-    }else{const {xml}=await state.modeler.saveXML({format:true});state.process.mod[keys(state.record.tipo).xml]=xml;if(!state.published)state.process.mod.editor_modo='avancado';}
-  }
-  function drawDetails(state){
-    const k=keys(state.record.tipo),steps=state.process.mod[k.steps] || [],disabled=editable(state.record)?'':'disabled';
-    state.dialog.querySelector('[data-details]').innerHTML=steps.length?steps.map((step,index)=>`<details class="mapping-step"><summary>${h(step.seq || index+1)}. ${h(step.nome)} · ${h(step.tipo)}</summary><div class="g2">${[['executor','Responsável / raia'],['entradas','Entradas e pré-requisitos'],['saidas','Resultado esperado / saídas'],['docs','Documentos e sistemas utilizados']].map(([key,label])=>`<label class="fg"><span class="fl">${label}</span><input class="fi" data-step="${index}" data-field="${key}" maxlength="2000" value="${h(step[key])}" ${disabled}></label>`).join('')}</div><label class="fg"><span class="fl">Como executar esta etapa</span><textarea class="fi" data-step="${index}" data-field="desc" maxlength="10000" ${disabled} placeholder="Explique o passo a passo, as verificações e os cuidados necessários para um novo executor.">${h(step.desc)}</textarea></label></details>`).join(''):'<p class="ph-s">Após desenhar, clique em Extrair atividades para documentar como cada etapa deve ser executada. Você também pode encaminhar somente o desenho.</p>';
+    }else{const {xml}=await state.modeler.saveXML({format:true});const k=keys(state.record.tipo);state.process.mod[k.xml]=xml;if(!state.published)state.process.mod[k.steps]=domain.extract(xml,state.process.mod[k.steps] || []);if(!state.published)state.process.mod.editor_modo='avancado';}
   }
   async function open(id){
     if(!allowed())return;if(active){toast('Feche o desenho atual antes de abrir outro.','var(--amber)');return;}
@@ -127,15 +123,11 @@
     state.close=()=>{state.builder?.destroy();state.modeler?.destroy();dialog.remove();if(active===state)active=null;render();};
     if(typeof go==='function')go('mapearprocesso',document.getElementById('nb-mapearprocesso'));
     page.replaceChildren(dialog);
-    dialog.innerHTML=`<div class="mapping-header"><div><h1 class="ph-t">${h(record.nome)}</h1><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS · Processo atual':'TO BE · Processo futuro'} · ${h(labels[record.status])}</p><p>${h(record.objetivo)}</p></div><button type="button" class="btn" data-close>Voltar aos mapeamentos</button></div>${edit?'<div class="mapping-modes" role="group" aria-label="Modo de criação"><button type="button" class="btn" data-mode="simplificado" aria-pressed="true">Modo Simplificado</button><button type="button" class="btn" data-mode="avancado" aria-pressed="false">Modo Avançado</button></div><p class="ph-s" data-mode-help>No Modo Simplificado, adicione e organize os cards. O desenho BPMN é gerado automaticamente.</p>':'<p class="ib ibb">Fluxo disponível para consulta e exportação.</p>'}<div class="mapping-toolbar">${edit?'<button type="button" class="btn btn-p" data-save>Salvar rascunho</button><button type="button" class="btn btn-t" data-extract>Extrair atividades</button>':''}<div class="mapping-advanced-tools" data-advanced-tools ${edit?'hidden':''}>${edit?'<button type="button" class="btn" data-undo>Desfazer</button><button type="button" class="btn" data-redo>Refazer</button><button type="button" class="btn" data-phase>+ Fase (milestone)</button><button type="button" class="btn" data-import>Importar BPMN</button><input type="file" data-import-file accept=".bpmn,.xml" hidden>':''}<button type="button" class="btn" data-fit>Ajustar</button><button type="button" class="btn" data-zoom="1.2" aria-label="Ampliar desenho">+</button><button type="button" class="btn" data-zoom="0.8" aria-label="Reduzir desenho">−</button></div><div class="mapping-export-tools"><button type="button" class="btn" data-export="png">Baixar imagem PNG</button><button type="button" class="btn" data-export="xml">Baixar BPMN</button><button type="button" class="btn" data-export="xlsx">Exportar planilha</button></div></div><p class="mapping-status" data-status role="status">Carregando desenho…</p><div data-simplified></div><div class="mapping-canvas" data-canvas ${edit?'hidden':''}></div><section class="card mapping-details"><h3>Detalhamento das atividades</h3><p class="ph-s">Depois de desenhar, extraia as atividades e descreva o passo a passo para orientar um novo executor.</p><div data-details></div></section><p class="mapping-error" data-workspace-error role="alert"></p><div class="btn-row">${edit&&record.status==='rascunho'?'<button type="button" class="btn btn-p" data-submit>Encaminhar ao EPP</button>':''}${edit&&record.status==='enviado'&&reviewer()?'<button type="button" class="btn btn-p" data-publish>Vincular à arquitetura e publicar</button>':''}${reviewer()?'<button type="button" class="btn" data-recover>Aproveitar em mapeamento completo / POP</button>':''}</div>`;
+    dialog.innerHTML=`<div class="mapping-header"><div><h1 class="ph-t">${h(record.nome)}</h1><p class="ph-s">${h(record.macro_nome)} · ${record.tipo==='asis'?'AS IS · Processo atual':'TO BE · Processo futuro'} · ${h(labels[record.status])}</p><p>${h(record.objetivo)}</p></div><button type="button" class="btn" data-close>Voltar aos mapeamentos</button></div>${edit?'<div class="mapping-modes" role="group" aria-label="Modo de criação"><button type="button" class="btn" data-mode="simplificado" aria-pressed="true">Modo Simplificado</button><button type="button" class="btn" data-mode="avancado" aria-pressed="false">Modo Avançado</button></div><p class="ph-s" data-mode-help>No Modo Simplificado, adicione e organize os cards. O desenho BPMN é gerado automaticamente.</p><p class="ib ibb">Clique em cada card e preencha o campo <strong>Detalhamento da execução</strong> com o máximo de informações: passo a passo, documentos, sistemas, verificações e cuidados necessários. Assim, novos executores poderão aprender a realizar o processo.</p>':'<p class="ib ibb">Fluxo disponível para consulta e exportação.</p>'}<div class="mapping-toolbar">${edit?'<button type="button" class="btn btn-p" data-save>Salvar rascunho</button>':''}<div class="mapping-advanced-tools" data-advanced-tools ${edit?'hidden':''}>${edit?'<button type="button" class="btn" data-undo>Desfazer</button><button type="button" class="btn" data-redo>Refazer</button><button type="button" class="btn" data-phase>+ Fase (milestone)</button><button type="button" class="btn" data-import>Importar BPMN</button><input type="file" data-import-file accept=".bpmn,.xml" hidden>':''}<button type="button" class="btn" data-fit>Ajustar</button><button type="button" class="btn" data-zoom="1.2" aria-label="Ampliar desenho">+</button><button type="button" class="btn" data-zoom="0.8" aria-label="Reduzir desenho">−</button></div><div class="mapping-export-tools"><button type="button" class="btn" data-export="png">Baixar imagem PNG</button><button type="button" class="btn" data-export="xml">Baixar BPMN</button><button type="button" class="btn" data-export="xlsx">Exportar planilha</button></div></div><p class="mapping-status" data-status role="status">Carregando desenho…</p><div data-simplified></div><div class="mapping-canvas" data-canvas ${edit?'hidden':''}></div><p class="mapping-error" data-workspace-error role="alert"></p><div class="btn-row">${edit&&record.status==='rascunho'?'<button type="button" class="btn btn-p" data-submit>Encaminhar ao EPP</button>':''}${edit&&record.status==='enviado'&&reviewer()?'<button type="button" class="btn btn-p" data-publish>Vincular à arquitetura e publicar</button>':''}${reviewer()?'<button type="button" class="btn" data-recover>Aproveitar em mapeamento completo / POP</button>':''}</div>`;
     dialog.querySelector('[data-close]').onclick=()=>{
       if(state.busy){toast('Aguarde a gravação.','var(--amber)');return;}
       if(state.dirty&&!confirm('Há alterações não salvas. Deseja voltar e descartá-las?'))return;
       state.close();
-    };
-    dialog.querySelector('[data-details]').oninput=event=>{
-      const target=event.target;if(target.dataset.step===undefined||!edit)return;
-      state.process.mod[keys(record.tipo).steps][Number(target.dataset.step)][target.dataset.field]=target.value;markDirty(state);
     };
     async function act(action){
       if(state.busy||state.loading)return;state.busy=true;
@@ -163,8 +155,7 @@
       markDirty(state);
     }
     dialog.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>{void act(()=>mode(button.dataset.mode));});
-    on('[data-save]',async()=>{await capture(state);await update(state);drawDetails(state);});
-    on('[data-extract]',async()=>{await capture(state);const k=keys(record.tipo);state.process.mod[k.steps]=domain.extract(state.process.mod[k.xml],state.process.mod[k.steps] || []);drawDetails(state);markDirty(state);dialog.querySelector('[data-details]').scrollIntoView({behavior:'smooth'});});
+    on('[data-save]',async()=>{await capture(state);await update(state);});
     on('[data-submit]',async()=>{
       await capture(state);if(!hasActivity(state))throw Error('Inclua pelo menos uma atividade no desenho antes de encaminhar.');
       if(!confirm('Encaminhar este desenho ao EPP? Após o envio, ele ficará disponível apenas para consulta enquanto aguarda revisão. O detalhamento das atividades é recomendado, mas não é obrigatório.'))return;
@@ -180,7 +171,7 @@
     if(importButton)importButton.onclick=()=>fileInput.click();
     if(fileInput)fileInput.onchange=()=>{void act(async()=>{
       const file=fileInput.files[0];if(!file)return;if(file.size>650000)throw Error('O arquivo BPMN deve ter no máximo 650 KB.');
-      if(!confirm('Importar este arquivo no lugar do desenho atual? Os detalhamentos existentes serão preservados até você extrair as atividades novamente.'))return;
+      if(!confirm('Importar este arquivo no lugar do desenho atual? Os detalhamentos das atividades correspondentes serão preservados ao salvar.'))return;
       const previous=(await state.modeler.saveXML()).xml;
       try{await state.modeler.importXML(await file.text());}catch{await state.modeler.importXML(previous);throw Error('O arquivo BPMN não pôde ser importado. O desenho anterior foi mantido.');}
       state.advancedChanged=true;state.modeler.get('canvas').zoom('fit-viewport');markDirty(state);fileInput.value='';
@@ -203,7 +194,7 @@
       }
       state.loading=false;
       state.modeler.on('commandStack.changed',()=>{if(edit&&!state.loading&&state.mode==='avancado'){state.advancedChanged=true;markDirty(state);}});
-      drawDetails(state);setStatus(state,edit?'Rascunho salvo. Alterações no desenho e no detalhamento devem ser salvas.':'Somente consulta.');
+      setStatus(state,edit?'Rascunho salvo. Alterações no desenho e no detalhamento devem ser salvas.':'Somente consulta.');
       dialog.scrollIntoView({block:'start'});
     }catch(e){state.loading=false;dialog.querySelector('[data-workspace-error]').textContent=e.message;}
   }
