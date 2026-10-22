@@ -14,7 +14,6 @@ siga2.0/
 ├── processos.html          # Módulo principal (monolito, ~18 mil linhas)
 ├── projetos.html           # Módulo de projetos (~1.3 mil linhas)
 ├── projetos-logic.js       # Lógica exclusiva do módulo de projetos
-├── projetos.shared.js      # Funções compartilhadas do módulo de projetos
 ├── styles.css              # CSS compartilhado entre módulos
 ├── src/
 │   ├── shared/             # Camada reutilizável entre módulos

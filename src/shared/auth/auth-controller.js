@@ -216,46 +216,6 @@
     await repo.set('usuarios', { data: JSON.stringify(lista) });
   }
 
-  // Garante que o usuário está em USUARIOS via Cloud Function registerUser.
-  // Necessário porque config/usuarios exige isEP() no Firestore — a Cloud
-  // Function usa o SDK admin e bypassa essa restrição de forma segura.
-  async function _garantirCadastroSiga(email, nome) {
-    if (globalScope._findUsuarioByEmail && globalScope._findUsuarioByEmail(email)) return;
-    const url = globalThis.CONFIG?.REGISTER_USER_URL;
-    if (!url) {
-      // Sem Cloud Function configurada: não é possível auto-registrar.
-      // O usuário precisará ser cadastrado pelo administrador.
-      throw new Error('Cadastro automático não disponível. Entre em contato com o administrador.');
-    }
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, nome: nome || email.split('@')[0] }),
-    });
-    const data = await resp.json().catch(function() { return {}; });
-    if (!resp.ok) throw new Error(data.error || 'Erro ao registrar no SIGA.');
-    // Adiciona localmente para o resto da sessão não precisar recarregar
-    if (!globalScope._findUsuarioByEmail || !globalScope._findUsuarioByEmail(email)) {
-      const palavras = (nome || email.split('@')[0]).trim().split(/\s+/).filter(Boolean);
-      const iniciais = (palavras.length >= 2
-        ? palavras[0][0] + palavras[palavras.length - 1][0]
-        : (palavras[0] || '?').slice(0, 2)).toUpperCase();
-      (globalScope.USUARIOS || []).push({
-        email, nome: palavras.join(' ') || email, perfil: 'dono',
-        perfis: ['dono', 'gerente_projeto'], iniciais,
-        macroprocessos_vinculados: [], processos_vinculados: [], trocar_senha: true,
-      });
-    }
-    // Notifica EPPs do novo cadastro automático
-    if (globalScope.enviarNotif) {
-      (globalScope.USUARIOS || []).filter(u => u.perfil === 'ep' && u.email).forEach(ep =>
-        globalScope.enviarNotif(ep.email, ep.nome,
-          'Usuário cadastrado automaticamente via "Primeiro Acesso": ' + email,
-          'Controle de Acesso', '', 'Sistema')
-      );
-    }
-  }
-
   /**
    * Primeiro acesso para usuário já cadastrado (envia reset de senha)
    * @async

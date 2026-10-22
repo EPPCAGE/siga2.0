@@ -1,5 +1,7 @@
 # SIGA Conecta 1.0.37 — dados locais, arquivos de rede e licença online
 
+> Documento histórico. A Central de Licenças e seus serviços foram retirados do código em 22/10/2026. As instruções e verificações de licenciamento abaixo não se aplicam ao código atual. Consulte [a retirada da Central](licencas-siga-lite.md).
+
 Na versão 1.0.38, o aviso de edição simultânea foi movido da faixa fixa para o pop-up inicial de importação. Esse pop-up permite importar um arquivo local/de rede ou continuar com os dados do computador. O aviso explica que alterações paralelas não são mescladas e geram bases diferentes, orientando a evitar uso simultâneo em mais de uma máquina.
 
 Validação: 65 testes unitários passaram, incluindo a transição do licenciamento e as transferências por arquivo. Os testes de interface validaram ativação, revogação, expiração, exportação, importação com cópia anterior e saída sem nuvem. O compartilhamento foi simulado em uma pasta separada; não houve acesso a um servidor SMB do órgão. O executável passou nas verificações de integridade, e o pacote foi conferido por `tools/verify-siga-local-package.cjs`.

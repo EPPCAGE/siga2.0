@@ -1,5 +1,7 @@
 # SIGA Conecta — alertas de prazo e uso simultâneo
 
+> Documento histórico. A Central de Licenças e seus serviços foram retirados do código em 22/10/2026. As instruções e verificações de licenciamento abaixo não se aplicam ao código atual. Consulte [a retirada da Central](licencas-siga-lite.md).
+
 > Histórico da versão 1.0.35. A versão 1.0.36 preserva os alertas locais e retira a presença e o licenciamento centralizados. Veja [a migração sem Firebase](siga-conecta-sem-firebase.md).
 
 ## Alertas em Minhas tarefas

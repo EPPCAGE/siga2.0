@@ -5,7 +5,6 @@ const admin = require("firebase-admin");
 const crypto = require("node:crypto");
 
 admin.initializeApp();
-Object.assign(exports, require('./licencas-lite').registrar(admin));
 Object.assign(exports, require('./plano-automacao').registrar(admin));
 Object.assign(exports, require('./riscos-alertas').registrar(admin));
 
