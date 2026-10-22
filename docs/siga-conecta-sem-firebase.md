@@ -1,5 +1,7 @@
 # SIGA Conecta 1.0.36 — independente dos projetos pessoais
 
+> Documento histórico. A Central de Licenças e seus serviços foram retirados do código em 22/10/2026. As instruções e verificações de licenciamento abaixo não se aplicam ao código atual. Consulte [a retirada da Central](licencas-siga-lite.md).
+
 > Documento histórico. Por decisão posterior, a versão 1.0.37 retomou o licenciamento pelo Firebase e retirou a integração com Drive. Veja [o procedimento atual](siga-conecta-local-licenca-online.md).
 
 A versão 1.0.36 não consulta o Firebase para ativação, validação de licença ou presença. A inicialização, a edição dos registros, os alertas em Minhas tarefas, os anexos e os backups locais funcionam sem serviço central. O diretório de dados e a identidade da instalação permanecem compatíveis com as versões anteriores.

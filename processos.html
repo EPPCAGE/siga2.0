@@ -16,7 +16,6 @@
 <link rel="stylesheet" href="src/processos/indicadores-manuais.css?v=20261016-2">
 <script src="src/shared/indicadores-manuais.js?v=20261015-1"></script>
 <script src="src/processos/indicadores-manuais.js?v=20261015-1"></script>
-<link rel="stylesheet" href="src/admin/licencas-lite.css?v=20261013-1">
 <link rel="stylesheet" href="src/processos/cadeia-valor.css?v=20261011-1">
 <link rel="stylesheet" href="src/processos/maturidade-gestao.css?v=20261011-3">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css" integrity="sha384-2WPRuHNLlqer/8fKQLOMZSWVINTz4vDTnIB1SXm75ubMI3oBGJyfvuOcPPc0Pfjh" crossorigin="anonymous">
@@ -1199,7 +1198,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
     Riscos
   </button>
   <button type="button" class="nav-btn" id="nb-controles" onclick="go('controles',this)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.5l5.5 2v4c0 3-2.2 5.4-5.5 7-3.3-1.6-5.5-4-5.5-7v-4z"/><path d="M5.5 8l1.7 1.7 3.3-3.4"/></svg>Catálogo de controles</button>
-  <button type="button" class="nav-btn" hidden style="display:none" onclick="go('licencaslite',this)" id="nb-licencaslite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6h6M5 9h6M5 12h3"/></svg>Central de Licenças SIGA Conecta</button>
   <button type="button" class="nav-btn" onclick="go('maturidadegestao',this)" id="nb-maturidadegestao">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 14h14M3 12V9h3v3M7 12V6h3v6M11 12V2h3v10"/></svg>Maturidade da gestão
   </button>
@@ -1454,7 +1452,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:.8rem 0}
   <div id="faq-c"></div>
 </div></div>
 
-<div id="page-licencaslite" class="page"><div class="ph"><div><div class="ph-t">Central de Licenças SIGA Conecta</div><div class="ph-s">Emissão de licenças e acompanhamento das instalações autorizadas</div></div></div><div id="siga-lite-licenses-content"></div></div>
 <div id="page-maturidadegestao" class="page"><div class="mg-page">
   <div class="ph"><div><div class="ph-t">Maturidade da gestão de processos</div><div class="ph-s">Diagnóstico institucional · 26 perguntas · 6 dimensões</div></div></div>
   <div id="maturidade-gestao-content"></div>
@@ -2657,13 +2654,9 @@ function go(page,btn){
   // Mobile: close drawer, update title
   if(globalThis.innerWidth<=720){mobClose();}
   const ttl={mapearprocesso:'Mapear processo',fila:'Minhas tarefas',meusprocessos:'Meus Processos',processos:'Processos',arq:'Arquitetura',faq:'Base de conhecimento',riscos:'Riscos',indicadores:'Indicadores',plano:'Plano de Trabalho',notificacoes:'Configuração Notificações',auditoria:'Análise de Aderência',publicacoes:'Publicações',controles:'Catálogo de controles',admin:'Usuários',detalhe:'Processo',painelgestor:'Painel do Gestor'};
-  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão',licencaslite:'Central de Licenças SIGA Conecta'})[page]||'SIGA 2.0';
+  const el=document.getElementById('mob-page-title');if(el)el.textContent=ttl[page]||({cadeiavalor:'Cadeia de valor',maturidadegestao:'Maturidade da gestão'})[page]||'SIGA 2.0';
 }
-function _invokeGlobalHandler(handlerName){
-  const handler = globalThis[handlerName];
-  if(typeof handler !== 'function') return;
-  return handler.apply(globalThis, Array.prototype.slice.call(arguments, 1));
-}
+
 function _getPageRenderer(page){
   const renderer = ({
     fila:rFila,
@@ -2673,7 +2666,6 @@ function _getPageRenderer(page){
     arq:rArq,
     cadeiavalor:rCadeiaValor,
     maturidadegestao:rMaturidadeGestao,
-    licencaslite:()=>{void globalThis.SigaLiteLicenses?.open();},
     faq:rFaq,
     riscos:rRiscos,
     indicadores:()=>{rInd();},
@@ -4088,7 +4080,6 @@ function _rAudRestoreRelatorio(p){
 }
 
 
-
 // ── FOLLOW-UP DE AUDITORIA ───────────────────────────────────────────────────
 function rAbaFollowup(p, aud){
   const hoje = new Date().toISOString().slice(0,10);
@@ -4356,7 +4347,6 @@ function taskCard(p,ACT){
 // function hasProjetosAccess(u) {...}
 // function isEP(u) {...}
 // function isDono() {...}
-
 
 
 function _aplicarPermissoesNavBtns(){
@@ -5359,17 +5349,7 @@ function av(etAtu, role, acao, _prazoEl, notifDest){
   rDetalhe();updCounts();
   fbSaveNow('av');
 }
-function confirmarNotifDono(etapaProxId){
-  const p=curProc;
-  if(!p||!p.dono) return;
-  const email=getDonoEmail(p);
-  if(!email){toast('E-mail do dono não encontrado no cadastro.','var(--amber)');return;}
-  const prazoEt=(p.prazos_dono||{})[etapaProxId]||p.prazo_dono||'';
-  const pz=prazoEt?prazoEt.split('-').reverse().join('/'):'a definir';
-  const acao='Nova tarefa: '+etLb(etapaProxId)+' — prazo: '+pz;
-  enviarNotif(email, p.dono, acao, p.nome, '', usuarioLogado?.nome||'EP');
-  toast('Notificação enviada para '+p.dono,'var(--teal)');
-}
+
 // Q009: definir prazo individual para etapa EP
 function definirPrazoEP(etapaId){
   const p=curProc;
@@ -5972,7 +5952,7 @@ function _dfbBlock(cls,label,arr,key,emoji){
   if(!arr.length)return'';
   return '<div class="analise-item" style="margin-bottom:.6rem"><div class="analise-cat '+cls+'">'+label+' ('+arr.length+')</div>'+arr.map(x=>dfbRow(key,x,emoji)).join('')+'</div>';
 }
-function _acaoBadgeCls(s){if(s==='Concluída'){return'bg';}if(s==='Em andamento'){return'ba';}return'bt';}
+
 function epManterItem(el){
   const p=curProc,texto=el.dataset.txt;
   if(!p.ent.analise.ep_override)p.ent.analise.ep_override=[];
@@ -6016,16 +5996,7 @@ function _renderAnexosProcedimento(anexos, i){
   ).join('');
   return '<div style="margin-top:.55rem"><div style="font-size:11px;color:var(--ink3);margin-bottom:.25rem">Documentos anexados</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+items+'</div></div>';
 }
-function _renderAnexosAcao(anexos, i){
-  if(!anexos.length) return '';
-  const items=anexos.map((x,j)=>
-    '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--bdr);border-radius:6px;padding:2px 8px;font-size:11px">'+
-    `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--teal);text-decoration:none">📎 ${esc(x.nome||'Anexo')}</a>`+
-    `<button type="button" onclick="removerAnexoAcao(${i},${j})" style="background:none;border:none;cursor:pointer;color:var(--ink4);font-size:11px;padding:0 2px" title="Remover" aria-label="Remover anexo">✕</button>`+
-    '</span>'
-  ).join('');
-  return '<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:4px">'+items+'</div>';
-}
+
 
 function _iaSection(lbl,items,style){
   if(!items?.length)return'';
@@ -9037,24 +9008,7 @@ async function excluirAchado(idx){
     await fbSaveAll();
   });
 }
-function adicionarAcaoAuditoria(){
-  const p=curProc;if(!p)return;
-  if(!p.auditoria)p.auditoria={};
-  if(!p.auditoria.acoes_list)p.auditoria.acoes_list=[];
-  const a={
-    acao:document.getElementById('aud-ac-acao')?.value||'',
-    responsavel:document.getElementById('aud-ac-resp')?.value||'',
-    prazo:document.getElementById('aud-ac-prazo')?.value||'',
-    status:document.getElementById('aud-ac-status')?.value||'Pendente',
-    achado:document.getElementById('aud-ac-achado')?.value||'',
-    criada_em:now(),
-    anexos:[]
-  };
-  if(!a.acao){toast('Informe a ação','var(--red)');return;}
-  p.auditoria.acoes_list.push(a);
-  fbAutoSave('salvar');toast('Ação incluída!','var(--teal)');
-  rDetalhe();
-}
+
 function salvarRespostaAchado(idx){
   const p=curProc;if(!p)return;
   if(!p.auditoria?.achados_list){toast('Nenhum achado encontrado.','var(--red)');return;}
@@ -9285,93 +9239,7 @@ async function removerAnexoAchado(achadoIdx,anexoIdx){
   });
 }
 
-function toggleAnexoFormAcao(idx){
-  const el=document.getElementById('ac-anexo-form-'+idx);
-  if(!el)return;
-  const open=el.style.display==='flex';
-  el.style.display=open?'none':'flex';
-}
-function adicionarLinkAcao(idx){
-  const p=curProc;if(!p)return;
-  const nome=(document.getElementById('ac-link-nome-'+idx)?.value||'').trim();
-  const url=(document.getElementById('ac-link-url-'+idx)?.value||'').trim();
-  if(!url){toast('Informe a URL do documento','var(--red)');return;}
-  if(!url.startsWith('http')){toast('URL inválida','var(--red)');return;}
-  const acao=p.auditoria?.acoes_list?.[idx];
-  if(!acao)return;
-  if(!acao.anexos)acao.anexos=[];
-  acao.anexos.push({tipo:'link',nome:nome||url,url});
-  fbAutoSave('salvar');toast('Link adicionado!','var(--teal)');
-  rDetalhe();
-  const aud5Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud5"]');
-  if(aud5Tab) sstab('aud5',aud5Tab);
-}
-async function uploadArquivoAcao(idx,input){
-  const p=curProc;if(!p)return;
-  const file=input?.files?.[0];if(!file)return;
-  const acao=p.auditoria?.acoes_list?.[idx];if(!acao)return;
-  if(!acao.anexos)acao.anexos=[];
-  const {storage,storageRef,uploadBytes,getDownloadURL}=globalThis._fb||{};
-  if(!storage){toast('Armazenamento não disponível','var(--red)');return;}
-  const path=`auditoria/${p.id||'sem-id'}/acoes/${Date.now()}_${file.name.replaceAll(/[^a-zA-Z0-9._-]/g,'_')}`;
-  const ref=storageRef(storage,path);
-  try{
-    toast('Enviando arquivo…','var(--blue)');
-    await uploadBytes(ref,file);
-    const url=await getDownloadURL(ref);
-    acao.anexos.push({tipo:'arquivo',nome:file.name,url,path});
-    await fbSaveAll();
-    toast('Arquivo enviado!','var(--teal)');
-    rDetalhe();
-    const aud5Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud5"]');
-    if(aud5Tab) sstab('aud5',aud5Tab);
-  }catch(e){
-    console.error('upload erro',e);
-    toast('Erro ao enviar arquivo: '+e.message,'var(--red)');
-  }
-}
-async function removerAnexoAcao(acaoIdx,anexoIdx){
-  const p=curProc;if(!p)return;
-  confirmar('Remover este anexo?', async () => {
-    const acao=p.auditoria?.acoes_list?.[acaoIdx];if(!acao?.anexos)return;
-    const anexo=acao.anexos[anexoIdx];
-    if(anexo?.tipo==='arquivo'&&anexo.path){
-      const {storage,storageRef,deleteObject}=globalThis._fb||{};
-      if(storage&&anexo.path){
-        try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete storage err',e);}
-      }
-    }
-    acao.anexos.splice(anexoIdx,1);
-    toast('Anexo removido','var(--amber)');
-    rDetalhe();
-    const aud5Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud5"]');
-    if(aud5Tab) sstab('aud5',aud5Tab);
-    await fbSaveAll();
-  });
-}
-async function excluirAcaoAuditoria(idx){
-  const p=curProc;if(!p)return;
-  confirmar('Excluir esta ação?', async () => {
-    if(!p.auditoria?.acoes_list) return;
-    const acao=p.auditoria.acoes_list[idx];
-    if(acao?.anexos){
-      const {storage,storageRef,deleteObject}=globalThis._fb||{};
-      if(storage){
-        for(const anexo of acao.anexos){
-          if(anexo?.tipo==='arquivo'&&anexo.path){
-            try{await deleteObject(storageRef(storage,anexo.path));}catch(e){console.warn('delete storage err',e);}
-          }
-        }
-      }
-    }
-    p.auditoria.acoes_list.splice(idx,1);
-    toast('Ação excluída','var(--amber)');
-    rDetalhe();
-    const aud5Tab=document.getElementById('tab-acao')?.querySelector('.tab[onclick*="aud5"]');
-    if(aud5Tab) sstab('aud5',aud5Tab);
-    await fbSaveAll();
-  });
-}
+
 async function salvarRelatorioAuditoria(concluir){
   const p=curProc;if(!p)return;
   if(!p.auditoria)p.auditoria={};
@@ -11490,32 +11358,7 @@ function _popPdfVolumetriaSection(e, secH, fld){
       ${fld('Tempo de gaveta',e.t_gaveta==null?'':e.t_gaveta+' h')}
     </div>`;
 }
-function _popPdfIlpSection(p, secH){
-  const _comTobe=p.produto==='TO BE'||p.produto==='AS IS + TO BE';
-  const _ilpTobe=_comTobe&&((p.mod?.etapas_proc_tobe||[]).length||p.mod?.bpmnToBe);
-  const ilpData=_ilpTobe
-    ?calcILP(p.mod?.etapas_proc_tobe||[], p.mod?.bpmnToBe||null, p.mod?.retrabalhos_confirmados_tobe)
-    :calcILP(p.mod?.etapas_proc||[], p.mod?.bpmnAsIs||null, p.mod?.retrabalhos_confirmados);
-  if(!ilpData) return '';
-  const {ilp,total,gxorDiv,nAtores,nAuto=0,nSemi=0,nManual=0,hasR=false,qtdR=0}=ilpData;
-  const {bg:ilpBg,color:ilpColor,label:ilpLabel}=_rEntIlpPalette(ilp);
-  const ilpDesc=_rEntIlpInterpretacao(ilp,hasR,qtdR).replace(/^(?:✅|👍|⚠️|🔴)+\s*/u,'');
-  const modoRow=[['Manual',nManual,'#6b7280'],['Semi-automática',nSemi,'#6366f1'],['Automática',nAuto,'#10b981']]
-    .filter(([,c])=>c).map(([l,c,col])=>`<span style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-right:10px"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>${l}: <strong>${c}</strong></span>`).join('');
-  return `${secH('7.0','Índice Lean Processual')}
-    <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:.8rem">
-      <div style="background:${ilpBg};border-left:4px solid ${ilpColor};border-radius:6px;padding:12px 18px;text-align:center;min-width:130px;flex-shrink:0">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:${ilpColor};margin-bottom:4px">Índice Lean</div>
-        <div style="font-size:36px;font-weight:900;color:${ilpColor};line-height:1">${ilp}<span style="font-size:15px">/100</span></div>
-        <div style="font-size:11px;font-weight:700;color:${ilpColor};margin-top:4px">${ilpLabel}</div>
-      </div>
-      <div style="flex:1">
-        <div style="font-size:12px;color:#4a4a6a;line-height:1.55;margin-bottom:.7rem">${ilpDesc}</div>
-        <div style="flex-wrap:wrap">${modoRow}</div>
-        <div style="font-size:10px;color:#8888aa;margin-top:.4rem">Total atividades: <strong>${total}</strong> · Gateways divergentes: <strong>${gxorDiv}</strong> · Atores distintos: <strong>${nAtores}</strong></div>
-      </div>
-    </div>`;
-}
+
 
 // ─── Gera HTML do apêndice de caracterização do processo para o PDF ──────────
 async function _popPdfAnexo(p){
@@ -13531,11 +13374,7 @@ function _parseFaq(texto){
   }).filter(Boolean);
 }
 
-function _rFaqHl(txt, srch){
-  if(!srch) return esc(txt);
-  return esc(txt).replaceAll(new RegExp('('+srch.replaceAll(/[.*+?^${}()|[\]\\]/g,String.raw`\$&`)+')','gi'),
-    '<mark style="background:#fff176;border-radius:2px;padding:0 1px">$1</mark>');
-}
+
 function _faqSerialize(pares){
   return pares.map(({p,r})=>`P: ${p}\nR: ${r}`).join('\n\n');
 }
@@ -13548,55 +13387,8 @@ function _faqSalvarPares(procId, pares){
   rFaq();
   toast('FAQ atualizado.','var(--teal)');
 }
-function _rFaqItemHTML({p, r}, srch, procId){
-  const pEnc=encodeURIComponent(p);
-  const epCtrl=isEP()?`<div style="display:flex;gap:4px;margin-top:4px">
-    <button type="button" class="btn" style="font-size:10px;padding:1px 8px" onclick="event.stopPropagation();abrirEditarFaqItem(${procId},'${pEnc}')">✎ Editar</button>
-    <button type="button" class="btn" style="font-size:10px;padding:1px 8px;color:var(--red)" onclick="event.stopPropagation();excluirFaqItem(${procId},'${pEnc}')">× Excluir</button>
-  </div>`:'';
-  return `<div style="padding:.7rem 0;border-bottom:1px solid var(--bdr)">
-    <div style="font-weight:600;font-size:13px;color:var(--ink);margin-bottom:.3rem">❓ ${_rFaqHl(p, srch)}</div>
-    ${r ? `<div style="font-size:12.5px;color:var(--ink2);line-height:1.6;padding-left:1.1rem">${_rFaqHl(r, srch)}</div>` : ''}
-    ${epCtrl}
-  </div>`;
-}
-function _faqProcKey(macro, procNome){
-  return `${macro}::${procNome}`;
-}
-function toggleFaqProc(macro, procNome){
-  if(!globalThis._faqOpenProcKeys) globalThis._faqOpenProcKeys = new Set();
-  const key = _faqProcKey(macro, procNome);
-  if(globalThis._faqOpenProcKeys.has(key)) globalThis._faqOpenProcKeys.delete(key);
-  else globalThis._faqOpenProcKeys.add(key);
-  rFaq();
-}
-function _rFaqProcHTML(macro, procNome, procId, pares, srch){
-  const key = _faqProcKey(macro, procNome);
-  const expanded = !!srch || !!globalThis._faqOpenProcKeys?.has(key);
-  const macroArg = encodeURIComponent(macro);
-  const procArg = encodeURIComponent(procNome);
-  const addBtn=isEP()?`<button type="button" class="btn btn-p" style="font-size:10px;padding:2px 9px;flex-shrink:0" onclick="event.stopPropagation();abrirAdicionarFaqItem(${procId})">+ Pergunta</button>`:'';
-  return `
-    <div class="faq-proc">
-      <button type="button" class="faq-proc-btn" aria-expanded="${expanded?'true':'false'}" onclick="toggleFaqProc(decodeURIComponent('${macroArg}'), decodeURIComponent('${procArg}'))">
-        <svg viewBox="0 0 16 16" fill="none" class="faq-proc-icon" aria-hidden="true"><path d="M5 3l6 5-6 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="faq-proc-title">${esc(procNome)}</span>
-        <span class="faq-proc-count">${pares.length} pergunta${pares.length===1?'':'s'}</span>
-        ${addBtn}
-      </button>
-      ${expanded ? `<div class="faq-proc-body">${pares.map(par=>_rFaqItemHTML(par, srch, procId)).join('')}</div>` : ''}
-    </div>`;
-}
-function _rFaqMacroHTML(macro, procs, srch){
-  const procHtml = Object.keys(procs).sort().map(nome => _rFaqProcHTML(macro, nome, procs[nome].id, procs[nome].pares, srch)).join('');
-  return `
-    <div style="margin-bottom:1.8rem">
-      <div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:2px solid var(--blue)">
-        📂 ${esc(macro)}
-      </div>
-      ${procHtml}
-    </div>`;
-}
+
+
 function _abrirModalFaqItem(procId, titulo, pInicial, rInicial, onConfirm){
   document.getElementById('faq-item-modal')?.remove();
   const modal=document.createElement('div');
@@ -13635,22 +13427,8 @@ function abrirEditarFaqItem(procId, perguntaEncoded){
     _faqSalvarPares(procId,pares);
   });
 }
-function excluirFaqItem(procId, perguntaEncoded){
-  const pergunta=decodeURIComponent(perguntaEncoded);
-  confirmar('Excluir esta pergunta da FAQ?',()=>{
-    const proc=processos.find(x=>x.id===procId);
-    const pares=_parseFaq(proc?.form?.faq||'').filter(x=>x.p!==pergunta);
-    _faqSalvarPares(procId,pares);
-  });
-}
-function abrirAdicionarFaqItem(procId){
-  _abrirModalFaqItem(procId,'+ Nova pergunta','','',(novaP,novaR)=>{
-    const proc=processos.find(x=>x.id===procId);
-    const pares=_parseFaq(proc?.form?.faq||'');
-    pares.push({p:novaP,r:novaR});
-    _faqSalvarPares(procId,pares);
-  });
-}
+
+
 function rFaq(){
   const macroSelect=document.getElementById('busca-macro'),processSelect=document.getElementById('busca-processo');
   const macro=macroSelect?.value || '',processId=processSelect?.value || '';
@@ -13714,42 +13492,6 @@ function rBuscaGeral(type){
   }).join(''):'<div class="ib ibb">Nenhum resultado encontrado para a busca.</div>';
 }
 
-function _faqPopulateMacroSelect(macroSel, todos){
-  if(!macroSel || macroSel.options.length > 1) return;
-  const macroAtual = macroSel.value;
-  [...new Set(todos.map(p=>p.macro||'').filter(Boolean))].sort().forEach(m=>{
-    const opt = document.createElement('option');
-    opt.value = m;
-    opt.textContent = m;
-    macroSel.appendChild(opt);
-  });
-  if(macroAtual) macroSel.value = macroAtual;
-}
-function _faqBuildGroups(todos, filtMacro, srch){
-  const grupos={};
-  let totalPerguntas=0;
-  for(const proc of todos){
-    const macro = proc.macro || '(Sem macroprocesso)';
-    if(filtMacro && macro !== filtMacro) continue;
-    const pares = _faqFilterPairs(_parseFaq(proc.form.faq), srch);
-    if(!pares.length) continue;
-    if(!grupos[macro]) grupos[macro] = {};
-    if(!grupos[macro][proc.nome]) grupos[macro][proc.nome] = {id: proc.id, pares: []};
-    grupos[macro][proc.nome].pares.push(...pares);
-    totalPerguntas += pares.length;
-  }
-  return {grupos,totalPerguntas};
-}
-function _faqFilterPairs(pares, srch){
-  if(!srch) return pares;
-  const normalize=value=>String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  return pares.filter(({p,r})=>normalize(p+' '+r).includes(normalize(srch)));
-}
-function _faqCountLabel(totalPerguntas){
-  if(!totalPerguntas) return '';
-  const pergPlural = totalPerguntas===1 ? '' : 's';
-  return `${totalPerguntas} pergunta${pergPlural} encontrada${pergPlural}`;
-}
 
 function _separarItemArqDuplicado(item){
   const entry=_arqEntries().find(e=>e.item===item);
@@ -18976,7 +18718,6 @@ async function _fbLoadManualSet(key, applyLoaded, applyFallback){
 }
 
 
-
 // ── AUTO-SAVE HOOKS ───────────────────────
 // Wrap key mutation functions to auto-save after changes
 
@@ -19348,56 +19089,10 @@ async function chamarIA(mode, payload, targetEl){
     return null;
   }
 }
-function _iaPreencherCampoAnalise(id, valor){
-  if(!valor) return;
-  const campo = document.getElementById(id);
-  if(campo) campo.value = Array.isArray(valor) ? valor.join('\n') : valor;
-}
-function _iaAutopreencherAnaliseBpmn(p, json){
-  if(p.etapa !== 'analise' && p.etapa !== 'esboco_asis') return;
-  _iaPreencherCampoAnalise('an-gar', json.gargalos);
-  _iaPreencherCampoAnalise('an-ret', json.retrabalhos);
-  _iaPreencherCampoAnalise('an-gap', json.gaps);
-  _iaPreencherCampoAnalise('an-oport', json.oportunidades);
-  _iaPreencherCampoAnalise('an-comp', json.complexidade);
-}
-function _iaAnaliseBpmnHtml(json, which){
-  return `<div class="ai-result">
-    <div class="ai-result-lbl">✦ Análise IA — ${esc(which.toUpperCase())}</div>
-    <div style="margin-bottom:.5rem;color:var(--ink3)">${esc(json.resumo||'')}</div>
-    ${json.gargalos?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--red)">Gargalos:</strong> ${json.gargalos.map(g=>esc(g)).join(' · ')}</div>`:''}
-    ${json.retrabalhos?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--amber)">Retrabalhos:</strong> ${json.retrabalhos.map(r=>esc(r)).join(' · ')}</div>`:''}
-    ${json.gaps?.length?`<div style="margin-bottom:.3rem"><strong style="color:var(--purple)">Gaps:</strong> ${json.gaps.map(g=>esc(g)).join(' · ')}</div>`:''}
-    ${json.oportunidades?.length?`<div><strong style="color:var(--green)">Oportunidades:</strong> ${json.oportunidades.map(o=>esc(o)).join(' · ')}</div>`:''}
-    <div style="margin-top:.5rem;font-size:11px;color:var(--ink4)">Campos de análise preenchidos automaticamente ↑</div>
-  </div>`;
-}
+
 
 // ── 1. ANALISAR BPMN ─────────────────────
-async function iaAnalisarBpmn(which){
-  const p = curProc;
-  if(!p) return;
-  const xmlKey = which === 'asis' ? 'bpmnAsIs' : 'bpmnToBe';
-  const xml = p.mod?.[xmlKey];
-  if(!xml){ toast('Salve o BPMN antes de analisar.','var(--amber)'); return; }
 
-  const btn = document.getElementById('ia-bpmn-btn-'+which);
-  const el  = document.getElementById('ia-bpmn-result-'+which);
-  if(btn) btn.disabled = true;
-
-  const result = await chamarIA('analisar_bpmn', xml, el);
-
-  if(result){
-    try {
-      const json = JSON.parse(result);
-      _iaAutopreencherAnaliseBpmn(p, json);
-      el.innerHTML = _iaAnaliseBpmnHtml(json, which);
-    } catch {
-      el.innerHTML = `<div class="ai-result"><div class="ai-result-lbl">✦ Análise IA</div>${esc(result)}</div>`;
-    }
-  }
-  if(btn) btn.disabled = false;
-}
 
 // ── 2. GERAR POP ─────────────────────────
 function _confirmadosDeFeedback(fb, tipo){ return Object.entries(fb[tipo]||{}).filter(([,v])=>v==='confirmado').map(([k])=>k); }
@@ -20319,6 +20014,5 @@ function confirmarImportPOP(){
   </div>
 </div>
 
-<script src="src/admin/licencas-lite.js?v=4"></script>
 <script src="src/processos/central-controles-view.js?v=20261013-2"></script><script src="src/processos/central-controles-core.js?v=20261013-2"></script><script src="src/processos/central-controles.js?v=20261013-2"></script></body>
 </html>
