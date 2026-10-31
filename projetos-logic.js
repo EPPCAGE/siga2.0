@@ -5322,6 +5322,10 @@ function projImportJSON(){
     reader.onload = function(ev){
       try {
         let data = JSON.parse(ev.target.result);
+        if(data._meta?.formato==='SIGA_BACKUP_COMPLETO'){
+          projToast('Este é um backup completo de todos os módulos. A importação desta tela aceita apenas arquivos antigos de Projetos; a restauração completa exige procedimento administrativo.','#d97706');
+          return;
+        }
         if(!data.projetos || !Array.isArray(data.projetos)){
           projToast('Arquivo JSON invalido.','#d97706');
           return;

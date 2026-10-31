@@ -31,6 +31,7 @@ jobs:
             const cfg = {
               FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || '',
               AI_FUNCTION_URL: process.env.AI_FUNCTION_URL || '',
+              SYSTEM_BACKUP_URL: 'https://us-central1-' + process.env.FIREBASE_PROJECT_ID + '.cloudfunctions.net/systemBackup',
               CHECK_EMAIL_URL: process.env.CHECK_EMAIL_URL || '',
               SET_CLAIMS_URL: process.env.SET_CLAIMS_URL || '',
               REGISTER_USER_URL: process.env.REGISTER_USER_URL || '',
@@ -73,6 +74,7 @@ jobs:
               "$@"
           }
 
+          deploy_fn systemBackup
           deploy_fn checkEmail &
           deploy_fn setUserClaims &
           deploy_fn passwordResetLink &

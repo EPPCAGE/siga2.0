@@ -4,6 +4,8 @@
 globalThis.CONFIG = {
   FIREBASE_API_KEY: '',
   AI_FUNCTION_URL: '',
+  // Endpoint autenticado de backup completo, restrito ao EPP.
+  SYSTEM_BACKUP_URL: '',
 
   // URL da Cloud Function checkEmail (público, sem auth).
   // Elimina a leitura pública do Firestore no fluxo de Primeiro Acesso.
