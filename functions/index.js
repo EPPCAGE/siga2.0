@@ -678,3 +678,9 @@ exports.migrateAllUserClaims = onCall(async (request) => {
     );
   }
 });
+
+// Backup administrativo: paginação de dados e anexos, inclusive rascunhos privados.
+exports.systemBackup = onRequest({region:'us-central1',timeoutSeconds:120,memory:'512MiB'},require('./system-backup.cjs').handler({
+  auth:admin.auth(),setCorsHeaders,allowedOrigins:ALLOWED_ORIGINS,
+  read:values=>require('./system-backup.cjs').service({db:admin.firestore(),bucket:admin.storage().bucket(),types:admin.firestore})(values),
+}));

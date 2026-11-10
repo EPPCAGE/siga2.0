@@ -39,6 +39,7 @@
 <script src="src/shared/mapeamento-colaborativo.js?v=20261021-2"></script>
 <script src="src/processos/mapear-processo.js?v=20261021-5"></script>
 <script src="src/shared/firestore-repositories.js"></script>
+<script src="src/shared/system-backup.js?v=20261031-1"></script>
 <script src="src/shared/cadeia-valor.js?v=20261011-2"></script>
 <script src="src/processos/cadeia-valor-module.js?v=20261011-3"></script>
 <script src="src/shared/areas-arquitetura.js?v=20261021-1"></script>
@@ -16132,34 +16133,7 @@ function deletarPub(id){
 // ═══════════════════════════════════════════
 // ── BACKUP JSON ──────────────────────────────────────────────────────────────
 function exportarBackupJSON(){
-  const agora = new Date();
-  const ts = agora.toISOString().replaceAll('T',' ').slice(0,19);
-  const fileTs = agora.toISOString().slice(0,10);
-  const backup = {
-    _meta: {
-      sistema: ORG_CONFIG.systemFullName,
-      exportado_em: ts,
-      versao: '1',
-    },
-    processos,
-    kpis,
-    plano,
-    plano_metas: PAT_METAS,
-    publicacoes,
-    arquitetura: ARQUITETURA,
-    usuarios: USUARIOS,
-    mapeados_manual: [...mapeadosManual],
-    criticos_manual: [...criticosManual],
-  };
-  const json = JSON.stringify(backup, null, 2);
-  const blob = new Blob([json], {type: 'application/json'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `siga2-backup-${fileTs}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast(`Backup exportado: siga2-backup-${fileTs}.json`);
+  return SystemBackup.export().catch(error=>toast(error.message,'var(--red)'));
 }
 
 // ADMIN USUÁRIOS
