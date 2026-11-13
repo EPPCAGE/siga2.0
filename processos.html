@@ -19328,7 +19328,7 @@ function _buildKpiMacroprocessoCards(lista){
     ].filter(Boolean).join(' ');
     return `<div style="background:${bg};border:1.5px solid ${border};border-radius:8px;padding:10px 14px;min-width:140px;flex:1">
       <div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">${esc(nome)}</div>
-      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${taxa===null?'—':taxa+'%'}</div>
+      <div style="font-size:22px;font-weight:800;color:${cl};line-height:1">${taxa===null?'—':_formatarNumeroRelatorioIndicador(taxa)+'%'}</div>
       <div style="font-size:10px;color:#6b7280;margin-top:2px">${d.atingiram} de ${d.comMeta} atingiram a meta</div>
       <div style="font-size:10px;color:#9ca3af">${d.total} indicador${d.total===1?'':'es'} no total</div>
       ${extras?`<div style="margin-top:4px;display:flex;gap:8px">${extras}</div>`:''}
@@ -19457,6 +19457,12 @@ function _resultadoAnteriorIndicadorRelatorio(k, historico, filtros = {}){
   else if(prefixos[referencia.meses]) periodo = `${prefixos[referencia.meses]}${Math.floor(mes/referencia.meses)+1}/${ano}`;
   return {valor:total, periodo};
 }
+function _formatarNumeroRelatorioIndicador(valor){
+  const numero = parseNumBR(valor, null);
+  return Number.isFinite(numero)
+    ? numero.toLocaleString('pt-BR', {useGrouping:true, minimumFractionDigits:2, maximumFractionDigits:2})
+    : '\u2014';
+}
 function _rowIndicadorRelatorioPdf(k, resultadoAnterior = null){
   const und = k.unidade ? ' '+k.unidade : '';
   const hasMeta = _kpiMeta(k) !== null;
@@ -19471,10 +19477,10 @@ function _rowIndicadorRelatorioPdf(k, resultadoAnterior = null){
     <td>${esc(k.nome)}${_kpiEtiquetasHtml(k)}</td>
     <td style="font-size:10px;color:#6b7280">${esc(_macroprocessoIndicador(k))}</td>
     <td style="font-size:10px;color:#6b7280">${esc(k.area||'—')}</td>
-    <td style="text-align:center">${hasMeta?_kpiMeta(k)+und:'—'}</td>
-    <td style="text-align:center">${resultadoAnterior ? resultadoAnterior.valor.toLocaleString('pt-BR', {maximumFractionDigits:2})+esc(und)+`<div style="font-size:9px;color:#6b7280">${esc(resultadoAnterior.periodo)}</div>` : '—'}</td>
-    <td style="text-align:center;font-weight:600">${k._relatorio_media_trimestral ? k.realizado.toLocaleString('pt-BR', {maximumFractionDigits:2}) : k.realizado}${und}<div style="font-size:9px;font-weight:400;color:#6b7280">${esc(k.periodo||'—')}</div></td>
-    <td style="text-align:center;${pctStyle}">${pct===null?'—':pct+'%'}</td>
+    <td style="text-align:center">${hasMeta?_formatarNumeroRelatorioIndicador(_kpiMeta(k))+esc(und):'—'}</td>
+    <td style="text-align:center">${resultadoAnterior ? _formatarNumeroRelatorioIndicador(resultadoAnterior.valor)+esc(und)+`<div style="font-size:9px;color:#6b7280">${esc(resultadoAnterior.periodo)}</div>` : '—'}</td>
+    <td style="text-align:center;font-weight:600">${_formatarNumeroRelatorioIndicador(k.realizado)}${esc(und)}<div style="font-size:9px;font-weight:400;color:#6b7280">${esc(k.periodo||'—')}</div></td>
+    <td style="text-align:center;${pctStyle}">${pct===null?'—':_formatarNumeroRelatorioIndicador(pct)+'%'}</td>
     <td style="text-align:center"><span style="${badgeStyle}">${st.label}</span></td>
   </tr>`;
 }
@@ -19496,7 +19502,7 @@ function _resumoIndicadoresRelatorioPdf(lista){
   const critS = critTotal > 1 ? 's' : '';
   return {
     comMeta, atingiramG, taxaGeral, taxaCl,
-    taxaHtml: taxaGeral===null?'':`<div><strong>Taxa de atingimento geral:</strong> <strong style="color:${taxaCl}">${atingiramG}/${comMeta.length} (${taxaGeral}%)</strong></div>`,
+    taxaHtml: taxaGeral===null?'':`<div><strong>Taxa de atingimento geral:</strong> <strong style="color:${taxaCl}">${atingiramG}/${comMeta.length} (${_formatarNumeroRelatorioIndicador(taxaGeral)}%)</strong></div>`,
     destaqueHtml: destTotal?`<div style="color:#065f46">⭐ ${destTotal} destaque${destS}</div>`:'',
     criticoHtml: critTotal?`<div style="color:#7f1d1d">⚠ ${critTotal} crítico${critS}</div>`:''
   };
@@ -19591,7 +19597,7 @@ ${semIA?'':`<div class="sec">Análise dos Resultados</div>
   <tbody>${rows}</tbody>
   ${resumo.taxaGeral===null?'':`<tfoot><tr class="tfoot-row">
     <td colspan="7">Taxa de atingimento geral (indicadores com meta)</td>
-    <td style="text-align:center;font-size:14px;color:${resumo.taxaCl}">${resumo.atingiramG}/${resumo.comMeta.length} — ${resumo.taxaGeral}%</td>
+    <td style="text-align:center;font-size:14px;color:${resumo.taxaCl}">${resumo.atingiramG}/${resumo.comMeta.length} — ${_formatarNumeroRelatorioIndicador(resumo.taxaGeral)}%</td>
     <td></td>
   </tr></tfoot>`}
 </table>
