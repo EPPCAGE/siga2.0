@@ -50,11 +50,11 @@ describe('resultado do período anterior no relatório', () => {
     expect(c.anterior(media[0],history,filtros)).toEqual({valor:20,periodo:'T2/2026'});
     const rows=c.rows(current,history,filtros);
     expect(rows.match(/<tr /g)).toHaveLength(1);
-    expect(rows).toContain('60 unidades');
-    expect(rows).toContain('20 unidades');
+    expect(rows).toContain('60,00 unidades');
+    expect(rows).toContain('20,00 unidades');
     expect(rows).toContain('T3/2026');
     expect(rows).toContain('T2/2026');
-    expect(rows).toContain('60%');
+    expect(rows).toContain('60,00%');
   });
 
   it('compara medias na virada do ano e preserva registros trimestrais', () => {
@@ -80,7 +80,7 @@ describe('resultado do período anterior no relatório', () => {
     const lista=['jul','ago','set'].map((mes,i)=>({...kpi,periodo:mes+'/2026',realizado:[10,20,30][i],meta:[20,40,60][i]}));
     const media=c.media(lista,filtros);
     expect(media[0]).toMatchObject({realizado:20,meta:40});
-    expect(c.rows(lista,[],filtros)).toContain('50%');
+    expect(c.rows(lista,[],filtros)).toContain('50,00%');
     expect(c.media(media,filtros)[0].meta).toBe(40);
     expect(c.media(lista.map(k=>({...k,meta:null})),filtros)[0].meta).toBeNull();
   });
@@ -91,7 +91,7 @@ describe('resultado do período anterior no relatório', () => {
     expect(c.media(lista,filtros)[0].meta).toBe(0);
     const rows=c.rows(lista,[],filtros);
     expect(rows).not.toContain('Sem meta');
-    expect(rows).toContain(pct+'%');
+    expect(rows).toContain(pct.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})+'%');
     expect(rows).toContain(pct===100?'Meta atingida':'Muito abaixo');
   });
 
@@ -148,7 +148,7 @@ describe('resultado do período anterior no relatório', () => {
     for (const meta of [null, 30]) {
       const row = c.rows([{ ...kpi, meta }], history);
       expect(cell(row)).toContain('1,25 unidades');
-      expect(row).toContain(meta === null ? 'Sem meta' : '67%');
+      expect(row).toContain(meta === null ? 'Sem meta' : '67,00%');
       expect(row).not.toContain('IND-123');
       expect(row.match(/<td[ >]/g)).toHaveLength(8);
     }
