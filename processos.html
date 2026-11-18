@@ -13981,6 +13981,7 @@ function editProcArq(mid, pid){
 
 // Edit full metadata of a SUBPROCESSO
 function editSubArqFull(mid, pid, sid){
+  if(!isEP()){toast('Acesso restrito ao EP.','var(--amber)');return;}
   const m=ARQUITETURA.find(x=>x.id===mid);
   const p=m?.processos.find(x=>x.id===pid);
   const s=p?.subprocessos?.find(x=>x.id===sid);
@@ -13991,6 +13992,7 @@ function editSubArqFull(mid, pid, sid){
 // Modal genérico de edição de metadados
 function abrirModalMeta(item, onSave){
   const macroAtual=isEP()?ARQUITETURA.find(m=>m.processos.includes(item)):null;
+  const subOrigem=isEP()?ARQUITETURA.flatMap(m=>m.processos.map(p=>({macro:m,processo:p}))).find(({processo})=>(processo.subprocessos||[]).includes(item)):null;
   // Remove existing modal if any
   document.getElementById('meta-modal')?.remove();
   const modal=document.createElement('div');
@@ -14002,6 +14004,10 @@ function abrirModalMeta(item, onSave){
     ${macroAtual?`<div class="fg"><label class="fl" for="mm-macro">Macroprocesso</label>
       <select class="fi" id="mm-macro">${ARQUITETURA.map(m=>`<option value="${esc(m.id)}" ${m===macroAtual?'selected':''}>${esc(m.nome)}</option>`).join('')}</select>
       <div style="font-size:12px;color:var(--ink3)">Ao alterar, os subprocessos e seus mapeamentos acompanham o processo.</div>
+    </div>`:''}
+    ${subOrigem?`<div class="fg"><label class="fl" for="mm-processo">Processo de destino</label>
+      <select class="fi" id="mm-processo">${ARQUITETURA.map(m=>`<optgroup label="${esc(m.nome)}">${m.processos.map(p=>`<option value="${esc(JSON.stringify([m.id,p.id]))}" ${p===subOrigem.processo?'selected':''}>${esc(p.nome)}</option>`).join('')}</optgroup>`).join('')}</select>
+      <div style="font-size:12px;color:var(--ink3)">Ao alterar, o subprocesso e seus vínculos acompanham o processo de destino.</div>
     </div>`:''}
     <div class="g3">
       <div class="fg"><label class="fl">Natureza</label>
@@ -14034,6 +14040,7 @@ function abrirModalMeta(item, onSave){
   // Store reference to item
   modal._item=item;
   modal._macroOrigem=macroAtual;
+  modal._subOrigem=subOrigem;
   modal._onSave=onSave;
   modal.addEventListener('click',e=>{if(e.target===modal)modal.remove();});
 }
@@ -14049,6 +14056,13 @@ function salvarModalMeta(){
   if(modal._macroOrigem){
     const destino=ARQUITETURA.find(m=>m.id===document.getElementById('mm-macro')?.value);
     if(!_transferirProcArq(item,modal._macroOrigem,destino))return;
+  }
+  if(modal._subOrigem){
+    let ids;
+    try { ids=JSON.parse(document.getElementById('mm-processo')?.value || 'null'); } catch { ids=null; }
+    const macro=Array.isArray(ids)?ARQUITETURA.find(m=>m.id===ids[0]):null;
+    const destino=macro?.processos.find(p=>p.id===ids[1]);
+    if(!_transferirSubArq(item,modal._subOrigem.processo,destino))return;
   }
   const novoNome=document.getElementById('mm-nome').value.trim()||item.nome;
   if(novoNome!==item.nome && !_arqDuplicateIds().has(item.id)){
@@ -14068,6 +14082,27 @@ function salvarModalMeta(){
   modal.remove();
   fbAutoSave('salvarMeta');
   toast('Dados atualizados');
+}
+
+function _transferirSubArq(item, origem, destino){
+  const pais=ARQUITETURA.flatMap(m=>m.processos.map(p=>({macro:m,processo:p})));
+  const paiOrigem=pais.find(p=>p.processo===origem);
+  const paiDestino=pais.find(p=>p.processo===destino);
+  if(!isEP() || !paiOrigem || !paiDestino || !(origem.subprocessos||[]).includes(item)){
+    toast('Selecione um processo de destino válido. Reabra a edição se a arquitetura mudou.','var(--amber)');
+    return false;
+  }
+  if(origem===destino)return true;
+  const duplicados=_arqDuplicateIds();
+  if([item.id,origem.id,destino.id].some(id=>duplicados.has(id))){
+    toast('Resolva os IDs duplicados antes de mover o subprocesso.','var(--amber)');
+    return false;
+  }
+  origem.subprocessos.splice(origem.subprocessos.indexOf(item),1);
+  if(!destino.subprocessos)destino.subprocessos=[];
+  destino.subprocessos.push(item);
+  processos.forEach(proc=>{if(proc.arq_id===item.id)proc.macro=paiDestino.macro.nome;});
+  return true;
 }
 
 function _transferirProcArq(item, origem, destino){
